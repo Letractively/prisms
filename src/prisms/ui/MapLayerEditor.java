@@ -20,7 +20,7 @@ import prisms.arch.PrismsSession;
 import prisms.util.ArrayUtils;
 
 /**
- * Allows the user to edit and add layers to the IWEDA map
+ * Allows the user to edit and add layers to the PRISMS map
  */
 public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 {

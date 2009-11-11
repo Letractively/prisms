@@ -51,8 +51,8 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 	{
 		if(el == null)
 		{
-			log.error("No iweda configuration element was available!");
-			throw new IllegalStateException("No iweda configuration element was available!");
+			log.error("No PRISMS configuration element was available!");
+			throw new IllegalStateException("No PRISMS configuration element was available!");
 		}
 
 		if("true".equalsIgnoreCase(el.elementText("usePrismsConnection")))
@@ -105,7 +105,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 	{
 		if(connEl == null)
 		{
-			log.error("No iweda configuration element was available!");
+			log.error("No PRISMS configuration element was available!");
 			try
 			{
 				conn.close();

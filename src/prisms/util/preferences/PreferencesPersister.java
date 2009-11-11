@@ -14,7 +14,7 @@ import prisms.arch.event.PrismsProperty;
 import prisms.util.DBUtils;
 
 /**
- * Persists preferences needed by IWEDA to a database
+ * Persists preferences needed by PRISMS to a database
  */
 public class PreferencesPersister implements
 	prisms.util.persisters.UserSpecificPersister<Preferences>

@@ -102,7 +102,7 @@ public class PrismsUtils
 	}
 
 	/**
-	 * A quick function to write a properties map--intended for the IwedaEvent constructor
+	 * A quick function to write a properties map--intended for the PrismsEvent constructor
 	 * 
 	 * @param props The properties in name value pairs
 	 * @return A Map of the given properties
@@ -127,14 +127,14 @@ public class PrismsUtils
 	public static org.json.simple.JSONObject rEventProps(Object... props)
 	{
 		if(props.length % 2 != 0)
-			throw new IllegalArgumentException("IwedaUtils.eventProps takes an even number of"
+			throw new IllegalArgumentException("PrismsUtils.eventProps takes an even number of"
 				+ " arguments, not " + props.length);
 		org.json.simple.JSONObject ret = new org.json.simple.JSONObject();
 		for(int i = 0; i < props.length; i += 2)
 		{
 			if(!(props[i] instanceof String))
 				throw new IllegalArgumentException("Every other object passed to"
-					+ " IwedaUtils.eventProps must be a string, not " + props[i]);
+					+ " PrismsUtils.eventProps must be a string, not " + props[i]);
 			ret.put(props[i], props[i + 1]);
 		}
 		return ret;
