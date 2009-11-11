@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="PRISMS" default="jar" basedir=".">
+	<target name="jar">
+		<jar jarfile="prisms.jar">
+			<fileset dir="classes" />
+		</jar>
+	</target>
+</project>

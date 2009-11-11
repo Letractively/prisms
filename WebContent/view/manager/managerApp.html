@@ -1,0 +1,36 @@
+<div>
+	<div dojoType="prisms.DojoPrisms" dojoAttachPoint="dojoPrisms"></div>
+	<div dojoType="prisms.widget.UI" pluginName="UI"></div>
+	<div dojoType="dijit.layout.LayoutContainer" style="width:100%; height:100%;">
+		<div dojoType="dijit.Toolbar" layoutAlign="top">
+			<div dojoType="dijit.form.Button" dojoAttachPoint="loginButton"
+				dojoAttachEvent="onClick:_loginClicked">Login...</div>
+			<div dojoType="dijit.form.DropDownButton">
+				<span>Help</span>
+				<div dojoType="dijit.Menu">
+					<div dojoType="dijit.MenuItem" dojoAttachEvent="onClick:refresh">Refresh</div>
+					<div dojoType="dijit.MenuItem" dojoAttachEvent="onClick:showVersion">
+						About The PRISMS Manager</div>
+				</div>
+			</div>
+		</div>
+		<div dojoType="dijit.layout.BorderContainer" layoutAlign="client">
+			<div dojoType="dijit.layout.BorderContainer" region="left" style="width:25%">
+				<div dojoType="prisms.widget.ContentPane" region="top" style="height:50%">
+					<div dojoType="prisms.widget.ListModel" jsId="manager.instances.allAppsModel"
+						pluginName="All Applications"></div>
+					<div dojoType="prisms.widget.PrismsTree" model="manager.instances.allAppsModel"></div>
+				</div>
+				<div dojoType="prisms.widget.ContentPane" region="center" style="height:50%">
+					<div dojoType="prisms.widget.ListModel" jsId="manager.instances.allUsersModel"
+						pluginName="All Users"></div>
+					<div dojoType="prisms.widget.PrismsTree" model="manager.instances.allUsersModel"></div>
+				</div>
+			</div>
+			<div dojoType="prisms.widget.PrismsTabContainer" region="center" style="width:75%">
+				<a dojoType="dijit.layout.LinkPane" href="manager/users.html">Users</a>
+				<a dojoType="dijit.layout.LinkPane" href="manager/applications.html">Applications</a>
+			</div>
+		</div>
+	</div>
+</div>

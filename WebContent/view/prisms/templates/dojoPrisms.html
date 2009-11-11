@@ -1,0 +1,54 @@
+<div noDialogContainer="true">
+	<div dojoType="prisms.widget.PrismsDialog" dojoAttachPoint="loginDialog"
+		dojoAttachEvent="hide:_loginCanceled">
+		<table>
+			<tr><td colspan="2" dojoAttachPoint="loginMessageNode" style="color:red"></td></tr>
+			<tr dojoAttachPoint="userNameRow">
+				<td>User Name:</td>
+				<td><div dojoType="dijit.form.TextBox" dojoAttachPoint="userName"
+					dojoAttachEvent="_onKeyPress:_onKeyPress"></div></td>
+			</tr>
+			<tr dojoAttachPoint="passwordRow">
+				<td>Password:</td>
+				<td><input type="password" dojoAttachPoint="password"
+					dojoAttachEvent="onkeypress:_onKeyPress" /></td>
+			</tr>
+			<tr dojoAttachPoint="password2Row">
+				<td>Confirm Password:</td>
+				<td><input type="password" dojoAttachPoint="password2"
+					dojoAttachEvent="onkeypress:_onKeyPress" /></td>
+			</tr>
+			<tr>
+				<td><div dojoType="dijit.form.Button" dojoAttachEvent="onClick:_submit">OK</div></td>
+				<td><div dojoType="dijit.form.Button" dojoAttachEvent="onClick:_loginCanceled">Cancel</div></td>
+			</tr>
+		</table>
+	</div>
+	<div dojoType="prisms.widget.PrismsDialog" dojoAttachPoint="loadingDialog"
+		style="width:80%;text-align:center">
+		<div dojoAttachPoint="loadingMessageDiv" style="font-weight:bold;font-size:x-large"></div>
+		<div dojoType="dijit.ProgressBar" indeterminate="true"></div>
+	</div>
+	<div dojoType="prisms.widget.PrismsDialog" dojoAttachPoint="messageDialog"
+		dojoAttachEvent="hide:_restartNotified">
+		<table>
+			<tr><td dojoAttachPoint="messageNode"></td></tr>
+			<tr dojoAttachPoint="messageDialogOKRow"><td>
+				<div dojoType="dijit.form.Button" dojoAttachEvent="onClick:_restartNotified">OK</div>
+			</td></tr>
+		</table>
+	</div>
+	<iframe dojoAttachPoint="downloadFrame" src="" width="0" height="0" style="display:none"></iframe>
+	<div dojoType="prisms.widget.PrismsDialog" dojoAttachPoint="uploadDialog">
+		<form dojoAttachPoint="uploadForm" enctype="multipart/form-data" method="post"
+			dojoAttachEvent="onsubmit:_uploadSubmitted">
+			<table>
+				<tr><td dojoAttachPoint="uploadLabelCell"></td></tr>
+				<tr><td><input type="file" name="file" dojoAttachPoint="uploadFileField"
+					dojoAttachEvent="onchange:_fileChanged" /></td></tr>
+				<tr><td><input type="submit" value="Upload File" /></td></tr>
+			</table>
+			<iframe name="uploadTarget" src="" style="display:none"></iframe>
+		</form>
+	</div>
+</div>
