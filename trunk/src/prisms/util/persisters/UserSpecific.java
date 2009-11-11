@@ -7,7 +7,7 @@ import prisms.arch.PrismsSession;
 
 /**
  * Allows a user-specific property to be stored globally. The persister for this class must return a
- * value of type java.util.Map<iweda.app.arch.User, java.util.Map<String, Object>>
+ * value of type java.util.Map<prisms.arch.ds.User, java.util.Map<String, Object>>
  * 
  * @param <T> The type of property to manage
  */

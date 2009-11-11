@@ -10,7 +10,7 @@ import org.json.simple.JSONObject;
 import prisms.arch.PrismsSession;
 
 /**
- * An IWEDA plugin that manages a list of data
+ * An PRISMS plugin that manages a list of data
  */
 public class DataListMgrPlugin extends DataListManager implements prisms.arch.AppPlugin
 {
