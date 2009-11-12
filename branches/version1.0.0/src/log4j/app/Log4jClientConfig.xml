@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<client>
+	<monitors>
+	</monitors>
+	<plugins>
+		<plugin>
+			<name>UI</name>
+			<class>prisms.ui.UI</class>
+		</plugin>
+		<plugin>
+			<name>Logger Tree</name>
+			<class>log4j.ui.LoggerTree</class>
+		</plugin>
+		<plugin>
+			<name>Logger Editor</name>
+			<class>log4j.ui.LoggerEditor</class>
+		</plugin>
+	</plugins>
+</client>

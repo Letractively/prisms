@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+
+	<appender name="PRISMSSTDOUT" class="org.apache.log4j.ConsoleAppender">
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern"
+				value="[%d{ddMMMyyyy HH:mm:ss.SSS} %c %-5p] %m%n"/>
+		</layout>
+	</appender>
+
+	<category name="prisms" additivity="false">
+		<priority value="debug"/>
+		<appender-ref ref="PRISMSSTDOUT" />
+	</category>
+
+	<category name="manager" additivity="false">
+		<priority value="debug"/>
+		<appender-ref ref="PRISMSSTDOUT" />
+	</category>
+
+	<category name="log4j" additivity="false">
+		<priority value="debug"/>
+		<appender-ref ref="PRISMSSTDOUT" />
+	</category>
+
+	<category name="prisms.arch">
+		<priority value="info"/>
+	</category>
+
+	<category name="prisms.impl.DBClientConfig">
+		<priority value="info"/>
+	</category>
+
+	<category name="prisms.util.PRISMServiceConnector">
+		<priority value="info"/>
+	</category>
+
+	<root>
+		<priority value="debug" />
+		<appender-ref ref="PRISMSSTDOUT" />
+	</root>
+</log4j:configuration>
