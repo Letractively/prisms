@@ -167,8 +167,6 @@ function MapDragImageUtil(map){
 				}
 				if(!this.imageVisibles[r+imDiv][c+imDiv])
 				{
-					console.log("image["+r+"]["+c+"] is visible: ("+(xPos-x)+", "+(yPos-y)
-							+"), "+w_c+"x"+h_r);
 					this.images[r+imDiv][c+imDiv].src=this.map.prisms.getDynamicImageSource(
 						this.map.pluginName, "getMapImage", xPos-x, yPos-y, w, h, w_c, h_r)
 						+"&nocache="+this.map.noCache;
@@ -539,10 +537,8 @@ dojo.declare("prisms.widget.ImageMap", [dijit.layout._LayoutWidget, dijit._Templ
 	addMenuItems: function(evt){
 		var coords=this._mapEventCoords(evt);
 		delete this.pointActions;
-		console.log("Deleted point actions");
 		this.prisms.callApp(this.pluginName, "getPointActions", {
 			x: coords.x, y: coords.y, width: this.imageWidth, height: this.imageHeight}, {sync:true});
-		console.log("Called for point actions.", this.pointActions);
 		if(this.pointActions)
 		{
 			this.actionCoords=coords;
