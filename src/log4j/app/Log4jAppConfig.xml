@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <application>
-	<version>1.0.0</version>
-	<modified>24Apr2009</modified>
+	<version>1.0.1</version>
+	<modified>12Nov2009</modified>
 	<worker>
 		<type>threadpool</type>
 	</worker>
