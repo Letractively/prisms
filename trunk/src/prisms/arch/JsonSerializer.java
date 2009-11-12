@@ -23,7 +23,10 @@ public class JsonSerializer implements RemoteEventSerializer
 	{
 		String replaced = evtString.replaceAll("undefined", "null");
 		if(replaced != evtString)
+		{
 			log.warn("undefined found in JSON string");
+			evtString = replaced;
+		}
 		Object json;
 		try
 		{
