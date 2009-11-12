@@ -55,7 +55,7 @@ public class PreferencesPersister implements
 		{
 			stmt = theConnection.createStatement();
 			rs = stmt.executeQuery("SELECT pUser, pDomain, pName, pType, pDisplayed, pValue FROM "
-				+ DBOWNER + "iweda_preference WHERE pApp=" + DBUtils.toSQL(theApp.getName()));
+				+ DBOWNER + "prisms_preference WHERE pApp=" + DBUtils.toSQL(theApp.getName()));
 			while(rs.next())
 			{
 				String user = rs.getString(1);
@@ -173,17 +173,17 @@ public class PreferencesPersister implements
 		{
 			stmt = theConnection.createStatement();
 			if(value == null)
-				stmt.execute("DELETE FROM " + DBOWNER + "iweda_preference " + whereClause);
+				stmt.execute("DELETE FROM " + DBOWNER + "prisms_preference " + whereClause);
 			else
 			{
 				String valueS = pref.getType().serialize(value);
-				rs = stmt.executeQuery("SELECT COUNT(*) FROM " + DBOWNER + "iweda_preference "
+				rs = stmt.executeQuery("SELECT COUNT(*) FROM " + DBOWNER + "prisms_preference "
 					+ whereClause);
 				if(rs.next() && rs.getInt(1) > 0)
-					stmt.executeUpdate("UPDATE " + DBOWNER + "iweda_preference SET pValue = "
+					stmt.executeUpdate("UPDATE " + DBOWNER + "prisms_preference SET pValue = "
 						+ DBUtils.toSQL(valueS) + " " + whereClause);
 				else
-					stmt.execute("INSERT INTO " + DBOWNER + "iweda_preference "
+					stmt.execute("INSERT INTO " + DBOWNER + "prisms_preference "
 						+ "(pApp, pUser, pDomain, pName, pType, pDisplayed, pValue) VALUES ("
 						+ DBUtils.toSQL(theApp.getName()) + ", " + DBUtils.toSQL(user.getName())
 						+ ", " + DBUtils.toSQL(pref.getDomain()) + ", "
@@ -219,7 +219,7 @@ public class PreferencesPersister implements
 		try
 		{
 			stmt = theConnection.createStatement();
-			stmt.execute("DELETE FROM " + DBOWNER + "iweda_preference WHERE pUser = "
+			stmt.execute("DELETE FROM " + DBOWNER + "prisms_preference WHERE pUser = "
 				+ DBUtils.toSQL(user.getName()) + " AND pDomain = " + DBUtils.toSQL(domain)
 				+ " AND pApp=" + DBUtils.toSQL(theApp.getName()));
 		} catch(SQLException e)
