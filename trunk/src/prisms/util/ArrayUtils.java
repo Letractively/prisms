@@ -142,6 +142,27 @@ public final class ArrayUtils
 		return anArray;
 	}
 
+	/**
+	 * Moves an element in a primitive array from one index to another
+	 * 
+	 * @param anArray The array to move an element within
+	 * @param from The index of the element to move
+	 * @param to The index to move the element to
+	 * @return The original array
+	 */
+	public static Object moveP(Object anArray, int from, int to)
+	{
+		if(anArray instanceof Object [])
+			return move((Object []) anArray, from, to);
+		final Object element = Array.get(anArray, from);
+		for(; from < to; from++)
+			Array.set(anArray, from, Array.get(anArray, from + 1));
+		for(; from > to; from--)
+			Array.set(anArray, from, Array.get(anArray, from - 1));
+		Array.set(anArray, to, element);
+		return anArray;
+	}
+
 	private static void put(Object array, Object element, int index)
 	{
 		try

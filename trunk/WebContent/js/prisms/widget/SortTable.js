@@ -91,6 +91,11 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		tr=table.insertRow(-1);
 
 		td=tr.insertCell(-1);
+		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Refresh</a>";
+		link=td.childNodes[0];
+		dojo.connect(link, "onclick", this, this._refresh);
+
+		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">&lt;&lt;First</a>";
 		link=td.childNodes[0];
 		this.firstLinks.push(link);
@@ -182,13 +187,25 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			else
 				this.pageBoxes[index].add(option, null);
 		}
-		this.pageBoxes[index].selectedIndex=(metadata.start-1)/metadata.count;
-		PrismsUtils.setTableCellVisible(this.firstLinks[index].parentNode, metadata.start>metadata.count);
-		PrismsUtils.setTableCellVisible(this.previousLinks[index].parentNode, metadata.start>0);
+		if(metadata.start%metadata.count!=1
+			|| (metadata.end%metadata.count!=0 && metadata.end!=metadata.total))
+		{
+			var option=document.createElement("option");
+			option.text=metadata.start+" - "+metadata.end;
+			if(dojo.isIE > 6)
+				this.pageBoxes[index].add(option, 0);
+			else
+				this.pageBoxes[index].add(option, null);
+			this.pageBoxes.selectedIndex=this.pageBoxes.options.length-1;
+		}
+		else
+			this.pageBoxes[index].selectedIndex=(metadata.start-1)/metadata.count;
+		PrismsUtils.setTableCellVisible(this.firstLinks[index].parentNode, metadata.start>metadata.count+1);
+		PrismsUtils.setTableCellVisible(this.previousLinks[index].parentNode, metadata.start>1);
 		PrismsUtils.setTableCellVisible(this.nextLinks[index].parentNode,
-			metadata.end<metadata.total-1);
+			metadata.end<metadata.total);
 		PrismsUtils.setTableCellVisible(this.lastLinks[index].parentNode,
-			metadata.end<metadata.total-metadata.count-1);
+			metadata.end<metadata.total-metadata.count);
 	},
 
 	setColumns: function(columns){
@@ -199,6 +216,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		for(c=0;c<columns.length;c++)
 		{
 			var newCell=this.headerRow.insertCell(c+1);
+			newCell.align="center";
 			newCell.appendChild(this._createColumnHeader(columns[c]));
 		}
 	},
@@ -215,28 +233,30 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 	_createColumnHeader: function(column){
 		var text=document.createElement("span");
 		text.style.fontWeight="bold";
+		text.style.fontSize="large"
 		text.innerHTML=column.label;
 		if(column.sortable)
 		{
 			var cellTable=document.createElement("table");
-			var tr=cellTable.insertRow(0);
-			var td=tr.insertCell(0);
-			td.rowSpan=2;
+			var tr=cellTable.insertRow(-1);
+			var td=tr.insertCell(-1);
 			td.appendChild(text);
-			td=tr.insertCell(1);
+			td=tr.insertCell(-1);
+			var iconTable=document.createElement("table");
+			td.appendChild(iconTable);
 			var img=document.createElement("img");
 			img.src=this.sortAscIcon;
 			img.title="Sort Ascending";
-			td.appendChild(img);
+			iconTable.insertRow(-1).insertCell(-1).appendChild(img);
+			img.parentNode.style.fontSize="0px";
 			this.dojoConnects.push(dojo.connect(img, "onclick", this, function(){
 				this.sortOn(column.label, true);
 			}));
-			tr=cellTable.insertRow(1);
-			td=tr.insertCell(0);
 			img=document.createElement("img");
 			img.src=this.sortDescIcon;
 			img.title="Sort Descending";
-			td.appendChild(img);
+			iconTable.insertRow(-1).insertCell(-1).appendChild(img);
+			img.parentNode.style.fontSize="0px";
 			this.dojoConnects.push(dojo.connect(img, "onclick", this, function(){
 				this.sortOn(column.label, false);
 			}));
@@ -285,6 +305,15 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		}
 		if(dataCell.tooltip)
 			labelCell.title=dataCell.tooltip; //TODO Parse \n into <br />
+		if(dataCell.style)
+		{
+			if(dataCell.style.bold)
+				labelCell.style.fontWeight="bold";
+			if(dataCell.style.bgColor)
+				labelCell.style.backgroundColor=dataCell.style.bgColor;
+			if(dataCell.style.fontColor)
+				labelCell.style.color=dataCell.style.fontColor;
+		}
 		if(dataCell.icon)
 		{
 			var img=document.createElement("img");
@@ -346,15 +375,14 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 
 	_nextClicked: function(){
 		var start=this.tableData.metadata.start+this.tableData.metadata.count;
-		if(start>=this.tableData.metadata.total)
-			start=this.tableData.metadata.total-1;
+		if(start>this.tableData.metadata.total)
+			start=this.tableData.metadata.total;
 		this.navTo(start);
 	},
 
 	_lastClicked: function(){
-		var start=this.tableData.metadata.total-this.tableData.metadata.count+1;
-		if(start<1)
-			start=1;
+		var start=Math.round(this.tableData.metadata.total/this.tableData.metadata.count)
+			*this.tableData.metadata.count+1;
 		this.navTo(start);
 	},
 
@@ -367,6 +395,10 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		else if(start>=this.tableData.metadata.total)
 			start=this.tableData.metadata.total;
 		this.navTo(start);
+	},
+
+	_refresh: function(){
+		this.navTo(this.tableData.metadata.start);
 	},
 
 	navTo: function(index){
