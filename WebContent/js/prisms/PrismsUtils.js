@@ -32,6 +32,25 @@ window.PrismsUtils =  {
 		return ret;
 	},
 
+	displayTab: function(widget){
+		var tab=widget;
+		var prevTab;
+		while(tab!=null)
+		{
+			if(tab.tablist)
+			{
+				var parentTab=prevTab;
+				var parentTabContainer=tab;
+				parentTabContainer.selectChild(parentTab);
+			}
+			if(tab.domNode)
+				prevTab=tab;
+			else if(tab.id && tab.id.length()>0)
+				prevTab=dijit.byId(tab.id);
+			tab=this.getParent(tab);
+		}
+	},
+
 	fixUnicodeString: function(str){
 		if(str==null)
 			return str;

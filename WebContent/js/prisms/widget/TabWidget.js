@@ -90,9 +90,13 @@ dojo.declare("prisms.widget.TabWidget", [dijit._Widget, dijit._Contained], {
 		return this.parentTabContainer.selectedChildWidget==this.parentTab;
 	},
 
-	setSelected: function(selected){
+	setSelected: function(selected, recursive){
 		if(selected)
+		{
 			this.parentTabContainer.selectChild(this.parentTab);
+			if(recursive)
+				PrismsUtils.displayTab(PrismsUtils.getParent(this.parentTabContainer));
+		}
 		else
 		{
 			if(this.isSelected()){
