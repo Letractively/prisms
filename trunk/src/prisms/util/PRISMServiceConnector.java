@@ -111,7 +111,7 @@ public class PRISMServiceConnector
 	 * @param serviceURL The base URL of the service
 	 * @param appName The name of the application to access
 	 * @param serviceName The name of the service configuration to access
-	 * @param userName
+	 * @param userName The name of the user to connect as
 	 */
 	public PRISMServiceConnector(String serviceURL, String appName, String serviceName,
 		String userName)

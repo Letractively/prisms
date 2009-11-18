@@ -64,7 +64,7 @@ public class SubClassMap<C, V>
 	 *        associated with <code>clazz</code>'s nearest superclass unless there is another entry
 	 *        in the map for a subtype of <code>clazz</code> that is also a supertype of the
 	 *        argument to get(Class).
-	 * @param allDescending
+	 * @param allDescending Whether all subclasses of <code>clazz</code> should be removed as well
 	 */
 	public void remove(Class<? extends C> clazz, boolean allDescending)
 	{

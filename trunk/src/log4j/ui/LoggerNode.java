@@ -19,9 +19,9 @@ public class LoggerNode extends SimpleTreePluginNode
 	private Logger theLog;
 
 	/**
-	 * @param manager
-	 * @param parent
-	 * @param publicActions
+	 * @param manager The tree manager for this node
+	 * @param parent This node's parent
+	 * @param publicActions Whether this node should expose itself to publicly-added actions
 	 * @param log The Logger for this node to represent
 	 */
 	public LoggerNode(DataTreeMgrPlugin manager, DataTreeNode parent, boolean publicActions,

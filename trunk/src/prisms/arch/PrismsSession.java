@@ -346,6 +346,8 @@ public class PrismsSession
 			AppPlugin plugin = getPlugin(pluginName);
 			if(plugin != null)
 				plugin.initClient();
+			else
+				log.error("Client requested plugin " + pluginName + " does not exist!");
 		}
 		else if("getEvents".equals(evt.get("method")))
 			return;
