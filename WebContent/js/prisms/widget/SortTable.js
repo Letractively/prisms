@@ -91,11 +91,6 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		tr=table.insertRow(-1);
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Refresh</a>";
-		link=td.childNodes[0];
-		dojo.connect(link, "onclick", this, this._refresh);
-
-		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">&lt;&lt;First</a>";
 		link=td.childNodes[0];
 		this.firstLinks.push(link);
@@ -202,10 +197,8 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			this.pageBoxes[index].selectedIndex=(metadata.start-1)/metadata.count;
 		PrismsUtils.setTableCellVisible(this.firstLinks[index].parentNode, metadata.start>metadata.count+1);
 		PrismsUtils.setTableCellVisible(this.previousLinks[index].parentNode, metadata.start>1);
-		PrismsUtils.setTableCellVisible(this.nextLinks[index].parentNode,
-			metadata.end<metadata.total);
-		PrismsUtils.setTableCellVisible(this.lastLinks[index].parentNode,
-			metadata.end<metadata.total-metadata.count);
+		this.nextLinks[index].parentNode.style.visibility=(metadata.end<metadata.total) ? "visible" : "hidden";
+		this.lastLinks[index].parentNode.style.visibility=(metadata.end<metadata.total-metadata.count) ? "visible" : "hidden";
 	},
 
 	setColumns: function(columns){
