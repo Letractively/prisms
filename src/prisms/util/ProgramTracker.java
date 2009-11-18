@@ -207,7 +207,7 @@ public class ProgramTracker
 	/**
 	 * Prints the data gathered by this tracker to the given stream
 	 * 
-	 * @param out
+	 * @param out The stream to print this tracker's compiled information to
 	 */
 	public final void printData(java.io.PrintStream out)
 	{
