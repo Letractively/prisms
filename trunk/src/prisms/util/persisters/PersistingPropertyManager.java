@@ -15,7 +15,8 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 	private Persister<T> thePersister;
 
 	/**
-	 * @see prisms.arch.event.PropertyManager#configure(prisms.arch.PrismsApplication, org.dom4j.Element)
+	 * @see prisms.arch.event.PropertyManager#configure(prisms.arch.PrismsApplication,
+	 *      org.dom4j.Element)
 	 */
 	@Override
 	public void configure(prisms.arch.PrismsApplication app, org.dom4j.Element configEl)
@@ -29,8 +30,8 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 		else
 			persister = null;
 		setPersister(persister);
-		org.dom4j.Element eventEl = configEl.element("changeEvent");
-		if(eventEl != null)
+		java.util.List<org.dom4j.Element> eventEls = configEl.elements("changeEvent");
+		for(org.dom4j.Element eventEl : eventEls)
 		{
 			String eventName = eventEl.elementTextTrim("name");
 			if(eventName == null)
@@ -40,6 +41,8 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 			if(propName == null)
 				throw new IllegalArgumentException("Cannot listen for change event on property "
 					+ getProperty() + ". No eventProperty specified");
+			// Put the property name and type in here so the event listener can find this property
+			// manager
 			eventEl.addElement("persistProperty").setText(getProperty().getName());
 			eventEl.addElement("type").setText(getProperty().getType().getName());
 			app.addEventListenerType(eventName, PersistingChangeListener.class, eventEl);
