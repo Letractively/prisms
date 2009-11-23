@@ -6,8 +6,14 @@ package prisms.ui;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+/**
+ * A structure that allows for easier construction of the data content of a SortTable widget
+ */
 public class SortTableStructure
 {
+	/**
+	 * Represents a row in the table
+	 */
 	public class TableRow
 	{
 		private boolean isSelected;
@@ -21,21 +27,34 @@ public class SortTableStructure
 				theCells[i] = new TableCell();
 		}
 
+		/**
+		 * @param cellIdx The index of the cell to get
+		 * @return The TableCell at the given index
+		 */
 		public TableCell cell(int cellIdx)
 		{
 			return theCells[cellIdx];
 		}
 
+		/**
+		 * @return Whether this row is selected or not
+		 */
 		public boolean isSelected()
 		{
 			return isSelected;
 		}
 
+		/**
+		 * @param s Whether this row is selected or not
+		 */
 		public void setSelected(boolean s)
 		{
 			isSelected = s;
 		}
 
+		/**
+		 * Clears this row of all data (does not remove the rows)
+		 */
 		public void clear()
 		{
 			isSelected = false;
@@ -43,6 +62,9 @@ public class SortTableStructure
 				cell.clear();
 		}
 
+		/**
+		 * @return An object representing this TableRow
+		 */
 		public JSONObject serialize()
 		{
 			JSONObject ret = new JSONObject();
@@ -51,6 +73,9 @@ public class SortTableStructure
 			return ret;
 		}
 
+		/**
+		 * @return All cells in this row, serialized
+		 */
 		public JSONArray serializeCells()
 		{
 			JSONArray ret = new JSONArray();
@@ -60,6 +85,9 @@ public class SortTableStructure
 		}
 	}
 
+	/**
+	 * Represents a cell in the table
+	 */
 	public class TableCell
 	{
 		private String theLabel;
@@ -74,11 +102,17 @@ public class SortTableStructure
 
 		private java.awt.Color theFontColor;
 
+		/**
+		 * @return The text for this cell
+		 */
 		public String getLabel()
 		{
 			return theLabel;
 		}
 
+		/**
+		 * @param label The text for this cell
+		 */
 		public void setLabel(String label)
 		{
 			if(label == null)
@@ -86,21 +120,37 @@ public class SortTableStructure
 			theLabel = label;
 		}
 
+		/**
+		 * @return The ID that will be passed to the server if this cell's link is clicked, or null
+		 *         if this cell is not linkable
+		 */
 		public JSONObject getLinkID()
 		{
 			return theLinkID;
 		}
 
+		/**
+		 * @param linkID The ID that should be passed to the server if this cell's link is clicked,
+		 *        or null if this cell should not be linkable
+		 */
 		public void setLinkID(JSONObject linkID)
 		{
 			theLinkID = linkID;
 		}
 
+		/**
+		 * @return The location of the icon to display in this cell, or null if this cell does not
+		 *         display an icon
+		 */
 		public Object getIcon()
 		{
 			return theIcon;
 		}
 
+		/**
+		 * @param icon The location of the icon to display in this cell, or null if this cell should
+		 *        not display an icon
+		 */
 		public void setIcon(Object icon)
 		{
 			if(!(icon == null || icon instanceof String || icon instanceof JSONObject))
@@ -109,26 +159,45 @@ public class SortTableStructure
 			theIcon = icon;
 		}
 
+		/**
+		 * @return Whether this cell will display its label in bold
+		 */
 		public boolean isBold()
 		{
 			return isBold;
 		}
 
+		/**
+		 * @param bold Whether this cell should display its label in bold
+		 */
 		public void setBold(boolean bold)
 		{
 			isBold = bold;
 		}
 
+		/**
+		 * @param color The color that should be displayed as the background for this cell
+		 */
 		public void setBGColor(java.awt.Color color)
 		{
 			theBGColor = color;
 		}
 
+		/**
+		 * @param color The color that should be displayed as the font color for this cell
+		 */
 		public void setFontColor(java.awt.Color color)
 		{
 			theFontColor = color;
 		}
 
+		/**
+		 * @param label The label that this cell should display
+		 * @param linkID The ID that should be passed to the server if this cell's link is clicked,
+		 *        or null if this cell should not be linkable
+		 * @param icon The location of the icon to display in this cell, or null if this cell should
+		 *        not display an icon
+		 */
 		public void set(String label, JSONObject linkID, Object icon)
 		{
 			theLabel = label;
@@ -139,6 +208,9 @@ public class SortTableStructure
 			theIcon = icon;
 		}
 
+		/**
+		 * Clears this cell's data
+		 */
 		public void clear()
 		{
 			theLabel = "";
@@ -149,6 +221,9 @@ public class SortTableStructure
 			theFontColor = null;
 		}
 
+		/**
+		 * @return Serializes this cell in a form readable by the SortTable widget
+		 */
 		public JSONObject serialize()
 		{
 			JSONObject ret = new JSONObject();
@@ -178,6 +253,11 @@ public class SortTableStructure
 
 	private TableRow [] theRows;
 
+	/**
+	 * Creates a table structure
+	 * 
+	 * @param columns The number of columns to be in the table
+	 */
 	public SortTableStructure(int columns)
 	{
 		theColumnNames = new String [columns];
@@ -185,27 +265,46 @@ public class SortTableStructure
 		theRows = new TableRow [0];
 	}
 
+	/**
+	 * @param colIdx The index of the column to get the name of
+	 * @return The name of the column at the given index
+	 */
 	public String getColumnName(int colIdx)
 	{
 		return theColumnNames[colIdx];
 	}
 
+	/**
+	 * @param colIdx The index of the column to get the sortability of
+	 * @return Whether table data can be sorted on the given column
+	 */
 	public boolean isSortable(int colIdx)
 	{
 		return theColumnSortables[colIdx];
 	}
 
+	/**
+	 * @param colIdx The index of the column to set metadata for
+	 * @param name The name for the column
+	 * @param sortable whether the column should be sortable
+	 */
 	public void setColumn(int colIdx, String name, boolean sortable)
 	{
 		theColumnNames[colIdx] = name;
 		theColumnSortables[colIdx] = sortable;
 	}
 
+	/**
+	 * @return The number of rows in this table
+	 */
 	public int getRowCount()
 	{
 		return theRows.length;
 	}
 
+	/**
+	 * @param count The number of rows that this table should display
+	 */
 	public void setRowCount(int count)
 	{
 		if(theRows.length == count)
@@ -222,11 +321,25 @@ public class SortTableStructure
 		theRows = newRows;
 	}
 
+	/**
+	 * @param rowIdx The index of the row to get
+	 * @return The TableRow at the given index
+	 */
 	public TableRow row(int rowIdx)
 	{
 		return theRows[rowIdx];
 	}
 
+	/**
+	 * Serializes this structure into an object that the SortTable dojo widget can understand
+	 * 
+	 * @param start The row index of the first row of data stored in this table
+	 * @param end The row index of the last row of data stored in this table
+	 * @param count The number of rows that are configured to be displayed to the user when the
+	 *        number of rows is not limited
+	 * @param total The total number of rows that are accessible to the user
+	 * @return The object to be passed as content to the SortTable widget
+	 */
 	public JSONObject serialize(int start, int end, int count, int total)
 	{
 		JSONObject ret = new JSONObject();
@@ -241,6 +354,9 @@ public class SortTableStructure
 		return ret;
 	}
 
+	/**
+	 * @return The serialized column headers of this table
+	 */
 	public JSONArray serializeColumns()
 	{
 		JSONArray ret = new JSONArray();
@@ -254,6 +370,9 @@ public class SortTableStructure
 		return ret;
 	}
 
+	/**
+	 * @return The serialized data content of this table
+	 */
 	public JSONArray serializeContent()
 	{
 		JSONArray ret = new JSONArray();
