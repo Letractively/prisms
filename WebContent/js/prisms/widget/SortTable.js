@@ -303,7 +303,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			if(dataCell.style.bold)
 				labelCell.style.fontWeight="bold";
 			if(dataCell.style.bgColor)
-				labelCell.style.backgroundColor=dataCell.style.bgColor;
+				td.style.backgroundColor=dataCell.style.bgColor;
 			if(dataCell.style.fontColor)
 				labelCell.style.color=dataCell.style.fontColor;
 		}
