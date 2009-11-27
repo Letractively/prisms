@@ -1,0 +1,19 @@
+#summary A high-level overview of the merits of the PRISMS framework to help developers or project managers decide if PRISMS is right for their project
+
+= High-Level PRISMS Overview =
+
+The PRISMS framework was created to make from-scratch development of flexible, *stateful* remote-based applications (e.g. web services and web applications) easier.  Any such remote-based application can benefit from PRISMS integration.  PRISMS can be used as a remote interface to code that is already written, but applications benefit most from complete PRISMS integration due to its integrated data management and messaging system.  It is best to consider using PRISMS at the beginning of the development cycle as good integration later may mean significant rewriting and redesigning.
+
+
+PRISMS excels at flexible, stateful remote applications due to the following features:
+  * An application framework conducive to automated data setup
+  * An user framework that allows for information hiding based on identity and permissions
+  * Several tools to ease information sharing between user sessions
+
+
+= Details =
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
