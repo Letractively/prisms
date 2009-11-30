@@ -265,9 +265,10 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		var checkBox=td.childNodes[0];
 		checkBox.checked=dataRow.selected ? "on" : null;
 		checkBox.sortTable=this;
-		this.dojoConnects.push(dojo.connect(checkBox, "onclick", checkBox, function(){
+		this.dojoConnects.push(dojo.connect(checkBox, "onclick", checkBox, function(event){
 			var idx=this.sortTable.tableData.metadata.start+rowIndex;
-			this.sortTable.selectChanged(idx, idx, this.checked ? true : false);
+			var selected=this.checked ? true : false;
+			this.sortTable._selectChanged(idx, selected, event.shiftKey);
 		}));
 		tr.selectCheck=checkBox;
 
@@ -325,6 +326,33 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		}
 		else
 			td.appendChild(labelCell);
+	},
+
+	_selectChanged: function(idx, selected, shift){
+		if(shift && this.lastSelectedIdx)
+		{
+			var start=this.lastSelectedIdx;
+			var end=idx;
+			if(start>end)
+			{
+				end=start;
+				start=idx;
+			}
+			for(var i=start;i<end;i++)
+			{
+				var rowIdx=i-this.tableData.metadata.start;
+				if(rowIdx<0 || i>this.tableData.metadata.end)
+					continue;
+				this.table.rows[this.headerRow.rowIndex+1+rowIdx].selectCheck.checked=this.lastSelected;
+			}
+			this.selectChanged(start, end, this.lastSelected);
+		}
+		else
+		{
+			this.selectChanged(idx, idx, selected);
+			this.lastSelectedIdx=idx;
+			this.lastSelected=selected;
+		}
 	},
 
 	_selectAllDisplayed: function(){
