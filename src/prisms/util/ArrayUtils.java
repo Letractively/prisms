@@ -1036,11 +1036,47 @@ public final class ArrayUtils
 	 * Gets the elements that the two arrays have in common. Elements are retrieved from the first
 	 * array.
 	 * 
+	 * @param <T> The type of the first array and the return array
+	 * @param <T2> The type of the second array
 	 * @param array1 The first array
 	 * @param array2 The second array
 	 * @return The elements in <code>array1</code> that occur at least once in <code>array2</code>
 	 */
-	public static Object [] commonElements(Object array1, Object array2)
+	public static <T, T2 extends T> T [] commonElements(T [] array1, T2 [] array2)
+	{
+		int count = 0;
+		if(array1 == null || array2 == null)
+			return (T []) Array.newInstance(array1.getClass().getComponentType(), 0);
+		int i, j;
+		for(i = 0; i < array1.length; i++)
+			for(j = 0; j < array2.length; j++)
+				if(equals(array1[i], array2[j]))
+				{
+					count++;
+					break;
+				}
+		T [] ret = (T []) Array.newInstance(array1.getClass().getComponentType(), count);
+		count = 0;
+		for(i = 0; i < array1.length; i++)
+			for(j = 0; j < array2.length; j++)
+				if(equals(array1[i], array2[j]))
+				{
+					ret[count] = array1[i];
+					count++;
+					break;
+				}
+		return ret;
+	}
+
+	/**
+	 * Gets the elements that the two arrays have in common. Elements are retrieved from the first
+	 * array.
+	 * 
+	 * @param array1 The first array
+	 * @param array2 The second array
+	 * @return The elements in <code>array1</code> that occur at least once in <code>array2</code>
+	 */
+	public static Object [] commonElementsP(Object array1, Object array2)
 	{
 		int count = 0;
 		if(array1 == null || array2 == null)
@@ -1051,30 +1087,22 @@ public final class ArrayUtils
 		int len2 = Array.getLength(array2);
 		int i, j;
 		for(i = 0; i < len1; i++)
-		{
 			for(j = 0; j < len2; j++)
-			{
 				if(equals(Array.get(array1, i), Array.get(array2, j)))
 				{
 					count++;
 					break;
 				}
-			}
-		}
 		Object [] ret = new Object [count];
 		count = 0;
 		for(i = 0; i < len1; i++)
-		{
 			for(j = 0; j < len2; j++)
-			{
 				if(equals(Array.get(array1, i), Array.get(array2, j)))
 				{
 					ret[count] = Array.get(array1, i);
 					count++;
 					break;
 				}
-			}
-		}
 		return ret;
 	}
 
