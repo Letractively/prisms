@@ -1431,23 +1431,22 @@ public final class ArrayUtils
 	{
 		DifferenceListenerE<T1, T2, RuntimeException> dl2 = new DifferenceListenerE<T1, T2, RuntimeException>()
 		{
-			public boolean identity(T1 o1, T2 o2) throws RuntimeException
+			public boolean identity(T1 o1, T2 o2)
 			{
 				return dl.identity(o1, o2);
 			}
 
-			public T1 added(T2 o, int index, int retIdx) throws RuntimeException
+			public T1 added(T2 o, int index, int retIdx)
 			{
 				return dl.added(o, index, retIdx);
 			}
 
-			public T1 removed(T1 o, int index, int incMod, int retIdx) throws RuntimeException
+			public T1 removed(T1 o, int index, int incMod, int retIdx)
 			{
 				return dl.removed(o, index, incMod, retIdx);
 			}
 
 			public T1 set(T1 o1, int idx1, int incMod, T2 o2, int idx2, int retIdx)
-				throws RuntimeException
 			{
 				return dl.set(o1, idx1, incMod, o2, idx2, retIdx);
 			}
