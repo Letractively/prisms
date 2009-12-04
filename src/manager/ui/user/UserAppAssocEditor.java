@@ -134,7 +134,13 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		else if(user.getApp() != null && user.getApp().equals(app))
 			theAppUser = user;
 		else
-			theAppUser = theSession.getApp().getDataSource().getUser(user, app);
+			try
+			{
+				theAppUser = theSession.getApp().getDataSource().getUser(user, app);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not get application user", e);
+			}
 		initClient();
 	}
 
@@ -154,15 +160,21 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		if(!(us instanceof ManageableUserSource))
 			throw new IllegalStateException(
 				"Cannot modify user access--user source is not manageable");
-		if(accessible)
+		try
 		{
-			((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
-			theAppUser = us.getUser(theUser, theApp);
-		}
-		else
+			if(accessible)
+			{
+				((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
+				theAppUser = us.getUser(theUser, theApp);
+			}
+			else
+			{
+				((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
+				theAppUser = null;
+			}
+		} catch(prisms.arch.PrismsException e)
 		{
-			((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
-			theAppUser = null;
+			throw new IllegalStateException("Could not get application user", e);
 		}
 		theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
 		theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
@@ -183,7 +195,13 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		if(!(us instanceof ManageableUserSource))
 			throw new IllegalStateException(
 				"Cannot modify user access--user source is not manageable");
-		((ManageableUserSource) us).setEncryptionRequired(theUser, theApp, encrypted);
+		try
+		{
+			((ManageableUserSource) us).setEncryptionRequired(theUser, theApp, encrypted);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not set encryption requirement", e);
+		}
 		theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
 	}
 }

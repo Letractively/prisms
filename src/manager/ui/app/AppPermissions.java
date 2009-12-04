@@ -56,39 +56,42 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 					setListParams();
 			}
 		});
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(getSession().getUser().getName().equals(
-					((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(getSession().getUser().getName().equals(
+						((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+						setApp(theApp);
+				}
+			});
+		session.addEventListener("groupPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
+			{
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(evt.getProperty("group") != theGroup)
+						return;
+					if(theDataLock)
+						return;
+					setGroup(theGroup);
+				}
+			});
+		session.addEventListener("appPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
+			{
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(evt.getProperty("app") != theApp)
+						return;
+					Permission [] permissions = (Permission []) evt.getProperty("permissions");
+					if(!prisms.util.ArrayUtils.contains(permissions, getSession().getProperty(
+						ManagerProperties.selectedAppPermission)))
+						getSession().setProperty(ManagerProperties.selectedAppPermission, null);
 					setApp(theApp);
-			}
-		});
-		session.addEventListener("groupPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
-			{
-				if(evt.getProperty("group") != theGroup)
-					return;
-				if(theDataLock)
-					return;
-				setGroup(theGroup);
-			}
-		});
-		session.addEventListener("appPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
-			{
-				if(evt.getProperty("app") != theApp)
-					return;
-				Permission [] permissions = (Permission []) evt.getProperty("permissions");
-				if(!prisms.util.ArrayUtils.contains(permissions, getSession().getProperty(
-					ManagerProperties.selectedAppPermission)))
-					getSession().setProperty(ManagerProperties.selectedAppPermission, null);
-				setApp(theApp);
-			}
-		});
+				}
+			});
 		session.addEventListener("createNewPermission", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
@@ -112,10 +115,23 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 						}
 						ManageableUserSource mus = (ManageableUserSource) getSession().getApp()
 							.getDataSource();
-						mus.createPermission(theApp, input, input);
-						getSession().fireEvent(
-							new prisms.arch.event.PrismsEvent("appPermissionsChanged", "app", theApp,
-								"permissions", mus.getPermissions(theApp)));
+						try
+						{
+							mus.createPermission(theApp, input, input);
+						} catch(prisms.arch.PrismsException e)
+						{
+							throw new IllegalStateException("Could not create permission", e);
+						}
+						try
+						{
+							getSession().fireEvent(
+								new prisms.arch.event.PrismsEvent("appPermissionsChanged", "app",
+									theApp, "permissions", mus.getPermissions(theApp)));
+						} catch(prisms.arch.PrismsException e)
+						{
+							throw new IllegalStateException(
+								"Could not get permissions for application " + theApp, e);
+						}
 					}
 				};
 				ui.input("Enter a name for the new permission (this cannot be changed later).",
@@ -153,7 +169,14 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 		setListParams();
 		if(theApp == null || !(theApp.getDataSource() instanceof ManageableUserSource))
 			return;
-		setListData(((ManageableUserSource) theApp.getDataSource()).getPermissions(theApp));
+		try
+		{
+			setListData(((ManageableUserSource) theApp.getDataSource()).getPermissions(theApp));
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not get permissions for application " + theApp,
+				e);
+		}
 		if(manager.app.ManagerUtils.canEdit(getSession().getUser(), theApp))
 		{
 			prisms.ui.list.ActionListNode action;
@@ -232,7 +255,13 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 							users = users.clone();
 							for(int u = 0; u < users.length; u++)
 							{
-								users[u] = mus.getUser(users[u], node.getObject().getApp());
+								try
+								{
+									users[u] = mus.getUser(users[u], node.getObject().getApp());
+								} catch(prisms.arch.PrismsException e)
+								{
+									throw new IllegalStateException("Could not get PRISMS user", e);
+								}
 								if(users[u] == null
 									|| !users[u].getPermissions().has(node.getObject().getName()))
 								{
@@ -240,25 +269,46 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 									u--;
 								}
 							}
-							UserGroup [] groups = mus.getGroups(theApp);
+							UserGroup [] groups;
+							try
+							{
+								groups = mus.getGroups(theApp);
+							} catch(prisms.arch.PrismsException e)
+							{
+								throw new IllegalStateException("Could not get PRISMS groups", e);
+							}
 							for(int g = 0; g < groups.length; g++)
 								if(!groups[g].getPermissions().has(node.getObject().getName()))
 								{
 									groups = prisms.util.ArrayUtils.remove(groups, g);
 									g--;
 								}
-							mus.deletePermission(node.getObject());
+							try
+							{
+								mus.deletePermission(node.getObject());
+							} catch(prisms.arch.PrismsException e)
+							{
+								throw new IllegalStateException(
+									"Could not delete permission for application " + theApp, e);
+							}
 							for(int g = 0; g < groups.length; g++)
 								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("groupPermissionsChanged", "group",
-										groups[g]));
+									new prisms.arch.event.PrismsEvent("groupPermissionsChanged",
+										"group", groups[g]));
 							for(int u = 0; u < users.length; u++)
 								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("userPermissionsChanged", "user",
-										users[u]));
-							getSession().fireEvent(
-								new prisms.arch.event.PrismsEvent("appPermissionsChanged", "app", theApp,
-									"permissions", mus.getPermissions(theApp)));
+									new prisms.arch.event.PrismsEvent("userPermissionsChanged",
+										"user", users[u]));
+							try
+							{
+								getSession().fireEvent(
+									new prisms.arch.event.PrismsEvent("appPermissionsChanged",
+										"app", theApp, "permissions", mus.getPermissions(theApp)));
+							} catch(prisms.arch.PrismsException e)
+							{
+								throw new IllegalStateException(
+									"Could not get permissions for application " + theApp, e);
+							}
 						}
 					};
 					if(ui != null)
@@ -317,7 +367,13 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	@Override
 	public void doDeselect(Permission item)
 	{
-		((ManageableUserSource) theApp.getDataSource()).removePermission(theGroup, item);
+		try
+		{
+			((ManageableUserSource) theApp.getDataSource()).removePermission(theGroup, item);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not remove permission from group", e);
+		}
 		theDataLock = true;
 		try
 		{
@@ -335,7 +391,13 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	@Override
 	public void doSelect(Permission item)
 	{
-		((ManageableUserSource) theApp.getDataSource()).addPermission(theGroup, item);
+		try
+		{
+			((ManageableUserSource) theApp.getDataSource()).addPermission(theGroup, item);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not add permission to group", e);
+		}
 		theDataLock = true;
 		try
 		{

@@ -191,7 +191,10 @@ public class AppConfig
 	}
 
 	/**
-	 * Configures a new session for an application
+	 * Configures a new session for an application. This method is empty but may be overridden by
+	 * subclasses. Typically, initialization of sessions is done by the
+	 * {@link PrismsApplication#configureSession(PrismsSession)} and
+	 * {@link ClientConfig#configure(PrismsSession)} methods.
 	 * 
 	 * @param session The new session to configure
 	 * @param config The client configuration element

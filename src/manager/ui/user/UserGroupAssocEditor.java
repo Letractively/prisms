@@ -61,15 +61,16 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 					setUserGroup(user2, theGroup);
 			}
 		});
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(theSession.getUser().getName()
-					.equals(((User) evt.getProperty("user")).getName()))
-					setUserGroup(theUser, theGroup);
-			}
-		});
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(theSession.getUser().getName().equals(
+						((User) evt.getProperty("user")).getName()))
+						setUserGroup(theUser, theGroup);
+				}
+			});
 		session.addPropertyChangeListener(ManagerProperties.userSelectedGroup,
 			new prisms.arch.event.PrismsPCL<UserGroup>()
 			{
@@ -153,7 +154,14 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 		theUser = user;
 		theGroup = group;
 		if(theUser != null && theGroup != null && theUser.getApp() != theGroup.getApp())
-			theAppUser = theSession.getApp().getDataSource().getUser(theUser, theGroup.getApp());
+			try
+			{
+				theAppUser = theSession.getApp().getDataSource()
+					.getUser(theUser, theGroup.getApp());
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not get application user", e);
+			}
 		initClient();
 	}
 
@@ -174,16 +182,23 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			&& theUser.getName().equals(theSession.getUser().getName())
 			&& theGroup.getName().equals("userAdmin"))
 			throw new IllegalStateException("A user cannot remove himself from the userAdmin group");
-		if(isMember)
-			((ManageableUserSource) us).addUserToGroup(theAppUser, theGroup);
-		else
-			((ManageableUserSource) us).removeUserFromGroup(theAppUser, theGroup);
+		try
+		{
+			if(isMember)
+				((ManageableUserSource) us).addUserToGroup(theAppUser, theGroup);
+			else
+				((ManageableUserSource) us).removeUserFromGroup(theAppUser, theGroup);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not edit group membership", e);
+		}
 		theDataLock = true;
 		try
 		{
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userGroupsChanged", "user", theUser));
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userPermissionsChanged", "user",
+			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userGroupsChanged", "user",
 				theUser));
+			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userPermissionsChanged",
+				"user", theUser));
 		} finally
 		{
 			theDataLock = false;

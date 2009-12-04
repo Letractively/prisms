@@ -54,17 +54,18 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				setGroup((UserGroup) evt.getProperty("group"));
 			}
 		});
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(theSession.getUser().getName()
-					.equals(((User) evt.getProperty("user")).getName()))
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
 				{
-					setGroup(theGroup);
+					if(theSession.getUser().getName().equals(
+						((User) evt.getProperty("user")).getName()))
+					{
+						setGroup(theGroup);
+					}
 				}
-			}
-		});
+			});
 	}
 
 	/**
@@ -110,12 +111,18 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				+ " in application " + theGroup.getApp() + " to " + newName);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
-			source.rename(theGroup, newName);
+			try
+			{
+				source.rename(theGroup, newName);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify group", e);
+			}
 			theDataLock = true;
 			try
 			{
-				theSession
-					.fireEvent(new prisms.arch.event.PrismsEvent("groupChanged", "group", theGroup));
+				theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupChanged", "group",
+					theGroup));
 			} finally
 			{
 				theDataLock = false;
@@ -131,12 +138,18 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				+ " in application " + theGroup.getApp() + " to " + newDescrip);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
-			source.setDescription(theGroup, newDescrip);
+			try
+			{
+				source.setDescription(theGroup, newDescrip);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify group", e);
+			}
 			theDataLock = true;
 			try
 			{
-				theSession
-					.fireEvent(new prisms.arch.event.PrismsEvent("groupChanged", "group", theGroup));
+				theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupChanged", "group",
+					theGroup));
 			} finally
 			{
 				theDataLock = false;

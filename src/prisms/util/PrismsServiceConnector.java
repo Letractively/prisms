@@ -16,9 +16,9 @@ import prisms.arch.ds.Hashing;
  * PRISMS so that any PRISMS web service can be accessed using this class (assuming the client knows
  * the required information including a password if necessary) simply by passing JSON objects.
  */
-public class PRISMServiceConnector
+public class PrismsServiceConnector
 {
-	static final Logger log = Logger.getLogger(PRISMServiceConnector.class);
+	static final Logger log = Logger.getLogger(PrismsServiceConnector.class);
 
 	/**
 	 * The different server methods that may be used
@@ -113,7 +113,7 @@ public class PRISMServiceConnector
 	 * @param serviceName The name of the service configuration to access
 	 * @param userName The name of the user to connect as
 	 */
-	public PRISMServiceConnector(String serviceURL, String appName, String serviceName,
+	public PrismsServiceConnector(String serviceURL, String appName, String serviceName,
 		String userName)
 	{
 		theServiceURL = serviceURL;

@@ -356,16 +356,47 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				dataStr = "{\"serverPadding\":\"padding\"}";
 		}
 
-		User user = theUserSource.getUser(userName);
-		PrismsApplication app = theUserSource.getApp(appName);
+		User user;
+		try
+		{
+			user = theUserSource.getUser(userName);
+		} catch(PrismsException e)
+		{
+			log.error("Could not get user " + userName, e);
+			user = null;
+		}
+		PrismsApplication app;
+		try
+		{
+			app = theUserSource.getApp(appName);
+		} catch(PrismsException e)
+		{
+			log.error("Could not get applicaiton " + appName, e);
+			app = null;
+		}
 		if(app != null && app.getServer() != this)
 			app.setServer(this);
-		User appUser = theUserSource.getUser(user, app);
+		User appUser;
+		try
+		{
+			appUser = theUserSource.getUser(user, app);
+		} catch(PrismsException e)
+		{
+			log.error("Could not get application user " + user.getName(), e);
+			appUser = null;
+		}
 		ClientConfig client = null;
-		if(clientName != null && app != null)
-			client = theUserSource.getClient(app, clientName);
-		else if(serviceName != null && app != null)
-			client = theUserSource.getClient(app, serviceName);
+		try
+		{
+			if(clientName != null && app != null)
+				client = theUserSource.getClient(app, clientName);
+			else if(serviceName != null && app != null)
+				client = theUserSource.getClient(app, serviceName);
+		} catch(PrismsException e)
+		{
+			log.error("Could not get client " + clientName, e);
+			client = null;
+		}
 		SessionMetadata session = null;
 		Lock lock;
 		if(serviceName != null)
@@ -397,7 +428,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			if(session == null)
 			{
-				session = new SessionMetadata(appUser, client, serviceName != null);
+				try
+				{
+					session = new SessionMetadata(appUser, client, serviceName != null);
+				} catch(PrismsException e)
+				{
+					throw new IllegalStateException("Could not create session", e);
+				}
 				lock = theSessionLock.writeLock();
 				lock.lock();
 				try
@@ -455,7 +492,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if(decryptionFailed && !user.isLocked())
 		{
 			log.warn("Decryption of " + encryptedText + " failed with key " + session.getKey());
-			session.loginFailed();
+			try
+			{
+				session.loginFailed();
+			} catch(PrismsException e)
+			{
+				log.error("Could not lock user", e);
+			}
 		}
 		else if(session != null && encrypted)
 			session.loginSucceeded();
@@ -472,6 +515,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				log.error("Error parsing WMS request", e);
 				return;
 			}
+		}
+		long pwdExp;
+		try
+		{
+			pwdExp = theUserSource.getPasswordExpiration(appUser);
+		} catch(PrismsException e)
+		{
+			errorString = "Could not get user " + appUser + "'s password expiration";
+			errorCode = ErrorCode.RequestFailed;
+			log.error(errorString, e);
+			pwdExp = System.currentTimeMillis() + 24L * 60 * 60 * 1000;
 		}
 		if(appName == null)
 		{
@@ -645,7 +699,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				for(int i = 0; i < pwdData.length; i++)
 					pwdData[i] = ((Number) jsonPwdData.get(i)).longValue();
 				theUserSource.setPassword(appUser, pwdData);
-				checkAuthenticationData(appUser);
 				evt = new JSONObject();
 				evt.put("method", "callInit");
 				ret.add(evt);
@@ -664,7 +717,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				ret.add(evt);
 			}
 		}
-		else if(theUserSource.getPasswordExpiration(appUser) < System.currentTimeMillis())
+		else if(pwdExp < System.currentTimeMillis())
 		{
 			if(wms != null)
 				PrismsWmsRequest.respondError(resp, "Password change required for user "
@@ -885,21 +938,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
-	 * Alerts this server that a user's authentication data has changed and the user may need to be
-	 * re-authenticated or that the user's application access may have changed
-	 * 
-	 * @param user The user whose authentication data may have changed
-	 */
-	public void checkAuthenticationData(User user)
-	{
-		for(SessionMetadata session : theSessions.values())
-		{
-			if(session.theUser.getName().equals(user.getName()))
-				session.checkAuthenticationData();
-		}
-	}
-
-	/**
 	 * @return The session that this thread is executing in
 	 */
 	public PrismsSession getCurrentSession()
@@ -954,12 +992,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		boolean authChanged;
 
-		SessionMetadata(User appUser, ClientConfig client, boolean service)
+		SessionMetadata(User appUser, ClientConfig client, boolean service) throws PrismsException
 		{
 			theUser = appUser;
 			theClient = client;
 			isService = service;
-			theHashing = getUserSource().getHashing();
+			try
+			{
+				theHashing = getUserSource().getHashing();
+			} catch(PrismsException e)
+			{
+				throw new IllegalStateException("Could not get user password hash", e);
+			}
 			checkAuthenticationData();
 			authChanged = false;
 			if(isService)
@@ -974,17 +1018,31 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 
-		void checkAuthenticationData()
+		void checkAuthenticationData() throws PrismsException
 		{
-			theKey = getUserSource().getKey(theUser, theHashing);
-			// byte [] init = new byte [10];
-			// for(int i = 0; i < init.length; i++)
-			// init[i] = (byte) ((Math.random() - 0.5) * 2 * Byte.MAX_VALUE);
-			theEncryption = prisms.arch.Encryption.getEncryption(theKey);
-			authChanged = true;
+			String newKey = getUserSource().getKey(theUser, theHashing);
+			if(theKey == null)
+			{
+				theKey = newKey;
+				theEncryption = prisms.arch.Encryption.getEncryption(theKey);
+			}
+			else if(newKey == null)
+			{
+				theKey = null;
+				theEncryption = null;
+			}
+			else if(!theKey.equals(newKey))
+			{
+				theKey = newKey;
+				// byte [] init = new byte [10];
+				// for(int i = 0; i < init.length; i++)
+				// init[i] = (byte) ((Math.random() - 0.5) * 2 * Byte.MAX_VALUE);
+				theEncryption = prisms.arch.Encryption.getEncryption(theKey);
+				authChanged = true;
+			}
 		}
 
-		JSONArray init()
+		JSONArray init() throws PrismsException
 		{
 			if(theSession == null)
 				theSession = getUserSource().createSession(theClient, theUser, isService);
@@ -1020,6 +1078,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		String decrypt(String encrypted) throws Exception
 		{
+			checkAuthenticationData();
 			return prisms.arch.Encryption.decrypt(theEncryption, encrypted);
 		}
 
@@ -1028,12 +1087,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			/* TODO: For whatever reason, information encrypted by the server is not decrypted
 			 * correctly by the javascript dojo blowfish implementation on the HTML client. Pending
 			 * more extensive investigation, we'll just send information unencrypted.*/
-
-			// return prisms.arch.Encryption.encrypt(theEncryption, text);
+			if(theSession.isService())
+				return prisms.arch.Encryption.encrypt(theEncryption, text);
 			return text;
 		}
 
-		void loginFailed()
+		void loginFailed() throws PrismsException
 		{
 			if(theUser.isLocked())
 				return;
@@ -1046,6 +1105,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(theLoginFailed >= theLoginFailTolerance && !theUser.getName().equals("admin"))
 			{
 				theUser.setLocked(true);
+				getUserSource().lockUser(theUser);
 				theLoginFailed = 0;
 			}
 		}

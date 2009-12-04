@@ -76,6 +76,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 * @see prisms.arch.ds.UserSource#configure(org.dom4j.Element, prisms.arch.PersisterFactory)
 	 */
 	public void configure(org.dom4j.Element configEl, PersisterFactory factory)
+		throws PrismsException
 	{
 		theConfigEl = configEl;
 		thePersisterFactory = factory;
@@ -84,7 +85,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			thePRISMSConnection = factory.getConnection(configEl.element("connection"), null);
 		} catch(Exception e)
 		{
-			throw new IllegalStateException("Could not connect to PRISMS configuration database", e);
+			throw new PrismsException("Could not connect to PRISMS configuration database", e);
 		}
 		DBOWNER = factory.getTablePrefix(thePRISMSConnection, configEl.element("connection"), null);
 		String anonUser = configEl.elementTextTrim("anonymous");
@@ -116,7 +117,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			theHashing.setPrimaryHashing(mults, mods);
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not access hashing parameters", e);
+			throw new PrismsException("Could not access hashing parameters", e);
 		} finally
 		{
 			if(rs != null)
@@ -176,7 +177,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				}
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Cannot commit hashing values"
+				throw new PrismsException("Cannot commit hashing values"
 					+ "--passwords not persistable", e);
 			} finally
 			{
@@ -306,8 +307,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 						ret.setValidator(validator);
 					} catch(Throwable e)
 					{
-						log.error("Validator " + valClass + " for user " + serverUser.getName()
-							+ ", application " + app.getName() + " could not be instantiated", e);
+						ret.setValidator(new PlaceholderValidator(valClass));
 					}
 				}
 			}
@@ -345,6 +345,11 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			lock.unlock();
 		}
 		return ret;
+	}
+
+	public void lockUser(User user)
+	{
+		user.setLocked(true);
 	}
 
 	private UserGroup getGroup(int id)
@@ -478,7 +483,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return ret;
 	}
 
-	public DBApplication getApp(String appName)
+	public DBApplication getApp(String appName) throws PrismsException
 	{
 		DBApplication ret;
 		Lock lock = theLock.readLock();
@@ -521,7 +526,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				rs = stmt.executeQuery("SELECT id, appdescrip, configClass, configXML FROM "
 					+ DBOWNER + "prisms_application WHERE appName = " + toSQL(appName));
 				if(!rs.next())
-					throw new IllegalArgumentException("The application \"" + appName
+					throw new PrismsException("The application \"" + appName
 						+ "\" is not recognized.");
 				id = rs.getInt(1);
 				descrip = rs.getString(2);
@@ -540,7 +545,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					ret.addAdminGroup(getGroup(rs.getInt(1)));
 			} catch(java.sql.SQLException e)
 			{
-				throw new IllegalStateException("Could not query for application " + appName, e);
+				throw new PrismsException("Could not query for application " + appName, e);
 			} finally
 			{
 				if(rs != null)
@@ -564,17 +569,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			ret.setName(appName);
 			ret.setDescription(descrip);
 			ret.setConfigXML(configXML);
-			if(configClassStr != null)
-			{
-				try
-				{
-					ret.setConfigClass(Class.forName(configClassStr).asSubclass(AppConfig.class));
-				} catch(Exception e)
-				{
-					log.error("Could not load config class " + configClassStr + " for application "
-						+ appName, e);
-				}
-			}
+			ret.setConfigClass(configClassStr);
 			theAppIDs.put(appName, new Integer(id));
 			theApps.put(new Integer(id), ret);
 		} finally
@@ -584,10 +579,10 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return ret;
 	}
 
-	private void configure(PrismsApplication app)
+	private void configure(PrismsApplication app) throws PrismsException
 	{
 		if(!(app instanceof DBApplication))
-			throw new IllegalArgumentException("Application object " + app
+			throw new PrismsException("Application object " + app
 				+ " was not created by this user source");
 		Lock lock = theLock.readLock();
 		lock.lock();
@@ -600,31 +595,21 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			lock.unlock();
 		}
 		DBApplication dbApp = (DBApplication) app;
-		if(dbApp.getConfigClass() == null)
-			throw new IllegalStateException("Application " + app
+		if(dbApp.getConfig() == null)
+			throw new PrismsException("Application " + app
 				+ " does not have a valid configuration class");
 		if(dbApp.getConfigXML() == null)
-			throw new IllegalStateException("Application " + app
+			throw new PrismsException("Application " + app
 				+ " does not have a valid configuration XML");
-		prisms.arch.AppConfig appConfig;
-
-		try
-		{
-			appConfig = dbApp.getConfigClass().newInstance();
-		} catch(Exception e)
-		{
-			throw new IllegalStateException("Could not instantiate AppConfig class "
-				+ dbApp.getConfigClass().getName(), e);
-		}
 		org.dom4j.Element configEl = dbApp.parseConfigXML();
 		if(theAppsConfigured.contains(app.getName()))
 			return;
 		try
 		{
-			appConfig.configureApp(app, configEl);
+			dbApp.getConfig().configureApp(app, configEl);
 		} catch(Throwable e)
 		{
-			throw new IllegalStateException("Could not configure application " + app.getName(), e);
+			throw new PrismsException("Could not configure application " + app.getName(), e);
 		}
 		lock = theLock.writeLock();
 		lock.lock();
@@ -633,7 +618,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			theAppsConfigured.add(app.getName());
 		} catch(Throwable e)
 		{
-			throw new IllegalStateException("Could not configure application " + app.getName(), e);
+			throw new PrismsException("Could not configure application " + app.getName(), e);
 		} finally
 		{
 			lock.unlock();
@@ -662,7 +647,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.UserSource#getClient(PrismsApplication, java.lang.String)
 	 */
-	public ClientConfig getClient(PrismsApplication app, String name)
+	public ClientConfig getClient(PrismsApplication app, String name) throws PrismsException
 	{
 		int id;
 		String descrip;
@@ -693,7 +678,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				log.info("The client configuration \"" + name + "\" for application "
 					+ app.getName() + " is not recognized.");
 
-				throw new IllegalArgumentException("The client configuration \"" + name
+				throw new PrismsException("The client configuration \"" + name
 					+ "\" for application " + app.getName() + " is not recognized.");
 			}
 			id = rs.getInt(1);
@@ -706,20 +691,19 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			rs = stmt.executeQuery("SELECT configClass FROM " + DBOWNER
 				+ "prisms_application WHERE id = " + theAppIDs.get(app.getName()));
 			if(!rs.next())
-				throw new IllegalStateException("No client named " + name);
+				throw new PrismsException("No client named " + name);
 			String configClass = rs.getString(1);
 			try
 			{
 				appConfig = (prisms.arch.AppConfig) Class.forName(configClass).newInstance();
 			} catch(Throwable e)
 			{
-				throw new IllegalStateException("Could not instantiate AppConfig class "
-					+ configClass, e);
+				throw new PrismsException("Could not instantiate AppConfig class " + configClass, e);
 			}
 		} catch(java.sql.SQLException e)
 		{
-			throw new IllegalStateException("Could not query for client " + name
-				+ " of application " + app.getName(), e);
+			throw new PrismsException("Could not query for client " + name + " of application "
+				+ app.getName(), e);
 		} finally
 		{
 			lock.unlock();
@@ -742,19 +726,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 		ret = new DBClientConfig(id, app, name);
 		ret.setDescription(descrip);
-		if(serializerStr != null)
-		{
-			try
-			{
-				ret.setSerializer((RemoteEventSerializer) Class.forName(serializerStr)
-					.newInstance());
-			} catch(Exception e)
-			{
-				log.warn("Could not instantiate event serializer " + serializerStr + " for client "
-					+ name + "--using JSON default", e);
-				ret.setSerializer(new JsonSerializer());
-			}
-		}
+		ret.setSerializerClass(serializerStr);
 		ret.setConfigXML(configXML);
 		org.dom4j.Element configEl = getConfigXML(configXML);
 		appConfig.configureClient(ret, configEl);
@@ -774,7 +746,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#getAllClients(prisms.arch.PrismsApplication)
 	 */
-	public ClientConfig [] getAllClients(PrismsApplication app)
+	public ClientConfig [] getAllClients(PrismsApplication app) throws PrismsException
 	{
 		java.sql.Statement stmt = null;
 		java.sql.ResultSet rs = null;
@@ -794,8 +766,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				ret.add(getClient(app, rs.getString(1)));
 		} catch(java.sql.SQLException e)
 		{
-			throw new IllegalStateException("Could not query for clients of application "
-				+ app.getName(), e);
+			throw new PrismsException(
+				"Could not query for clients of application " + app.getName(), e);
 		} finally
 		{
 			lock.unlock();
@@ -849,12 +821,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 *      boolean)
 	 */
 	public PrismsSession createSession(ClientConfig client, User user, boolean asService)
+		throws PrismsException
 	{
 		if(user.getApp() != client.getApp())
 		{
 			User appUser = getUser(user, client.getApp());
 			if(appUser == null)
-				throw new IllegalArgumentException("User " + user
+				throw new PrismsException("User " + user
 					+ " is not permitted to access application " + client.getApp().getName());
 			user = appUser;
 		}
@@ -867,7 +840,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			client.configure(ret);
 		} catch(Throwable e)
 		{
-			throw new IllegalStateException("Could not configure client " + client.getName()
+			throw new PrismsException("Could not configure client " + client.getName()
 				+ " of application " + client.getApp().getName() + " for user " + user, e);
 		}
 
@@ -883,19 +856,18 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			rs = stmt.executeQuery("SELECT configClass FROM " + DBOWNER
 				+ "prisms_application WHERE" + " id = " + theAppIDs.get(client.getApp().getName()));
 			if(!rs.next())
-				throw new IllegalStateException("No application named " + client.getApp().getName());
+				throw new PrismsException("No application named " + client.getApp().getName());
 			String configClass = rs.getString(1);
 			try
 			{
 				appConfig = (prisms.arch.AppConfig) Class.forName(configClass).newInstance();
 			} catch(Throwable e)
 			{
-				throw new IllegalStateException("Could not instantiate AppConfig class "
-					+ configClass, e);
+				throw new PrismsException("Could not instantiate AppConfig class " + configClass, e);
 			}
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not query for application configuration "
+			throw new PrismsException("Could not query for application configuration "
 				+ client.getApp().getName(), e);
 		} finally
 		{
@@ -922,18 +894,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		try
 		{
 			appConfig.configureSession(ret, configEl);
-		} catch(RuntimeException e)
-		{
-			throw e;
 		} catch(Throwable e)
 		{
-			throw new IllegalStateException("Could not configure session of application "
+			throw new PrismsException("Could not configure session of application "
 				+ client.getApp().getName(), e);
 		}
 		return ret;
 	}
 
-	org.dom4j.Element getConfigXML(String configLocation)
+	org.dom4j.Element getConfigXML(String configLocation) throws PrismsException
 	{
 		java.net.URL configURL;
 		if(configLocation.startsWith("classpath://"))
@@ -941,7 +910,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			configURL = prisms.arch.ds.UserSource.class.getResource(configLocation
 				.substring("classpath:/".length()));
 			if(configURL == null)
-				throw new IllegalArgumentException("Classpath configuration URL " + configLocation
+				throw new PrismsException("Classpath configuration URL " + configLocation
 					+ " refers to a non-existent resource");
 		}
 		else
@@ -951,8 +920,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				configURL = new java.net.URL(configLocation);
 			} catch(java.net.MalformedURLException e)
 			{
-				throw new IllegalArgumentException("Configuration URL " + configLocation
-					+ " is malformed", e);
+				throw new PrismsException("Configuration URL " + configLocation + " is malformed",
+					e);
 			}
 		}
 		org.dom4j.Element configEl;
@@ -961,8 +930,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			configEl = new org.dom4j.io.SAXReader().read(configURL).getRootElement();
 		} catch(Exception e)
 		{
-			throw new IllegalStateException("Could not read client config file " + configLocation,
-				e);
+			throw new PrismsException("Could not read client config file " + configLocation, e);
 		}
 		return configEl;
 	}
@@ -1023,7 +991,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#getAllUsers()
 	 */
-	public User [] getAllUsers()
+	public User [] getAllUsers() throws PrismsException
 	{
 		ArrayList<DBUser> ret = new ArrayList<DBUser>();
 		Statement stmt = null;
@@ -1045,7 +1013,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			}
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Error getting all users", e);
+			throw new PrismsException("Error getting all users", e);
 		} finally
 		{
 			lock.unlock();
@@ -1086,7 +1054,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#getAllApps()
 	 */
-	public PrismsApplication [] getAllApps()
+	public PrismsApplication [] getAllApps() throws PrismsException
 	{
 		ArrayList<Integer> appIDs = new ArrayList<Integer>();
 		ArrayList<String> appNames = new ArrayList<String>();
@@ -1105,7 +1073,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			}
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Error getting all users", e);
+			throw new PrismsException("Error getting all users", e);
 		} finally
 		{
 			lock.unlock();
@@ -1145,7 +1113,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 * @param name The ID of the user to get
 	 * @return An object representing the given user
 	 */
-	public User createUser(String name)
+	public User createUser(String name) throws PrismsException
 	{
 		if(getUser(name) != null)
 			throw new IllegalArgumentException("User " + name + " already exists");
@@ -1165,7 +1133,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			theUsers.put(name + "/null", ret);
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not create user " + name, e);
+			throw new PrismsException("Could not create user " + name, e);
 		} finally
 		{
 			lock.unlock();
@@ -1186,6 +1154,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	}
 
 	public void setUserAccess(User user, PrismsApplication app, boolean accessible)
+		throws PrismsException
 	{
 		// if user access is true do an insert
 		Lock lock = theLock.writeLock();
@@ -1217,8 +1186,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 						+ " and assocApp =  " + appId);
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not update user " + user.getName()
-					+ " for app: " + app.getName() + " to have access=" + accessible, e);
+				throw new PrismsException("Could not update user " + user.getName() + " for app: "
+					+ app.getName() + " to have access=" + accessible, e);
 			} finally
 			{
 				if(rs != null)
@@ -1248,6 +1217,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	}
 
 	public void setEncryptionRequired(User user, PrismsApplication app, boolean encrypted)
+		throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1271,7 +1241,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ ((DBUser) user).getID() + " and assocApp = " + appId);
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not set password data for user " + user, e);
+				throw new PrismsException("Could not set password data for user " + user, e);
 			} finally
 			{
 				if(rs != null)
@@ -1301,7 +1271,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.UserSource#setPassword(prisms.arch.ds.User, long[])
 	 */
-	public void setPassword(User user, long [] hash)
+	public void setPassword(User user, long [] hash) throws PrismsException
 	{
 		Statement stmt = null;
 		ResultSet rs = null;
@@ -1328,7 +1298,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ ((DBUser) user).getID());
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not set password data for user " + user, e);
+			throw new PrismsException("Could not set password data for user " + user, e);
 		} finally
 		{
 			lock.unlock();
@@ -1350,7 +1320,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.UserSource#getPasswordExpiration(prisms.arch.ds.User)
 	 */
-	public long getPasswordExpiration(User user)
+	public long getPasswordExpiration(User user) throws PrismsException
 	{
 		Statement stmt = null;
 		ResultSet rs = null;
@@ -1366,7 +1336,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			expire = (Number) rs.getObject(1);
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not get password expiration for user " + user, e);
+			throw new PrismsException("Could not get password expiration for user " + user, e);
 		} finally
 		{
 			lock.unlock();
@@ -1389,7 +1359,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			return expire.longValue();
 	}
 
-	public void setPasswordExpiration(User user, long time)
+	public void setPasswordExpiration(User user, long time) throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1406,7 +1376,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				+ " WHERE id = " + ((DBUser) user).getID());
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not set password expiration for user " + user, e);
+			throw new PrismsException("Could not set password expiration for user " + user, e);
 		} finally
 		{
 			lock.unlock();
@@ -1422,7 +1392,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#deleteUser(prisms.arch.ds.User)
 	 */
-	public void deleteUser(User user)
+	public void deleteUser(User user) throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1436,7 +1406,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ ((DBUser) user).getID());
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not delete user " + user.getName(), e);
+				throw new PrismsException("Could not delete user " + user.getName(), e);
 			} finally
 			{
 				if(stmt != null)
@@ -1459,7 +1429,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#rename(prisms.arch.ds.User, java.lang.String)
 	 */
-	public void rename(User user, String newName)
+	public void rename(User user, String newName) throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1473,7 +1443,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ toSQL(newName) + " WHERE id = " + ((DBUser) user).getID());
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not rename user " + user.getName(), e);
+				throw new PrismsException("Could not rename user " + user.getName(), e);
 			} finally
 			{
 				if(stmt != null)
@@ -1507,7 +1477,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.UserSource#getGroup(prisms.arch.PrismsApplication, java.lang.String)
 	 */
-	public UserGroup getGroup(PrismsApplication app, String groupName)
+	public UserGroup getGroup(PrismsApplication app, String groupName) throws PrismsException
 	{
 		int id;
 		Statement stmt = null;
@@ -1525,7 +1495,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			id = rs.getInt(1);
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Error getting all users", e);
+			throw new PrismsException("Error getting all users", e);
 		} finally
 		{
 			lock.unlock();
@@ -1548,7 +1518,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.UserSource#getGroups(prisms.arch.PrismsApplication)
 	 */
-	public UserGroup [] getGroups(PrismsApplication app)
+	public UserGroup [] getGroups(PrismsApplication app) throws PrismsException
 	{
 		ArrayList<Integer> groupIDs = new ArrayList<Integer>();
 		Statement stmt = null;
@@ -1564,7 +1534,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				groupIDs.add(new Integer(rs.getInt(1)));
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Error getting all users", e);
+			throw new PrismsException("Error getting all users", e);
 		} finally
 		{
 			lock.unlock();
@@ -1598,7 +1568,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 * @see prisms.arch.ds.ManageableUserSource#createGroup(java.lang.String,
 	 *      prisms.arch.PrismsApplication)
 	 */
-	public UserGroup createGroup(String name, PrismsApplication app)
+	public UserGroup createGroup(String name, PrismsApplication app) throws PrismsException
 	{
 		int id;
 		Statement stmt = null;
@@ -1618,7 +1588,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			theGroups.put(new Integer(id), ret);
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not create user " + name, e);
+			throw new PrismsException("Could not create user " + name, e);
 		} finally
 		{
 			lock.unlock();
@@ -1641,7 +1611,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#deleteGroup(prisms.arch.ds.UserGroup)
 	 */
-	public void deleteGroup(UserGroup group)
+	public void deleteGroup(UserGroup group) throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1655,7 +1625,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ ((DBGroup) group).getID());
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not delete group " + group.getName(), e);
+				throw new PrismsException("Could not delete group " + group.getName(), e);
 			} finally
 			{
 				if(stmt != null)
@@ -1677,7 +1647,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#rename(prisms.arch.ds.UserGroup, java.lang.String)
 	 */
-	public void rename(UserGroup group, String newName)
+	public void rename(UserGroup group, String newName) throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1689,7 +1659,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				+ toSQL(newName) + " WHERE id = " + ((DBGroup) group).getID());
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not rename group " + group.getName(), e);
+			throw new PrismsException("Could not rename group " + group.getName(), e);
 		} finally
 		{
 			lock.unlock();
@@ -1704,9 +1674,10 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	}
 
 	/**
-	 * @see prisms.arch.ds.ManageableUserSource#setDescription(prisms.arch.ds.UserGroup, java.lang.String)
+	 * @see prisms.arch.ds.ManageableUserSource#setDescription(prisms.arch.ds.UserGroup,
+	 *      java.lang.String)
 	 */
-	public void setDescription(UserGroup group, String descrip)
+	public void setDescription(UserGroup group, String descrip) throws PrismsException
 	{
 		if(!(group instanceof DBGroup))
 			throw new IllegalStateException("Group " + group
@@ -1721,8 +1692,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				+ toSQL(descrip) + " WHERE id = " + ((DBGroup) group).getID());
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not set properties of group " + group.getName(),
-				e);
+			throw new PrismsException("Could not set properties of group " + group.getName(), e);
 		} finally
 		{
 			lock.unlock();
@@ -1739,7 +1709,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#setDescription(Permission, String)
 	 */
-	public void setDescription(Permission permission, String descrip)
+	public void setDescription(Permission permission, String descrip) throws PrismsException
 	{
 		if(!(permission instanceof DBPermission))
 			throw new IllegalStateException("Permission " + permission
@@ -1754,8 +1724,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				+ toSQL(descrip) + " WHERE id = " + ((DBPermission) permission).getID());
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not set properties of group "
-				+ permission.getName(), e);
+			throw new PrismsException("Could not set properties of group " + permission.getName(),
+				e);
 		} finally
 		{
 			lock.unlock();
@@ -1770,9 +1740,10 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	}
 
 	/**
-	 * @see prisms.arch.ds.ManageableUserSource#addUserToGroup(prisms.arch.ds.User, prisms.arch.ds.UserGroup)
+	 * @see prisms.arch.ds.ManageableUserSource#addUserToGroup(prisms.arch.ds.User,
+	 *      prisms.arch.ds.UserGroup)
 	 */
-	public void addUserToGroup(User user, UserGroup group)
+	public void addUserToGroup(User user, UserGroup group) throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1787,8 +1758,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ ((DBUser) user).getID() + ", " + ((DBGroup) group).getID() + ")");
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException(
-					"Could not add user " + user + " to group " + group, e);
+				throw new PrismsException("Could not add user " + user + " to group " + group, e);
 			} finally
 			{
 				if(stmt != null)
@@ -1812,7 +1782,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 * @see prisms.arch.ds.ManageableUserSource#removeUserFromGroup(prisms.arch.ds.User,
 	 *      prisms.arch.ds.UserGroup)
 	 */
-	public void removeUserFromGroup(User user, UserGroup group)
+	public void removeUserFromGroup(User user, UserGroup group) throws PrismsException
 	{
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1827,8 +1797,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ " AND assocGroup = " + ((DBGroup) group).getID());
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not remove user " + user + " from group "
-					+ group, e);
+				throw new PrismsException("Could not remove user " + user + " from group " + group,
+					e);
 			} finally
 			{
 				if(stmt != null)
@@ -1849,14 +1819,14 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	}
 
 	/**
-	 * @see prisms.arch.ds.ManageableUserSource#createApplication(java.lang.String, java.lang.String,
-	 *      java.lang.String, java.lang.String)
+	 * @see prisms.arch.ds.ManageableUserSource#createApplication(java.lang.String,
+	 *      java.lang.String, java.lang.String, java.lang.String)
 	 */
 	public PrismsApplication createApplication(String name, String descrip, String configClass,
-		String configXML)
+		String configXML) throws PrismsException
 	{
 		if(getApp(name) != null)
-			throw new IllegalArgumentException("Application " + name + " already exists");
+			throw new PrismsException("Application " + name + " already exists");
 		int id;
 		DBApplication ret;
 		Lock lock = theLock.writeLock();
@@ -1875,7 +1845,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ toSQL(descrip) + ", " + toSQL(configClass) + ", " + toSQL(configXML) + ")");
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not create application " + name, e);
+				throw new PrismsException("Could not create application " + name, e);
 			} finally
 			{
 				if(rs != null)
@@ -1904,13 +1874,14 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	}
 
 	/**
-	 * @see prisms.arch.ds.ManageableUserSource#rename(prisms.arch.PrismsApplication, java.lang.String)
+	 * @see prisms.arch.ds.ManageableUserSource#rename(prisms.arch.PrismsApplication,
+	 *      java.lang.String)
 	 */
-	public void rename(PrismsApplication app, String newName)
+	public void rename(PrismsApplication app, String newName) throws PrismsException
 	{
 		String oldName = app.getName();
 		if(!(app instanceof DBApplication))
-			throw new IllegalArgumentException("Application object " + app
+			throw new PrismsException("Application object " + app
 				+ " was not created by this user source");
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1925,7 +1896,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ toSQL(newName) + " WHERE id = " + id);
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not rename application " + app.getName(), e);
+				throw new PrismsException("Could not rename application " + app.getName(), e);
 			} finally
 			{
 				if(stmt != null)
@@ -1955,32 +1926,39 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 * Sets the description, configClass, and configXML properties of the application
 	 * 
 	 * @param app The application to modify the properties of
+	 * @throws PrismsException If an error occurs updating the application
 	 */
-	public void changeProperties(DBApplication app)
+	public void changeProperties(DBApplication app) throws PrismsException
 	{
 		Integer id = theAppIDs.get(app.getName());
 		if(id == null)
-			throw new IllegalStateException("Application " + app.getName() + " not recognized");
+			throw new PrismsException("Application " + app.getName() + " not recognized");
 		checkConnection();
 		Statement stmt = null;
 		try
 		{
+			String configClass;
+			if(app.getConfig() == null)
+				configClass = null;
+			else if(app.getConfig() instanceof PlaceholderAppConfig)
+				configClass = ((PlaceholderAppConfig) app.getConfig()).getAppConfigClassName();
+			else
+				configClass = app.getConfig().getClass().getName();
 			stmt = thePRISMSConnection.createStatement();
 			stmt.executeUpdate("UPDATE " + DBOWNER + "prisms_application SET appDescrip="
-				+ toSQL(app.getDescription()) + ", configClass="
-				+ toSQL(app.getConfigClass() != null ? app.getConfigClass().getName() : null)
+				+ toSQL(app.getDescription()) + ", configClass=" + toSQL(configClass)
 				+ ", configxml=" + toSQL(app.getConfigXML()) + " WHERE id=" + id);
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not update properties of application "
-				+ app.getName(), e);
+			throw new PrismsException(
+				"Could not update properties of application " + app.getName(), e);
 		}
 	}
 
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#getPermissions(prisms.arch.PrismsApplication)
 	 */
-	public Permission [] getPermissions(PrismsApplication app)
+	public Permission [] getPermissions(PrismsApplication app) throws PrismsException
 	{
 		ArrayList<DBPermission> ret = new ArrayList<DBPermission>();
 		Statement stmt = null;
@@ -2002,7 +1980,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			}
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Error getting all permissions", e);
+			throw new PrismsException("Error getting all permissions", e);
 		} finally
 		{
 			lock.unlock();
@@ -2034,6 +2012,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 *      java.lang.String, java.lang.String)
 	 */
 	public Permission createPermission(PrismsApplication app, String name, String descrip)
+		throws PrismsException
 	{
 		int id;
 		Statement stmt = null;
@@ -2049,7 +2028,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				+ theAppIDs.get(app.getName()) + ", " + toSQL(name) + ", " + toSQL(descrip) + ")");
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not create permission " + name, e);
+			throw new PrismsException("Could not create permission " + name, e);
 		} finally
 		{
 			lock.unlock();
@@ -2069,7 +2048,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return new DBPermission(name, descrip, app, id);
 	}
 
-	public void deletePermission(Permission permission)
+	public void deletePermission(Permission permission) throws PrismsException
 	{
 		Statement stmt = null;
 		Lock lock = theLock.writeLock();
@@ -2083,8 +2062,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ ((DBPermission) permission).getID());
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not delete permission "
-					+ permission.getName(), e);
+				throw new PrismsException("Could not delete permission " + permission.getName(), e);
 			} finally
 			{
 				if(stmt != null)
@@ -2108,7 +2086,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#addPermission(UserGroup, Permission)
 	 */
-	public void addPermission(UserGroup group, Permission permission)
+	public void addPermission(UserGroup group, Permission permission) throws PrismsException
 	{
 		Statement stmt = null;
 		Lock lock = theLock.writeLock();
@@ -2123,8 +2101,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ ((DBGroup) group).getID() + ", " + ((DBPermission) permission).getID() + ")");
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not add permission " + permission
-					+ " to group " + group.getName(), e);
+				throw new PrismsException("Could not add permission " + permission + " to group "
+					+ group.getName(), e);
 			} finally
 			{
 				if(stmt != null)
@@ -2148,7 +2126,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#removePermission(UserGroup, Permission)
 	 */
-	public void removePermission(UserGroup group, Permission permission)
+	public void removePermission(UserGroup group, Permission permission) throws PrismsException
 	{
 		Statement stmt = null;
 		Lock lock = theLock.writeLock();
@@ -2163,7 +2141,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					+ " AND assocPermission = " + ((DBPermission) permission).getID());
 			} catch(SQLException e)
 			{
-				throw new IllegalStateException("Could not remove permission " + permission
+				throw new PrismsException("Could not remove permission " + permission
 					+ " from group " + group.getName(), e);
 			} finally
 			{
@@ -2225,7 +2203,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 	}
 
-	void forceResetUsers()
+	void forceResetUsers() throws PrismsException
 	{
 		Statement stmt = null;
 		ResultSet rs = null;

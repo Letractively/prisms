@@ -6,10 +6,16 @@ package prisms.impl;
 import prisms.arch.ds.Permission;
 import prisms.arch.ds.Permissions;
 
-class SimplePermissions implements Permissions
+/**
+ * A simple implementation of Permissions
+ */
+public class SimplePermissions implements Permissions
 {
 	private final java.util.Map<String, Permission> theMap;
 
+	/**
+	 * Creates a Permissions set
+	 */
 	public SimplePermissions()
 	{
 		theMap = new java.util.HashMap<String, Permission>();
@@ -47,11 +53,17 @@ class SimplePermissions implements Permissions
 		return ret;
 	}
 
+	/**
+	 * @param permission The permission to add
+	 */
 	public void addPermission(Permission permission)
 	{
 		theMap.put(permission.getName(), permission);
 	}
 
+	/**
+	 * @param name The name of the permission to remove
+	 */
 	public void removePermission(String name)
 	{
 		theMap.remove(name);

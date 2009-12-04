@@ -6,7 +6,10 @@ package prisms.impl;
 import prisms.arch.PrismsApplication;
 import prisms.arch.ds.Permission;
 
-class SimplePermission implements Permission
+/**
+ * A simple implementation of {@link Permission}
+ */
+public class SimplePermission implements Permission
 {
 	private final String theName;
 
@@ -14,6 +17,13 @@ class SimplePermission implements Permission
 
 	private final PrismsApplication theApp;
 
+	/**
+	 * Creates a simple permission
+	 * 
+	 * @param name The name of the permission
+	 * @param descrip A description for the permission
+	 * @param app The application that this permission belongs to
+	 */
 	public SimplePermission(String name, String descrip, PrismsApplication app)
 	{
 		theName = name;

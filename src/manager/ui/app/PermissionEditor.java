@@ -60,15 +60,16 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 					setPermissionGroup(p2, theGroup);
 			}
 		});
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(theSession.getUser().getName()
-					.equals(((User) evt.getProperty("user")).getName()))
-					setPermissionGroup(thePermission, theGroup);
-			}
-		});
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(theSession.getUser().getName().equals(
+						((User) evt.getProperty("user")).getName()))
+						setPermissionGroup(thePermission, theGroup);
+				}
+			});
 		session.addPropertyChangeListener(ManagerProperties.selectedAppGroup,
 			new prisms.arch.event.PrismsPCL<UserGroup>()
 			{
@@ -149,12 +150,18 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 					+ newDescrip);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
-			source.setDescription(thePermission, newDescrip);
+			try
+			{
+				source.setDescription(thePermission, newDescrip);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify permission", e);
+			}
 			theDataLock = true;
 			try
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("permissionChanged", "permission",
-					thePermission));
+				theSession.fireEvent(new prisms.arch.event.PrismsEvent("permissionChanged",
+					"permission", thePermission));
 			} finally
 			{
 				theDataLock = false;
@@ -199,25 +206,37 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		users = users.clone();
 		for(int u = 0; u < users.length; u++)
 		{
-			users[u] = ((ManageableUserSource) us).getUser(users[u], theGroup.getApp());
+			try
+			{
+				users[u] = ((ManageableUserSource) us).getUser(users[u], theGroup.getApp());
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not get application user", e);
+			}
 			if(users[u] == null || !prisms.util.ArrayUtils.contains(users[u].getGroups(), theGroup))
 			{
 				users = prisms.util.ArrayUtils.remove(users, u);
 				u--;
 			}
 		}
-		if(isMember)
-			((ManageableUserSource) us).addPermission(theGroup, thePermission);
-		else
-			((ManageableUserSource) us).removePermission(theGroup, thePermission);
+		try
+		{
+			if(isMember)
+				((ManageableUserSource) us).addPermission(theGroup, thePermission);
+			else
+				((ManageableUserSource) us).removePermission(theGroup, thePermission);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not modify group-permission relationship", e);
+		}
 		theDataLock = true;
 		try
 		{
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupPermissionsChanged", "group",
-				theGroup));
+			theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupPermissionsChanged",
+				"group", theGroup));
 			for(int u = 0; u < users.length; u++)
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("userPermissionsChanged", "user",
-					users[u]));
+				theSession.fireEvent(new prisms.arch.event.PrismsEvent("userPermissionsChanged",
+					"user", users[u]));
 		} finally
 		{
 			theDataLock = false;

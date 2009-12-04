@@ -29,7 +29,8 @@ public class AppClients extends SelectableList<ClientConfig>
 	prisms.ui.UI theUI;
 
 	/**
-	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
+	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession,
+	 *      org.dom4j.Element)
 	 */
 	@Override
 	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
@@ -50,7 +51,14 @@ public class AppClients extends SelectableList<ClientConfig>
 				{
 					public void confirmed(boolean confirmed)
 					{
-						theUserSource.deleteClient(client);
+						try
+						{
+							theUserSource.deleteClient(client);
+						} catch(prisms.arch.PrismsException e)
+						{
+							throw new IllegalStateException(
+								"Could not delete client configuration", e);
+						}
 						getSession().getApp().fireGlobally(
 							getSession(),
 							new prisms.arch.event.PrismsEvent("appChanged", prisms.util.PrismsUtils
@@ -73,7 +81,13 @@ public class AppClients extends SelectableList<ClientConfig>
 			theUserSource = (prisms.arch.ds.ManageableUserSource) us;
 		theApp = getSession().getProperty(ManagerProperties.selectedApp);
 		if(theApp != null && theUserSource != null)
-			setListData(theUserSource.getAllClients(theApp));
+			try
+			{
+				setListData(theUserSource.getAllClients(theApp));
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not get application clients", e);
+			}
 		session.addPropertyChangeListener(ManagerProperties.selectedApp,
 			new prisms.arch.event.PrismsPCL<PrismsApplication>()
 			{
@@ -82,7 +96,13 @@ public class AppClients extends SelectableList<ClientConfig>
 					PrismsApplication app = evt.getNewValue();
 					theApp = app;
 					if(theUserSource != null && app != null)
-						setListData(theUserSource.getAllClients(app));
+						try
+						{
+							setListData(theUserSource.getAllClients(app));
+						} catch(prisms.arch.PrismsException e)
+						{
+							throw new IllegalStateException("Could not get application clients", e);
+						}
 					else
 						setListData(new ClientConfig [0]);
 					setListParams();
@@ -95,7 +115,13 @@ public class AppClients extends SelectableList<ClientConfig>
 				PrismsApplication app = (PrismsApplication) evt.getProperty("app");
 				if(theApp != null && theApp.equals(app) && theUserSource != null)
 				{
-					setListData(theUserSource.getAllClients(app));
+					try
+					{
+						setListData(theUserSource.getAllClients(app));
+					} catch(prisms.arch.PrismsException e)
+					{
+						throw new IllegalStateException("Could not get application clients", e);
+					}
 					initClient();
 				}
 			}
@@ -140,8 +166,23 @@ public class AppClients extends SelectableList<ClientConfig>
 				throw new IllegalArgumentException("User " + getSession().getUser()
 					+ " does not have permission to create new clients for application "
 					+ theApp.getName());
-			String name = newClientName(theUserSource.getAllClients(theApp));
-			ClientConfig newClient = theUserSource.createClient(theApp, name);
+
+			String name;
+			try
+			{
+				name = newClientName(theUserSource.getAllClients(theApp));
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not get application clients", e);
+			}
+			ClientConfig newClient;
+			try
+			{
+				newClient = theUserSource.createClient(theApp, name);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not create client", e);
+			}
 			getSession().getApp().fireGlobally(getSession(),
 				new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
 			doSelect(newClient);

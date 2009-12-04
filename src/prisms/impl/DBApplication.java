@@ -3,6 +3,8 @@
  */
 package prisms.impl;
 
+import prisms.arch.AppConfig;
+
 /**
  * An internal extension of the application class
  */
@@ -10,7 +12,7 @@ public class DBApplication extends prisms.arch.PrismsApplication
 {
 	private String theDescription;
 
-	private Class<? extends prisms.arch.AppConfig> theConfigClass;
+	private AppConfig theAppConfig;
 
 	private String theConfigXML;
 
@@ -25,9 +27,9 @@ public class DBApplication extends prisms.arch.PrismsApplication
 	/**
 	 * @return The configuration class for this application
 	 */
-	public Class<? extends prisms.arch.AppConfig> getConfigClass()
+	public AppConfig getConfig()
 	{
-		return theConfigClass;
+		return theAppConfig;
 	}
 
 	/**
@@ -47,11 +49,23 @@ public class DBApplication extends prisms.arch.PrismsApplication
 	}
 
 	/**
-	 * @param configClass The configuration class for this application
+	 * @param configClassName The name of the configuration class for this application
 	 */
-	public void setConfigClass(Class<? extends prisms.arch.AppConfig> configClass)
+	public void setConfigClass(String configClassName)
 	{
-		theConfigClass = configClass;
+		if(configClassName == null)
+		{
+			theAppConfig = new AppConfig();
+			return;
+		}
+		try
+		{
+			theAppConfig = Class.forName(configClassName).asSubclass(AppConfig.class).newInstance();
+		} catch(Throwable e)
+		{
+			theAppConfig = new PlaceholderAppConfig(configClassName);
+			return;
+		}
 	}
 
 	/**

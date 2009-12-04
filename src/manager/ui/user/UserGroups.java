@@ -25,7 +25,8 @@ public class UserGroups extends SelectableList<UserGroup>
 	private User theAppUser;
 
 	/**
-	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
+	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession,
+	 *      org.dom4j.Element)
 	 */
 	@Override
 	public void initPlugin(PrismsSession session, Element pluginEl)
@@ -86,15 +87,17 @@ public class UserGroups extends SelectableList<UserGroup>
 					setUserApp(theUser, theApp);
 			}
 		});
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(getSession().getUser().getName().equals(
-					((prisms.arch.ds.User) evt.getProperty("user")).getName()))
-					initClient();// Refresh this tree to take new permissions changes into account
-			}
-		});
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(getSession().getUser().getName().equals(
+						((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+						initClient();// Refresh this tree to take new permissions changes into
+										// account
+				}
+			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
@@ -117,7 +120,13 @@ public class UserGroups extends SelectableList<UserGroup>
 		theUser = user;
 		theApp = app;
 		if(theApp != null)
-			setListData(src.getGroups(theApp));
+			try
+			{
+				setListData(src.getGroups(theApp));
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not get PRISMS groups", e);
+			}
 		if(user == null || app == null)
 		{
 			theAppUser = null;
@@ -126,7 +135,13 @@ public class UserGroups extends SelectableList<UserGroup>
 		else if(user.getApp() != null && user.getApp().equals(app))
 			theAppUser = user;
 		else
-			theAppUser = getSession().getApp().getDataSource().getUser(user, app);
+			try
+			{
+				theAppUser = getSession().getApp().getDataSource().getUser(user, app);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not get application user", e);
+			}
 		if(theAppUser != null)
 			setSelectedObjects(theAppUser.getGroups());
 		else
