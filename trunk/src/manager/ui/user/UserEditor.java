@@ -57,13 +57,14 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 					initClient();
 			}
 		});
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				setUser(theUser);
-			}
-		});
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					setUser(theUser);
+				}
+			});
 		theUI = (prisms.ui.UI) theSession.getPlugin("UI");
 	}
 
@@ -90,7 +91,14 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 		evt.put("method", "setValue");
 		JSONObject val = new JSONObject();
 		val.put("name", theUser.getName());
-		long expiration = theSession.getApp().getDataSource().getPasswordExpiration(theUser);
+		long expiration;
+		try
+		{
+			expiration = theSession.getApp().getDataSource().getPasswordExpiration(theUser);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not get user's password expiration", e);
+		}
 		if(expiration < Long.MAX_VALUE)
 			val.put("passwordExpiration", new Long(expiration));
 		else
@@ -115,7 +123,13 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 				throw new IllegalArgumentException("No name to set");
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
-			source.rename(theUser, newName);
+			try
+			{
+				source.rename(theUser, newName);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not rename user", e);
+			}
 			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
 		}
 		else if("passwordExpirationChanged".equals(evt.get("method")))
@@ -126,14 +140,19 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			Number newExpire = (Number) evt.get("expiration");
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
-			if(newExpire == null)
-				source.setPasswordExpiration(theUser, Long.MAX_VALUE);
-			else
-				source.setPasswordExpiration(theUser, newExpire.longValue());
+			try
+			{
+				if(newExpire == null)
+					source.setPasswordExpiration(theUser, Long.MAX_VALUE);
+				else
+					source.setPasswordExpiration(theUser, newExpire.longValue());
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not set password expiration", e);
+			}
 			log.info("User " + theSession.getUser() + " changing expiration of user " + theUser
 				+ " to " + newExpire);
 			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
-			theSession.getApp().getServer().checkAuthenticationData(theUser);
 		}
 		else if("changePassword".equals(evt.get("method")))
 		{
@@ -151,7 +170,6 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 				hash[h] = ((Number) jsonHash.get(h)).longValue();
 			log.info("User " + theSession.getUser() + " changing password of user " + theUser);
 			doChangePassword(hash);
-			theSession.getApp().getServer().checkAuthenticationData(theUser);
 		}
 		else if("setLocked".equals(evt.get("method")))
 		{
@@ -162,7 +180,6 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			else
 				log.info("User " + theSession.getUser() + " unlocked user " + theUser);
 			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
-			theSession.getApp().getServer().checkAuthenticationData(theUser);
 		}
 		else
 			throw new IllegalArgumentException("Unrecognized event " + evt);
@@ -198,7 +215,14 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 		if(!(theSession.getApp().getDataSource() instanceof prisms.arch.ds.ManageableUserSource))
 			throw new IllegalStateException("Cannot change password: user source is not manageable");
 		theValidationRequestTime = System.currentTimeMillis();
-		prisms.arch.ds.Hashing hashing = theSession.getApp().getDataSource().getHashing();
+		prisms.arch.ds.Hashing hashing;
+		try
+		{
+			hashing = theSession.getApp().getDataSource().getHashing();
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not get PRISMS hashing", e);
+		}
 		theValidationParams = hashing;
 		JSONObject event = new JSONObject();
 		event.put("plugin", theName);
@@ -221,6 +245,12 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			changePassword();
 			return;
 		}
-		theSession.getApp().getDataSource().setPassword(theUser, hash);
+		try
+		{
+			theSession.getApp().getDataSource().setPassword(theUser, hash);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not set user password", e);
+		}
 	}
 }

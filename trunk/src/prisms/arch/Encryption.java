@@ -153,7 +153,7 @@ public class Encryption
 	 */
 	public static String decrypt(Object encryption, String encrypted) throws java.io.IOException
 	{
-		if(encrypted.startsWith("[") && encrypted.endsWith("]"))
+		if(encryption == null || (encrypted.startsWith("[") && encrypted.endsWith("]")))
 			return encrypted;
 		else if(encryption instanceof BlowfishEncryption)
 		{

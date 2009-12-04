@@ -16,7 +16,10 @@ import prisms.arch.RemoteEventSerializer;
 import prisms.arch.event.PrismsEventListener;
 import prisms.arch.event.SessionMonitor;
 
-class DBClientConfig implements ClientConfig
+/**
+ * A complete implementation of ClientConfig
+ */
+public class DBClientConfig implements ClientConfig
 {
 	private static final Logger log = Logger.getLogger(DBClientConfig.class);
 
@@ -87,6 +90,13 @@ class DBClientConfig implements ClientConfig
 	 */
 	private String theConfigXML;
 
+	/**
+	 * Creates a DBClientConfig
+	 * 
+	 * @param id The database ID of the config
+	 * @param app The application that this client config is for
+	 * @param name This client config's name
+	 */
 	public DBClientConfig(int id, PrismsApplication app, String name)
 	{
 		theID = id;
@@ -97,6 +107,9 @@ class DBClientConfig implements ClientConfig
 		thePluginTypes = new java.util.HashMap<String, PluginType>();
 	}
 
+	/**
+	 * @return This client config's database ID
+	 */
 	public int getID()
 	{
 		return theID;
@@ -118,6 +131,9 @@ class DBClientConfig implements ClientConfig
 		return theName;
 	}
 
+	/**
+	 * @param name The name for this client config
+	 */
 	public void setName(String name)
 	{
 		theName = name;
@@ -131,6 +147,9 @@ class DBClientConfig implements ClientConfig
 		return theDescrip;
 	}
 
+	/**
+	 * @param descrip The description for this client config
+	 */
 	public void setDescription(String descrip)
 	{
 		theDescrip = descrip;
@@ -141,16 +160,40 @@ class DBClientConfig implements ClientConfig
 		return theSerializer;
 	}
 
-	public void setSerializer(RemoteEventSerializer serializer)
+	/**
+	 * @param serializerClass The class name of the serializer that this client shall use
+	 */
+	public void setSerializerClass(String serializerClass)
 	{
-		theSerializer = serializer;
+		if(serializerClass == null)
+		{
+			theSerializer = new prisms.arch.JsonSerializer();
+			return;
+		}
+		try
+		{
+			theSerializer = Class.forName(serializerClass).asSubclass(RemoteEventSerializer.class).newInstance();
+		} catch(Throwable e)
+		{
+			theSerializer = new PlaceholderSerializer(serializerClass);
+			return;
+		}
 	}
 
+	/**
+	 * @return The path to the configuration XML that this client config will use to configure a
+	 *         session
+	 */
 	public String getConfigXML()
 	{
 		return theConfigXML;
 	}
 
+	/**
+	 * 
+	 * @param configXML The path to the configuration XML that this client config should user to
+	 *        configure a session
+	 */
 	public void setConfigXML(String configXML)
 	{
 		theConfigXML = configXML;

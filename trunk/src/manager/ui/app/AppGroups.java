@@ -16,7 +16,8 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 	PrismsApplication theApp;
 
 	/**
-	 * @see prisms.ui.tree.DataTreeMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
+	 * @see prisms.ui.tree.DataTreeMgrPlugin#initPlugin(prisms.arch.PrismsSession,
+	 *      org.dom4j.Element)
 	 */
 	@Override
 	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
@@ -35,16 +36,17 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 					setApp(evt.getNewValue());
 				}
 			});
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(getSession().getUser().getName().equals(
-					((prisms.arch.ds.User) evt.getProperty("user")).getName()))
-					// Refresh this tree to take new permissions changes into account
-					setApp(getSession().getProperty(ManagerProperties.selectedApp));
-			}
-		});
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(getSession().getUser().getName().equals(
+						((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+						// Refresh this tree to take new permissions changes into account
+						setApp(getSession().getProperty(ManagerProperties.selectedApp));
+				}
+			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
@@ -60,10 +62,25 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 			{
 				ManageableUserSource mus = (ManageableUserSource) getSession().getApp()
 					.getDataSource();
-				mus.createGroup(createNewGroupName("New " + theApp.getName() + " Group"), theApp);
+				try
+				{
+					mus.createGroup(createNewGroupName("New " + theApp.getName() + " Group"),
+						theApp);
+				} catch(prisms.arch.PrismsException e)
+				{
+					throw new IllegalStateException("Could not create user group", e);
+				}
+				UserGroup [] groups;
+				try
+				{
+					groups = mus.getGroups(theApp);
+				} catch(prisms.arch.PrismsException e)
+				{
+					throw new IllegalStateException("Could not get user groups", e);
+				}
 				getSession().fireEvent(
-					new prisms.arch.event.PrismsEvent("appGroupsChanged", "app", theApp, "groups", mus
-						.getGroups(theApp)));
+					new prisms.arch.event.PrismsEvent("appGroupsChanged", "app", theApp, "groups",
+						groups));
 			}
 		});
 		session.addEventListener("appGroupsChanged", new prisms.arch.event.PrismsEventListener()
@@ -133,11 +150,17 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 			if(!(theApp.getDataSource() instanceof ManageableUserSource))
 				setListData(new UserGroup [0]);
 			else
-				setListData(((ManageableUserSource) theApp.getDataSource()).getGroups(theApp));
+				try
+				{
+					setListData(((ManageableUserSource) theApp.getDataSource()).getGroups(theApp));
+				} catch(prisms.arch.PrismsException e)
+				{
+					throw new IllegalStateException("Could not get groups", e);
+				}
 			if(manager.app.ManagerUtils.canEdit(getSession().getUser(), theApp))
 			{
-				prisms.ui.list.ActionListNode action = new prisms.ui.list.ActionListNode(AppGroups.this,
-					"createNewGroup");
+				prisms.ui.list.ActionListNode action = new prisms.ui.list.ActionListNode(
+					AppGroups.this, "createNewGroup");
 				action.setText("*Create Group*");
 				action.setIcon("manager/group");
 				addNode(action, 0);
@@ -195,7 +218,14 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 							users = users.clone();
 							for(int u = 0; u < users.length; u++)
 							{
-								users[u] = mus.getUser(users[u], group.getApp());
+								try
+								{
+									users[u] = mus.getUser(users[u], group.getApp());
+								} catch(prisms.arch.PrismsException e)
+								{
+									throw new IllegalStateException(
+										"Could not get application user", e);
+								}
 								if(users[u] == null
 									|| !prisms.util.ArrayUtils
 										.contains(users[u].getGroups(), group))
@@ -205,18 +235,30 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 								}
 							}
 
-							mus.deleteGroup(group);
-							getSession().fireEvent(
-								new prisms.arch.event.PrismsEvent("appGroupsChanged", "app", theApp,
-									"groups", mus.getGroups(theApp)));
+							try
+							{
+								mus.deleteGroup(group);
+							} catch(prisms.arch.PrismsException e)
+							{
+								throw new IllegalStateException("Could not delete group", e);
+							}
+							try
+							{
+								getSession().fireEvent(
+									new prisms.arch.event.PrismsEvent("appGroupsChanged", "app",
+										theApp, "groups", mus.getGroups(theApp)));
+							} catch(prisms.arch.PrismsException e)
+							{
+								throw new IllegalStateException("Could not get user groups", e);
+							}
 							for(int u = 0; u < users.length; u++)
 							{
 								getSession().fireEvent(
 									new prisms.arch.event.PrismsEvent("userGroupsChanged", "user",
 										users[u]));
 								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("userPermissionsChanged", "user",
-										users[u]));
+									new prisms.arch.event.PrismsEvent("userPermissionsChanged",
+										"user", users[u]));
 							}
 						}
 					};

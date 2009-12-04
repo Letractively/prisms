@@ -3,6 +3,8 @@
  */
 package manager.persisters;
 
+import org.apache.log4j.Logger;
+
 import prisms.arch.ds.User;
 
 /**
@@ -10,12 +12,22 @@ import prisms.arch.ds.User;
  */
 public class UserPersister extends prisms.util.persisters.AbstractPersister<User []>
 {
+	private static final Logger log = Logger.getLogger(UserPersister.class);
+
 	/**
 	 * @see prisms.arch.Persister#getValue()
 	 */
 	public User [] getValue()
 	{
-		User [] users = getApp().getDataSource().getAllUsers();
+		User [] users;
+		try
+		{
+			users = getApp().getDataSource().getAllUsers();
+		} catch(prisms.arch.PrismsException e)
+		{
+			log.error("Could not get users", e);
+			return new User [0];
+		}
 		return users;
 	}
 

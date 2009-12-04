@@ -49,8 +49,14 @@ public class ApplicationEditor implements AppPlugin
 		else
 			theUserSource = (prisms.arch.ds.ManageableUserSource) us;
 		theApp = theSession.getProperty(ManagerProperties.selectedApp);
-		if(theApp != null && theUserSource != null)
-			theAppUser = theUserSource.getUser(session.getUser(), theApp);
+		try
+		{
+			if(theApp != null && theUserSource != null)
+				theAppUser = theUserSource.getUser(session.getUser(), theApp);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not get application user", e);
+		}
 		session.addPropertyChangeListener(ManagerProperties.selectedApp,
 			new prisms.arch.event.PrismsPCL<PrismsApplication>()
 			{
@@ -71,17 +77,18 @@ public class ApplicationEditor implements AppPlugin
 			}
 		});
 		theUI = (prisms.ui.UI) session.getPlugin("UI");
-		session.addEventListener("userPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("userPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(theSession.getUser().getName()
-					.equals(((User) evt.getProperty("user")).getName()))
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
 				{
-					setApp(theApp);
+					if(theSession.getUser().getName().equals(
+						((User) evt.getProperty("user")).getName()))
+					{
+						setApp(theApp);
+					}
 				}
-			}
-		});
+			});
 	}
 
 	/**
@@ -111,8 +118,11 @@ public class ApplicationEditor implements AppPlugin
 		if(theApp instanceof DBApplication)
 		{
 			val.put("descrip", ((DBApplication) theApp).getDescription());
-			if(((DBApplication) theApp).getConfigClass() != null)
-				val.put("configClass", ((DBApplication) theApp).getConfigClass().getName());
+			if(((DBApplication) theApp).getConfig() instanceof prisms.impl.PlaceholderAppConfig)
+				val.put("configClass", ((prisms.impl.PlaceholderAppConfig) ((DBApplication) theApp)
+					.getConfig()).getAppConfigClassName());
+			else if(((DBApplication) theApp).getConfig() != null)
+				val.put("configClass", ((DBApplication) theApp).getConfig().getClass().getName());
 			else
 				val.put("configClass", null);
 			String configXML = ((DBApplication) theApp).getConfigXML();
@@ -165,11 +175,18 @@ public class ApplicationEditor implements AppPlugin
 				+ " to " + newName);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
-			source.rename(theApp, newName);
+			try
+			{
+				source.rename(theApp, newName);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify application", e);
+			}
 			theDataLock = true;
 			try
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
+				theSession
+					.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
 			} finally
 			{
 				theDataLock = false;
@@ -186,11 +203,18 @@ public class ApplicationEditor implements AppPlugin
 			prisms.impl.DBUserSource source;
 			source = (prisms.impl.DBUserSource) theSession.getApp().getDataSource();
 			((DBApplication) theApp).setDescription(newDescrip);
-			source.changeProperties((DBApplication) theApp);
+			try
+			{
+				source.changeProperties((DBApplication) theApp);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify application", e);
+			}
 			theDataLock = true;
 			try
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
+				theSession
+					.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
 			} finally
 			{
 				theDataLock = false;
@@ -206,11 +230,20 @@ public class ApplicationEditor implements AppPlugin
 				+ " changing configuration class of application " + theApp + " to " + configClass);
 			prisms.impl.DBUserSource source;
 			source = (prisms.impl.DBUserSource) theSession.getApp().getDataSource();
+			((DBApplication) theApp).setConfigClass(configClass);
+			try
+			{
+				source.changeProperties((DBApplication) theApp);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify application", e);
+			}
 
 			JSONObject evt2 = new JSONObject();
 			evt2.put("plugin", theName);
 			evt2.put("method", "setConfigClassValid");
-			Class<?> firstClass;
+			boolean error = false;
+			Class<?> firstClass = null;
 			try
 			{
 				firstClass = Class.forName(configClass);
@@ -219,28 +252,32 @@ public class ApplicationEditor implements AppPlugin
 				evt2.put("valid", new Boolean(false));
 				theUI.error(configClass + " is not a valid java class or is not in the classpath");
 				theSession.postOutgoingEvent(evt2);
-				return;
+				error = true;
 			}
-			Class<? extends prisms.arch.AppConfig> configClazz;
-			try
+			if(firstClass != null)
 			{
-				configClazz = firstClass.asSubclass(prisms.arch.AppConfig.class);
-			} catch(Exception e)
+				try
+				{
+					firstClass.asSubclass(prisms.arch.AppConfig.class);
+				} catch(Exception e)
+				{
+					evt2.put("valid", new Boolean(false));
+					theUI.error(configClass + " is not an implementation of "
+						+ prisms.arch.AppConfig.class.getName());
+					theSession.postOutgoingEvent(evt2);
+					error = true;
+				}
+			}
+			if(!error)
 			{
-				evt2.put("valid", new Boolean(false));
-				theUI.error(configClass + " is not an implementation of "
-					+ prisms.arch.AppConfig.class.getName());
+				evt2.put("valid", new Boolean(true));
 				theSession.postOutgoingEvent(evt2);
-				return;
 			}
-			evt2.put("valid", new Boolean(true));
-			theSession.postOutgoingEvent(evt2);
-			((DBApplication) theApp).setConfigClass(configClazz);
-			source.changeProperties((DBApplication) theApp);
 			theDataLock = true;
 			try
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
+				theSession
+					.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
 			} finally
 			{
 				theDataLock = false;
@@ -283,11 +320,18 @@ public class ApplicationEditor implements AppPlugin
 			}
 
 			theSession.postOutgoingEvent(evt2);
-			source.changeProperties((DBApplication) theApp);
+			try
+			{
+				source.changeProperties((DBApplication) theApp);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify application", e);
+			}
 			theDataLock = true;
 			try
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
+				theSession
+					.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
 			} finally
 			{
 				theDataLock = false;
@@ -302,8 +346,14 @@ public class ApplicationEditor implements AppPlugin
 		if(theApp == null && app == null)
 			return;
 		theApp = app;
-		if(theApp != null && theUserSource != null)
-			theAppUser = theUserSource.getUser(theSession.getUser(), theApp);
+		try
+		{
+			if(theApp != null && theUserSource != null)
+				theAppUser = theUserSource.getUser(theSession.getUser(), theApp);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not application user", e);
+		}
 		initClient();
 	}
 

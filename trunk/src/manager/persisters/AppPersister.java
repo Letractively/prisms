@@ -25,7 +25,15 @@ public class AppPersister extends prisms.util.persisters.AbstractPersister<Prism
 			return new PrismsApplication [0];
 		}
 		else
-			return ((prisms.arch.ds.ManageableUserSource) getApp().getDataSource()).getAllApps();
+			try
+			{
+				return ((prisms.arch.ds.ManageableUserSource) getApp().getDataSource())
+					.getAllApps();
+			} catch(prisms.arch.PrismsException e)
+			{
+				log.error("Could not retrieve apps", e);
+				return new PrismsApplication [0];
+			}
 	}
 
 	/**

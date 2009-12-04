@@ -33,7 +33,7 @@
 		<priority value="info"/>
 	</category>
 
-	<category name="prisms.util.PRISMServiceConnector">
+	<category name="prisms.util.PrismsServiceConnector">
 		<priority value="info"/>
 	</category>
 

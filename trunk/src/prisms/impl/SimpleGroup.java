@@ -10,7 +10,7 @@ import prisms.arch.ds.UserSource;
 /**
  * A group that a user can belong to that gives the user permissions
  */
-class SimpleGroup implements prisms.arch.ds.UserGroup
+public class SimpleGroup implements prisms.arch.ds.UserGroup
 {
 	private final UserSource theSource;
 
