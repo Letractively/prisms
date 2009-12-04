@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<server>
+	<serializer>prisms.arch.JsonSerializer</serializer>
+	<persisterFactory>
+		<class>prisms.impl.DefaultPersisterFactory</class>
+		<connection>
+			<name>PRISMS</name>
+			<driver>org.hsqldb.jdbcDriver</driver>
+			<url>jdbc:hsqldb:hsql://localhost:9001/prisms</url>
+			<username>PRISMS</username>
+			<password>PRISMS</password> 
+		</connection>
+	</persisterFactory>
+	<datasource>
+		<class>prisms.impl.DBUserSource</class>
+		<connection name="PRISMS" />
+		<anonymous>anonymous</anonymous>
+		<!-- 30 days -->
+		<passwordReset>2592000000</passwordReset>
+	</datasource>
+</server>

@@ -69,6 +69,16 @@ public interface ClientConfig
 	void configure(PrismsSession session);
 
 	/**
+	 * @return Whether this client has been configured or not
+	 */
+	boolean isConfigured();
+
+	/**
+	 * Notifies this client config that it has been configured
+	 */
+	void setConfigured();
+
+	/**
 	 * Creates a new plugin for a session
 	 * 
 	 * @param pluginName The name of the plugin to create

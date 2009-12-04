@@ -26,11 +26,7 @@ public class ApplicationEditor implements AppPlugin
 
 	private String theName;
 
-	private prisms.arch.ds.ManageableUserSource theUserSource;
-
 	PrismsApplication theApp;
-
-	private User theAppUser;
 
 	private prisms.ui.UI theUI;
 
@@ -43,20 +39,7 @@ public class ApplicationEditor implements AppPlugin
 	{
 		theSession = session;
 		theName = pluginEl.elementText("name");
-		prisms.arch.ds.UserSource us = session.getApp().getDataSource();
-		if(!(us instanceof prisms.arch.ds.ManageableUserSource))
-			log.warn("User source is not manageable");
-		else
-			theUserSource = (prisms.arch.ds.ManageableUserSource) us;
 		theApp = theSession.getProperty(ManagerProperties.selectedApp);
-		try
-		{
-			if(theApp != null && theUserSource != null)
-				theAppUser = theUserSource.getUser(session.getUser(), theApp);
-		} catch(prisms.arch.PrismsException e)
-		{
-			throw new IllegalStateException("Could not get application user", e);
-		}
 		session.addPropertyChangeListener(ManagerProperties.selectedApp,
 			new prisms.arch.event.PrismsPCL<PrismsApplication>()
 			{
@@ -346,30 +329,22 @@ public class ApplicationEditor implements AppPlugin
 		if(theApp == null && app == null)
 			return;
 		theApp = app;
-		try
-		{
-			if(theApp != null && theUserSource != null)
-				theAppUser = theUserSource.getUser(theSession.getUser(), theApp);
-		} catch(prisms.arch.PrismsException e)
-		{
-			throw new IllegalStateException("Could not application user", e);
-		}
 		initClient();
 	}
 
 	boolean isEditable()
 	{
-		if(theApp == null || theAppUser != null)
+		if(theApp == null)
 			return false;
-		return theApp != null && manager.app.ManagerUtils.canEdit(theAppUser, theApp);
+		return manager.app.ManagerUtils.canEdit(theSession.getUser(), theApp);
 	}
 
 	void assertEditable()
 	{
 		if(theApp == null)
 			throw new IllegalArgumentException("No application selected to edit");
-		if(!manager.app.ManagerUtils.canEdit(theAppUser, theApp))
-			throw new IllegalArgumentException("User " + theAppUser
+		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theApp))
+			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " does not have permission to edit application " + theApp.getName());
 	}
 }

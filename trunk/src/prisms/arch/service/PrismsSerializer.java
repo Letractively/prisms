@@ -31,7 +31,7 @@ public class PrismsSerializer
 		ret.put("name", user.getName());
 		if(user.getRootUser() != null)
 			ret.put("root", serializeUser(user.getRootUser()));
-		ret.put("app", user.getApp().getName());
+		ret.put("app", user.getApp() == null ? null : user.getApp().getName());
 		if(user.getValidator() instanceof prisms.impl.PlaceholderValidator)
 			ret.put("validator", ((prisms.impl.PlaceholderValidator) user.getValidator())
 				.getValidatorClassName());
@@ -55,9 +55,19 @@ public class PrismsSerializer
 	{
 		if(json == null)
 			return null;
-		SimpleUser ret = new SimpleUser(
-			deserializeUser((JSONObject) json.get("root"), source, app), app.getName().equals(
-				json.get("app")) ? app : null);
+		PrismsApplication userApp;
+		if(app == null)
+			userApp = null;
+		else if(app.getName().equals(json.get("app")))
+			userApp = app;
+		else
+			userApp = null;
+		SimpleUser ret;
+		if(json.get("root") == null)
+			ret = new SimpleUser(source, (String) json.get("name"));
+		else
+			ret = new SimpleUser(deserializeUser((JSONObject) json.get("root"), source, app),
+				userApp);
 		String valClass = (String) json.get("validator");
 		if(valClass != null)
 		{

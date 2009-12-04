@@ -47,7 +47,12 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 					ret.put("user", null);
 				String appName = (String) evt.get("appName");
 				if(appName != null)
-					user = theSource.getUser(appName);
+				{
+					prisms.arch.PrismsApplication app = theSource.getApp(appName);
+					if(app == null)
+						throw new PrismsException("No such application: " + appName);
+					user = theSource.getUser(user, app);
+				}
 				ret.put("user", PrismsSerializer.serializeUser((prisms.impl.SimpleUser) user));
 			}
 			else if(method.equals("getAllUsers"))

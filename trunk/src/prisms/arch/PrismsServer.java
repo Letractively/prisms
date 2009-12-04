@@ -94,6 +94,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 	int theLoginFailTolerance = 3;
 
+	long theUserCheckPeriod = 60000;
+
 	/**
 	 * Creates a PRISMS Server
 	 */
@@ -197,19 +199,21 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					+ serializerClass, e);
 			}
 
-		String persisterFactoryClass = configEl.elementTextTrim("persisterFactory");
-		if(thePersisterFactory == null && persisterFactoryClass != null)
+		org.dom4j.Element persisterFactoryEl = configEl.element("persisterFactory");
+		if(thePersisterFactory == null && persisterFactoryEl != null)
+		{
+			String className = persisterFactoryEl.elementTextTrim("class");
 			try
 			{
-				thePersisterFactory = (PersisterFactory) Class.forName(persisterFactoryClass)
-					.newInstance();
+				thePersisterFactory = (PersisterFactory) Class.forName(className).newInstance();
 			} catch(Throwable e)
 			{
-				log.error("Could not instantiate persister factory " + persisterFactoryClass
-					+ e.getMessage());
+				log.error("Could not instantiate persister factory " + className + e.getMessage());
 				throw new IllegalStateException("Could not instantiate persister factory "
-					+ persisterFactoryClass, e);
+					+ className, e);
 			}
+			thePersisterFactory.configure(this, persisterFactoryEl);
+		}
 		if(thePersisterFactory == null)
 			throw new IllegalStateException("No PersisterFactory set--cannot configure PRISMS");
 
@@ -356,48 +360,80 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				dataStr = "{\"serverPadding\":\"padding\"}";
 		}
 
-		User user;
-		try
-		{
-			user = theUserSource.getUser(userName);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get user " + userName, e);
-			user = null;
-		}
-		PrismsApplication app;
-		try
-		{
-			app = theUserSource.getApp(appName);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get applicaiton " + appName, e);
-			app = null;
-		}
-		if(app != null && app.getServer() != this)
-			app.setServer(this);
-		User appUser;
-		try
-		{
-			appUser = theUserSource.getUser(user, app);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get application user " + user.getName(), e);
-			appUser = null;
-		}
-		ClientConfig client = null;
-		try
-		{
-			if(clientName != null && app != null)
-				client = theUserSource.getClient(app, clientName);
-			else if(serviceName != null && app != null)
-				client = theUserSource.getClient(app, serviceName);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get client " + clientName, e);
-			client = null;
-		}
 		SessionMetadata session = null;
+		if(sessionID != null && userName != null && appName != null
+			&& (serviceName != null || clientName == null))
+		{
+			String key = sessionID + "/" + appName + "/"
+				+ (serviceName != null ? serviceName : clientName) + "/" + userName;
+			session = theSessions.get(key);
+		}
+
+		User user;
+		PrismsApplication app;
+		User appUser;
+		ClientConfig client;
+		if(session != null)
+		{
+			try
+			{
+				user = session.getUser();
+				if(user.getApp() != null)
+					appUser = user;
+				else
+					appUser = null;
+				client = session.getClient();
+				app = client.getApp();
+			} catch(PrismsException e)
+			{
+				log.error("Could not get user and client", e);
+				user = null;
+				app = null;
+				appUser = null;
+				client = null;
+			}
+		}
+		else
+		{
+			try
+			{
+				user = theUserSource.getUser(userName);
+			} catch(PrismsException e)
+			{
+				log.error("Could not get user " + userName, e);
+				user = null;
+			}
+			try
+			{
+				app = theUserSource.getApp(appName);
+			} catch(PrismsException e)
+			{
+				log.error("Could not get applicaiton " + appName, e);
+				app = null;
+			}
+			if(app != null && app.getServer() != this)
+				app.setServer(this);
+			try
+			{
+				appUser = theUserSource.getUser(user, app);
+			} catch(PrismsException e)
+			{
+				log.error("Could not get application user " + user.getName(), e);
+				appUser = null;
+			}
+			client = null;
+			try
+			{
+				if(clientName != null && app != null)
+					client = theUserSource.getClient(app, clientName);
+				else if(serviceName != null && app != null)
+					client = theUserSource.getClient(app, serviceName);
+			} catch(PrismsException e)
+			{
+				log.error("Could not get client " + clientName, e);
+				client = null;
+			}
+		}
 		Lock lock;
 		if(serviceName != null)
 			sessionID = "null";
@@ -519,7 +555,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		long pwdExp;
 		try
 		{
-			pwdExp = theUserSource.getPasswordExpiration(appUser);
+			if(appUser == null)
+				pwdExp = System.currentTimeMillis() + 24L * 60 * 60 * 1000;
+			else
+				pwdExp = theUserSource.getPasswordExpiration(appUser);
 		} catch(PrismsException e)
 		{
 			errorString = "Could not get user " + appUser + "'s password expiration";
@@ -967,11 +1006,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			lock.unlock();
 		}
+		thePersisterFactory.destroy();
 		theUserSource.disconnect();
 	}
 
 	class SessionMetadata
 	{
+		String theUserName;
+
 		User theUser;
 
 		ClientConfig theClient;
@@ -992,8 +1034,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		boolean authChanged;
 
+		long userLastChecked;
+
 		SessionMetadata(User appUser, ClientConfig client, boolean service) throws PrismsException
 		{
+			theUserName = appUser.getName();
 			theUser = appUser;
 			theClient = client;
 			isService = service;
@@ -1004,7 +1049,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			{
 				throw new IllegalStateException("Could not get user password hash", e);
 			}
-			checkAuthenticationData();
+			checkAuthenticationData(true);
 			authChanged = false;
 			if(isService)
 			{
@@ -1018,8 +1063,27 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 
-		void checkAuthenticationData() throws PrismsException
+		void checkAuthenticationData(boolean init) throws PrismsException
 		{
+			long time = System.currentTimeMillis();
+			if(!init && time - userLastChecked < theUserCheckPeriod)
+				return;
+			userLastChecked = time;
+			if(!init || theUser == null)
+			{
+				User rootUser = getUserSource().getUser(theUserName);
+				if(rootUser == null)
+				{
+					theUser = null;
+					return;
+				}
+				User appUser = getUserSource().getUser(rootUser, theClient.getApp());
+				if(appUser == null)
+				{
+					theUser = rootUser;
+					return;
+				}
+			}
 			String newKey = getUserSource().getKey(theUser, theHashing);
 			if(theKey == null)
 			{
@@ -1051,6 +1115,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return theSession.getEvents();
 		}
 
+		User getUser() throws PrismsException
+		{
+			checkAuthenticationData(false);
+			return theUser;
+		}
+
+		ClientConfig getClient() throws PrismsException
+		{
+			// checkAuthenticationData(false);
+			return theClient;
+		}
+
 		Hashing getHashing()
 		{
 			return theHashing;
@@ -1078,7 +1154,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		String decrypt(String encrypted) throws Exception
 		{
-			checkAuthenticationData();
+			checkAuthenticationData(false);
 			return prisms.arch.Encryption.decrypt(theEncryption, encrypted);
 		}
 

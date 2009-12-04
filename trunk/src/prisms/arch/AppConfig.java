@@ -188,6 +188,7 @@ public class AppConfig
 				}
 			}
 		}
+		client.setConfigured();
 	}
 
 	/**
