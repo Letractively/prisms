@@ -15,6 +15,14 @@ import prisms.arch.event.PropertyDataSource;
 public interface PersisterFactory
 {
 	/**
+	 * Configures this factory
+	 * 
+	 * @param server The server that this factory is for
+	 * @param configEl The XML element to use to configure this factory
+	 */
+	void configure(PrismsServer server, Element configEl);
+
+	/**
 	 * Creates a persister from an XML configuration element
 	 * 
 	 * @param <T> The type of persister to create
@@ -23,8 +31,7 @@ public interface PersisterFactory
 	 * @param property The name of the property to be persisted by the new persister
 	 * @return A configured persister
 	 */
-	public <T> Persister<T> create(Element persisterEl, PrismsApplication app,
-		PrismsProperty<T> property);
+	<T> Persister<T> create(Element persisterEl, PrismsApplication app, PrismsProperty<T> property);
 
 	/**
 	 * Creates and configures a data source from an XML element
@@ -33,7 +40,7 @@ public interface PersisterFactory
 	 *        source
 	 * @return A new PropertyDataSource
 	 */
-	public PropertyDataSource parseDS(Element el);
+	PropertyDataSource parseDS(Element el);
 
 	/**
 	 * Creates or retrieves an SQL connection using a configuration element
@@ -42,7 +49,7 @@ public interface PersisterFactory
 	 * @param userSource The user source of the application to get the connection for
 	 * @return The configured connection
 	 */
-	public java.sql.Connection getConnection(Element el, UserSource userSource);
+	java.sql.Connection getConnection(Element el, UserSource userSource);
 
 	/**
 	 * @param conn The connection to get the table prefix for
@@ -51,7 +58,7 @@ public interface PersisterFactory
 	 * @return The prefix that should be used before the name of each column in all SQL statements
 	 *         executed on the given connection
 	 */
-	public String getTablePrefix(java.sql.Connection conn, Element connEl, UserSource userSource);
+	String getTablePrefix(java.sql.Connection conn, Element connEl, UserSource userSource);
 
 	/**
 	 * Performs a disconnect operation on a connection as configured by an XML configuration element
@@ -59,5 +66,10 @@ public interface PersisterFactory
 	 * @param conn The connection to release
 	 * @param connEl The XML element describing how to release the connection
 	 */
-	public void disconnect(java.sql.Connection conn, Element connEl);
+	void disconnect(java.sql.Connection conn, Element connEl);
+
+	/**
+	 * Releases all of this factory's resources
+	 */
+	void destroy();
 }

@@ -626,6 +626,19 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		app.setConfigured();
 	}
 
+	private void configure(ClientConfig client) throws PrismsException
+	{
+		if(!(client.getApp() instanceof DBApplication))
+			throw new PrismsException("Application " + client.getApp()
+				+ " was not created by this user source");
+		if(!(client instanceof DBClientConfig))
+			throw new PrismsException("Client " + client + " of application " + client.getApp()
+				+ " was not created by this user source");
+		AppConfig config = ((DBApplication) client.getApp()).getConfig();
+		org.dom4j.Element configEl = getConfigXML(((DBClientConfig) client).getConfigXML());
+		config.configureClient(client, configEl);
+	}
+
 	/**
 	 * @see prisms.arch.ds.ManageableUserSource#addAdminGroup(prisms.arch.PrismsApplication,
 	 *      prisms.arch.ds.UserGroup)
@@ -653,7 +666,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		String descrip;
 		String serializerStr;
 		String configXML;
-		AppConfig appConfig;
 		java.sql.Statement stmt = null;
 		java.sql.ResultSet rs = null;
 		checkConnection();
@@ -685,21 +697,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			descrip = rs.getString(2);
 			serializerStr = rs.getString(3);
 			configXML = rs.getString(4);
-			rs.close();
-			rs = null;
-
-			rs = stmt.executeQuery("SELECT configClass FROM " + DBOWNER
-				+ "prisms_application WHERE id = " + theAppIDs.get(app.getName()));
-			if(!rs.next())
-				throw new PrismsException("No client named " + name);
-			String configClass = rs.getString(1);
-			try
-			{
-				appConfig = (prisms.arch.AppConfig) Class.forName(configClass).newInstance();
-			} catch(Throwable e)
-			{
-				throw new PrismsException("Could not instantiate AppConfig class " + configClass, e);
-			}
 		} catch(java.sql.SQLException e)
 		{
 			throw new PrismsException("Could not query for client " + name + " of application "
@@ -728,8 +725,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		ret.setDescription(descrip);
 		ret.setSerializerClass(serializerStr);
 		ret.setConfigXML(configXML);
-		org.dom4j.Element configEl = getConfigXML(configXML);
-		appConfig.configureClient(ret, configEl);
 		lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -833,6 +828,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 		if(!client.getApp().isConfigured())
 			configure(client.getApp());
+		if(!client.isConfigured())
+			configure(client);
 		PrismsSession ret = new PrismsSession(client.getApp(), client, user, asService);
 		client.getApp().configureSession(ret);
 		try
@@ -2183,6 +2180,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		theAppIDs.clear();
 		theHashing = null;
 		theUsers.clear();
+		if(thePRISMSConnection == null)
+			return;
 		if(thePRISMSConnection.getClass().getName().indexOf("hsql") >= 0)
 		{
 			try

@@ -85,6 +85,8 @@ public class DBClientConfig implements ClientConfig
 
 	private java.util.HashMap<String, PluginType> thePluginTypes;
 
+	private boolean isConfigured;
+
 	/**
 	 * Stores a URL location to the XML
 	 */
@@ -172,7 +174,8 @@ public class DBClientConfig implements ClientConfig
 		}
 		try
 		{
-			theSerializer = Class.forName(serializerClass).asSubclass(RemoteEventSerializer.class).newInstance();
+			theSerializer = Class.forName(serializerClass).asSubclass(RemoteEventSerializer.class)
+				.newInstance();
 		} catch(Throwable e)
 		{
 			theSerializer = new PlaceholderSerializer(serializerClass);
@@ -197,6 +200,16 @@ public class DBClientConfig implements ClientConfig
 	public void setConfigXML(String configXML)
 	{
 		theConfigXML = configXML;
+	}
+
+	public boolean isConfigured()
+	{
+		return isConfigured;
+	}
+
+	public void setConfigured()
+	{
+		isConfigured = true;
 	}
 
 	/**

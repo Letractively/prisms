@@ -6,4 +6,10 @@
 			<fileset dir="classes" />
 		</jar>
 	</target>
+	<target name="war">
+		<war warfile="prisms.war" update="no" webxml="WebContent/WEB-INF/web.xml" compress="true">
+			<classes dir="classes"/>			
+			<lib dir="lib" includes="*.jar"/>
+		</war>	
+	</target>
 </project>

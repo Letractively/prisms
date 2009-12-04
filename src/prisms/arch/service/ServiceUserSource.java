@@ -18,7 +18,7 @@ import prisms.impl.DBClientConfig;
  */
 public class ServiceUserSource implements UserSource
 {
-	private static final String thePluginName = "PRISMS Service";
+	private String thePluginName;
 
 	private prisms.util.PrismsServiceConnector theConnector;
 
@@ -33,9 +33,20 @@ public class ServiceUserSource implements UserSource
 	public void configure(org.dom4j.Element configEl, PersisterFactory factory)
 		throws PrismsException
 	{
-		theConnector = new prisms.util.PrismsServiceConnector(configEl
-			.elementTextTrim("serviceURL"), configEl.elementTextTrim("appName"), configEl
-			.elementTextTrim("serviceName"), configEl.elementTextTrim("user"));
+		String url = configEl.elementTextTrim("serviceURL");
+		if(url == null)
+			throw new PrismsException("No serviceURL!");
+		String appName = configEl.elementTextTrim("appName");
+		if(appName == null)
+			throw new PrismsException("No appName!");
+		String serviceName = configEl.elementTextTrim("serviceName");
+		if(serviceName == null)
+			throw new PrismsException("No serviceName!");
+		thePluginName = configEl.elementTextTrim("pluginName");
+		if(thePluginName == null)
+			throw new PrismsException("No pluginName!");
+		String userName = configEl.elementTextTrim("user");
+		theConnector = new prisms.util.PrismsServiceConnector(url, appName, serviceName, userName);
 		String pwd = configEl.elementTextTrim("password");
 		if(pwd != null)
 			theConnector.setPassword(pwd);
@@ -57,7 +68,7 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getUser", "userName", name);
+			res = theConnector.getResult(thePluginName, "getUser", "userName", name);
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
@@ -77,8 +88,8 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getUser", "userName", serverUser
-				.getName(), "appName", app.getName());
+			res = theConnector.getResult(thePluginName, "getUser", "userName",
+				serverUser.getName(), "appName", app.getName());
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
@@ -110,7 +121,7 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getAllUsers");
+			res = theConnector.getResult(thePluginName, "getAllUsers");
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
@@ -130,8 +141,8 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getPasswordExpiration", "userName",
-				user.getName());
+			res = theConnector.getResult(thePluginName, "getPasswordExpiration", "userName", user
+				.getName());
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
@@ -153,7 +164,7 @@ public class ServiceUserSource implements UserSource
 			jsonHash.add(new Long(hash[h]));
 		try
 		{
-			theConnector.callProcedure("PRISMS Service", "setPassword", true, "userName", user
+			theConnector.callProcedure(thePluginName, "setPassword", true, "userName", user
 				.getName(), "hash", jsonHash);
 		} catch(java.io.IOException e)
 		{
@@ -301,6 +312,7 @@ public class ServiceUserSource implements UserSource
 		org.dom4j.Element configEl = getConfigXML(configXML);
 		dbApp.getConfig().configureClient(ret, configEl);
 		lock = theLock.writeLock();
+		lock.lock();
 		try
 		{
 			theClients.put(app.getName() + "/" + name, ret);
@@ -399,7 +411,7 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getGroup", "appName", app.getName(),
+			res = theConnector.getResult(thePluginName, "getGroup", "appName", app.getName(),
 				"groupName", groupName);
 		} catch(java.io.IOException e)
 		{
@@ -420,7 +432,7 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getGroups");
+			res = theConnector.getResult(thePluginName, "getGroups");
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
@@ -440,14 +452,14 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getHashing");
+			res = theConnector.getResult(thePluginName, "getHashing");
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
 		}
 		try
 		{
-			return Hashing.fromJson((JSONObject) res.get("key"));
+			return Hashing.fromJson((JSONObject) res.get("hashing"));
 		} catch(RuntimeException e)
 		{
 			throw new PrismsException("Could not deserialize hashing from PRISMS service: "
@@ -460,7 +472,7 @@ public class ServiceUserSource implements UserSource
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult("PRISMS Service", "getKey", "userName", user.getName(),
+			res = theConnector.getResult(thePluginName, "getKey", "userName", user.getName(),
 				"hashing", hashing.toJson());
 		} catch(java.io.IOException e)
 		{

@@ -7,6 +7,7 @@ import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
 import prisms.arch.Persister;
+import prisms.arch.PrismsServer;
 import prisms.arch.event.PropertyDataSource;
 
 /**
@@ -15,6 +16,33 @@ import prisms.arch.event.PropertyDataSource;
 public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 {
 	private static final Logger log = Logger.getLogger(DefaultPersisterFactory.class);
+
+	private java.util.HashMap<String, java.sql.Connection> theNamedConnections;
+
+	private java.util.HashMap<String, Element> theNamedConnEls;
+
+	/**
+	 * Creates this persister factory
+	 */
+	public DefaultPersisterFactory()
+	{
+		theNamedConnections = new java.util.HashMap<String, java.sql.Connection>();
+		theNamedConnEls = new java.util.HashMap<String, Element>();
+	}
+
+	public void configure(PrismsServer server, Element configEl)
+	{
+		for(Element connEl : (java.util.List<Element>) configEl.elements("connection"))
+		{
+			String name = connEl.attributeValue("name");
+			if(name == null)
+				name = connEl.elementTextTrim("name");
+			if(name == null)
+				throw new IllegalArgumentException("No name for connection: " + connEl.asXML());
+			theNamedConnections.put(name, getConnection(connEl, server.getUserSource()));
+			theNamedConnEls.put(name, connEl);
+		}
+	}
 
 	public <T> Persister<T> create(Element persisterEl, prisms.arch.PrismsApplication app,
 		prisms.arch.event.PrismsProperty<T> property)
@@ -49,6 +77,15 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 
 	public java.sql.Connection getConnection(Element el, prisms.arch.ds.UserSource userSource)
 	{
+		String name = el.attributeValue("name");
+		if(name == null)
+			name = el.elementTextTrim("name");
+		if(name != null)
+		{
+			java.sql.Connection ret = theNamedConnections.get(name);
+			if(ret != null)
+				return ret;
+		}
 		if(el == null)
 		{
 			log.error("No PRISMS configuration element was available!");
@@ -144,5 +181,13 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		{
 			throw new IllegalStateException("Connection error", e);
 		}
+	}
+
+	public void destroy()
+	{
+		for(String connName : theNamedConnections.keySet())
+			disconnect(theNamedConnections.get(connName), theNamedConnEls.get(connName));
+		theNamedConnections.clear();
+		theNamedConnEls.clear();
 	}
 }
