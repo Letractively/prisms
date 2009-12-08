@@ -151,6 +151,19 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				log.error("Could not close connection", e);
 			}
 		}
+		String name = connEl.attributeValue("name");
+		if(name == null)
+			name = connEl.elementTextTrim("name");
+		if(name != null)
+		{
+			java.sql.Connection ret = theNamedConnections.get(name);
+			if(ret != null)
+			{
+				/* This connection is managed by the persister factory--we'll close it when
+				 * we're good and ready (see the destroy method)*/
+				return;
+			}
+		}
 
 		if("true".equalsIgnoreCase(connEl.elementText("SCS")))
 		{
@@ -158,7 +171,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			return;
 		}
 
-		boolean disconnect = connEl.elementText("url") != null;
+		boolean disconnect = connEl.elementTextTrim("url") != null;
 		if(!disconnect)
 			return;
 
