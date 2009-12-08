@@ -121,7 +121,12 @@ public abstract class ListPersister<T> implements Persister<T []>
 				public ListElementContainer set(ListElementContainer o1, int idx1, int incMod,
 					T o2, int idx2, int retIdx)
 				{
-					update(o1.theDBValue, o2);
+					// update(o1.theDBValue, o2);
+					if(incMod != retIdx)
+					{
+						ListElementContainer lec = theElements.remove(incMod);
+						theElements.add(retIdx, lec);
+					}
 					return o1;
 				}
 
