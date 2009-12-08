@@ -583,6 +583,17 @@ public class PrismsSession
 	}
 
 	/**
+	 * Fires an event with implicit event creation
+	 * 
+	 * @param eventName The name of the event to fire
+	 * @param args Alternating name, value pairs of all the named properties for the event
+	 */
+	public void fireEvent(String eventName, Object... args)
+	{
+		fireEvent(new PrismsEvent(eventName, args));
+	}
+
+	/**
 	 * @param eventName The name of the event to get the listeners for
 	 * @return All PluginEventListeners that will be notified when the given event is fired
 	 */
