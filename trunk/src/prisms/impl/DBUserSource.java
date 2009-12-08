@@ -2182,24 +2182,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		theUsers.clear();
 		if(thePRISMSConnection == null)
 			return;
-		if(thePRISMSConnection.getClass().getName().indexOf("hsql") >= 0)
-		{
-			try
-			{
-				java.sql.Statement stmt = thePRISMSConnection.createStatement();
-				stmt.execute("SHUTDOWN");
-			} catch(SQLException e)
-			{
-				log.error("Could not shutdown for HSQL", e);
-			}
-		}
-		try
-		{
-			thePRISMSConnection.close();
-		} catch(SQLException e)
-		{
-			log.error("Could not close PRISMS connection", e);
-		}
+		thePersisterFactory.disconnect(thePRISMSConnection, theConfigEl);
 	}
 
 	void forceResetUsers() throws PrismsException
