@@ -45,6 +45,30 @@ public class PersistingChangeListener<T> implements prisms.arch.event.Configured
 	}
 
 	/**
+	 * @return The session that this listener listens to
+	 */
+	public PrismsSession getSession()
+	{
+		return theSession;
+	}
+
+	/**
+	 * @return The property that this listener persistes
+	 */
+	public prisms.arch.event.PrismsProperty<T> getProperty()
+	{
+		return theProperty;
+	}
+
+	/**
+	 * @return The name of the property to get in the events
+	 */
+	public String getEventProperty()
+	{
+		return theEventProperty;
+	}
+
+	/**
 	 * @see prisms.arch.event.PrismsEventListener#eventOccurred(prisms.arch.event.PrismsEvent)
 	 */
 	public void eventOccurred(prisms.arch.event.PrismsEvent evt)
@@ -61,7 +85,8 @@ public class PersistingChangeListener<T> implements prisms.arch.event.Configured
 				+ theEventProperty);
 			return;
 		}
-		prisms.arch.event.PropertyManager<?> [] propMgrs = theSession.getApp().getManagers(theProperty);
+		prisms.arch.event.PropertyManager<?> [] propMgrs = theSession.getApp().getManagers(
+			theProperty);
 		for(int pm = 0; pm < propMgrs.length; pm++)
 			if(propMgrs[pm] instanceof PersistingPropertyManager)
 				((PersistingPropertyManager<T>) propMgrs[pm]).changeValue(theSession
