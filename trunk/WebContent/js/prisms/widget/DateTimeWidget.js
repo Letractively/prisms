@@ -40,6 +40,8 @@ dojo.declare("prisms.widget.DateTimeWidget", [dijit._Widget, dijit._Templated, d
 	},
 
 	setDisabled: function(disabled){
+		this.dateBox.setAttribute("disabled", disabled);
+		this.timeBox.setAttribute("disabled", disabled);
 		this.dateBox.focusNode.disabled=disabled;
 		this.timeBox.focusNode.disabled=disabled;
 	},
