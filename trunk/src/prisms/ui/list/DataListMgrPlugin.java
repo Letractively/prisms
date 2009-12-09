@@ -287,15 +287,28 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 		default:
 			break;
 		}
+		// Deselect nodes first
 		for(int i = 0; i < getItemCount(); i++)
 		{
 			boolean selected = prisms.util.ArrayUtils.contains(nodes, getItem(i));
-			if(getItem(i).isSelected() != selected)
+			if(getItem(i).isSelected() && !selected)
 			{
 				if(fromUser)
-					getItem(i).userSetSelected(selected);
+					getItem(i).userSetSelected(false);
 				else
-					getItem(i).setSelected(selected);
+					getItem(i).setSelected(false);
+			}
+		}
+		// Now select nodes
+		for(int i = 0; i < getItemCount(); i++)
+		{
+			boolean selected = prisms.util.ArrayUtils.contains(nodes, getItem(i));
+			if(!getItem(i).isSelected() && selected)
+			{
+				if(fromUser)
+					getItem(i).userSetSelected(true);
+				else
+					getItem(i).setSelected(true);
 			}
 		}
 	}

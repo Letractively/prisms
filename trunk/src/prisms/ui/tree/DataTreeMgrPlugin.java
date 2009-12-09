@@ -217,6 +217,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 		default:
 			break;
 		}
+		final DataTreeNode [][] newSelected = new DataTreeNode [0] [0];
 		prisms.util.ArrayUtils.adjust(theSelection.toArray(new DataTreeNode [theSelection.size()]),
 			nodes, new prisms.util.ArrayUtils.DifferenceListener<DataTreeNode, DataTreeNode>()
 			{
@@ -241,10 +242,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 				public DataTreeNode added(DataTreeNode o, int index, int retIdx)
 				{
 					theSelection.add(o);
-					if(fromUser)
-						o.userSetSelected(true);
-					else
-						o.setSelected(true);
+					newSelected[0] = prisms.util.ArrayUtils.add(newSelected[0], o);
 					return o;
 				}
 
@@ -258,6 +256,13 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 					return null;
 				}
 			});
+		for(DataTreeNode sel : newSelected[0])
+		{
+			if(fromUser)
+				sel.userSetSelected(true);
+			else
+				sel.setSelected(true);
+		}
 	}
 
 	/**
