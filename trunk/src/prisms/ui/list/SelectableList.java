@@ -465,7 +465,6 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 			{
 				theName = getItemName(getObject());
 				modified = true;
-				return true;
 			}
 			if(theIcon == null ? getItemIcon(getObject()) == null : !theIcon
 				.equals(getItemIcon(getObject())))
