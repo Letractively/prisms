@@ -217,7 +217,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 		default:
 			break;
 		}
-		final DataTreeNode [][] newSelected = new DataTreeNode [0] [0];
+		final DataTreeNode [][] newSelected = new DataTreeNode [1] [0];
 		prisms.util.ArrayUtils.adjust(theSelection.toArray(new DataTreeNode [theSelection.size()]),
 			nodes, new prisms.util.ArrayUtils.DifferenceListener<DataTreeNode, DataTreeNode>()
 			{
