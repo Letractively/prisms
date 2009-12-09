@@ -285,7 +285,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		var labelCell;
 		if(dataCell.linkID)
 		{
-			td.innerHTML="<a href=\"\" onclick=\"return false\">"+dataCell.label+"</a>";
+			td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">"+dataCell.label+"</a>";
 			labelCell=td.childNodes[0];
 			this.dojoConnects.push(dojo.connect(labelCell, "onclick", this, function(){
 				this.goToLink(dataCell.linkID);
