@@ -8,7 +8,7 @@ import prisms.ui.DataEvent;
 /**
  * Manages a list of data nodes
  */
-public class DataListManager
+public class DataListManager implements Iterable<DataListNode>
 {
 	private java.util.ArrayList<DataListNode> theNodes;
 
@@ -48,6 +48,129 @@ public class DataListManager
 		theNodes.clear();
 		for(DataListNode node : nodes)
 			theNodes.add(node);
+	}
+
+	public java.util.ListIterator<DataListNode> iterator()
+	{
+		final DataListNode [] _copy = theNodes.toArray(new DataListNode [theNodes.size()]);
+		return new java.util.ListIterator<DataListNode>()
+		{
+			DataListNode [] copy = _copy;
+
+			private int idx = 0;
+
+			boolean movedForward = false;
+
+			public boolean hasNext()
+			{
+				return idx < copy.length;
+			}
+
+			public DataListNode next()
+			{
+				DataListNode ret = copy[idx];
+				idx++;
+				movedForward = true;
+				return ret;
+			}
+
+			public boolean hasPrevious()
+			{
+				return idx > 0;
+			}
+
+			public DataListNode previous()
+			{
+				idx--;
+				movedForward = false;
+				return copy[idx];
+			}
+
+			public int previousIndex()
+			{
+				return idx - 1;
+			}
+
+			public int nextIndex()
+			{
+				return idx;
+			}
+
+			public void add(DataListNode o)
+			{
+				if(idx == 0)
+					addNode(o, idx);
+				else
+				{
+					int i;
+					for(i = 0; i < getItemCount(); i++)
+						if(getItem(i) == copy[idx - 1])
+							break;
+					if(i != getItemCount())
+					{
+						addNode(o, i + 1);
+						copy = prisms.util.ArrayUtils.add(copy, o, idx);
+						idx++;
+						return;
+					}
+
+					if(idx == copy.length)
+					{
+						addNode(o, getItemCount());
+						copy = prisms.util.ArrayUtils.add(copy, o);
+						idx++;
+						return;
+					}
+
+					for(i = 0; i < getItemCount(); i++)
+						if(getItem(i) == copy[idx])
+							break;
+					if(i != getItemCount())
+					{
+						addNode(o, i);
+						copy = prisms.util.ArrayUtils.add(copy, o, idx);
+						idx++;
+						return;
+					}
+					addNode(o, getItemCount());
+					copy = prisms.util.ArrayUtils.add(copy, o);
+				}
+			}
+
+			public void remove()
+			{
+				int _idx = idx;
+				if(movedForward)
+					_idx--;
+				int i;
+				for(i = 0; i < getItemCount(); i++)
+					if(getItem(i) == copy[_idx])
+						break;
+
+				if(i != getItemCount())
+					removeNode(i);
+				copy = prisms.util.ArrayUtils.remove(copy, _idx);
+				idx--;
+			}
+
+			public void set(DataListNode o)
+			{
+				int _idx = idx;
+				if(movedForward)
+					_idx--;
+				int i;
+				for(i = 0; i < getItemCount(); i++)
+					if(getItem(i) == copy[_idx])
+						break;
+
+				if(i != getItemCount())
+				{
+					removeNode(i);
+					addNode(o, i);
+				}
+				copy[_idx] = o;
+			}
+		};
 	}
 
 	/**
