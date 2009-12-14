@@ -157,10 +157,10 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 	}
 
 	/**
-	 * @see prisms.util.persisters.PersistingPropertyManager#changeValue(java.lang.Object, java.lang.Object)
+	 * @see prisms.util.persisters.PersistingPropertyManager#changeValue(PrismsSession, java.lang.Object, java.lang.Object)
 	 */
 	@Override
-	public void changeValue(T fullValue, Object o)
+	public void changeValue(PrismsSession session, T fullValue, Object o)
 	{
 		SharedObject so = (SharedObject) o;
 		int idx = ArrayUtils.indexOf(theGlobalValue, o);
@@ -175,6 +175,6 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 			super.changeValues(null);
 		}
 		else
-			super.changeValue(fullValue, o);
+			super.changeValue(session, fullValue, o);
 	}
 }

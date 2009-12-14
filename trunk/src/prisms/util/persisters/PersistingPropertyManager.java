@@ -4,6 +4,7 @@
 package prisms.util.persisters;
 
 import prisms.arch.Persister;
+import prisms.arch.PrismsSession;
 
 /**
  * A property manager that persists its data using a {@link Persister}
@@ -64,19 +65,31 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 	public void changeValues(prisms.arch.PrismsSession session)
 	{
 		super.changeValues(session);
-		saveData();
+		saveData(session);
 	}
 
 	/**
 	 * Changes a piece of the persisted value
 	 * 
+	 * @param session The session that caused the change
 	 * @param fullValue The full persisted value
 	 * @param o The piece of the value that changed
 	 */
-	public synchronized void changeValue(T fullValue, Object o)
+	public synchronized void changeValue(PrismsSession session, T fullValue, Object o)
 	{
 		if(thePersister != null)
-			thePersister.valueChanged(fullValue, o);
+		{
+			if(thePersister instanceof RequiresSession)
+			{
+				synchronized(thePersister)
+				{
+					((RequiresSession) thePersister).setSession(session);
+					thePersister.valueChanged(fullValue, o);
+				}
+			}
+			else
+				thePersister.valueChanged(fullValue, o);
+		}
 	}
 
 	/**
@@ -111,11 +124,22 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 
 	/**
 	 * Called to save the current set of data
+	 * 
+	 * @param session The session that caused the change
 	 */
-	public void saveData()
+	public void saveData(PrismsSession session)
 	{
 		if(thePersister == null)
 			return;
-		thePersister.setValue(getApplicationValue());
+		if(thePersister instanceof RequiresSession)
+		{
+			synchronized(thePersister)
+			{
+				((RequiresSession) thePersister).setSession(session);
+				thePersister.setValue(getApplicationValue());
+			}
+		}
+		else
+			thePersister.setValue(getApplicationValue());
 	}
 }
