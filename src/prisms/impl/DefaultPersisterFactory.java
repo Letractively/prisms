@@ -34,13 +34,28 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 	{
 		for(Element connEl : (java.util.List<Element>) configEl.elements("connection"))
 		{
-			String name = connEl.attributeValue("name");
-			if(name == null)
-				name = connEl.elementTextTrim("name");
-			if(name == null)
+			org.dom4j.Attribute attr = connEl.attribute("name");
+			String [] names = null;
+			if(attr != null)
+			{
+				names = prisms.util.ArrayUtils.add(names, attr.getValue());
+				connEl.remove(attr);
+			}
+			java.util.List<Element> nameEls = connEl.elements("name");
+			for(Element nameEl : nameEls)
+				names = prisms.util.ArrayUtils.add(names, nameEl.getTextTrim());
+			for(Element nameEl : nameEls)
+				connEl.remove(nameEl);
+
+			if(names.length == 0)
 				throw new IllegalArgumentException("No name for connection: " + connEl.asXML());
-			connEl.addElement("persisterManaged").setText("true");
-			theNamedConnEls.put(name, connEl);
+			theNamedConnEls.put(names[0], connEl);
+			for(int n = 1; n < names.length; n++)
+			{
+				Element mapEl = org.dom4j.DocumentFactory.getInstance().createElement("connection");
+				mapEl.addAttribute("name", names[0]);
+				theNamedConnEls.put(names[n], mapEl);
+			}
 		}
 	}
 
@@ -80,7 +95,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		String name = el.attributeValue("name");
 		if(name == null)
 			name = el.elementTextTrim("name");
-		if(name != null && !"true".equals(el.elementText("persisterManaged")))
+		if(name != null)
 		{
 			java.sql.Connection ret = theNamedConnections.get(name);
 			if(ret == null)
@@ -164,7 +179,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		String name = connEl.attributeValue("name");
 		if(name == null)
 			name = connEl.elementTextTrim("name");
-		if(name != null && !"true".equals(connEl.elementText("persisterManaged")))
+		if(name != null)
 		{
 			java.sql.Connection ret = theNamedConnections.get(name);
 			if(ret != null)
@@ -175,16 +190,25 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			}
 		}
 
-		if("true".equalsIgnoreCase(connEl.elementText("SCS")))
-		{
-			log.info("no disconnect for a [dcgs] database...");
-			return;
-		}
-
 		boolean disconnect = connEl.elementTextTrim("url") != null;
 		if(!disconnect)
 			return;
 
+		boolean closed;
+		try
+		{
+			closed = conn.isClosed();
+		} catch(java.sql.SQLException e)
+		{
+			log.error("Connection error", e);
+			closed = true;
+		}
+		if(closed)
+		{
+			log
+				.error("Connection " + (name == null ? connEl.asXML() : name)
+					+ " is already closed");
+		}
 		if(conn.getClass().getName().contains("hsql") && connEl.element("noshutdown") == null)
 		{
 			// hsql connection--use shutdown command
@@ -209,7 +233,10 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 	public void destroy()
 	{
 		for(String connName : theNamedConnections.keySet())
-			disconnect(theNamedConnections.get(connName), theNamedConnEls.get(connName));
+		{
+			java.sql.Connection conn = theNamedConnections.get(connName);
+			disconnect(conn, theNamedConnEls.get(connName));
+		}
 		theNamedConnections.clear();
 		theNamedConnEls.clear();
 	}
