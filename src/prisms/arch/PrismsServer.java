@@ -1006,8 +1006,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			lock.unlock();
 		}
-		thePersisterFactory.destroy();
 		theUserSource.disconnect();
+		thePersisterFactory.destroy();
 	}
 
 	class SessionMetadata

@@ -39,7 +39,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				name = connEl.elementTextTrim("name");
 			if(name == null)
 				throw new IllegalArgumentException("No name for connection: " + connEl.asXML());
-			theNamedConnections.put(name, getConnection(connEl, server.getUserSource()));
+			connEl.addElement("persisterManaged").setText("true");
 			theNamedConnEls.put(name, connEl);
 		}
 	}
@@ -80,9 +80,19 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		String name = el.attributeValue("name");
 		if(name == null)
 			name = el.elementTextTrim("name");
-		if(name != null)
+		if(name != null && !"true".equals(el.elementText("persisterManaged")))
 		{
 			java.sql.Connection ret = theNamedConnections.get(name);
+			if(ret == null)
+			{
+				org.dom4j.Element namedConnEl = theNamedConnEls.get(name);
+				if(namedConnEl != null)
+				{
+					ret = getConnection(namedConnEl, userSource);
+					if(ret != null)
+						theNamedConnections.put(name, ret);
+				}
+			}
 			if(ret != null)
 				return ret;
 		}
@@ -154,7 +164,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		String name = connEl.attributeValue("name");
 		if(name == null)
 			name = connEl.elementTextTrim("name");
-		if(name != null)
+		if(name != null && !"true".equals(connEl.elementText("persisterManaged")))
 		{
 			java.sql.Connection ret = theNamedConnections.get(name);
 			if(ret != null)
