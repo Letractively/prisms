@@ -89,7 +89,7 @@ public class PersistingChangeListener<T> implements prisms.arch.event.Configured
 			theProperty);
 		for(int pm = 0; pm < propMgrs.length; pm++)
 			if(propMgrs[pm] instanceof PersistingPropertyManager)
-				((PersistingPropertyManager<T>) propMgrs[pm]).changeValue(theSession
+				((PersistingPropertyManager<T>) propMgrs[pm]).changeValue(theSession, theSession
 					.getProperty(theProperty), oo);
 	}
 }
