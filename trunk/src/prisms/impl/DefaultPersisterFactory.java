@@ -166,7 +166,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		if(name != null)
 		{
 			Element namedEl = theNamedConnEls.get(name);
-			if(namedEl == null)
+			if(namedEl != null)
 				return getTablePrefix(conn, namedEl, userSource);
 		}
 		return "";
