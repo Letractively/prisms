@@ -160,6 +160,15 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				return getTablePrefix(dbus.getConnection(), dbus.getConnectionConfig(), null);
 			}
 		}
+		String name = connEl.attributeValue("name");
+		if(name == null)
+			name = connEl.elementTextTrim("name");
+		if(name != null)
+		{
+			Element namedEl = theNamedConnEls.get(name);
+			if(namedEl == null)
+				return getTablePrefix(conn, namedEl, userSource);
+		}
 		return "";
 	}
 
