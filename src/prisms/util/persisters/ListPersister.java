@@ -189,7 +189,9 @@ public abstract class ListPersister<T> implements Persister<T []>
 	protected abstract boolean equivalent(T po, T avo);
 
 	/**
-	 * Clones an available object to keep a cache used to compare with the set
+	 * Clones an available object to keep a cache used to compare with the set. If the persister
+	 * implementation does not require keeping a cached version, then this method may simply return
+	 * its argument.
 	 * 
 	 * @param toClone The available object to clone for this persister's cache
 	 * @return An object independent of but identical to <code>toClone</code>
