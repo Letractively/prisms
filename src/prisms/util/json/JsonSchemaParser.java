@@ -16,19 +16,28 @@ public class JsonSchemaParser
 	 */
 	public static final Logger log = Logger.getLogger(JsonSchemaParser.class);
 
-	private String theSchemaRoot;
+	private java.util.Map<String, String> theSchemaRoots;
 
 	private java.util.Map<String, Object> theStoredSchemas;
 
 	/**
 	 * Creates a schema parser
-	 * 
-	 * @param schemaRoot The root URL to use to search for additional schemas
 	 */
-	public JsonSchemaParser(String schemaRoot)
+	public JsonSchemaParser()
 	{
-		theSchemaRoot = schemaRoot;
+		theSchemaRoots = new java.util.HashMap<String, String>();
 		theStoredSchemas = new java.util.HashMap<String, Object>();
+	}
+
+	/**
+	 * Adds a schema to this parser
+	 * 
+	 * @param name The name of the schema
+	 * @param schemaRoot The root URL to use to search for .json files under the additional schema
+	 */
+	public void addSchema(String name, String schemaRoot)
+	{
+		theSchemaRoots.put(name, schemaRoot);
 	}
 
 	/**
@@ -88,19 +97,34 @@ public class JsonSchemaParser
 	 */
 	public JsonElement createElementForType(String type)
 	{
-		Object ret = theStoredSchemas.get(type);
-		if(ret == null)
+		int idx = type.indexOf('/');
+		if(idx < 0)
+			throw new IllegalStateException("No schema root to find schema type " + type);
+		String schemaName = type.substring(0, idx);
+		String schemaRoot = theSchemaRoots.get(schemaName);
+		if(schemaRoot == null)
+			throw new IllegalStateException("Unrecognized schema: " + schemaName);
+		return new CustomSchemaElement(type, schemaRoot + type + ".json");
+	}
+
+	/**
+	 * @param schemaName The name of the schema to load
+	 * @param schemaLocation The location of the schema to load
+	 * @return The schema at the given location
+	 */
+	public JsonElement getExternalSchema(String schemaName, String schemaLocation)
+	{
+		Object ret = theStoredSchemas.get(schemaName);
+		if(ret != null)
+			return createElementFor(ret);
+		try
 		{
-			if(theSchemaRoot == null)
-				throw new IllegalStateException("No schema root to find schema type " + type);
-			try
-			{
-				ret = org.json.simple.JSONValue.parse(new java.io.InputStreamReader(
-					new java.net.URL(theSchemaRoot + type + ".json").openStream()));
-			} catch(java.io.IOException e)
-			{
-				throw new IllegalStateException("Could not find schema type " + type);
-			}
+			ret = org.json.simple.JSONValue.parse(new java.io.InputStreamReader(new java.net.URL(
+				schemaLocation).openStream()));
+		} catch(Throwable e)
+		{
+			throw new IllegalStateException("Could not find schema " + schemaName + " at "
+				+ schemaLocation);
 		}
 		return createElementFor(ret);
 	}
