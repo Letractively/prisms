@@ -424,4 +424,101 @@ public class UI implements prisms.arch.AppPlugin
 		 */
 		void cancel() throws IllegalStateException;
 	}
+
+	/**
+	 * A simple, complete implementation of the {@link ProgressInformer}
+	 */
+	public static class DefaultProgressInformer implements ProgressInformer
+	{
+		private String theProgressText;
+
+		private int theProgressScale;
+
+		private int theProgress;
+
+		private boolean isDone;
+
+		private boolean isCancelable;
+
+		private boolean isCanceled;
+
+		public String getTaskText()
+		{
+			return theProgressText;
+		}
+
+		public int getTaskScale()
+		{
+			return theProgressScale;
+		}
+
+		public int getTaskProgress()
+		{
+			return theProgress;
+		}
+
+		public boolean isTaskDone()
+		{
+			return isDone;
+		}
+
+		public boolean isCancelable()
+		{
+			return isCancelable;
+		}
+
+		public void cancel()
+		{
+			if(isCancelable)
+				isCanceled = true;
+		}
+
+		/**
+		 * @return Whether this task has been canceled
+		 */
+		public boolean isCanceled()
+		{
+			return isCanceled;
+		}
+
+		/**
+		 * @param text The text to display to the user detailing what this task is doing
+		 */
+		public void setProgressText(String text)
+		{
+			theProgressText = text;
+		}
+
+		/**
+		 * @param scale The number of operations that need to be completed before this task finishes
+		 */
+		public void setProgressScale(int scale)
+		{
+			theProgressScale = scale;
+		}
+
+		/**
+		 * @param progress The number of operations that this task has completed
+		 */
+		public void setProgress(int progress)
+		{
+			theProgress = progress;
+		}
+
+		/**
+		 * @param cancelable Whether this task can be canceled by the user
+		 */
+		public void setCancelable(boolean cancelable)
+		{
+			isCancelable = cancelable;
+		}
+
+		/**
+		 * Tells the UI that this task is finished
+		 */
+		public void setDone()
+		{
+			isDone = true;
+		}
+	}
 }

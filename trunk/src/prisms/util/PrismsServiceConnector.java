@@ -21,6 +21,20 @@ public class PrismsServiceConnector
 	static final Logger log = Logger.getLogger(PrismsServiceConnector.class);
 
 	/**
+	 * Thrown when the user name/password combination fails to validate with the server
+	 */
+	public static class AuthenticationFailedException extends IOException
+	{
+		/**
+		 * @see IOException#IOException(String)
+		 */
+		public AuthenticationFailedException(String s)
+		{
+			super(s);
+		}
+	}
+
+	/**
 	 * The different server methods that may be used
 	 */
 	static enum ServerMethod
@@ -457,18 +471,6 @@ public class PrismsServiceConnector
 				is = new java.net.URL(callURL).openStream();
 			}
 			return is;
-		} catch(java.net.MalformedURLException e)
-		{
-			IOException toThrow = new IOException("Could not access PRISMS service: "
-				+ e.getMessage());
-			toThrow.setStackTrace(e.getStackTrace());
-			throw toThrow;
-		} catch(java.io.IOException e)
-		{
-			IOException toThrow = new IOException("Could not read PRISMS service: "
-				+ e.getMessage());
-			toThrow.setStackTrace(e.getStackTrace());
-			throw toThrow;
 		} catch(ClassCastException e)
 		{
 			IOException toThrow = new IOException("PRISMS Service return value was not an array: "
@@ -528,8 +530,8 @@ public class PrismsServiceConnector
 		JSONObject postRequest) throws IOException
 	{
 		if(theEncryptionTries > 0)
-			throw new IOException("Invalid security info--encryption failed with encryption:"
-				+ theEncryption + " for request " + postRequest);
+			throw new AuthenticationFailedException("Invalid security info--encryption failed"
+				+ " with encryption:" + theEncryption + " for request " + postRequest);
 		if(theEncryption != null)
 			prisms.arch.Encryption.dispose(theEncryption);
 		theEncryption = null;
@@ -565,7 +567,8 @@ public class PrismsServiceConnector
 				return null;
 		} finally
 		{
-			theEncryptionTries--;
+			if(theEncryptionTries > 0)
+				theEncryptionTries--;
 		}
 	}
 
