@@ -142,8 +142,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 					return java.sql.DriverManager.getConnection(url, user, pwd);
 			} catch(Throwable e)
 			{
-				log.error("Could not instantiate SQL Connection: ", e);
-				el.remove(el.element("url"));
+				throw new IllegalStateException("Could not instantiate SQL Connection: ", e);
 			}
 		}
 		throw new IllegalStateException("No suitable connection!");
