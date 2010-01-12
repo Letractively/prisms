@@ -100,7 +100,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			java.sql.Connection ret = theNamedConnections.get(name);
 			if(ret == null)
 			{
-				org.dom4j.Element namedConnEl = theNamedConnEls.get(name);
+				org.dom4j.Element namedConnEl = getConnectionElement(name);
 				if(namedConnEl != null)
 				{
 					ret = getConnection(namedConnEl, userSource);
@@ -148,6 +148,31 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		throw new IllegalStateException("No suitable connection!");
 	}
 
+	/**
+	 * @param connName The name of the connection to get the configuration element for
+	 * @return The configuration element for the named connection
+	 */
+	public Element getConnectionElement(String connName)
+	{
+		return theNamedConnEls.get(connName);
+	}
+
+	/**
+	 * @param connEl The connection element given to a configured plugin or application--may just be
+	 *        a reference to a stored connection element
+	 * @return The connection element that actually configures the SQL connection
+	 */
+	public Element getReferredConnEl(Element connEl)
+	{
+		String name = connEl.attributeValue("name");
+		if(name == null)
+			name = connEl.elementTextTrim("name");
+		if(name != null)
+			return getConnectionElement(name);
+		else
+			return connEl;
+	}
+
 	public String getTablePrefix(java.sql.Connection conn, org.dom4j.Element connEl,
 		prisms.arch.ds.UserSource userSource)
 	{
@@ -164,7 +189,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			name = connEl.elementTextTrim("name");
 		if(name != null)
 		{
-			Element namedEl = theNamedConnEls.get(name);
+			Element namedEl = getConnectionElement(name);
 			if(namedEl != null)
 				return getTablePrefix(conn, namedEl, userSource);
 		}
