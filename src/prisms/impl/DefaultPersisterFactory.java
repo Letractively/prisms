@@ -164,13 +164,19 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 	 */
 	public Element getReferredConnEl(Element connEl)
 	{
-		String name = connEl.attributeValue("name");
-		if(name == null)
-			name = connEl.elementTextTrim("name");
-		if(name != null)
-			return getConnectionElement(name);
-		else
-			return connEl;
+		Element ret = connEl;
+		do
+		{
+			connEl = ret;
+			String name = connEl.attributeValue("name");
+			if(name == null)
+				name = connEl.elementTextTrim("name");
+			if(name != null)
+				ret = getConnectionElement(name);
+			else
+				ret = null;
+		} while(ret != null);
+		return connEl;
 	}
 
 	public String getTablePrefix(java.sql.Connection conn, org.dom4j.Element connEl,
