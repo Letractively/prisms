@@ -1,12 +1,12 @@
 
 dojo.require("dijit.layout.TabContainer");
-dojo.require("dijit.ColorPalette")
 dojo.require("dijit.form.CheckBox");
 dojo.require("dijit.form.TextBox");
 dojo.require("dijit.form.NumberTextBox");
 dojo.require("dijit.form.NumberSpinner");
 dojo.require("dijit.form.Slider");
 dojo.require("prisms.widget.PrismsDialog");
+dojo.require("prisms.widget.ColorPicker");
 
 dojo.provide("prisms.widget.Preferences");
 dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
@@ -25,13 +25,20 @@ dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 		dojo.connect(this, "hide", function(){
 			self.clearTabs();
 		});
+		var table=document.createElement("table");
+		this.containerNode.appendChild(table);
 		var tabPane=new dijit.layout.TabContainer();
-		this.containerNode.appendChild(tabPane.domNode);
+		table.insertRow(-1).insertCell(-1).appendChild(tabPane.domNode);
 		this.tabPane=tabPane;
 		this.tabPane.startup();
 		this.tabPane.domNode.style.width="640px";
 		this.tabPane.domNode.style.height="400px";
 		this.tabs=[];
+		var ok=new dijit.form.Button({"label": "OK"});
+		var cell=table.insertRow(-1).insertCell(-1);
+		cell.align="center";
+		cell.appendChild(ok.domNode);
+		dojo.connect(ok, "onClick", this, this.hide);
 	},
 
 	setPrisms: function(prisms){
@@ -170,10 +177,17 @@ dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 		}
 		else if(type=="COLOR")
 		{
-			editor=new dijit.ColorPalette();
+			editor=new prisms.widget.ColorPicker({displayAlpha: false});
+			editor.setValue(value);
 			this.connectors.push(dojo.connect(editor, "onChange", function(color){
-				self.datumChanged(domain, prefName, color)
+				if(typeof color=="object")
+					color=self.hexify(color);
+				self.datumChanged(domain, prefName, color);
 			}));
+//			editor=new dijit.ColorPalette();
+//			this.connectors.push(dojo.connect(editor, "onChange", function(color){
+//				self.datumChanged(domain, prefName, color)
+//			}));
 		}
 		else if(type=="ENUM")
 		{
@@ -202,6 +216,23 @@ dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 			this._editors[domain][prefName]=editor;
 		}
 		return editor;
+	},
+
+	hexify: function(rgbColor){
+		var ret="#";
+		var el=rgbColor.r.toString(16);
+		if(el.length<2)
+			el="0"+el;
+		ret+=el;
+		el=rgbColor.g.toString(16);
+		if(el.length<2)
+			el="0"+el;
+		ret+=el;
+		el=rgbColor.b.toString(16);
+		if(el.length<2)
+			el="0"+el;
+		ret+=el;
+		return ret;
 	},
 
 	/**
