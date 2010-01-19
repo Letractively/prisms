@@ -179,6 +179,7 @@ dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 		{
 			editor=new prisms.widget.ColorPicker({displayAlpha: false});
 			editor.setValue(value);
+			editor.setBefore(value);
 			this.connectors.push(dojo.connect(editor, "onChange", function(color){
 				if(typeof color=="object")
 					color=self.hexify(color);
