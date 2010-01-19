@@ -1,50 +1,41 @@
 
-<table>
-	<tr>
-		<td>Color:</td>
-		<td rowspan="3" >
-			<img src="../rsrc/icons/prisms/ColorHexagon.png" dojoAttachPoint="colorHexagon"
-				style="display:none" />
-			<table background="../rsrc/icons/prisms/ColorHexagon.png" cellSpacing="0"
-				dojoAttachPoint="colorShadeTable">
-				<tr><td dojoAttachEvent="onclick:_colorClicked">
-					<div style="width:100%" dojoAttachPoint="colorTableDiv">
-						<div dojoAttachPoint="colorShade"
-							style="width:100%;height:100%;background-color:#000000"></div>
-						<div dojoAttachPoint="marker"
-							style="position:relative;width:2px;height:2px;border:1px solid"></div>
-					</div>
-				</td></tr>
-			</table>
-		</td>
-		<td>Red:</td>
-		<td><input type="text" dojoAttachPoint="redBox" dojoAttachEvent="onchange:_redChanged"
-			style="width:80px" /></td>
-	</tr>
-	<tr>
-		<td></td>
-		<td>Green:</td>
-		<td><input type="text" dojoAttachPoint="greenBox" dojoAttachEvent="onchange:_greenChanged"
-			style="width:80px" /></td>
-	</tr>
-	<tr>
-		<td></td>
-		<td>Blue:</td>
-		<td><input type="text" dojoAttachPoint="blueBox" dojoAttachEvent="onchange:_blueChanged"
-			style="width:80px" /></td>
-	</tr>
-	<tr>
-		<td>Brightness:</td>
-		<td><div dojoType="dijit.form.HorizontalSlider" dojoAttachPoint="brightnessSlider"
-			minimum="0" maximum="255" intermediateChanges="true"
-			dojoAttachEvent="onChange:_brightnessChanged" style="min-width:140px"></div></td>
-	</tr>
-	<tr dojoAttachPoint="alphaRow">
-		<td>Opacity:</td>
-		<td><div dojoType="dijit.form.HorizontalSlider" dojoAttachPoint="alphaSlider"
-			minimum="0" maximum="255" intermediateChanges="true"
-			dojoAttachEvent="onChange:_alphaChangedS" style="min-width:140px"></div></td>
-		<td><input type="text" dojoAttachPoint="alphaBox" dojoAttachEvent="onchange:_alphaChangedB"
-			style="width:80px" /></td>
-	</tr>
-</table>
+<div style="text-align:left;bottom:0px;">
+	<table style="left:2%;width:96%;top:2%;height:96%;background-color:white">
+		<tr>
+			<td>Red:</td>
+			<td><div dojoType="dijit.form.HorizontalSlider" dojoAttachPoint="redSlider"
+				minimum="0" maximum="255" intermediateChanges="true"
+				dojoAttachEvent="onChange:_redSliderChanged" style="width:140px"></div></td>
+			<td><input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="redSpinner"
+				constraints="{min:0, max:255, places:0}" style="width:60px"
+				dojoAttachEvent="onChange:_redSpinnerChanged"></input></td>
+		</tr>
+		<tr>
+			<td>Green:</td>
+			<td><div dojoType="dijit.form.HorizontalSlider" dojoAttachPoint="greenSlider"
+				minimum="0" maximum="255" intermediateChanges="true"
+				dojoAttachEvent="onChange:_greenSliderChanged" style="width:140px"></div></td>
+			<td><input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="greenSpinner"
+				constraints="{min:0, max:255, places:0}" style="width:60px"
+				dojoAttachEvent="onChange:_greenSpinnerChanged"></input></td>
+		</tr>
+		<tr>
+			<td>Blue:</td>
+			<td><div dojoType="dijit.form.HorizontalSlider" dojoAttachPoint="blueSlider"
+				minimum="0" maximum="255" intermediateChanges="true"
+				dojoAttachEvent="onChange:_blueSliderChanged" style="width:140px"></div></td>
+			<td><input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="blueSpinner"
+				constraints="{min:0, max:255, places:0}" style="width:60px"
+				dojoAttachEvent="onChange:_blueSpinnerChanged"></input></td>
+		</tr>
+		<tr dojoAttachPoint="opacityRow">
+			<td>Opacity:</td>
+			<td><div dojoType="dijit.form.HorizontalSlider" dojoAttachPoint="opacitySlider"
+				minimum="0" maximum="255" intermediateChanges="true"
+				dojoAttachEvent="onChange:_opacitySliderChanged" style="width:140px"></div></td>
+			<td><input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="opacitySpinner"
+				constraints="{min:0, max:255, places:0}" style="width:60px"
+				dojoAttachEvent="onChange:_opacitySpinnerChanged"></input></td>
+		</tr>
+	</table>
+</div>
