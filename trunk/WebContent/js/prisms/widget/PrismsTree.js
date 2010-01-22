@@ -168,7 +168,7 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 
 	setSelection: function(treeNodes)
 	{
-		for(var n in treeNodes)
+		for(var n=0;n<treeNodes.length;n++)
 			if(typeof treeNodes[n].setSelected != "function")
 				treeNodes.splice(n, 1);
 		for(var s=0;s<this.selection.length;s++)
