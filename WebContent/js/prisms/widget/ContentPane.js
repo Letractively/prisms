@@ -1,5 +1,6 @@
 
 dojo.require("prisms.widget.TabWidget");
+dojo.require("prisms.PrismsUtils");
 
 dojo.provide("prisms.widget.ContentPane");
 dojo.declare("prisms.widget.ContentPane", [dijit.layout.ContentPane, dijit._Container, dijit._Contained], {
@@ -16,5 +17,21 @@ dojo.declare("prisms.widget.ContentPane", [dijit.layout.ContentPane, dijit._Cont
 		this.inherited("postCreate", arguments);
 		this.initTabParents();
 		this.loadParentTabs();
+	},
+
+	setSelected: function(selected, recursive){
+		if(selected && recursive)
+		{
+			var widget=PrismsUtils.getParent(this);
+			while(widget)
+			{
+				if(widget.isTabWidget)
+				{
+					widget.setSelected(true, true);
+					break;
+				}
+				widget=PrismsUtils.getParent(widget);
+			}
+		}
 	}
 });
