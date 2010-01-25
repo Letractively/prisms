@@ -72,6 +72,16 @@ public class HttpForwarder
 	private HttpInterceptor theInterceptor;
 
 	/**
+	 * Creates an HTTP forwarder
+	 * 
+	 * @param interceptor The interceptor for this forwarder to use
+	 */
+	public HttpForwarder(HttpInterceptor interceptor)
+	{
+		theInterceptor = interceptor;
+	}
+
+	/**
 	 * Forwards the HTTP request to a URL, sending the URL's response to the HTTP response
 	 * 
 	 * @param request The request to forward
@@ -88,7 +98,14 @@ public class HttpForwarder
 			throw new java.net.ConnectException("Could not connect to " + url);
 
 		if(con instanceof HttpURLConnection)
-			forwardRequestCookies(request, (HttpURLConnection) con);
+		{
+			java.util.Enumeration<String> headerEnum = request.getHeaderNames();
+			while(headerEnum.hasMoreElements())
+			{
+				String headerName = headerEnum.nextElement();
+				con.addRequestProperty(headerName, request.getHeader(headerName));
+			}
+		}
 
 		con.setDoOutput(true);
 		java.io.OutputStream out = con.getOutputStream();
@@ -105,7 +122,20 @@ public class HttpForwarder
 		java.io.BufferedInputStream bufferedIn = new java.io.BufferedInputStream(in, BUFFER_LENGTH);
 
 		if(con instanceof HttpURLConnection)
-			forwardResponseCookies((HttpURLConnection) con, response);
+		{
+			for(java.util.Map.Entry<String, java.util.List<String>> entry : ((HttpURLConnection) con)
+				.getHeaderFields().entrySet())
+			{
+				String value = "";
+				for(String v : entry.getValue())
+				{
+					if(value.length() != 0)
+						value += ';';
+					value += v;
+				}
+				response.setHeader(entry.getKey(), value);
+			}
+		}
 
 		out = response.getOutputStream();
 		if(out == null)
@@ -129,7 +159,7 @@ public class HttpForwarder
 		StringBuilder cookiesString = new StringBuilder();
 		for(javax.servlet.http.Cookie cookie : cookies)
 		{
-			if(cookiesString.length() == 0)
+			if(cookiesString.length() != 0)
 				cookiesString.append(';');
 			cookiesString.append(cookie.getName());
 			cookiesString.append('=');
@@ -158,5 +188,13 @@ public class HttpForwarder
 			i++;
 			headerFieldKey = conn.getHeaderFieldKey(i);
 		}
+	}
+
+	/**
+	 * @param interceptor The interceptor to set
+	 */
+	public void setInterceptor(HttpInterceptor interceptor)
+	{
+		theInterceptor = interceptor;
 	}
 }
