@@ -3,6 +3,8 @@
  */
 package prisms.util;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -48,13 +50,22 @@ public class HttpForwarder
 	 */
 	public static class DefaultHttpInterceptor implements HttpInterceptor
 	{
+		private byte [] buffer = new byte [BUFFER_LENGTH];
+
 		@Override
 		public Object interceptInput(javax.servlet.http.HttpServletRequest request, OutputStream out)
 			throws IOException
 		{
 			java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(out);
+			boolean first = true;
 			for(Object param : request.getParameterMap().keySet())
-				writer.write("&" + param + "=" + request.getParameter((String) param));
+			{
+				if(!first)
+					writer.write("&");
+				writer.write(param + "=" + request.getParameter((String) param));
+				first = false;
+			}
+			writer.flush();
 			return null;
 		}
 
@@ -62,9 +73,8 @@ public class HttpForwarder
 		public void interceptOutput(InputStream in, OutputStream out, Object fromInput)
 			throws IOException
 		{
-			byte [] buffer = new byte [BUFFER_LENGTH];
-			int numBytesRead = 0;
-			while((numBytesRead = in.read(buffer, 0, buffer.length)) != -1)
+			int numBytesRead;
+			while((numBytesRead = in.read(buffer, 0, buffer.length)) > 0)
 				out.write(buffer, 0, numBytesRead);
 		}
 	}
@@ -86,7 +96,7 @@ public class HttpForwarder
 	 * 
 	 * @param request The request to forward
 	 * @param response The response to respond to
-	 * @param url The URL to foward the request to and get the response from
+	 * @param url The URL to forward the request to and get the response from
 	 * @throws IOException If an error occurs reading or writing HTTP data
 	 */
 	public void forward(javax.servlet.http.HttpServletRequest request,
@@ -103,29 +113,32 @@ public class HttpForwarder
 			while(headerEnum.hasMoreElements())
 			{
 				String headerName = headerEnum.nextElement();
+				if(headerName.equalsIgnoreCase("content-length"))
+					continue;
 				con.addRequestProperty(headerName, request.getHeader(headerName));
 			}
 		}
 
 		con.setDoOutput(true);
 		java.io.OutputStream out = con.getOutputStream();
-		Object fromInput = theInterceptor.interceptInput(request, out);
+		BufferedOutputStream bos = new BufferedOutputStream(out, BUFFER_LENGTH);
+		Object fromInput = theInterceptor.interceptInput(request, bos);
+		bos.flush();
 		out.close();
 
 		if(con instanceof HttpURLConnection)
 			((HttpURLConnection) con).setInstanceFollowRedirects(true);
 		con.connect();
 
-		java.io.InputStream in = httpUrl.openStream();
-		if(in == null)
-			throw new IOException("Could not get input stream from URL connection");
-		java.io.BufferedInputStream bufferedIn = new java.io.BufferedInputStream(in, BUFFER_LENGTH);
-
 		if(con instanceof HttpURLConnection)
 		{
 			for(java.util.Map.Entry<String, java.util.List<String>> entry : ((HttpURLConnection) con)
 				.getHeaderFields().entrySet())
 			{
+				if(entry.getKey() == null || entry.getValue().size() == 0)
+					continue;
+				if(entry.getKey().equalsIgnoreCase("content-length"))
+					continue;
 				String value = "";
 				for(String v : entry.getValue())
 				{
@@ -137,56 +150,24 @@ public class HttpForwarder
 			}
 		}
 
+		java.io.InputStream in = con.getInputStream();
+		if(in == null)
+			throw new IOException("Could not get input stream from URL connection");
+
 		out = response.getOutputStream();
 		if(out == null)
 			throw new IOException("Could not get output stream of response");
-		java.io.BufferedOutputStream bufferedOut = new java.io.BufferedOutputStream(out,
-			BUFFER_LENGTH);
 
+		BufferedInputStream bis = new BufferedInputStream(in, BUFFER_LENGTH);
+		bos = new BufferedOutputStream(out, BUFFER_LENGTH);
 		try
 		{
-			theInterceptor.interceptOutput(bufferedIn, bufferedOut, fromInput);
+			theInterceptor.interceptOutput(bis, bos, fromInput);
 		} finally
 		{
+			bos.flush();
 			out.close();
 			in.close();
-		}
-	}
-
-	void forwardRequestCookies(javax.servlet.http.HttpServletRequest request, HttpURLConnection conn)
-	{
-		javax.servlet.http.Cookie[] cookies = request.getCookies();
-		StringBuilder cookiesString = new StringBuilder();
-		for(javax.servlet.http.Cookie cookie : cookies)
-		{
-			if(cookiesString.length() != 0)
-				cookiesString.append(';');
-			cookiesString.append(cookie.getName());
-			cookiesString.append('=');
-			cookiesString.append(cookie.getValue());
-		}
-		conn.addRequestProperty("Cookie", cookiesString.toString());
-	}
-
-	void forwardResponseCookies(java.net.HttpURLConnection conn,
-		javax.servlet.http.HttpServletResponse response) throws IOException
-	{
-		int i = 1;
-		String headerFieldKey = conn.getHeaderFieldKey(i);
-		while(headerFieldKey != null)
-		{
-			if(headerFieldKey.equalsIgnoreCase("set-cookie"))
-			{
-				String [] cookiesString = conn.getHeaderField(i).split(";");
-				for(String cookie : cookiesString)
-				{
-					int idx = cookie.indexOf('=');
-					response.addCookie(new javax.servlet.http.Cookie(cookie.substring(0, idx),
-						cookie.substring(idx + 1)));
-				}
-			}
-			i++;
-			headerFieldKey = conn.getHeaderFieldKey(i);
 		}
 	}
 
