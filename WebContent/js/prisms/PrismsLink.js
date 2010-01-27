@@ -386,7 +386,8 @@ dojo.declare("prisms.PrismsLink", null, {
 	getServerRequest: function(params){
 		if(!params)
 			params={};
-		params.sessionID=this.sessionID;
+		if(this.sessionID)
+			params.sessionID=this.sessionID;
 		params.app=this.application;
 		params.client=this.client;
 		params.user=this._login.userName
@@ -481,8 +482,9 @@ dojo.declare("prisms.PrismsLink", null, {
 		var params={plugin: plugin, method: method, xOffset: xOffset, yOffset: yOffset,
 			refWidth: refWidth, refHeight: refHeight, width: width, height: height};
 		var ret=this.imageURL+"?";
-		ret+="sessionID="+this.sessionID;
-		ret+="&app="+escape(this.application);
+		if(this.sessionID)
+			ret+="sessionID="+this.sessionID+"&";
+		ret+="app="+escape(this.application);
 		ret+="&client="+escape(this.client);
 		if(this._login && this._login.userName)
 			ret+="&user="+this._login.userName;
@@ -504,8 +506,9 @@ dojo.declare("prisms.PrismsLink", null, {
 
 	getDownloadSource: function(params){
 		var ret=this.servletURL+"?";
-		ret+="sessionID="+this.sessionID;
-		ret+="&app="+escape(this.application);
+		if(this.sessionID)
+			ret+="sessionID="+this.sessionID+"&";
+		ret+="app="+escape(this.application);
 		ret+="&client="+escape(this.client);
 		if(this._login && this._login.userName)
 			ret+="&user="+this._login.userName;
@@ -527,8 +530,9 @@ dojo.declare("prisms.PrismsLink", null, {
 
 	getUploadURL: function(params){
 		var ret=this.servletURL+"?";
-		ret+="sessionID="+this.sessionID;
-		ret+="&app="+escape(this.application);
+		if(this.sessionID)
+			ret+="sessionID="+this.sessionID+"&";
+		ret+="app="+escape(this.application);
 		ret+="&client="+escape(this.client);
 		if(this._login && this._login.userName)
 			ret+="&user="+this._login.userName;
