@@ -109,13 +109,15 @@ public class HttpForwarder
 
 		if(con instanceof HttpURLConnection)
 		{
+			forwardRequestCookies(request, (HttpURLConnection) con);
 			java.util.Enumeration<String> headerEnum = request.getHeaderNames();
 			while(headerEnum.hasMoreElements())
 			{
 				String headerName = headerEnum.nextElement();
-				if(headerName.equalsIgnoreCase("content-length"))
+				if(headerName.equalsIgnoreCase("content-length") || headerName.contains("Cookie"))
 					continue;
-				con.addRequestProperty(headerName, request.getHeader(headerName));
+				String value = request.getHeader(headerName);
+				con.addRequestProperty(headerName, value);
 			}
 		}
 
@@ -132,12 +134,14 @@ public class HttpForwarder
 
 		if(con instanceof HttpURLConnection)
 		{
+			forwardResponseCookies((HttpURLConnection) con, response);
 			for(java.util.Map.Entry<String, java.util.List<String>> entry : ((HttpURLConnection) con)
 				.getHeaderFields().entrySet())
 			{
 				if(entry.getKey() == null || entry.getValue().size() == 0)
 					continue;
-				if(entry.getKey().equalsIgnoreCase("content-length"))
+				if(entry.getKey().equalsIgnoreCase("content-length")
+					|| entry.getKey().contains("Cookie"))
 					continue;
 				String value = "";
 				for(String v : entry.getValue())
@@ -168,6 +172,43 @@ public class HttpForwarder
 			bos.flush();
 			out.close();
 			in.close();
+		}
+	}
+
+	void forwardRequestCookies(javax.servlet.http.HttpServletRequest request, HttpURLConnection conn)
+	{
+		javax.servlet.http.Cookie[] cookies = request.getCookies();
+		StringBuilder cookiesString = new StringBuilder();
+		for(javax.servlet.http.Cookie cookie : cookies)
+		{
+			if(cookiesString.length() == 0)
+				cookiesString.append(';');
+			cookiesString.append(cookie.getName());
+			cookiesString.append('=');
+			cookiesString.append(cookie.getValue());
+		}
+		conn.addRequestProperty("Cookie", cookiesString.toString());
+	}
+
+	void forwardResponseCookies(java.net.HttpURLConnection conn,
+		javax.servlet.http.HttpServletResponse response) throws IOException
+	{
+		int i = 1;
+		String headerFieldKey = conn.getHeaderFieldKey(i);
+		while(headerFieldKey != null)
+		{
+			if(headerFieldKey.equalsIgnoreCase("set-cookie"))
+			{
+				String [] cookiesString = conn.getHeaderField(i).split(";");
+				for(String cookie : cookiesString)
+				{
+					int idx = cookie.indexOf('=');
+					response.addCookie(new javax.servlet.http.Cookie(cookie.substring(0, idx),
+						cookie.substring(idx + 1)));
+				}
+			}
+			i++;
+			headerFieldKey = conn.getHeaderFieldKey(i);
 		}
 	}
 
