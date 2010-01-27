@@ -10,6 +10,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+
 /**
  * Allows forwarding of input from one servlet to another via {@link java.net.URL}
  */
@@ -27,22 +33,24 @@ public class HttpForwarder
 		 * 
 		 * @param request The request to get the data to write to the URL
 		 * @param out The output stream to write to the URL
-		 * @return Data to pass to {@link #interceptOutput(InputStream, OutputStream, Object)}
+		 * @return Data to pass to
+		 *         {@link #interceptOutput(HttpServletResponse, InputStream, OutputStream, Object)}
 		 * @throws IOException If an error occurs reading the input or writing to the output
 		 */
-		Object interceptInput(javax.servlet.http.HttpServletRequest request, OutputStream out)
-			throws IOException;
+		Object interceptInput(HttpServletRequest request, OutputStream out) throws IOException;
 
 		/**
 		 * Intercepts responses from the URL
 		 * 
+		 * @param response The HTTP response to write the data to
 		 * @param in The input stream of the URL
 		 * @param out The output stream of the response
 		 * @param fromInput The data from
 		 *        {@link #interceptInput(javax.servlet.http.HttpServletRequest, OutputStream)}
 		 * @throws IOException If an error occurs reading the input or writing to the output
 		 */
-		void interceptOutput(InputStream in, OutputStream out, Object fromInput) throws IOException;
+		void interceptOutput(HttpServletResponse response, InputStream in, OutputStream out,
+			Object fromInput) throws IOException;
 	}
 
 	/**
@@ -70,12 +78,90 @@ public class HttpForwarder
 		}
 
 		@Override
-		public void interceptOutput(InputStream in, OutputStream out, Object fromInput)
-			throws IOException
+		public void interceptOutput(HttpServletResponse response, InputStream in, OutputStream out,
+			Object fromInput) throws IOException
 		{
 			int numBytesRead;
 			while((numBytesRead = in.read(buffer, 0, buffer.length)) > 0)
 				out.write(buffer, 0, numBytesRead);
+		}
+	}
+
+	/**
+	 * Parses some requests and responses into JSON for easier interception by subclasses
+	 */
+	public static class JsonInterceptor extends DefaultHttpInterceptor
+	{
+		@Override
+		public Object interceptInput(HttpServletRequest request, OutputStream out)
+			throws IOException
+		{
+			JSONObject jsonReq = new JSONObject();
+			java.util.Enumeration<String> paramEnum = request.getParameterNames();
+			while(paramEnum.hasMoreElements())
+			{
+				String paramName = paramEnum.nextElement();
+				jsonReq.put(paramName, request.getParameter(paramName));
+			}
+			return interceptJsonInput(request, jsonReq, out);
+		}
+
+		/**
+		 * Accepts a JSON-parsed request
+		 * 
+		 * @param request The HTTP request
+		 * @param jsonReq The request parameters. Individual parameters are not JSON-parsed
+		 * @param out The output stream to write the parameters to
+		 * @return An object to pass to
+		 *         {@link #interceptOutput(HttpServletResponse, InputStream, OutputStream, Object)}
+		 * @throws IOException If an error occurs writing the data
+		 */
+		public Object interceptJsonInput(HttpServletRequest request, JSONObject jsonReq,
+			OutputStream out) throws IOException
+		{
+			java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(out);
+			boolean first = true;
+			for(Object param : jsonReq.keySet())
+			{
+				if(!first)
+					writer.write("&");
+				writer.write(param + "=" + jsonReq.get(param));
+				first = false;
+			}
+			writer.flush();
+			return null;
+		}
+
+		@Override
+		public void interceptOutput(HttpServletResponse response, InputStream in, OutputStream out,
+			Object fromInput) throws IOException
+		{
+			String contentType = response.getContentType();
+			if(contentType != null && contentType.contains("text/prisms-json"))
+			{
+				JSONArray retEvents = (JSONArray) org.json.simple.JSONValue
+					.parse(new java.io.InputStreamReader(in));
+				interceptJsonOutput(response, retEvents, out, fromInput);
+			}
+			else
+				super.interceptOutput(response, in, out, fromInput);
+		}
+
+		/**
+		 * Accepts a JSON-parsed response
+		 * 
+		 * @param response The HTTP response
+		 * @param retEvents The JSON-parsed response
+		 * @param out The output stream to write the response to
+		 * @param fromInput The return value from
+		 *        {@link #interceptInput(HttpServletRequest, OutputStream)}
+		 * @throws IOException If an error occurs writing the data
+		 */
+		public void interceptJsonOutput(HttpServletResponse response, JSONArray retEvents,
+			OutputStream out, Object fromInput) throws IOException
+		{
+			super.interceptOutput(response, new java.io.ByteArrayInputStream(retEvents.toString()
+				.getBytes()), out, fromInput);
 		}
 	}
 
@@ -166,7 +252,7 @@ public class HttpForwarder
 		bos = new BufferedOutputStream(out, BUFFER_LENGTH);
 		try
 		{
-			theInterceptor.interceptOutput(bis, bos, fromInput);
+			theInterceptor.interceptOutput(response, bis, bos, fromInput);
 		} finally
 		{
 			bos.flush();
@@ -181,7 +267,7 @@ public class HttpForwarder
 		StringBuilder cookiesString = new StringBuilder();
 		for(javax.servlet.http.Cookie cookie : cookies)
 		{
-			if(cookiesString.length() == 0)
+			if(cookiesString.length() != 0)
 				cookiesString.append(';');
 			cookiesString.append(cookie.getName());
 			cookiesString.append('=');
@@ -203,8 +289,11 @@ public class HttpForwarder
 				for(String cookie : cookiesString)
 				{
 					int idx = cookie.indexOf('=');
-					response.addCookie(new javax.servlet.http.Cookie(cookie.substring(0, idx),
-						cookie.substring(idx + 1)));
+					String name = cookie.substring(0, idx).trim();
+					if(name.equals("Path"))
+						continue; // Path is a reserved word in the HTTP cookie spec
+					String value = cookie.substring(idx + 1);
+					response.addCookie(new javax.servlet.http.Cookie(name, value));
 				}
 			}
 			i++;

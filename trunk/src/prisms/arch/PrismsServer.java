@@ -318,8 +318,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		String errorString = null;
 		ErrorCode errorCode = null;
 		String sessionID = req.getParameter("sessionID");
-		if(sessionID == null && req.getSession() != null)
-			sessionID = (String) req.getSession().getAttribute("PRISMSsessionID");
+		if(sessionID == null && req.getCookies() != null)
+		{
+			for(javax.servlet.http.Cookie cookie : req.getCookies())
+				if(cookie.getName().equals("PRISMSsessionID"))
+				{
+					sessionID = cookie.getValue();
+					break;
+				}
+		}
 
 		String appName = req.getParameter("app");
 
@@ -443,7 +450,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			{
 				sessionID = newSessionID();
 				if(req.getSession() != null)
-					req.getSession().setAttribute("PRISMSsessionID", sessionID);
+				{
+					javax.servlet.http.Cookie cookie = new javax.servlet.http.Cookie(
+						"PRISMSsessionID", sessionID);
+					cookie.setMaxAge(-1);
+					resp.addCookie(cookie);
+				}
 				JSONObject evt = new JSONObject();
 				evt.put("method", "setSessionID");
 				evt.put("sessionID", sessionID);
@@ -965,6 +977,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 			}
 		}
+		resp.setContentType("text/prisms-json");
 		resp.getWriter().write(serialized);
 	}
 
