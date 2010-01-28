@@ -212,7 +212,7 @@ public class PrismsServiceConnector
 	 */
 	public void init() throws IOException
 	{
-		getResult(ServerMethod.init, null);
+		callServer(ServerMethod.init, null);
 	}
 
 	/**
