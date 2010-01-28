@@ -70,4 +70,17 @@ public class ConstantElement implements JsonElement
 			return true;
 		throw new JsonSchemaException(theValue + " expected", this, jsonValue);
 	}
+
+	@Override
+	public String getPathString()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append(toString());
+		JsonElement parent = theParent;
+		while(parent!=null)
+		{
+			ret.insert(0, parent.toString()+"/");			
+		}
+		return ret.toString();
+	}
 }
