@@ -498,9 +498,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		boolean decryptionFailed = false;
 		String encryptedText = null;
-		if(user != null && user.isLocked())
-			decryptionFailed = true;
-		else if(encrypted && session != null && dataStr != null)
+		if(encrypted && session != null && dataStr != null)
 		{
 			// For some reason, "+" gets mis-translated at a space
 			dataStr = dataStr.replaceAll(" ", "+");
@@ -622,6 +620,24 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				+ " does not have permission to access application " + appName);
 			ret.add(evt);
 		}
+		else if(!encrypted && appUser.isEncryptionRequired())
+		{
+			if(wms != null)
+				PrismsWmsRequest.respondError(resp, "User " + appUser.getName()
+					+ " cannot access application " + app.getName()
+					+ " without encryption, which WMS does not support");
+			else
+			{
+				JSONObject evt = new JSONObject();
+				evt.put("method", "startEncryption");
+				JSONObject hashing = session.getHashing().toJson();
+				hashing.put("user", userName);
+				evt.put("hashing", hashing);
+				if("init".equals(method))
+					evt.put("postAction", "callInit");
+				ret.add(evt);
+			}
+		}
 		else if(encrypted && tooShort)
 		{
 			errorString = "Data string null or too short--at least 20 characters of data must be"
@@ -662,24 +678,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			errorString = "Event deserialization failed!";
 			errorCode = ErrorCode.RequestFailed;
-		}
-		else if(!encrypted && appUser.isEncryptionRequired())
-		{
-			if(wms != null)
-				PrismsWmsRequest.respondError(resp, "User " + appUser.getName()
-					+ " cannot access application " + app.getName()
-					+ " without encryption, which WMS does not support");
-			else
-			{
-				JSONObject evt = new JSONObject();
-				evt.put("method", "startEncryption");
-				JSONObject hashing = session.getHashing().toJson();
-				hashing.put("user", userName);
-				evt.put("hashing", hashing);
-				if("init".equals(method))
-					evt.put("postAction", "callInit");
-				ret.add(evt);
-			}
 		}
 		else if("validate".equals(method))
 		{
