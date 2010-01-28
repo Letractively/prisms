@@ -420,6 +420,9 @@ public class PrismsServiceConnector
 				+ e.getMessage());
 			toThrow.setStackTrace(e.getStackTrace());
 			throw toThrow;
+		} finally
+		{
+			is.close();
 		}
 	}
 
@@ -461,7 +464,7 @@ public class PrismsServiceConnector
 				java.io.OutputStreamWriter wr = new java.io.OutputStreamWriter(conn
 					.getOutputStream());
 				wr.write("data=" + dataStr);
-				wr.flush();
+				wr.close();
 				is = conn.getInputStream();
 			}
 			else
