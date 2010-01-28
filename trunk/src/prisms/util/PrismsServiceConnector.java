@@ -20,6 +20,31 @@ public class PrismsServiceConnector
 {
 	static final Logger log = Logger.getLogger(PrismsServiceConnector.class);
 
+	public static class PrismsServiceException extends IOException
+	{
+		private final prisms.arch.PrismsServer.ErrorCode theErrorCode;
+
+		private final String thePrismsMsg;
+
+		public PrismsServiceException(String msg, prisms.arch.PrismsServer.ErrorCode errorCode,
+			String prismsMsg)
+		{
+			super(msg);
+			theErrorCode = errorCode;
+			thePrismsMsg = prismsMsg;
+		}
+
+		public prisms.arch.PrismsServer.ErrorCode getErrorCode()
+		{
+			return theErrorCode;
+		}
+
+		public String getPrismsMessage()
+		{
+			return thePrismsMsg;
+		}
+	}
+
 	/**
 	 * Thrown when the user name/password combination fails to validate with the server
 	 */
@@ -212,7 +237,10 @@ public class PrismsServiceConnector
 	 */
 	public void init() throws IOException
 	{
-		callServer(ServerMethod.init, null);
+		JSONObject initObject = new JSONObject();
+		initObject.put("iAm", "whoIsayIam");
+		initObject.put("youCan", "validateMeNow");
+		callServer(ServerMethod.init, initObject);
 	}
 
 	/**
@@ -345,7 +373,7 @@ public class PrismsServiceConnector
 	JSONArray callServer(ServerMethod serverMethod, JSONObject event) throws IOException
 	{
 		JSONArray serverReturn;
-		serverReturn = getResult(ServerMethod.processEvent, event);
+		serverReturn = getResult(serverMethod, event);
 		JSONArray ret = new JSONArray();
 		if(serverReturn == null)
 			return ret;
@@ -357,8 +385,10 @@ public class PrismsServiceConnector
 				if("error".equals(json.get("method")))
 				{
 					log.error("service error: " + json);
-					throw new IOException("Error calling serverMethod " + serverMethod
-						+ " for event " + event + ":\n" + json.get("message"));
+					throw new PrismsServiceException("Error calling serverMethod " + serverMethod
+						+ " for event " + event + ":\n" + json.get("message"),
+						prisms.arch.PrismsServer.ErrorCode.fromDescrip((String) json.get("code")),
+						(String) json.get("message"));
 				}
 				else if("callInit".equals(json.get("method")))
 				{
@@ -368,7 +398,7 @@ public class PrismsServiceConnector
 				{
 					serverReturn.addAll(i + 1, startEncryption(prisms.arch.ds.Hashing
 						.fromJson((JSONObject) json.get("hashing")), (String) json
-						.get("postAction"), event));
+						.get("postAction"), serverMethod, event));
 				}
 				else if("validate".equals(json.get("method")))
 				{
@@ -530,7 +560,7 @@ public class PrismsServiceConnector
 	}
 
 	private synchronized JSONArray startEncryption(Hashing hashing, String postAction,
-		JSONObject postRequest) throws IOException
+		ServerMethod postServerMethod, JSONObject postRequest) throws IOException
 	{
 		if(theEncryptionTries > 0)
 			throw new AuthenticationFailedException("Invalid security info--encryption failed"
@@ -564,8 +594,8 @@ public class PrismsServiceConnector
 			}
 			else if(postAction != null)
 				log.warn("Unrecognized postAction: " + postAction);
-			if(postRequest != null)
-				return callServer(ServerMethod.processEvent, postRequest);
+			if(postServerMethod != null)
+				return callServer(postServerMethod, postRequest);
 			else
 				return null;
 		} finally
