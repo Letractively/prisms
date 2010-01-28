@@ -73,7 +73,8 @@ public abstract class DefaultJsonElement implements JsonElement
 		if(jsonValue == null)
 		{
 			if(!isNullable)
-				throw new JsonSchemaException("Null or missing value not allowed", this, jsonValue);
+				throw new JsonSchemaException("Null or missing value not allowed for JSON element "
+					+ this, this, jsonValue);
 			else
 				return true;
 		}
@@ -89,8 +90,7 @@ public abstract class DefaultJsonElement implements JsonElement
 		JsonElement el = this;
 		while(el != null)
 		{
-			ret.append(el.getName());
-			ret.append('/');
+			ret.insert(0, el.getName() + '/');			
 			el = el.getParent();
 		}
 		ret.deleteCharAt(ret.length() - 1);

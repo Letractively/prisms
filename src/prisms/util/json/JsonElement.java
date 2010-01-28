@@ -47,4 +47,9 @@ public interface JsonElement
 	 * @throws JsonSchemaException If the element is invalid
 	 */
 	boolean validate(Object jsonValue) throws JsonSchemaException;
+	
+	/**
+	 * @return A string describing the location of this element within the json structure.
+	 */
+	String getPathString();
 }
