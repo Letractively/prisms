@@ -20,12 +20,22 @@ public class PrismsServiceConnector
 {
 	static final Logger log = Logger.getLogger(PrismsServiceConnector.class);
 
+	/**
+	 * Represents a request that was rejected by the PRISMS architecture for some reason
+	 */
 	public static class PrismsServiceException extends IOException
 	{
 		private final prisms.arch.PrismsServer.ErrorCode theErrorCode;
 
 		private final String thePrismsMsg;
 
+		/**
+		 * Creates a PrismsServiceException
+		 * 
+		 * @param msg The client message
+		 * @param errorCode The error code from the server
+		 * @param prismsMsg The error message from the server
+		 */
 		public PrismsServiceException(String msg, prisms.arch.PrismsServer.ErrorCode errorCode,
 			String prismsMsg)
 		{
@@ -34,11 +44,17 @@ public class PrismsServiceConnector
 			thePrismsMsg = prismsMsg;
 		}
 
+		/**
+		 * @return The error code from the server
+		 */
 		public prisms.arch.PrismsServer.ErrorCode getErrorCode()
 		{
 			return theErrorCode;
 		}
 
+		/**
+		 * @return The error message from the server
+		 */
 		public String getPrismsMessage()
 		{
 			return thePrismsMsg;
