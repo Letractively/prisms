@@ -1174,7 +1174,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			/* TODO: For whatever reason, information encrypted by the server is not decrypted
 			 * correctly by the javascript dojo blowfish implementation on the HTML client. Pending
 			 * more extensive investigation, we'll just send information unencrypted.*/
-			if(theSession.isService())
+			if(theSession != null && theSession.isService())
 				return prisms.arch.Encryption.encrypt(theEncryption, text);
 			return text;
 		}
