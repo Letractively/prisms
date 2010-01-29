@@ -60,7 +60,6 @@ public class HttpForwarder
 	{
 		private byte [] buffer = new byte [BUFFER_LENGTH];
 
-		@Override
 		public Object interceptInput(javax.servlet.http.HttpServletRequest request, OutputStream out)
 			throws IOException
 		{
@@ -77,7 +76,6 @@ public class HttpForwarder
 			return null;
 		}
 
-		@Override
 		public void interceptOutput(HttpServletResponse response, InputStream in, OutputStream out,
 			Object fromInput) throws IOException
 		{
