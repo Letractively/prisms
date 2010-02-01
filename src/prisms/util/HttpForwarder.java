@@ -263,15 +263,18 @@ public class HttpForwarder
 	{
 		javax.servlet.http.Cookie[] cookies = request.getCookies();
 		StringBuilder cookiesString = new StringBuilder();
-		for(javax.servlet.http.Cookie cookie : cookies)
+		if(cookies != null)
 		{
-			if(cookiesString.length() != 0)
-				cookiesString.append(';');
-			cookiesString.append(cookie.getName());
-			cookiesString.append('=');
-			cookiesString.append(cookie.getValue());
+			for(javax.servlet.http.Cookie cookie : cookies)
+			{
+				if(cookiesString.length() != 0)
+					cookiesString.append(';');
+				cookiesString.append(cookie.getName());
+				cookiesString.append('=');
+				cookiesString.append(cookie.getValue());
+			}
+			conn.addRequestProperty("Cookie", cookiesString.toString());
 		}
-		conn.addRequestProperty("Cookie", cookiesString.toString());
 	}
 
 	void forwardResponseCookies(java.net.HttpURLConnection conn,
@@ -288,7 +291,7 @@ public class HttpForwarder
 				{
 					int idx = cookie.indexOf('=');
 					String name = cookie.substring(0, idx).trim();
-					if(name.equals("Path"))
+					if(name.equalsIgnoreCase("Path"))
 						continue; // Path is a reserved word in the HTTP cookie spec
 					String value = cookie.substring(idx + 1);
 					response.addCookie(new javax.servlet.http.Cookie(name, value));
