@@ -63,7 +63,7 @@ public class HttpForwarder
 		public Object interceptInput(javax.servlet.http.HttpServletRequest request, OutputStream out)
 			throws IOException
 		{
-			java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(out);
+			java.io.Writer writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(out));
 			boolean first = true;
 			for(Object param : request.getParameterMap().keySet())
 			{
@@ -117,7 +117,7 @@ public class HttpForwarder
 		public Object interceptJsonInput(HttpServletRequest request, JSONObject jsonReq,
 			OutputStream out) throws IOException
 		{
-			java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(out);
+			java.io.Writer writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(out));
 			boolean first = true;
 			for(Object param : jsonReq.keySet())
 			{
