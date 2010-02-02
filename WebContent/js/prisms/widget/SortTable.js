@@ -1,10 +1,20 @@
 
-dojo.provide("prisms.widget.SortTable");
-dojo.declare("prisms.widget.SortTable", dijit._Widget, {
+__dojo.provide("prisms.widget.SortTable");
+__dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 
-	sortAscIcon: "../rsrc/icons/prisms/sortAscIcon.png",
+	sortAscIcon: "__webContentRoot/rsrc/icons/prisms/sortAscIcon.png",
 
-	sortDescIcon: "../rsrc/icons/prisms/sortDescIcon.png",
+	sortDescIcon: "__webContentRoot/rsrc/icons/prisms/sortDescIcon.png",
+
+	columnHeaderSize: "large",
+
+	displayAllDisplayedLink: true,
+
+	displayNoneDisplayedLink: true,
+
+	displayFirstLink: true,
+
+	displayLastLink: true,
 
 	postCreate: function(){
 		this.inherited(arguments);
@@ -55,26 +65,34 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\""
 			+" title=\"Selects All Displayed Items\">All Displayed</a>";
 		var link=td.childNodes[0];
+		if(!this.displayAllDisplayedLink)
+			link.style.display="none";
 		this.selectAllDispLinks.push(link);
-		dojo.connect(link, "onclick", this, this._selectAllDisplayed);
+		__dojo.connect(link, "onclick", this, this._selectAllDisplayed);
 		td=tr.insertCell(-1);
 		td.innerHTML=", ";
+		if(!this.displayAllDisplayedLink)
+			td.style.display="none";
 
 		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\""
 			+" title=\"Deselects All Displayed Items\">None Displayed</a>";
 		link=td.childNodes[0];
+		if(!this.displayNoneDisplayedLink)
+			link.style.display="none";
 		this.deselectAllDispLinks.push(link);
-		dojo.connect(link, "onclick", this, this._deselectAllDisplayed);
+		__dojo.connect(link, "onclick", this, this._deselectAllDisplayed);
 		td=tr.insertCell(-1);
 		td.innerHTML=", ";
+		if(!this.displayNoneDisplayedLink)
+			td.style.display="none";
 
 		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\""
 			+ " title=\"Selects All Items In Search, Even Those Not Displayed\">All</a>";
 		link=td.childNodes[0];
 		this.selectAllLinks.push(link);
-		dojo.connect(link, "onclick", this, this._selectAll);
+		__dojo.connect(link, "onclick", this, this._selectAll);
 		td=tr.insertCell(-1);
 		td.innerHTML=", ";
 
@@ -83,7 +101,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			+" title=\"Deselects All Items In Search, Even Those Not Displayed\">None</a>";
 		link=td.childNodes[0];
 		this.selectAllLinks.push(link);
-		dojo.connect(link, "onclick", this, this._deselectAll);
+		__dojo.connect(link, "onclick", this, this._deselectAll);
 
 		table=document.createElement("table");
 		bigRow.insertCell(-1).appendChild(table);
@@ -93,20 +111,22 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">&lt;&lt;First</a>";
 		link=td.childNodes[0];
+		if(!this.displayFirstLink)
+			link.style.display="none";
 		this.firstLinks.push(link);
-		dojo.connect(link, "onclick", this, this._firstClicked);
+		__dojo.connect(link, "onclick", this, this._firstClicked);
 
 		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">&lt;Previous</a>";
 		link=td.childNodes[0];
 		this.previousLinks.push(link);
-		dojo.connect(link, "onclick", this, this._previousClicked);
+		__dojo.connect(link, "onclick", this, this._previousClicked);
 
 		td=tr.insertCell(-1);
 		var select=document.createElement("select");
 		this.pageBoxes.push(select);
 		td.appendChild(select);
-		dojo.connect(select, "onchange", this, function(){
+		__dojo.connect(select, "onchange", this, function(){
 			this._pageChanged(select.selectedIndex);
 		});
 
@@ -123,13 +143,15 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Next&gt;</a>";
 		link=td.childNodes[0];
 		this.nextLinks.push(link);
-		dojo.connect(link, "onclick", this, this._nextClicked);
+		__dojo.connect(link, "onclick", this, this._nextClicked);
 
 		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Last&gt;&gt;</a>";
 		link=td.childNodes[0];
+		if(!this.displayLastLink)
+			link.style.display="none";
 		this.lastLinks.push(link);
-		dojo.connect(link, "onclick", this, this._lastClicked);
+		__dojo.connect(link, "onclick", this, this._lastClicked);
 	},
 
 	setData: function(data){
@@ -137,7 +159,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		try{
 			this.tableData=data;
 			while(this.dojoConnects.length>0)
-				dojo.disconnect(this.dojoConnects.pop());
+				__dojo.disconnect(this.dojoConnects.pop());
 			while(this.contentRows.length>0)
 				this.table.deleteRow(this.contentRows.pop().rowIndex);
 			while(this.headerRow.cells.length>0)
@@ -177,7 +199,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 				option.text=i;
 			else
 				option.text=i+" - "+max;
-			if(dojo.isIE > 6)
+			if(__dojo.isIE > 6)
 				this.pageBoxes[index].add(option, 0);
 			else
 				this.pageBoxes[index].add(option, null);
@@ -187,11 +209,11 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		{
 			var option=document.createElement("option");
 			option.text=metadata.start+" - "+metadata.end;
-			if(dojo.isIE > 6)
+			if(__dojo.isIE > 6)
 				this.pageBoxes[index].add(option, 0);
 			else
 				this.pageBoxes[index].add(option, null);
-			this.pageBoxes.selectedIndex=this.pageBoxes.options.length-1;
+			this.pageBoxes[index].selectedIndex=this.pageBoxes[index].options.length-1;
 		}
 		else
 			this.pageBoxes[index].selectedIndex=(metadata.start-1)/metadata.count;
@@ -226,7 +248,10 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 	_createColumnHeader: function(column){
 		var text=document.createElement("span");
 		text.style.fontWeight="bold";
-		text.style.fontSize="large"
+		if(!this.columnHeaderSize)
+			text.style.fontSize="large";
+		else
+			text.style.fontSize=this.columnHeaderSize;
 		text.innerHTML=column.label;
 		if(column.sortable)
 		{
@@ -242,7 +267,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			img.title="Sort Ascending";
 			iconTable.insertRow(-1).insertCell(-1).appendChild(img);
 			img.parentNode.style.fontSize="0px";
-			this.dojoConnects.push(dojo.connect(img, "onclick", this, function(){
+			this.dojoConnects.push(__dojo.connect(img, "onclick", this, function(){
 				this.sortOn(column.label, true);
 			}));
 			img=document.createElement("img");
@@ -250,7 +275,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			img.title="Sort Descending";
 			iconTable.insertRow(-1).insertCell(-1).appendChild(img);
 			img.parentNode.style.fontSize="0px";
-			this.dojoConnects.push(dojo.connect(img, "onclick", this, function(){
+			this.dojoConnects.push(__dojo.connect(img, "onclick", this, function(){
 				this.sortOn(column.label, false);
 			}));
 			return cellTable;
@@ -265,7 +290,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		var checkBox=td.childNodes[0];
 		checkBox.checked=dataRow.selected ? "on" : null;
 		checkBox.sortTable=this;
-		this.dojoConnects.push(dojo.connect(checkBox, "onclick", checkBox, function(event){
+		this.dojoConnects.push(__dojo.connect(checkBox, "onclick", checkBox, function(event){
 			var idx=this.sortTable.tableData.metadata.start+rowIndex;
 			var selected=this.checked ? true : false;
 			this.sortTable._selectChanged(idx, selected, event.shiftKey);
@@ -287,7 +312,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		{
 			td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">"+dataCell.label+"</a>";
 			labelCell=td.childNodes[0];
-			this.dojoConnects.push(dojo.connect(labelCell, "onclick", this, function(){
+			this.dojoConnects.push(__dojo.connect(labelCell, "onclick", this, function(){
 				this.goToLink(dataCell.linkID);
 			}));
 			td.innerHTML="";
@@ -312,12 +337,12 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		{
 			var img=document.createElement("img");
 			if(typeof dataCell.icon=="string")
-				img.src="../rsrc/icons/"+dataCell.icon+".png";
+				img.src="__webContentRoot/rsrc/icons/"+dataCell.icon+".png";
 			else if(this.prisms)
 				img.src=this.prisms.getDynamicImageSource(dataCell.icon.plugin, dataCell.icon.method,
 					0, 0, 16, 16, 16, 16);
 			else
-				console.error("No prisms for dynamic image: "+dojo.toJson(dataCell.icon));
+				console.error("No prisms for dynamic image: "+__dojo.toJson(dataCell.icon));
 			var table=document.createElement("table");
 			td.appendChild(table);
 			tr=table.insertRow(0);
