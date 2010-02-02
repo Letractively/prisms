@@ -52,7 +52,7 @@ public class SetElement extends DefaultJsonElement
 	@Override
 	public boolean validate(Object jsonValue) throws JsonSchemaException
 	{
-		if(super.doesValidate(jsonValue))
+		if(super.validate(jsonValue))
 			return true;
 		if(!(jsonValue instanceof JSONArray))
 			throw new JsonSchemaException("Element must be a set", this, jsonValue);
