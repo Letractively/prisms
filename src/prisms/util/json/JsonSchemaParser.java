@@ -104,7 +104,8 @@ public class JsonSchemaParser
 		String schemaRoot = theSchemaRoots.get(schemaName);
 		if(schemaRoot == null)
 			throw new IllegalStateException("Unrecognized schema: " + schemaName);
-		return new CustomSchemaElement(type, schemaRoot + type + ".json");
+		String typeName = type.substring(idx + 1);
+		return new CustomSchemaElement(type, schemaRoot + "/" + typeName + ".json");
 	}
 
 	/**
