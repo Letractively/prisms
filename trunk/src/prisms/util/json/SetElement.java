@@ -40,6 +40,8 @@ public class SetElement extends DefaultJsonElement
 	{
 		if(!super.doesValidate(jsonValue))
 			return false;
+		if(jsonValue == null)
+			return true;
 		if(!(jsonValue instanceof JSONArray))
 			return false;
 		JSONArray set = (JSONArray) jsonValue;

@@ -127,7 +127,7 @@ public class JsonSchemaParser
 		} catch(Throwable e)
 		{
 			throw new IllegalStateException("Could not find schema " + schemaName + " at "
-				+ schemaLocation);
+				+ schemaLocation, e);
 		}
 		JsonElement ret = createElementFor(schema);
 		ret.configure(this, parent, schemaName, schema);
