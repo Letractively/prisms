@@ -39,6 +39,7 @@ public class EnumElement extends ContainerJsonElement
 		for(JsonElement el : getChildren())
 			if(el.doesValidate(jsonValue))
 				return true;
-		throw new JsonSchemaException("Element does not match any schema option", this, jsonValue);
+		throw new JsonSchemaException("Element does not match any schema option: " + jsonValue,
+			this, jsonValue);
 	}
 }

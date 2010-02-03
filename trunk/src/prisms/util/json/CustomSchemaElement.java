@@ -54,6 +54,10 @@ public class CustomSchemaElement extends DefaultJsonElement
 	@Override
 	public boolean doesValidate(Object jsonValue)
 	{
+		if(!super.doesValidate(jsonValue))
+			return false;
+		if(!(jsonValue instanceof JSONObject))
+			return false;
 		if(theSchemaEl == null)
 			load();
 		return theSchemaEl.doesValidate(jsonValue);
@@ -62,6 +66,10 @@ public class CustomSchemaElement extends DefaultJsonElement
 	@Override
 	public boolean validate(Object jsonValue) throws JsonSchemaException
 	{
+		if(super.validate(jsonValue))
+			return true;
+		if(!(jsonValue instanceof JSONObject))
+			throw new JsonSchemaException("Element must be a set", this, jsonValue);
 		if(theSchemaEl == null)
 			load();
 		return theSchemaEl.validate(jsonValue);
@@ -72,6 +80,6 @@ public class CustomSchemaElement extends DefaultJsonElement
 	 */
 	protected void load()
 	{
-		theSchemaEl = getParser().getExternalSchema(theSchemaName, theSchemaLocation);
+		theSchemaEl = getParser().getExternalSchema(theSchemaName, theSchemaLocation, this);
 	}
 }
