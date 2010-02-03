@@ -79,7 +79,14 @@ public class ConstantElement implements JsonElement
 		while(parent != null)
 		{
 			ret.insert(0, parent.toString() + "/");
+			parent = parent.getParent();
 		}
 		return ret.toString();
+	}
+
+	public String toString()
+	{
+		return getName() + "("
+			+ getClass().getName().substring(getClass().getName().lastIndexOf('.') + 1) + ")";
 	}
 }

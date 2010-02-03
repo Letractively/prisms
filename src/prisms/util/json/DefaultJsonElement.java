@@ -90,10 +90,16 @@ public abstract class DefaultJsonElement implements JsonElement
 		JsonElement el = this;
 		while(el != null)
 		{
-			ret.insert(0, el.getName() + '/');			
+			ret.insert(0, el.getName() + '/');
 			el = el.getParent();
 		}
 		ret.deleteCharAt(ret.length() - 1);
 		return ret.toString();
+	}
+
+	public String toString()
+	{
+		return getName() + "("
+			+ getClass().getName().substring(getClass().getName().lastIndexOf('.') + 1) + ")";
 	}
 }

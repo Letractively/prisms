@@ -18,7 +18,7 @@ public class JsonSchemaParser
 
 	private java.util.Map<String, String> theSchemaRoots;
 
-	private java.util.Map<String, Object> theStoredSchemas;
+	private java.util.Map<String, JSONObject> theStoredSchemas;
 
 	/**
 	 * Creates a schema parser
@@ -26,7 +26,7 @@ public class JsonSchemaParser
 	public JsonSchemaParser()
 	{
 		theSchemaRoots = new java.util.HashMap<String, String>();
-		theStoredSchemas = new java.util.HashMap<String, Object>();
+		theStoredSchemas = new java.util.HashMap<String, JSONObject>();
 	}
 
 	/**
@@ -111,22 +111,26 @@ public class JsonSchemaParser
 	/**
 	 * @param schemaName The name of the schema to load
 	 * @param schemaLocation The location of the schema to load
+	 * @param parent The parent json element for the schema element
 	 * @return The schema at the given location
 	 */
-	public JsonElement getExternalSchema(String schemaName, String schemaLocation)
+	public JsonElement getExternalSchema(String schemaName, String schemaLocation,
+		JsonElement parent)
 	{
-		Object ret = theStoredSchemas.get(schemaName);
-		if(ret != null)
-			return createElementFor(ret);
+		JSONObject schema = theStoredSchemas.get(schemaName);
+		if(schema != null)
+			return createElementFor(schema);
 		try
 		{
-			ret = org.json.simple.JSONValue.parse(new java.io.InputStreamReader(new java.net.URL(
-				schemaLocation).openStream()));
+			schema = (JSONObject) org.json.simple.JSONValue.parse(new java.io.InputStreamReader(
+				new java.net.URL(schemaLocation).openStream()));
 		} catch(Throwable e)
 		{
 			throw new IllegalStateException("Could not find schema " + schemaName + " at "
 				+ schemaLocation);
 		}
-		return createElementFor(ret);
+		JsonElement ret = createElementFor(schema);
+		ret.configure(this, parent, schemaName, schema);
+		return ret;
 	}
 }

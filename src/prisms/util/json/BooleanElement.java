@@ -25,7 +25,7 @@ public class BooleanElement extends DefaultJsonElement
 			return true;
 		if(jsonValue == null)
 			return true;
-		if(jsonValue instanceof String)
+		if(jsonValue instanceof Boolean)
 			return true;
 		throw new JsonSchemaException("Value must be a boolean", this, jsonValue);
 	}
