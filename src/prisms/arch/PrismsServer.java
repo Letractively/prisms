@@ -479,19 +479,25 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				try
 				{
 					session = new SessionMetadata(appUser, client, serviceName != null);
+					lock = theSessionLock.writeLock();
+					lock.lock();
+					try
+					{
+						theSessions.put(sessionID + "/" + appName + "/" + clientServiceName + "/"
+							+ userName, session);
+					} finally
+					{
+						lock.unlock();
+					}
 				} catch(PrismsException e)
 				{
-					throw new IllegalStateException("Could not create session", e);
-				}
-				lock = theSessionLock.writeLock();
-				lock.lock();
-				try
-				{
-					theSessions.put(sessionID + "/" + appName + "/" + clientServiceName + "/"
-						+ userName, session);
-				} finally
-				{
-					lock.unlock();
+					log.error("Could not create session", e);
+					errorString = "Could not create session: ";
+					if(e.getCause() != null)
+						errorString += e.getCause().getMessage();
+					else
+						errorString += e.getMessage();
+					errorCode = ErrorCode.RequestDenied;
 				}
 			}
 		}
@@ -576,7 +582,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			log.error(errorString, e);
 			pwdExp = System.currentTimeMillis() + 24L * 60 * 60 * 1000;
 		}
-		if(appName == null)
+		if(errorCode != null)
+		{}
+		else if(appName == null)
 		{
 			errorString = "No application specified";
 			errorCode = ErrorCode.RequestIncomplete;
