@@ -137,8 +137,8 @@ public class HttpForwarder
 			String contentType = response.getContentType();
 			if(contentType != null && contentType.contains("text/prisms-json"))
 			{
-				JSONArray retEvents = (JSONArray) org.json.simple.JSONValue
-					.parse(new java.io.InputStreamReader(in));
+				java.io.BufferedReader reader = new java.io.BufferedReader( new java.io.InputStreamReader(in) );
+				JSONArray retEvents = (JSONArray) org.json.simple.JSONValue.parse( reader );
 				interceptJsonOutput(response, retEvents, out, fromInput);
 			}
 			else
