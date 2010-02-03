@@ -56,6 +56,8 @@ public class CustomSchemaElement extends DefaultJsonElement
 	{
 		if(!super.doesValidate(jsonValue))
 			return false;
+		if(jsonValue == null)
+			return true;
 		if(!(jsonValue instanceof JSONObject))
 			return false;
 		if(theSchemaEl == null)
