@@ -124,6 +124,19 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
+	 * Creates a PRISMS Server
+	 * 
+	 * @param log4jprops The properties used to initialize Log4j, or null if this server should not
+	 *        initialize Log4j
+	 */
+	public PrismsServer(java.util.Properties log4jprops)
+	{
+		this((java.net.URL) null);
+		if(log4jprops != null)
+			initLog4j(log4jprops);
+	}
+
+	/**
 	 * Initializes the log4j system for PRISMS
 	 * 
 	 * @param log4jXML The address to the XML to use to initialize Log4j, or null if this server
@@ -141,6 +154,27 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 		else
 			System.out.println("could not find log4j.xml resource!");
+	}
+
+	/**
+	 * Initializes the log4j system for PRISMS
+	 * 
+	 * @param log4jprops - the properties to use to initialize Log4j, or null if this server should
+	 *        not initialize Log4j
+	 */
+	public static void initLog4j(java.util.Properties log4jprops)
+	{
+		System.out.println("Initializing logging");
+
+		if(log4jprops != null)
+		{
+			org.apache.log4j.LogManager.resetConfiguration();
+			org.apache.log4j.PropertyConfigurator.configure(log4jprops);
+			System.out.println("Initialization of Log4j completed");
+			log.info("Initialized Log4j successfully");
+		}
+		else
+			System.out.println("could not find log4j properties!");
 	}
 
 	/**
