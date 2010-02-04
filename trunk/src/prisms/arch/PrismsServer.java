@@ -415,7 +415,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				app = theUserSource.getApp(appName);
 			} catch(PrismsException e)
 			{
-				log.error("Could not get applicaiton " + appName, e);
+				log.error("Could not get application " + appName, e);
 				app = null;
 			}
 			if(app != null && app.getServer() != this)
