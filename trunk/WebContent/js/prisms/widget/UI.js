@@ -100,6 +100,13 @@ dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 			event.message=PrismsUtils.fixUnicodeString(event.message);
 			var msg=event.message.split("\n");
 			event.message=msg.join("<br />");
+			msg=event.message.split("\t");
+			var leftAlign=msg.length>1;
+			if(leftAlign)
+				this.labelNode.style.textAlign="left";
+			else
+				this.labelNode.style.textAlign="center";
+			event.message=msg.join("&nbsp;&nbsp;&nbsp;&nbsp;");
 		}
 		if(event.method=="error")
 			this.showError(event.message);
