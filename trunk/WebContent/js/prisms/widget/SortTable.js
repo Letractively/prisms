@@ -1,10 +1,10 @@
 
-__dojo.provide("prisms.widget.SortTable");
-__dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
+dojo.provide("prisms.widget.SortTable");
+dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 
-	sortAscIcon: "__webContentRoot/rsrc/icons/prisms/sortAscIcon.png",
+	sortAscIcon: "../rsrc/icons/prisms/sortAscIcon.png",
 
-	sortDescIcon: "__webContentRoot/rsrc/icons/prisms/sortDescIcon.png",
+	sortDescIcon: "../rsrc/icons/prisms/sortDescIcon.png",
 
 	columnHeaderSize: "large",
 
@@ -68,7 +68,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		if(!this.displayAllDisplayedLink)
 			link.style.display="none";
 		this.selectAllDispLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._selectAllDisplayed);
+		dojo.connect(link, "onclick", this, this._selectAllDisplayed);
 		td=tr.insertCell(-1);
 		td.innerHTML=", ";
 		if(!this.displayAllDisplayedLink)
@@ -81,7 +81,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		if(!this.displayNoneDisplayedLink)
 			link.style.display="none";
 		this.deselectAllDispLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._deselectAllDisplayed);
+		dojo.connect(link, "onclick", this, this._deselectAllDisplayed);
 		td=tr.insertCell(-1);
 		td.innerHTML=", ";
 		if(!this.displayNoneDisplayedLink)
@@ -92,7 +92,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 			+ " title=\"Selects All Items In Search, Even Those Not Displayed\">All</a>";
 		link=td.childNodes[0];
 		this.selectAllLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._selectAll);
+		dojo.connect(link, "onclick", this, this._selectAll);
 		td=tr.insertCell(-1);
 		td.innerHTML=", ";
 
@@ -101,7 +101,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 			+" title=\"Deselects All Items In Search, Even Those Not Displayed\">None</a>";
 		link=td.childNodes[0];
 		this.selectAllLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._deselectAll);
+		dojo.connect(link, "onclick", this, this._deselectAll);
 
 		table=document.createElement("table");
 		bigRow.insertCell(-1).appendChild(table);
@@ -114,19 +114,19 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		if(!this.displayFirstLink)
 			link.style.display="none";
 		this.firstLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._firstClicked);
+		dojo.connect(link, "onclick", this, this._firstClicked);
 
 		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">&lt;Previous</a>";
 		link=td.childNodes[0];
 		this.previousLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._previousClicked);
+		dojo.connect(link, "onclick", this, this._previousClicked);
 
 		td=tr.insertCell(-1);
 		var select=document.createElement("select");
 		this.pageBoxes.push(select);
 		td.appendChild(select);
-		__dojo.connect(select, "onchange", this, function(){
+		dojo.connect(select, "onchange", this, function(){
 			this._pageChanged(select.selectedIndex);
 		});
 
@@ -143,7 +143,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Next&gt;</a>";
 		link=td.childNodes[0];
 		this.nextLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._nextClicked);
+		dojo.connect(link, "onclick", this, this._nextClicked);
 
 		td=tr.insertCell(-1);
 		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Last&gt;&gt;</a>";
@@ -151,7 +151,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		if(!this.displayLastLink)
 			link.style.display="none";
 		this.lastLinks.push(link);
-		__dojo.connect(link, "onclick", this, this._lastClicked);
+		dojo.connect(link, "onclick", this, this._lastClicked);
 	},
 
 	setData: function(data){
@@ -159,7 +159,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		try{
 			this.tableData=data;
 			while(this.dojoConnects.length>0)
-				__dojo.disconnect(this.dojoConnects.pop());
+				dojo.disconnect(this.dojoConnects.pop());
 			while(this.contentRows.length>0)
 				this.table.deleteRow(this.contentRows.pop().rowIndex);
 			while(this.headerRow.cells.length>0)
@@ -199,7 +199,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 				option.text=i;
 			else
 				option.text=i+" - "+max;
-			if(__dojo.isIE > 6)
+			if(dojo.isIE > 6)
 				this.pageBoxes[index].add(option, 0);
 			else
 				this.pageBoxes[index].add(option, null);
@@ -209,7 +209,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		{
 			var option=document.createElement("option");
 			option.text=metadata.start+" - "+metadata.end;
-			if(__dojo.isIE > 6)
+			if(dojo.isIE > 6)
 				this.pageBoxes[index].add(option, 0);
 			else
 				this.pageBoxes[index].add(option, null);
@@ -267,7 +267,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 			img.title="Sort Ascending";
 			iconTable.insertRow(-1).insertCell(-1).appendChild(img);
 			img.parentNode.style.fontSize="0px";
-			this.dojoConnects.push(__dojo.connect(img, "onclick", this, function(){
+			this.dojoConnects.push(dojo.connect(img, "onclick", this, function(){
 				this.sortOn(column.label, true);
 			}));
 			img=document.createElement("img");
@@ -275,7 +275,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 			img.title="Sort Descending";
 			iconTable.insertRow(-1).insertCell(-1).appendChild(img);
 			img.parentNode.style.fontSize="0px";
-			this.dojoConnects.push(__dojo.connect(img, "onclick", this, function(){
+			this.dojoConnects.push(dojo.connect(img, "onclick", this, function(){
 				this.sortOn(column.label, false);
 			}));
 			return cellTable;
@@ -290,7 +290,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		var checkBox=td.childNodes[0];
 		checkBox.checked=dataRow.selected ? "on" : null;
 		checkBox.sortTable=this;
-		this.dojoConnects.push(__dojo.connect(checkBox, "onclick", checkBox, function(event){
+		this.dojoConnects.push(dojo.connect(checkBox, "onclick", checkBox, function(event){
 			var idx=this.sortTable.tableData.metadata.start+rowIndex;
 			var selected=this.checked ? true : false;
 			this.sortTable._selectChanged(idx, selected, event.shiftKey);
@@ -312,7 +312,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		{
 			td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">"+dataCell.label+"</a>";
 			labelCell=td.childNodes[0];
-			this.dojoConnects.push(__dojo.connect(labelCell, "onclick", this, function(){
+			this.dojoConnects.push(dojo.connect(labelCell, "onclick", this, function(){
 				this.goToLink(dataCell.linkID);
 			}));
 			td.innerHTML="";
@@ -337,12 +337,12 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		{
 			var img=document.createElement("img");
 			if(typeof dataCell.icon=="string")
-				img.src="__webContentRoot/rsrc/icons/"+dataCell.icon+".png";
+				img.src="../rsrc/icons/"+dataCell.icon+".png";
 			else if(this.prisms)
 				img.src=this.prisms.getDynamicImageSource(dataCell.icon.plugin, dataCell.icon.method,
 					0, 0, 16, 16, 16, 16);
 			else
-				console.error("No prisms for dynamic image: "+__dojo.toJson(dataCell.icon));
+				console.error("No prisms for dynamic image: "+dojo.toJson(dataCell.icon));
 			var table=document.createElement("table");
 			td.appendChild(table);
 			tr=table.insertRow(0);
