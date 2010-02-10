@@ -137,8 +137,9 @@ public class HttpForwarder
 			String contentType = response.getContentType();
 			if(contentType != null && contentType.contains("text/prisms-json"))
 			{
-				java.io.BufferedReader reader = new java.io.BufferedReader( new java.io.InputStreamReader(in) );
-				JSONArray retEvents = (JSONArray) org.json.simple.JSONValue.parse( reader );
+				java.io.BufferedReader reader = new java.io.BufferedReader(
+					new java.io.InputStreamReader(in));
+				JSONArray retEvents = (JSONArray) org.json.simple.JSONValue.parse(reader);
 				interceptJsonOutput(response, retEvents, out, fromInput);
 			}
 			else
@@ -158,8 +159,12 @@ public class HttpForwarder
 		public void interceptJsonOutput(HttpServletResponse response, JSONArray retEvents,
 			OutputStream out, Object fromInput) throws IOException
 		{
-			super.interceptOutput(response, new java.io.ByteArrayInputStream(retEvents.toString()
-				.getBytes()), out, fromInput);
+			byte [] bytes = retEvents.toString().getBytes();
+			if(bytes == null)
+				return;
+
+			BufferedOutputStream bos = new BufferedOutputStream(out, bytes.length);
+			bos.write(bytes, 0, bytes.length);
 		}
 	}
 
