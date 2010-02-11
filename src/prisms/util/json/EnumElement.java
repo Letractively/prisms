@@ -14,19 +14,28 @@ public class EnumElement extends ContainerJsonElement
 		JSONObject schemaEl)
 	{
 		super.configure(parser, parent, name, schemaEl);
+		if(getChildren().length == 0)
+			throw new IllegalArgumentException("A oneOf element must have at least one option");
 	}
 
 	@Override
-	public boolean doesValidate(Object jsonValue)
+	public float doesValidate(Object jsonValue)
 	{
-		if(!super.doesValidate(jsonValue))
-			return false;
+		float ret = super.doesValidate(jsonValue);
+		if(ret < 1)
+			return ret;
 		if(jsonValue == null)
-			return true;
+			return 1;
+		ret = 0;
 		for(JsonElement el : getChildren())
-			if(el.doesValidate(jsonValue))
-				return true;
-		return false;
+		{
+			float elVal = el.doesValidate(jsonValue);
+			if(elVal == 1)
+				return 1;
+			if(elVal > ret)
+				ret = elVal;
+		}
+		return ret;
 	}
 
 	@Override
@@ -36,10 +45,23 @@ public class EnumElement extends ContainerJsonElement
 			return true;
 		if(jsonValue == null)
 			return true;
+		float ret = 0;
+		JsonElement closeChild = null;
 		for(JsonElement el : getChildren())
-			if(el.doesValidate(jsonValue))
+		{
+			float elVal = el.doesValidate(jsonValue);
+			if(elVal == 1)
 				return true;
-		throw new JsonSchemaException("Element does not match any schema option: " + jsonValue,
-			this, jsonValue);
+			if(elVal > ret)
+			{
+				ret = elVal;
+				closeChild = el;
+			}
+		}
+		if(closeChild == null)
+			throw new JsonSchemaException("Element does not match any schema option: " + jsonValue,
+				this, jsonValue);
+		// Doesn't match any options. Validate the closest one so we can debug it.
+		return closeChild.validate(jsonValue);
 	}
 }

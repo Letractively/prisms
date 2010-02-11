@@ -43,6 +43,7 @@ public class JsonSchemaException extends Exception
 	@Override
 	public String toString()
 	{
-		return super.toString() + "\n" + theSchemaElement.getPathString();
+		return super.toString() + "\nElement: " + theSchemaElement.getPathString() + "\nValue: "
+			+ theValue;
 	}
 }

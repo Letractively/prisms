@@ -120,17 +120,59 @@ public class JsonSchemaParser
 		JSONObject schema = theStoredSchemas.get(schemaName);
 		if(schema != null)
 			return createElementFor(schema);
+		java.io.Reader reader = null;
 		try
 		{
-			schema = (JSONObject) org.json.simple.JSONValue.parse(new java.io.InputStreamReader(
-				new java.net.URL(schemaLocation).openStream()));
+			reader = new java.io.InputStreamReader(new java.net.URL(schemaLocation).openStream());
+			schema = (JSONObject) org.json.simple.JSONValue.parse(reader);
 		} catch(Throwable e)
 		{
 			throw new IllegalStateException("Could not find schema " + schemaName + " at "
 				+ schemaLocation, e);
+		} finally
+		{
+			if(reader != null)
+				try
+				{
+					reader.close();
+				} catch(java.io.IOException e)
+				{
+					log.error("Could not close stream", e);
+				}
 		}
+		if(schema == null)
+			throw new IllegalStateException("Could not parse schema " + schemaName + " at "
+				+ schemaLocation);
 		JsonElement ret = createElementFor(schema);
 		ret.configure(this, parent, schemaName, schema);
+		return ret;
+	}
+
+	/**
+	 * Parses a schema
+	 * 
+	 * @param schemaName The name of the schema
+	 * @param schemaRoot The URL to a file in the schema
+	 * @return The parsed file
+	 */
+	public static JsonElement parseSchema(String schemaName, java.net.URL schemaRoot)
+	{
+		JsonSchemaParser parser = new JsonSchemaParser();
+		String jsonLoc = schemaRoot.toString();
+		jsonLoc = jsonLoc.substring(0, jsonLoc.lastIndexOf('/'));
+		parser.addSchema(schemaName, jsonLoc);
+		JSONObject jsonSchema;
+		try
+		{
+			jsonSchema = (JSONObject) org.json.simple.JSONValue
+				.parse(new java.io.InputStreamReader(schemaRoot.openStream()));
+		} catch(Throwable e)
+		{
+			throw new IllegalStateException("Could not parse " + schemaName + " schema", e);
+		}
+
+		JsonElement ret = parser.createElementFor(jsonSchema);
+		ret.configure(parser, null, schemaName, jsonSchema);
 		return ret;
 	}
 }

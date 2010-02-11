@@ -36,9 +36,9 @@ public interface JsonElement
 
 	/**
 	 * @param jsonValue The value to validate
-	 * @return Whether the value matches this element
+	 * @return The amount of this schema that the element matches (1=perfect match)
 	 */
-	boolean doesValidate(Object jsonValue);
+	float doesValidate(Object jsonValue);
 
 	/**
 	 * @param jsonValue The value to validate
@@ -47,7 +47,7 @@ public interface JsonElement
 	 * @throws JsonSchemaException If the element is invalid
 	 */
 	boolean validate(Object jsonValue) throws JsonSchemaException;
-	
+
 	/**
 	 * @return A string describing the location of this element within the json structure.
 	 */
