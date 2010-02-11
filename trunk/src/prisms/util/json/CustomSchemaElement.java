@@ -52,16 +52,25 @@ public class CustomSchemaElement extends DefaultJsonElement
 	}
 
 	@Override
-	public boolean doesValidate(Object jsonValue)
+	public float doesValidate(Object jsonValue)
 	{
-		if(!super.doesValidate(jsonValue))
-			return false;
+		float ret = super.doesValidate(jsonValue);
+		if(ret < 1)
+			return ret;
 		if(jsonValue == null)
-			return true;
+			return 1;
 		if(!(jsonValue instanceof JSONObject))
-			return false;
+			return 0;
 		if(theSchemaEl == null)
-			load();
+		{
+			try
+			{
+				load();
+			} catch(JsonSchemaException e)
+			{
+				throw new IllegalStateException("Could not parse schema for element " + this, e);
+			}
+		}
 		return theSchemaEl.doesValidate(jsonValue);
 	}
 
@@ -70,8 +79,8 @@ public class CustomSchemaElement extends DefaultJsonElement
 	{
 		if(super.validate(jsonValue))
 			return true;
-		if(!(jsonValue instanceof JSONObject))
-			throw new JsonSchemaException("Element must be a set", this, jsonValue);
+		// if(!(jsonValue instanceof JSONObject))
+		// throw new JsonSchemaException("Element must be a set", this, jsonValue);
 		if(theSchemaEl == null)
 			load();
 		return theSchemaEl.validate(jsonValue);
@@ -79,9 +88,17 @@ public class CustomSchemaElement extends DefaultJsonElement
 
 	/**
 	 * Loads this custom schema
+	 * 
+	 * @throws JsonSchemaException If this element's schema cannot be parsed
 	 */
-	protected void load()
+	protected void load() throws JsonSchemaException
 	{
-		theSchemaEl = getParser().getExternalSchema(theSchemaName, theSchemaLocation, this);
+		try
+		{
+			theSchemaEl = getParser().getExternalSchema(theSchemaName, theSchemaLocation, this);
+		} catch(RuntimeException e)
+		{
+			throw new JsonSchemaException(e.getMessage(), this, null);
+		}
 	}
 }

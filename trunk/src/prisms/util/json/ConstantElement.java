@@ -57,18 +57,27 @@ public class ConstantElement implements JsonElement
 		return theName;
 	}
 
-	public boolean doesValidate(Object jsonValue)
+	public float doesValidate(Object jsonValue)
 	{
 		if(theValue == null)
-			return jsonValue == null;
-		return theValue.equals(jsonValue);
+			return jsonValue == null ? 1 : 0;
+		if(theValue == null && jsonValue == null)
+			return 1;
+		if(theValue == null || jsonValue == null)
+			return 0;
+		if(theValue.equals(jsonValue))
+			return 1;
+		if(theValue.getClass().isAssignableFrom(jsonValue.getClass()))
+			return 0.5f;
+		return 0;
 	}
 
 	public boolean validate(Object jsonValue) throws JsonSchemaException
 	{
 		if(theValue == null ? jsonValue == null : theValue.equals(jsonValue))
 			return true;
-		throw new JsonSchemaException(theValue + " expected", this, jsonValue);
+		throw new JsonSchemaException(theValue + " expected, but value is " + jsonValue, this,
+			jsonValue);
 	}
 
 	public String getPathString()

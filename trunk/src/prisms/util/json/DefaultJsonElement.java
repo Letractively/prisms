@@ -24,10 +24,14 @@ public abstract class DefaultJsonElement implements JsonElement
 		JSONObject schemaEl)
 	{
 		theParser = parser;
+		if(parent == this)
+			throw new IllegalArgumentException("This element's parent cannot be itself");
 		theParent = parent;
 		theName = name;
 		theConstraints = (JSONObject) schemaEl.get("schemaConstraints");
+		schemaEl.remove("schemaConstraints");
 		isNullable = Boolean.TRUE.equals(schemaEl.get("nullable"));
+		schemaEl.remove("nullable");
 	}
 
 	public JsonSchemaParser getParser()
@@ -61,11 +65,11 @@ public abstract class DefaultJsonElement implements JsonElement
 		return isNullable;
 	}
 
-	public boolean doesValidate(Object jsonValue)
+	public float doesValidate(Object jsonValue)
 	{
 		if(jsonValue == null && !isNullable)
-			return false;
-		return true;
+			return 0;
+		return 1;
 	}
 
 	public boolean validate(Object jsonValue) throws JsonSchemaException

@@ -36,19 +36,23 @@ public class SetElement extends DefaultJsonElement
 	}
 
 	@Override
-	public boolean doesValidate(Object jsonValue)
+	public float doesValidate(Object jsonValue)
 	{
-		if(!super.doesValidate(jsonValue))
-			return false;
+		float ret = super.doesValidate(jsonValue);
+		if(ret < 1)
+			return ret;
 		if(jsonValue == null)
-			return true;
+			return 1;
 		if(!(jsonValue instanceof JSONArray))
-			return false;
+			return 0;
 		JSONArray set = (JSONArray) jsonValue;
 		for(Object el : set)
-			if(!theChild.doesValidate(el))
-				return false;
-		return true;
+		{
+			ret = theChild.doesValidate(el);
+			if(ret < 1)
+				return ret;
+		}
+		return 1;
 	}
 
 	@Override

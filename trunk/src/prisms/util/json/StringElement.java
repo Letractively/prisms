@@ -9,13 +9,14 @@ package prisms.util.json;
 public class StringElement extends DefaultJsonElement
 {
 	@Override
-	public boolean doesValidate(Object jsonValue)
+	public float doesValidate(Object jsonValue)
 	{
-		if(!super.doesValidate(jsonValue))
-			return false;
+		float ret = super.doesValidate(jsonValue);
+		if(ret < 1)
+			return ret;
 		if(jsonValue == null)
-			return true;
-		return jsonValue instanceof String;
+			return 1;
+		return jsonValue instanceof String ? 1 : 0;
 	}
 
 	@Override
