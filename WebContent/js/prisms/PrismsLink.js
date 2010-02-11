@@ -437,8 +437,14 @@ dojo.declare("prisms.PrismsLink", null, {
 						data=decrypted;
 					}
 				}
-				data=dojo.eval(data);
-				self.processEvents(data);
+				var originalData = data;
+				try {
+					data=dojo.eval(data);
+					self.validateJson(data);
+					self.processEvents(data);
+				} catch (err) {
+					console.log("ERROR WITH JAVASCRIPT EVAL! ",err, originalData);
+				}
 			},
 			error: function(error){
 				self.appLoaded();
@@ -578,6 +584,28 @@ dojo.declare("prisms.PrismsLink", null, {
 			else
 				throw new Error("No exec method in listener for event "+eventName);
 		}
+	},
+
+	validateJson: function(obj){
+		if("Inf"==obj)
+			return Infinity;
+		if("-Inf"==obj)
+			return -Infinity;
+		if(obj==null)
+			return null;
+		if(typeof obj == "object")
+		{
+			for(var f in obj)
+			{
+				var value=obj[f];
+				if(typeof value=="function")
+					continue;
+				value=this.validateJson(value);
+				if(value)
+					obj[f]=value;
+			}
+		}
+		return null;
 	},
 
 	_serializeDeep: function(val){

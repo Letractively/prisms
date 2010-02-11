@@ -65,19 +65,41 @@ public class JsonSerializer implements RemoteEventSerializer
 	 * either the server or the client correctly.
 	 * 
 	 * @param o The object to be tested for JSON-serializability
+	 * @return The value to substitute for the object, or null if the object can be sent as JSON
 	 * @throws NotSerializableException If the object cannot be serialized correctly
 	 */
-	public static void validate(Object o) throws NotSerializableException
+	public static Object validate(Object o) throws NotSerializableException
 	{
 		if(o == null || o instanceof Boolean || o instanceof Byte || o instanceof Short
-			|| o instanceof Integer || o instanceof Long || o instanceof Float
-			|| o instanceof Double || o instanceof String)
-			return;
+			|| o instanceof Integer || o instanceof Long || o instanceof String)
+			return null;
+		if(o instanceof Float)
+		{
+			if(!((Float) o).isInfinite())
+				return null;
+			if(((Float) o).floatValue() < 0)
+				return "-Inf";
+			else
+				return "Inf";
+		}
+		if(o instanceof Double)
+		{
+			if(!((Double) o).isInfinite())
+				return null;
+			if(((Double) o).floatValue() < 0)
+				return "-Inf";
+			else
+				return "Inf";
+		}
 		if(o instanceof JSONArray)
 		{
-			for(Object el : (JSONArray) o)
-				validate(el);
-			return;
+			for(int i = 0; i < ((JSONArray) o).size(); i++)
+			{
+				Object newVal = validate(((JSONArray) o).get(i));
+				if(newVal != null)
+					((JSONArray) o).set(i, newVal);
+			}
+			return null;
 		}
 		if(o instanceof JSONObject)
 		{
@@ -86,9 +108,11 @@ public class JsonSerializer implements RemoteEventSerializer
 			{
 				if(!(entry.getKey() instanceof String))
 					throw new NotSerializableException("All keys in a JSONObject must be strings");
-				validate(entry.getValue());
+				Object newVal = validate(entry.getValue());
+				if(newVal != null)
+					entry.setValue(newVal);
 			}
-			return;
+			return null;
 		}
 		throw new NotSerializableException("All JSON-serializable objects must be primitive or of"
 			+ " type string, JSONObject, or JSONArray--not " + o.getClass().getName());
