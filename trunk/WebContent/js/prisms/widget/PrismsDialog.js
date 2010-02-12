@@ -25,18 +25,33 @@ dojo.declare("prisms.widget.PrismsDialogUnderlay", dijit.DialogUnderlay, {
 	layout: function(){
 		var oldViewport=dijit.getViewport;
 		try{
-			var node=this.dialog.domNode.parentNode;
+			var self=this;
 			dijit.getViewport=function(){ //HACK!!
-				var ret= dojo.coords(node);
-				var parentCoords=dojo.coords(node.parentNode);
-				ret.l=ret.x-parentCoords.x;
-				ret.t=ret.y-parentCoords.y;
-				return ret;
+				return self._getViewport();
 			};
 			this.inherited("layout", arguments);
 		} finally{
 			dijit.getViewport=oldViewport; //end hack
 		}
+	},
+
+	_getViewport: function(){
+		var node=this.dialog.domNode.parentNode;
+		var parentNode;
+		if(this._layoutParentNode)
+			parentNode=this._layoutParentNode;
+		else
+		{
+			parentNode=node;
+			while(parentNode.parentNode!=document.body)
+				parentNode=parentNode.parentNode;
+			this._layoutParentNode=parentNode;
+		}
+		var ret= dojo.coords(node);
+		var parentCoords=dojo.coords(parentNode);
+		ret.l=ret.x-parentCoords.x;
+		ret.t=ret.y-parentCoords.y;
+		return ret;
 	}
 });
 
@@ -59,13 +74,9 @@ dojo.declare("prisms.widget.PrismsDialog", dijit.Dialog, {
 	_position: function(){
 		var oldViewport=dijit.getViewport;
 		try{
-			var node=this.domNode.parentNode;
+			var self=this;
 			dijit.getViewport=function(){ //HACK!!
-				var ret= dojo.coords(node);
-				var parentCoords=dojo.coords(node.parentNode);
-				ret.l=ret.x-parentCoords.x;
-				ret.t=ret.y-parentCoords.y;
-				return ret;
+				return self._underlay._getViewport();
 			};
 			this.inherited("_position", arguments);
 		} finally{
