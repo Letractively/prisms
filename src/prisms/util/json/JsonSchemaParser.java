@@ -16,6 +16,13 @@ public class JsonSchemaParser
 	 */
 	public static final Logger log = Logger.getLogger(JsonSchemaParser.class);
 
+	private static final org.json.simple.parser.JSONParser theParser;
+
+	static
+	{
+		theParser = new org.json.simple.parser.JSONParser();
+	}
+
 	private java.util.Map<String, String> theSchemaRoots;
 
 	private java.util.Map<String, JSONObject> theStoredSchemas;
@@ -108,6 +115,11 @@ public class JsonSchemaParser
 		return new CustomSchemaElement(type, schemaRoot + "/" + typeName + ".json");
 	}
 
+	private static enum CommentState
+	{
+		NONE, LINE, BLOCK;
+	}
+
 	/**
 	 * @param schemaName The name of the schema to load
 	 * @param schemaLocation The location of the schema to load
@@ -120,29 +132,13 @@ public class JsonSchemaParser
 		JSONObject schema = theStoredSchemas.get(schemaName);
 		if(schema != null)
 			return createElementFor(schema);
-		java.io.Reader reader = null;
 		try
 		{
-			reader = new java.io.InputStreamReader(new java.net.URL(schemaLocation).openStream());
-			schema = (JSONObject) org.json.simple.JSONValue.parse(reader);
-		} catch(Throwable e)
+			schema = (JSONObject) parseJSON(new java.net.URL(schemaLocation));
+		} catch(java.net.MalformedURLException e)
 		{
-			throw new IllegalStateException("Could not find schema " + schemaName + " at "
-				+ schemaLocation, e);
-		} finally
-		{
-			if(reader != null)
-				try
-				{
-					reader.close();
-				} catch(java.io.IOException e)
-				{
-					log.error("Could not close stream", e);
-				}
+			throw new IllegalStateException("Malformed URL: " + schemaLocation, e);
 		}
-		if(schema == null)
-			throw new IllegalStateException("Could not parse schema " + schemaName + " at "
-				+ schemaLocation);
 		JsonElement ret = createElementFor(schema);
 		ret.configure(this, parent, schemaName, schema);
 		return ret;
@@ -161,18 +157,109 @@ public class JsonSchemaParser
 		String jsonLoc = schemaRoot.toString();
 		jsonLoc = jsonLoc.substring(0, jsonLoc.lastIndexOf('/'));
 		parser.addSchema(schemaName, jsonLoc);
-		JSONObject jsonSchema;
-		try
-		{
-			jsonSchema = (JSONObject) org.json.simple.JSONValue
-				.parse(new java.io.InputStreamReader(schemaRoot.openStream()));
-		} catch(Throwable e)
-		{
-			throw new IllegalStateException("Could not parse " + schemaName + " schema", e);
-		}
+		JSONObject jsonSchema = (JSONObject) parseJSON(schemaRoot);
 
 		JsonElement ret = parser.createElementFor(jsonSchema);
 		ret.configure(parser, null, schemaName, jsonSchema);
 		return ret;
+	}
+
+	/**
+	 * Parses JSON from a URL. This method removes all line- and block-style commments.
+	 * 
+	 * @param url The URL to get the JSON from
+	 * @return The parsed JSON
+	 */
+	public static Object parseJSON(java.net.URL url)
+	{
+		String json;
+		java.io.Reader reader = null;
+		try
+		{
+			reader = new java.io.InputStreamReader(url.openStream());
+			java.io.StringWriter sw = new java.io.StringWriter();
+			java.io.BufferedReader br = new java.io.BufferedReader(reader);
+			int read;
+			CommentState state = CommentState.NONE;
+			int buffer = -1;
+			// This code cleans the JSON of comments before it parses
+			while((read = br.read()) >= 0)
+			{
+				switch(state)
+				{
+				case NONE:
+					if(read == '/')
+					{
+						if(buffer == '/')
+						{
+							buffer = -1;
+							state = CommentState.LINE;
+							continue;
+						}
+						if(buffer >= 0)
+							sw.write(buffer);
+						buffer = read;
+						continue;
+					}
+					else if(read == '*' && buffer == '/')
+					{
+						state = CommentState.BLOCK;
+						buffer = -1;
+						continue;
+					}
+					else
+					{
+						if(buffer >= 0)
+						{
+							sw.write(buffer);
+							buffer = -1;
+						}
+						sw.write(read);
+					}
+					break;
+				case LINE:
+					if(read == '\n' || read == '\r')
+						state = CommentState.NONE;
+					break;
+				case BLOCK:
+					if(read == '*')
+						buffer = read;
+					else if(read == '/')
+					{
+						if(buffer == '*')
+							state = CommentState.NONE;
+						buffer = -1;
+					}
+					else
+						buffer = -1;
+					break;
+				}
+			}
+			json = sw.toString();
+		} catch(java.io.IOException e)
+		{
+			throw new IllegalStateException("Could not find JSON at " + url, e);
+		} finally
+		{
+			if(reader != null)
+				try
+				{
+					reader.close();
+				} catch(java.io.IOException e)
+				{
+					log.error("Could not close stream", e);
+				}
+		}
+		JSONObject schema;
+		try
+		{
+			schema = (JSONObject) theParser.parse(new java.io.StringReader(json));
+		} catch(Exception e)
+		{
+			throw new IllegalStateException("Could not parse JSON at " + url + ":\n" + json, e);
+		}
+		if(schema == null)
+			throw new IllegalStateException("Could not parse JSON at " + url + ":\n" + json);
+		return schema;
 	}
 }
