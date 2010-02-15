@@ -19,7 +19,7 @@ public interface ConfiguredPEL extends PrismsEventListener
 	 * Sets this listener's session so it can perform its action properly
 	 * 
 	 * @param session The session that this listener is listening to
-	 * @param configEl TODO
+	 * @param configEl The XML element to configure this event listener
 	 */
 	void configure(PrismsSession session, Element configEl);
 }
