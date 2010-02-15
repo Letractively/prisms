@@ -14,7 +14,6 @@ public class PrismsException extends java.io.IOException
 	public PrismsException(String s)
 	{
 		super(s);
-		// TODO Auto-generated constructor stub
 	}
 
 	/**
