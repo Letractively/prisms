@@ -9,3 +9,25 @@ PRISMS excels at flexible, stateful remote applications due to the following fea
   * An application framework conducive to automated data setup
   * An user framework that allows for information hiding based on identity and permissions
   * Several tools to ease information sharing between user sessions
+
+= PRISMS Application Model =
+The PRISMS framework is structured in an access hierarchy:
+  * The PRISMS Server instantiates an implementation of a user framework as well as any number of applications configured.  It manages these applications and sessions within them.  It also manages authentication and encryption between itself and its clients.
+  * A PRISMS application represents an encapsulated set of functionality.  Mechanisms exists for units within an application to communicate with each other, but applications even within the same server share no data except the common user framework managed by the server.
+  * A PRISMS session represents a single client's interaction with an application.  Mechanisms exist to share and pass data between sessions within an application.
+  * A PRISMS plugin represents a subset of the functionality and state of a client's session within an application.  A plugin typically represents a widget or small group of widgets on a client's user interface.  All customized remote communication between clients and PRISMS applications is done by implementations of prisms.arch.AppPlugin.  Mechanisms exist for plugins to communicate with each other within a session and, more limitedly tightly managed, between sessions within an application.
+
+
+= PRISMS Data Model =
+
+The PRISMS framework is designed to be run in a simple servlet container and does not use any Java EE or other third party framework utilities.  In their place, PRISMS provides lightweight substitutes to some of the utilities, such as Java EE topics and queues.
+
+*Properties:* Properties are values accessible to all plugins within a session at all times.  Properties represent those pieces of the application's state that are relevant to more than one plugin.  The value of a property may retrieved at any time.  Changes to properties may be restricted by customized managers.
+
+When a property is changed, a prisms.arch.event.PrismsPCE (property change event) is fired to alert interested plugins and other listeners that the value is changed.  Thus if a plugin determines that a property's value needs to be modified, it simply sets the new value.  Listeners that have been registered by other plugins will alert them to take appropriate action.  Thus the plugin initiating the change does not need to know of every consequence of a property change.
+
+Properties can be session-specific, having independent representations in each session.  Or they can be coordinated so that all sessions see the same data and property change listeners are broadcast between sessions.  Or properties can be coordinated in more intelligent ways, so that each session sees a subset of the application value according to the session's user.  Any type of property management within or between session is possible.
+
+PRISMS property values are typed to reduce unnecessary type casting and ClassCastExceptions.
+
+*Events:* Events represent messages that may pass between plugins and other listeners.  An event is like a method call on an unknown target.  From the caller plugin's perspective, the event is fired and forgotten.  Plugins and other listeners who care about the named event register listeners within prisms to take appropriate actions when the event occurs.
