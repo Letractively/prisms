@@ -1,4 +1,4 @@
-#summary One-sentence summary of this page.
+#summary Overview of the prisms.util.Arrays utility class
 #labels Featured
 
 = An overview of the utilities in prisms.util.ArrayUtils =
