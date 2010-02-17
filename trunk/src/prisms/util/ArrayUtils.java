@@ -1276,8 +1276,8 @@ public final class ArrayUtils
 
 	/**
 	 * <p>
-	 * Contains all information needed to reconcile two arrays using the
-	 * {@link ArrayUtils#adjust(Object[], Object[], prisms.util.ArrayUtils.DifferenceListener)}
+	 * This listener contains all information needed to reconcile two arrays using the
+	 * {@link ArrayUtils#adjust(Object[], Object[], prisms.util.ArrayUtils.DifferenceListenerE)}
 	 * method.
 	 * </p>
 	 * 
@@ -1303,7 +1303,7 @@ public final class ArrayUtils
 	 * <b>d</b>. <b>d</b> may or may not contain elements represented in <b>L</b>. These elements,
 	 * if present, may be in different order and new items not present in <b>L</b> may be present in
 	 * <b>d</b>. To modify <b>L</b> to represent the data in <b>d</b> in the correct order, the
-	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListener)} method should be called
+	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)} method should be called
 	 * with <b>L</b>.getData(), <b>d</b>, and a listener whose methods perform the following
 	 * operations:
 	 * <ul>
@@ -1416,47 +1416,6 @@ public final class ArrayUtils
 	 * determine the composition of the returned array and/or perform well-defined operations
 	 * represented by the differences or similarities.
 	 * </p>
-	 * 
-	 * @param <T1> The type of the original array
-	 * @param <T2> The type of the modifying array
-	 * @param original The original array
-	 * @param modifier The modifying array
-	 * @param dl The listener to determine how to deal with differences between the two arrays
-	 * @return A final array that is the result of applying select changes between the original and
-	 *         the modifying arrays
-	 * @see DifferenceListener
-	 */
-	public static <T1, T2> T1 [] adjust(T1 [] original, T2 [] modifier,
-		final DifferenceListener<T1, T2> dl)
-	{
-		DifferenceListenerE<T1, T2, RuntimeException> dl2 = new DifferenceListenerE<T1, T2, RuntimeException>()
-		{
-			public boolean identity(T1 o1, T2 o2)
-			{
-				return dl.identity(o1, o2);
-			}
-
-			public T1 added(T2 o, int index, int retIdx)
-			{
-				return dl.added(o, index, retIdx);
-			}
-
-			public T1 removed(T1 o, int index, int incMod, int retIdx)
-			{
-				return dl.removed(o, index, incMod, retIdx);
-			}
-
-			public T1 set(T1 o1, int idx1, int incMod, T2 o2, int idx2, int retIdx)
-			{
-				return dl.set(o1, idx1, incMod, o2, idx2, retIdx);
-			}
-		};
-		return adjust(original, modifier, dl2);
-	}
-
-	/**
-	 * A method for calling {@link #adjust(Object[], Object[], DifferenceListener)} when an
-	 * exception may be thrown by the listener.
 	 * 
 	 * @param <T1> The type of the original array
 	 * @param <T2> The type of the modifying array
