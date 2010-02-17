@@ -358,6 +358,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(cookie.getName().equals("PRISMSsessionID"))
 				{
 					sessionID = cookie.getValue();
+					JSONObject evt = new JSONObject();
+					evt.put("method", "setSessionID");
+					evt.put("sessionID", sessionID);
+					ret.add(evt);
 					break;
 				}
 		}
@@ -403,7 +407,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		SessionMetadata session = null;
 		if(sessionID != null && userName != null && appName != null
-			&& (serviceName != null || clientName == null))
+			&& (serviceName != null || clientName != null))
 		{
 			String key = sessionID + "/" + appName + "/"
 				+ (serviceName != null ? serviceName : clientName) + "/" + userName;
@@ -478,6 +482,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		Lock lock;
 		if(serviceName != null)
 			sessionID = "null";
+		boolean newSession = false;
 		if(app != null && appUser != null)
 		{
 			if(serviceName == null && sessionID == null)
@@ -513,6 +518,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				try
 				{
 					session = new SessionMetadata(appUser, client, serviceName != null);
+					newSession = true;
 					lock = theSessionLock.writeLock();
 					lock.lock();
 					try
@@ -538,7 +544,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		boolean decryptionFailed = false;
 		String encryptedText = null;
-		if(encrypted && session != null && dataStr != null)
+		if(encrypted && session != null && !newSession && dataStr != null)
 		{
 			// For some reason, "+" gets mis-translated at a space
 			dataStr = dataStr.replaceAll(" ", "+");
@@ -557,7 +563,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		boolean tooShort = dataStr == null || dataStr.length() < 20;
 		boolean deserializationFailed = false;
 		JSONObject [] events = null;
-		if(!decryptionFailed && session != null && dataStr != null)
+		if(!decryptionFailed && session != null && !newSession && dataStr != null)
 		{
 			int commentIdx = dataStr.indexOf("-XXSERVERPADDING");
 			if(commentIdx >= 0)
@@ -586,7 +592,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				log.error("Could not lock user", e);
 			}
 		}
-		else if(session != null && encrypted)
+		else if(session != null && !newSession && encrypted)
 			session.loginSucceeded();
 
 		PrismsWmsRequest wms = null;
@@ -652,6 +658,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			JSONObject evt = new JSONObject();
 			evt.put("method", "login");
 			evt.put("error", "No such user: \"" + userName + "\"");
+			evt.put("code", ErrorCode.RequestDenied.description);
 			ret.add(evt);
 		}
 		else if(appUser == null)
@@ -660,6 +667,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			evt.put("method", "login");
 			evt.put("error", "User " + userName
 				+ " does not have permission to access application " + appName);
+			evt.put("code", ErrorCode.RequestDenied.description);
 			ret.add(evt);
 		}
 		else if(!encrypted && appUser.isEncryptionRequired())
@@ -677,6 +685,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				evt.put("hashing", hashing);
 				if("init".equals(method))
 					evt.put("postAction", "callInit");
+				evt.put("code", ErrorCode.RequestIncomplete.description);
 				ret.add(evt);
 			}
 		}
@@ -685,6 +694,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			errorString = "Data string null or too short--at least 20 characters of data must be"
 				+ " included to verify encryption.  Use \"-XXSERVERPADDING...\" for padding";
 			errorCode = ErrorCode.RequestIncomplete;
+		}
+		else if(newSession && encrypted)
+		{
+			JSONObject evt = new JSONObject();
+			evt.put("method", "startEncryption");
+			evt.put("error", "Session has expired or has been removed--please log in again");
+			JSONObject hashing = session.getHashing().toJson();
+			hashing.put("user", userName);
+			evt.put("hashing", hashing);
+			if("init".equals(method))
+				evt.put("postAction", "callInit");
+			evt.put("code", ErrorCode.RequestIncomplete.description);
+			ret.add(evt);
+			encrypted = false;
 		}
 		else if(decryptionFailed)
 		{
@@ -707,6 +730,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				evt.put("hashing", hashing);
 				if("init".equals(method))
 					evt.put("postAction", "callInit");
+				evt.put("code", ErrorCode.RequestDenied.description);
 				ret.add(evt);
 				encrypted = false;
 			}
