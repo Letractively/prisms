@@ -16,8 +16,6 @@ dojo.declare("prisms.PrismsLink", null, {
 
 	cipher: null,
 
-	encryptionType: "dojo-blowfish",
-
 	constructor: function(arguments){
 		if(arguments.application)
 			this.application=arguments.application;
@@ -29,10 +27,7 @@ dojo.declare("prisms.PrismsLink", null, {
 			this.imageURL=arguments.imageURL;
 		if(arguments.connectImmediately)
 			this.connectImmediately=arguments.connectImmediately;
-		if(arguments.cipher)
-			this.cipher=arguments.cipher;
-		
-		this.BASE_64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 		this.theMaxKeyLength = 448 / 8;
 
 		this.plugins={};
@@ -41,55 +36,11 @@ dojo.declare("prisms.PrismsLink", null, {
 		this.error=dojo.hitch(console, console.error);
 		this.debug=dojo.hitch(console, console.debug);
 		this.toJson=dojo.hitch(dojo, dojo.toJson);
-		if(!this.cipher)
-			this.cipher=this.createCipher();
 		this._login={};
 		if(this.connectImmediately)
 			this.prismsConnect();
 	},
 
-	createCipher: function(){
-		if(this.encryptionType=="dojo-blowfish")
-		{
-			var _blowfishAO={cipherMode: dojox.encoding.crypto.cipherModes.ECB,
-					outputType: dojox.encoding.crypto.outputTypes.Base64};
-			return {
-				encrypt: function(text, key){
-					return dojox.encoding.crypto.Blowfish.encrypt(text, key, _blowfishAO);
-				},
-
-				decrypt: function(encrypted, key){
-					return dojox.encoding.crypto.Blowfish.decrypt(encrypted, key, _blowfishAO);
-				}
-			};
-		}
-		else if(this.encryptionType=="AES")
-		{
-			GibberishAES.size(128);
-			return {
-				encrypt: function(text, key){
-					return GibberishAES.enc(text, key);
-				},
-
-				decrypt: function(encrypted, key){
-					return GibberishAES.dec(encrypted, key);
-				}
-			};
-		}
-		else
-		{
-			return {
-				encrypt: function(text, key){
-					return text;
-				},
-
-				decrypt: function(encrypted, key){
-					return encrypted;
-				}
-			};
-		}
-	},
-	
 	getDefaultUser: function(){
 		return null;
 	},
@@ -175,7 +126,7 @@ dojo.declare("prisms.PrismsLink", null, {
 		{
 //			if(this.started && !this.isActive())
 //				return;
-			this.startEncryption(event.hashing, event.error, event.postAction)
+			this.startEncryption(event.encryption, event.hashing, event.error, event.postAction)
 		}
 		else if(event.method=="validate")
 			this.doValidate(event.hashing, event.validationFailed);
@@ -267,7 +218,7 @@ dojo.declare("prisms.PrismsLink", null, {
 		return typeof this.pingID != "undefined";
 	},
 
-	startEncryption: function(hashing, error, postAction){
+	startEncryption: function(encryption, hashing, error, postAction){
 		this.shutdown();
 		if(postAction)
 			this._postEncryptionAction=postAction;
@@ -279,6 +230,7 @@ dojo.declare("prisms.PrismsLink", null, {
 		}
 		else if(!this._login || error || !this._login.password || this._login.password.length==0)
 		{
+			this._encryption=encryption;
 			this._hashing=hashing;
 			this._postLoginAction="startEncryption";
 			this.appLoaded();
@@ -291,7 +243,8 @@ dojo.declare("prisms.PrismsLink", null, {
 		}
 		else
 		{
-			this._encryptionKey=this._getEncryptionKey(hashing, this._login.password);
+			this.cipher=prisms.Encryption.createCipher(encryption);
+			this.cipher.init(this._getEncryptionKey(hashing, this._login.password));
 			if(this._postEncryptionAction)
 			{
 				if(this._postEncryptionAction=="callInit")
@@ -404,7 +357,7 @@ dojo.declare("prisms.PrismsLink", null, {
 		}
 		this._serializeDeep(params);
 		if(params.encrypted)
-			params.data=this.cipher.encrypt(params.data, this._encryptionKey);
+			params.data=this.cipher.encrypt(params.data);
 		return params;
 	},
 
@@ -422,14 +375,14 @@ dojo.declare("prisms.PrismsLink", null, {
 			load: function(data){
 				if(data.charAt(0)!='[' && data.charAt(data.length-1)!=']')
 				{
-					if(!self._encryptionKey)
+					if(!self.cipher)
 					{
 						self.error("Encryption not set!")
 						return;
 					}
 					else
 					{
-						var decrypted=self.cipher.decrypt(data, self._encryptionKey);
+						var decrypted=self.cipher.decrypt(data);
 						var len=decrypted.length;
 						while(decrypted.charAt(len-1)<' ')
 							len--;
@@ -502,7 +455,7 @@ dojo.declare("prisms.PrismsLink", null, {
 			//server that the client's encryption is valid
 			params.serverPadding="padding";
 			params=this.toJson(params);
-			params=this.cipher.encrypt(params, this._encryptionKey);
+			params=this.cipher.encrypt(params);
 		}
 		else
 			params=this.toJson(params);
@@ -526,7 +479,7 @@ dojo.declare("prisms.PrismsLink", null, {
 			//server that the client's encryption is valid
 			params.serverPadding="padding";
 			params=this.toJson(params);
-			params=this.cipher.encrypt(params, this._encryptionKey);
+			params=this.cipher.encrypt(params);
 		}
 		else
 			params=this.toJson(params);
@@ -550,7 +503,7 @@ dojo.declare("prisms.PrismsLink", null, {
 			//server that the client's encryption is valid
 			params.serverPadding="padding";
 			params=this.toJson(params);
-			params=this.cipher.encrypt(params, this._encryptionKey);
+			params=this.cipher.encrypt(params);
 		}
 		else
 			params=this.toJson(params);
@@ -636,48 +589,7 @@ dojo.declare("prisms.PrismsLink", null, {
 	},
 
 	_getEncryptionKey: function(hashing, password){
-		var hash=this._hash(password, hashing);
-		var keys=[];
-		for(var h=0;h<hash.length;h++)
-			keys.push(this._to64Str(hash[h]));
-		while(this._isTooBig(keys))
-			keys=this._downsize(keys);
-		var ret="";
-		for(var k=0;k<keys.length;k++)
-			ret+=keys[k];
-		return ret;
-	},
-
-	_to64Str: function(value){
-		var ret = "";
-		while(value > 0)
-		{
-			ret += this.BASE_64.charAt(value % 64);
-			value =Math.floor(value/64);
-		}
-		return ret;
-	},
-
-	_isTooBig: function(keys){
-		var size = 0;
-		for(var k = 0; k < keys.length; k++)
-			size += keys[k].length * 8;
-		return size > this.theMaxKeyLength;
-	},
-
-	_downsize: function(keys){
-		// Cancels the highest 64-base digit in each element to reduce its size
-		// with minimal complexity loss
-		var allOnes=true;
-		for(var k = 0; k < keys.length; k++)
-			if(keys[k].length > 1)
-			{
-				keys[k] = keys[k].slice(1);
-				allOnes=false;
-			}
-		if(allOnes)
-			keys.splice(0, 1);
-		return keys;
+		return this._hash(password, hashing);
 	},
 
 	partialHash: function(password, params){

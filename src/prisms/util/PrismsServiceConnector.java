@@ -146,7 +146,7 @@ public class PrismsServiceConnector
 
 	private final String theUserName;
 
-	private Object theEncryption;
+	private prisms.arch.Encryption theEncryption;
 
 	private String thePassword;
 
@@ -189,7 +189,7 @@ public class PrismsServiceConnector
 		thePassword = password;
 		theEncryptionTries = 0;
 		if(theEncryption != null)
-			prisms.arch.Encryption.dispose(theEncryption);
+			theEncryption.dispose();
 		theEncryption = null;
 	}
 
@@ -203,7 +203,7 @@ public class PrismsServiceConnector
 		theUserSource = source;
 		theEncryptionTries = 0;
 		if(theEncryption != null)
-			prisms.arch.Encryption.dispose(theEncryption);
+			theEncryption.dispose();
 		theEncryption = null;
 	}
 
@@ -249,7 +249,7 @@ public class PrismsServiceConnector
 	 * connector is still connected.
 	 * 
 	 * @throws IOException If this service connector is unable to initialize communication with the
-	 *         service. This may result from an incorrect password among other things.
+	 *             service. This may result from an incorrect password among other things.
 	 */
 	public void init() throws IOException
 	{
@@ -289,8 +289,8 @@ public class PrismsServiceConnector
 	 * @param plugin The plugin to call
 	 * @param method The method to call
 	 * @param sync Whether the call is to synchronous (will not return until the procedure is
-	 *        completed on the server) or asynchronous (returns immediately and lets the procedure
-	 *        run)
+	 *            completed on the server) or asynchronous (returns immediately and lets the
+	 *            procedure run)
 	 * @param params The parameters to send to the method
 	 * @throws IOException If a problem occurs calling the server
 	 */
@@ -306,9 +306,8 @@ public class PrismsServiceConnector
 		}
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
-		final IOException [] thrown = new IOException [1];
-		Runnable run = new Runnable()
-		{
+		final IOException [] thrown = new IOException[1];
+		Runnable run = new Runnable() {
 			public void run()
 			{
 				try
@@ -343,7 +342,7 @@ public class PrismsServiceConnector
 	 * @param plugin The plugin to call
 	 * @param method The method to call
 	 * @param aRet The interface to receive the return value of the remote call or the error that
-	 *        occurred
+	 *            occurred
 	 * @param params The parameters to send to the method
 	 */
 	public void getResultAsync(String plugin, String method, final AsyncReturn aRet,
@@ -358,8 +357,7 @@ public class PrismsServiceConnector
 		}
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
-		Runnable run = new Runnable()
-		{
+		Runnable run = new Runnable() {
 			public void run()
 			{
 				JSONArray serverReturn;
@@ -413,8 +411,8 @@ public class PrismsServiceConnector
 				else if("startEncryption".equals(json.get("method")))
 				{
 					serverReturn.addAll(i + 1, startEncryption(prisms.arch.ds.Hashing
-						.fromJson((JSONObject) json.get("hashing")), (String) json
-						.get("postAction"), serverMethod, event));
+						.fromJson((JSONObject) json.get("hashing")), (JSONObject) json
+						.get("encryption"), (String) json.get("postAction"), serverMethod, event));
 				}
 				else if("validate".equals(json.get("method")))
 				{
@@ -458,7 +456,7 @@ public class PrismsServiceConnector
 			if(logRequestsResponses)
 				log.info(retStr);
 			if(theEncryption != null)
-				retStr = prisms.arch.Encryption.decrypt(theEncryption, retStr);
+				retStr = theEncryption.decrypt(retStr);
 			return (JSONArray) org.json.simple.JSONValue.parse(retStr);
 		} catch(Throwable e)
 		{
@@ -493,7 +491,7 @@ public class PrismsServiceConnector
 			callURL += "&encrypted=true";
 			if(logRequestsResponses)
 				log.info("Calling URL " + callURL + " with data " + dataStr);
-			dataStr = prisms.arch.Encryption.encrypt(theEncryption, dataStr);
+			dataStr = theEncryption.encrypt(dataStr);
 		}
 		else if(logRequestsResponses)
 			log.info("Calling URL " + callURL + " with data " + dataStr);
@@ -575,16 +573,17 @@ public class PrismsServiceConnector
 		return callServer(ServerMethod.processEvent, postRequest);
 	}
 
-	private synchronized JSONArray startEncryption(Hashing hashing, String postAction,
-		ServerMethod postServerMethod, JSONObject postRequest) throws IOException
+	private synchronized JSONArray startEncryption(Hashing hashing, JSONObject encryptionParams,
+		String postAction, ServerMethod postServerMethod, JSONObject postRequest)
+		throws IOException
 	{
 		if(theEncryptionTries > 0)
 			throw new AuthenticationFailedException("Invalid security info--encryption failed"
 				+ " with encryption:" + theEncryption + " for request " + postRequest);
 		if(theEncryption != null)
-			prisms.arch.Encryption.dispose(theEncryption);
+			theEncryption.dispose();
 		theEncryption = null;
-		String key;
+		long [] key;
 		if(thePassword != null)
 		{
 			long [] partialHash = hashing.partialHash(thePassword);
@@ -600,7 +599,8 @@ public class PrismsServiceConnector
 		else
 			throw new IOException("Encryption required for access to application " + theAppName
 				+ " by user " + theUserName);
-		theEncryption = prisms.arch.Encryption.getEncryption(key);
+		theEncryption = createEncryption((String) encryptionParams.get("type"));
+		theEncryption.init(key, encryptionParams);
 		theEncryptionTries++;
 		try
 		{
@@ -619,6 +619,16 @@ public class PrismsServiceConnector
 			if(theEncryptionTries > 0)
 				theEncryptionTries--;
 		}
+	}
+
+	private prisms.arch.Encryption createEncryption(String type)
+	{
+		if(type.equals("blowfish"))
+			return new prisms.arch.BlowfishEncryption();
+		else if(type.equals("AES"))
+			return new prisms.arch.AESEncryption();
+		else
+			throw new IllegalArgumentException("Unrecognized encryption type: " + type);
 	}
 
 	private synchronized JSONArray validate(JSONObject params, JSONObject request)

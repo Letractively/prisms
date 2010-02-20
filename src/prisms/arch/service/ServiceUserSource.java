@@ -467,7 +467,7 @@ public class ServiceUserSource implements UserSource
 		}
 	}
 
-	public String getKey(User user, Hashing hashing) throws PrismsException
+	public long [] getKey(User user, Hashing hashing) throws PrismsException
 	{
 		JSONObject res;
 		try
@@ -480,7 +480,11 @@ public class ServiceUserSource implements UserSource
 		}
 		try
 		{
-			return (String) res.get("key");
+			JSONArray jsonKey = (JSONArray) res.get("key");
+			long [] ret = new long[jsonKey.size()];
+			for(int i = 0; i < ret.length; i++)
+				ret[i] = ((Number) jsonKey.get(i)).longValue();
+			return ret;
 		} catch(RuntimeException e)
 		{
 			throw new PrismsException("Could not deserialize key from PRISMS service: "

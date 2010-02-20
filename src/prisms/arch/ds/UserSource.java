@@ -3,11 +3,7 @@
  */
 package prisms.arch.ds;
 
-import prisms.arch.ClientConfig;
-import prisms.arch.PrismsApplication;
-import prisms.arch.PrismsException;
-import prisms.arch.PrismsSession;
-import prisms.arch.PersisterFactory;
+import prisms.arch.*;
 
 /**
  * Provides access to a set of users
@@ -99,7 +95,7 @@ public interface UserSource
 	 * @param client The client configuration to create the session for
 	 * @param user The user to create the session for
 	 * @param asService Whether the new session is to be creates as an M2M client as opposed to as a
-	 *        user interface client
+	 *            user interface client
 	 * @return The new session to use
 	 * @throws PrismsException If an error configuring the session
 	 */
@@ -141,7 +137,7 @@ public interface UserSource
 	 * @return An encryption key
 	 * @throws PrismsException If an error occurs getting the data
 	 */
-	String getKey(User user, Hashing hashing) throws PrismsException;
+	long [] getKey(User user, Hashing hashing) throws PrismsException;
 
 	/**
 	 * Disposes of this data source's resources

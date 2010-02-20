@@ -78,7 +78,7 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				if(user == null)
 					throw new PrismsException("No such user: " + evt.get("userName"));
 				java.util.List<Long> hashList = (java.util.List<Long>) evt.get("hash");
-				long [] hash = new long [hashList.size()];
+				long [] hash = new long[hashList.size()];
 				for(int h = 0; h < hash.length; h++)
 					hash[h] = hashList.get(h).longValue();
 				theSource.setPassword(user, hash);
@@ -151,8 +151,12 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				prisms.arch.ds.User user = theSource.getUser((String) evt.get("userName"));
 				if(user == null)
 					throw new PrismsException("No such user: " + evt.get("userName"));
-				ret.put("key", theSource.getKey(user, prisms.arch.ds.Hashing
-					.fromJson((JSONObject) evt.get("hashing"))));
+				long [] key = theSource.getKey(user, prisms.arch.ds.Hashing
+					.fromJson((JSONObject) evt.get("hashing")));
+				org.json.simple.JSONArray jsonKey = new org.json.simple.JSONArray();
+				for(int k = 0; k < key.length; k++)
+					jsonKey.add(new Long(key[k]));
+				ret.put("key", jsonKey);
 			}
 			else
 				throw new IllegalArgumentException("Unrecognized " + theName + " method " + method);
