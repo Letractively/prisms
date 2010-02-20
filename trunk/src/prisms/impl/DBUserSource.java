@@ -14,10 +14,7 @@ import java.util.concurrent.locks.Lock;
 import org.apache.log4j.Logger;
 
 import prisms.arch.*;
-import prisms.arch.ds.Hashing;
-import prisms.arch.ds.Permission;
-import prisms.arch.ds.User;
-import prisms.arch.ds.UserGroup;
+import prisms.arch.ds.*;
 import prisms.util.DBUtils;
 
 /**
@@ -105,10 +102,10 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			java.util.ArrayList<long []> hashing = new java.util.ArrayList<long []>();
 			while(rs.next())
 			{
-				hashing.add(new long [] {rs.getInt(1), rs.getInt(2)});
+				hashing.add(new long[] {rs.getInt(1), rs.getInt(2)});
 			}
-			long [] mults = new long [hashing.size()];
-			long [] mods = new long [hashing.size()];
+			long [] mults = new long[hashing.size()];
+			long [] mods = new long[hashing.size()];
 			for(int h = 0; h < mults.length; h++)
 			{
 				mults[h] = hashing.get(h)[0];
@@ -125,45 +122,31 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			stmt = null;
 		}
 		if(theHashing.getPrimaryMultiples() == null || theHashing.getPrimaryMultiples().length < 10)
 		{
 			theHashing.randomlyFillPrimary(10);
 			/*
-			java.sql.PreparedStatement pStmt = null;
-			try
-			{
-				pStmt = thePRISMSConnection.prepareStatement("INSERT INTO " + DBOWNER
-					+ "prisms_hashing (id, multiple, modulus)" + " VALUES (?, ?, ?)");
-				for(int i = 0; i < theHashing.getPrimaryMultiples().length; i++)
-				{
-					pStmt.setInt(1, i);
-					pStmt.setInt(2, theHashing.getPrimaryMultiples()[i]);
-					pStmt.setInt(3, theHashing.getPrimaryModulos()[i]);
-					pStmt.execute();
-				}
-			} catch(SQLException e)
-			{
-				throw new IllegalStateException("Cannot commit hashing values"
-					+ "--passwords not persistable", e);
-			} finally
-			{
-				if(pStmt != null)
-					try
-					{
-						pStmt.close();
-					} catch(SQLException e)
-					{}
-			}
-			*/
+			 * java.sql.PreparedStatement pStmt = null; try { pStmt =
+			 * thePRISMSConnection.prepareStatement("INSERT INTO " + DBOWNER +
+			 * "prisms_hashing (id, multiple, modulus)" + " VALUES (?, ?, ?)"); for(int i = 0; i <
+			 * theHashing.getPrimaryMultiples().length; i++) { pStmt.setInt(1, i); pStmt.setInt(2,
+			 * theHashing.getPrimaryMultiples()[i]); pStmt.setInt(3,
+			 * theHashing.getPrimaryModulos()[i]); pStmt.execute(); } } catch(SQLException e) {
+			 * throw new IllegalStateException("Cannot commit hashing values" +
+			 * "--passwords not persistable", e); } finally { if(pStmt != null) try { pStmt.close();
+			 * } catch(SQLException e) {} }
+			 */
 
 			try
 			{
@@ -186,7 +169,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			forceResetUsers();
 		}
@@ -247,13 +231,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		lock = theLock.writeLock();
 		lock.lock();
@@ -324,13 +310,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		UserGroup [] groups = getGroups(ret, app);
 		for(UserGroup group : groups)
@@ -411,13 +399,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		lock = theLock.writeLock();
 		lock.lock();
@@ -462,19 +452,20 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
-		DBGroup [] ret = new DBGroup [groupIDs.size()];
+		DBGroup [] ret = new DBGroup[groupIDs.size()];
 		for(int g = 0; g < ret.length; g++)
 			ret[g] = (DBGroup) getGroup(groupIDs.get(g).intValue());
-		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>()
-		{
+		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>() {
 			public int compare(DBGroup o1, DBGroup o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
@@ -783,14 +774,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					log.warn("Could not close client config statement", e);
 				}
 		}
-		java.util.Collections.sort(ret, new java.util.Comparator<ClientConfig>()
-		{
+		java.util.Collections.sort(ret, new java.util.Comparator<ClientConfig>() {
 			public int compare(ClientConfig o1, ClientConfig o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
 			}
 		});
-		return ret.toArray(new ClientConfig [ret.size()]);
+		return ret.toArray(new ClientConfig[ret.size()]);
 	}
 
 	/**
@@ -945,7 +935,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	/**
 	 * @see prisms.arch.ds.UserSource#getKey(prisms.arch.ds.User, prisms.arch.ds.Hashing)
 	 */
-	public String getKey(User user, Hashing hashing)
+	public long [] getKey(User user, Hashing hashing)
 	{
 		String dbPwdData;
 		Statement stmt = null;
@@ -971,13 +961,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		long [] dbHash = parsePwdData(dbPwdData);
 		return hashing.generateKey(dbHash);
@@ -1019,13 +1011,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		lock = theLock.writeLock();
 		lock.lock();
@@ -1038,14 +1032,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			lock.unlock();
 		}
-		java.util.Collections.sort(ret, new java.util.Comparator<User>()
-		{
+		java.util.Collections.sort(ret, new java.util.Comparator<User>() {
 			public int compare(User o1, User o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
 			}
 		});
-		return ret.toArray(new DBUser [ret.size()]);
+		return ret.toArray(new DBUser[ret.size()]);
 	}
 
 	/**
@@ -1079,23 +1072,24 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
-		PrismsApplication [] ret = new PrismsApplication [appIDs.size()];
+		PrismsApplication [] ret = new PrismsApplication[appIDs.size()];
 		for(int a = 0; a < ret.length; a++)
 		{
 			ret[a] = theApps.get(appIDs.get(a));
 			if(ret[a] == null)
 				ret[a] = getApp(appNames.get(a));
 		}
-		java.util.Arrays.sort(ret, new java.util.Comparator<PrismsApplication>()
-		{
+		java.util.Arrays.sort(ret, new java.util.Comparator<PrismsApplication>() {
 			public int compare(PrismsApplication o1, PrismsApplication o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
@@ -1139,13 +1133,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		return ret;
 	}
@@ -1192,13 +1188,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			if(!accessible)
 			{
@@ -1246,13 +1244,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 
 			String cacheKey = user.getName() + "/" + app.getName();
@@ -1304,13 +1304,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 	}
 
@@ -1342,13 +1344,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		if(expire == null)
 			return Long.MAX_VALUE;
@@ -1382,7 +1386,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 	}
 
@@ -1411,7 +1416,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			java.util.Iterator<DBUser> iter = theUsers.values().iterator();
 			while(iter.hasNext())
@@ -1448,10 +1454,11 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			// Uncache the renamed users
-			DBUser [] users = new DBUser [0];
+			DBUser [] users = new DBUser[0];
 			java.util.Iterator<DBUser> iter = theUsers.values().iterator();
 			while(iter.hasNext())
 			{
@@ -1501,13 +1508,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		return getGroup(id);
 	}
@@ -1540,19 +1549,20 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
-		DBGroup [] ret = new DBGroup [groupIDs.size()];
+		DBGroup [] ret = new DBGroup[groupIDs.size()];
 		for(int g = 0; g < ret.length; g++)
 			ret[g] = (DBGroup) getGroup(groupIDs.get(g).intValue());
-		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>()
-		{
+		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>() {
 			public int compare(DBGroup o1, DBGroup o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
@@ -1594,13 +1604,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		return ret;
 	}
@@ -1630,7 +1642,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			for(SimpleUser user : theUsers.values())
 				user.removeFrom(group);
@@ -1665,7 +1678,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		((DBGroup) group).setName(newName);
 	}
@@ -1698,7 +1712,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		((DBGroup) group).setDescription(descrip);
 	}
@@ -1731,7 +1746,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		((DBPermission) permission).setDescrip(descrip);
 	}
@@ -1763,7 +1779,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			for(SimpleUser user2 : theUsers.values())
 				if(user.equals(user2))
@@ -1803,7 +1820,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			for(SimpleUser user2 : theUsers.values())
 				if(user.equals(user2))
@@ -1850,13 +1868,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			ret = new DBApplication();
 			ret.setDataSource(this);
@@ -1901,7 +1921,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			theAppIDs.remove(app.getName());
 			theAppIDs.put(newName, new Integer(id));
@@ -1986,22 +2007,23 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
-		java.util.Collections.sort(ret, new java.util.Comparator<DBPermission>()
-		{
+		java.util.Collections.sort(ret, new java.util.Comparator<DBPermission>() {
 			public int compare(DBPermission o1, DBPermission o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
 			}
 		});
-		return ret.toArray(new DBPermission [ret.size()]);
+		return ret.toArray(new DBPermission[ret.size()]);
 	}
 
 	/**
@@ -2034,13 +2056,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{}
+				{
+				}
 		}
 		return new DBPermission(name, descrip, app, id);
 	}
@@ -2067,7 +2091,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			for(SimpleUser user : theUsers.values())
 				for(UserGroup group : user.getGroups())
@@ -2107,7 +2132,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			for(SimpleUser user : theUsers.values())
 				for(UserGroup _group : user.getGroups())
@@ -2147,7 +2173,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			for(SimpleUser user : theUsers.values())
 				for(UserGroup _group : user.getGroups())
@@ -2210,13 +2237,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{}
+					{
+					}
 			}
 			stmt = null;
 			if(hasUsers)
@@ -2255,9 +2284,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	private long [] parsePwdData(String joined)
 	{
 		if(joined == null)
-			return new long [10];
+			return new long[10];
 		String [] split = joined.split(":");
-		long [] ret = new long [split.length];
+		long [] ret = new long[split.length];
 		for(int i = 0; i < ret.length; i++)
 			ret[i] = Long.parseLong(split[i]);
 		return ret;
@@ -2295,7 +2324,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 * Checks the database connection to ensure (if possible) that the database is accessible.
 	 * 
 	 * @throws IllegalStateException If the database is not accessible and the connection cannot be
-	 *         renewed
+	 *             renewed
 	 */
 	public void checkConnection() throws IllegalStateException
 	{
