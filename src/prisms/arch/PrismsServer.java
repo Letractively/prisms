@@ -84,6 +84,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 	java.util.concurrent.locks.ReentrantReadWriteLock theSessionLock;
 
+	private Class<? extends Encryption> theEncryptionClass;
+
 	private RemoteEventSerializer theSerializer;
 
 	private PersisterFactory thePersisterFactory;
@@ -108,7 +110,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Creates a PRISMS Server
 	 * 
 	 * @param log4jXML The address to the XML to use to initialize Log4j, or null if this server
-	 *        should not initialize Log4j
+	 *            should not initialize Log4j
 	 */
 	public PrismsServer(java.net.URL log4jXML)
 	{
@@ -127,7 +129,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Creates a PRISMS Server
 	 * 
 	 * @param log4jprops The properties used to initialize Log4j, or null if this server should not
-	 *        initialize Log4j
+	 *            initialize Log4j
 	 */
 	public PrismsServer(java.util.Properties log4jprops)
 	{
@@ -140,7 +142,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Initializes the log4j system for PRISMS
 	 * 
 	 * @param log4jXML The address to the XML to use to initialize Log4j, or null if this server
-	 *        should not initialize Log4j
+	 *            should not initialize Log4j
 	 */
 	public static void initLog4j(java.net.URL log4jXML)
 	{
@@ -160,7 +162,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Initializes the log4j system for PRISMS
 	 * 
 	 * @param log4jprops - the properties to use to initialize Log4j, or null if this server should
-	 *        not initialize Log4j
+	 *            not initialize Log4j
 	 */
 	public static void initLog4j(java.util.Properties log4jprops)
 	{
@@ -220,6 +222,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		log.info("Configuring PRISMS...");
 		org.dom4j.Element configEl = getConfigXML();
 
+		String encryptionClass = configEl.elementTextTrim("encryption");
+		if(encryptionClass != null)
+			try
+			{
+				theEncryptionClass = Class.forName(encryptionClass).asSubclass(Encryption.class);
+			} catch(Throwable e)
+			{
+				log.error("Could not instantiate encryption " + encryptionClass, e);
+				throw new IllegalStateException("Could not instantiate encryption "
+					+ encryptionClass, e);
+			}
+		else
+			theEncryptionClass = BlowfishEncryption.class;
+
 		String serializerClass = configEl.elementTextTrim("serializer");
 		if(serializerClass != null)
 			try
@@ -228,7 +244,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					.newInstance();
 			} catch(Throwable e)
 			{
-				log.error("Could not instantiate serializer " + serializerClass + e.getMessage());
+				log.error("Could not instantiate serializer " + serializerClass, e);
 				throw new IllegalStateException("Could not instantiate serializer "
 					+ serializerClass, e);
 			}
@@ -242,7 +258,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				thePersisterFactory = (PersisterFactory) Class.forName(className).newInstance();
 			} catch(Throwable e)
 			{
-				log.error("Could not instantiate persister factory " + className + e.getMessage());
+				log.error("Could not instantiate persister factory " + className, e);
 				throw new IllegalStateException("Could not instantiate persister factory "
 					+ className, e);
 			}
@@ -379,9 +395,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		if(PrismsWmsRequest.isWMS(req))
 		{
-			/* Some WMS clients don't support multiple non-WMS parameters, so we have to account for
-			 * that as best we can.  The client and method names can be assumed to be "WMS" and the
-			 * application name can be stored within the unencrypted data parameter. */
+			/*
+			 * Some WMS clients don't support multiple non-WMS parameters, so we have to account for
+			 * that as best we can. The client and method names can be assumed to be "WMS" and the
+			 * application name can be stored within the unencrypted data parameter.
+			 */
 			if(method == null)
 				method = "WMS";
 			if(clientName == null && serviceName == null)
@@ -572,7 +590,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			try
 			{
 				jsonEvents = theSerializer.deserialize(dataStr);
-				events = (JSONObject []) jsonEvents.toArray(new JSONObject [jsonEvents.size()]);
+				events = (JSONObject []) jsonEvents.toArray(new JSONObject[jsonEvents.size()]);
 			} catch(Exception e)
 			{
 				log.error("Deserialization failed: " + e.getMessage());
@@ -623,7 +641,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			pwdExp = System.currentTimeMillis() + 24L * 60 * 60 * 1000;
 		}
 		if(errorCode != null)
-		{}
+		{
+		}
 		else if(appName == null)
 		{
 			errorString = "No application specified";
@@ -679,6 +698,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			else
 			{
 				JSONObject evt = new JSONObject();
+				evt.put("encryption", session.getEncryption().getParams());
 				evt.put("method", "startEncryption");
 				JSONObject hashing = session.getHashing().toJson();
 				hashing.put("user", userName);
@@ -810,7 +830,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			try
 			{
 				JSONArray jsonPwdData = (JSONArray) events[0].get("passwordData");
-				pwdData = new long [jsonPwdData.size()];
+				pwdData = new long[jsonPwdData.size()];
 				for(int i = 0; i < pwdData.length; i++)
 					pwdData[i] = ((Number) jsonPwdData.get(i)).longValue();
 				theUserSource.setPassword(appUser, pwdData);
@@ -1067,6 +1087,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
+	Encryption createEncryption()
+	{
+		try
+		{
+			return theEncryptionClass.newInstance();
+		} catch(Exception e)
+		{
+			throw new IllegalStateException("Could not instantiate encryption "
+				+ theEncryptionClass, e);
+		}
+	}
+
 	@Override
 	public void destroy()
 	{
@@ -1075,7 +1107,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		lock.lock();
 		try
 		{
-			SessionMetadata [] sessions = theSessions.values().toArray(new SessionMetadata [0]);
+			SessionMetadata [] sessions = theSessions.values().toArray(new SessionMetadata[0]);
 			theSessions.clear();
 			for(SessionMetadata s : sessions)
 				s.destroy();
@@ -1099,9 +1131,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		Hashing theHashing;
 
-		String theKey;
+		long [] theKey;
 
-		private Object theEncryption;
+		private Encryption theEncryption;
 
 		boolean isValidated;
 
@@ -1161,11 +1193,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					return;
 				}
 			}
-			String newKey = getUserSource().getKey(theUser, theHashing);
+			long [] newKey = getUserSource().getKey(theUser, theHashing);
 			if(theKey == null)
 			{
 				theKey = newKey;
-				theEncryption = prisms.arch.Encryption.getEncryption(theKey);
+				if(theEncryption != null)
+					theEncryption.dispose();
+				theEncryption = createEncryption();
+				theEncryption.init(theKey, null);
 			}
 			else if(newKey == null)
 			{
@@ -1178,7 +1213,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				// byte [] init = new byte [10];
 				// for(int i = 0; i < init.length; i++)
 				// init[i] = (byte) ((Math.random() - 0.5) * 2 * Byte.MAX_VALUE);
-				theEncryption = prisms.arch.Encryption.getEncryption(theKey);
+				if(theEncryption != null)
+					theEncryption.dispose();
+				theEncryption = createEncryption();
+				theEncryption.init(theKey, null);
 				authChanged = true;
 			}
 		}
@@ -1209,7 +1247,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return theHashing;
 		}
 
-		String getKey()
+		Encryption getEncryption()
+		{
+			return theEncryption;
+		}
+
+		long [] getKey()
 		{
 			return theKey;
 		}
@@ -1229,19 +1272,21 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			isValidated = true;
 		}
 
-		String decrypt(String encrypted) throws Exception
+		String decrypt(String encrypted) throws java.io.IOException
 		{
 			checkAuthenticationData(false);
-			return prisms.arch.Encryption.decrypt(theEncryption, encrypted);
+			return theEncryption.decrypt(encrypted);
 		}
 
-		String encrypt(String text)
+		String encrypt(String text) throws java.io.IOException
 		{
-			/* TODO: For whatever reason, information encrypted by the server is not decrypted
+			/*
+			 * TODO: For whatever reason, information encrypted by the server is not decrypted
 			 * correctly by the javascript dojo blowfish implementation on the HTML client. Pending
-			 * more extensive investigation, we'll just send information unencrypted.*/
+			 * more extensive investigation, we'll just send information unencrypted.
+			 */
 			if(theSession != null && theSession.isService())
-				return prisms.arch.Encryption.encrypt(theEncryption, text);
+				return theEncryption.encrypt(text);
 			return text;
 		}
 
@@ -1286,13 +1331,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				{
 					Thread.sleep(100);
 				} catch(InterruptedException e)
-				{}
+				{
+				}
 				/*
-				 * This code checks every quarter second to see if the event has been processed.
-				 * If the processing isn't finished after 1/2 second, this method returns, leaving the
-				 * final results of the event on the queue to be retrieved at the next client poll or
-				 * user action. This allows progress bars to be shown to the user quickly while a long
-				 * operation progresses.
+				 * This code checks every quarter second to see if the event has been processed. If
+				 * the processing isn't finished after 1/2 second, this method returns, leaving the
+				 * final results of the event on the queue to be retrieved at the next client poll
+				 * or user action. This allows progress bars to be shown to the user quickly while a
+				 * long operation progresses.
 				 */
 				int waitCount = 0;
 				while(theSession.getBusyCount() > busyness && waitCount < 2)
@@ -1301,7 +1347,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						Thread.sleep(250);
 					} catch(InterruptedException e)
-					{}
+					{
+					}
 					waitCount++;
 				}
 			}
@@ -1348,7 +1395,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				// Run session tasks
 				theSession._process(null);
 				java.io.PrintWriter writer;
-				switch(wms.getRequest())
+				switch (wms.getRequest())
 				{
 				case GetCapabilities:
 					response.setContentType("text/xml");
@@ -1493,8 +1540,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						+ " does not match file specified in event: " + eventFileName);
 					throw new IllegalArgumentException("Invalid upload file");
 				}
-				theSession.runEventually(new Runnable()
-				{
+				theSession.runEventually(new Runnable() {
 					public void run()
 					{
 						try
@@ -1517,7 +1563,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			if(theSession != null)
 				theSession.destroy();
-			prisms.arch.Encryption.dispose(theEncryption);
+			if(theEncryption != null)
+				theEncryption.dispose();
 		}
 	}
 }
