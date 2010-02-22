@@ -191,10 +191,12 @@ public abstract class ListPersister<T> implements Persister<T []>
 	/**
 	 * Clones an available object to keep a cache used to compare with the set. If the persister
 	 * implementation does not require keeping a cached version, then this method may simply return
-	 * its argument.
+	 * its argument. The return value to this method will never be returned from the
+	 * {@link #getValue()} method. It will be passed as the first argument to the
+	 * {@link #equivalent(Object, Object)} and {@link #update(Object, Object)} methods.
 	 * 
 	 * @param toClone The available object to clone for this persister's cache
-	 * @return An object independent of but identical to <code>toClone</code>
+	 * @return An object independent of but identical to <code>toClone</code> for internal use.
 	 */
 	protected abstract T clone(T toClone);
 
@@ -209,7 +211,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 	 * Adds a new value to the set of persisted data
 	 * 
 	 * @param newValue The value to persist
-	 * @return An indepentent but identical representation of <code>newValue</code> for this
+	 * @return An independent but identical representation of <code>newValue</code> for this
 	 *         persister's cache
 	 */
 	protected abstract T add(T newValue);
