@@ -96,5 +96,65 @@ window.PrismsUtils =  {
 
 	getComboValue: function(select, value){
 		return select.options[select.selectedIndex].value;
+	},
+
+	/**
+	 * Validates a password according to server constraints.
+	 * 
+	 * @return An error message if the password does not meet the constraints, or null if it does
+	 */
+	validatePassword: function(password, constraints){
+		if(!constraints)
+			return null;
+		if(password.length<constraints.minLength)
+			return "Password must be at least "+constraints.minLength+" character(s) long";
+		var count;
+		if(constraints.minUpperCase>0)
+		{
+			count=0;
+			for(var i=0;i<password.length;i++)
+				if(password.charAt(i)>='A' && password.charAt(i)<='Z')
+					count++;
+			if(count<constraints.minUpperCase)
+				return "Password must contain at least "+constraints.minUpperCase
+					+" upper-case character(s)";
+		}
+		if(constraints.minLowerCase>0)
+		{
+			count=0;
+			for(var i=0;i<password.length;i++)
+				if(password.charAt(i)>='a' && password.charAt(i)<='z')
+					count++;
+			if(count<constraints.minLowerCase)
+				return "Password must contain at least "+constraints.minLowerCase
+					+" lower-case character(s)";
+		}
+		if(constraints.minDigits>0)
+		{
+			count=0;
+			for(var i=0;i<password.length;i++)
+				if(password.charAt(i)>='0' && password.charAt(i)<='9')
+					count++;
+			if(count<constraints.minDigits)
+				return "Password must contain at least "+constraints.minDigits+" digit(s) (0-9)";
+		}
+		if(constraints.minSpecialChars>0)
+		{
+			count=0;
+			for(var i=0;i<password.length;i++)
+			{
+				if(password.charAt(i)>='0' && password.charAt(i)<='9')
+					continue;
+				if(password.charAt(i)>='A' && password.charAt(i)<='Z')
+					continue;
+				if(password.charAt(i)>='a' && password.charAt(i)<='z')
+					continue;
+				count++;
+			}
+			if(count<constraints.minSpecialChars)
+				return "Password must contain at least "+constraints.minSpecialChars
+					+" special character(s) (&, *, _, @, etc.)";
+		}
+		return null;
 	}
 }

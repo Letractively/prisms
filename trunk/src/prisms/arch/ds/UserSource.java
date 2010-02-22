@@ -48,6 +48,12 @@ public interface UserSource
 	User [] getAllUsers() throws PrismsException;
 
 	/**
+	 * @return The PRISMS user source's password constraints
+	 * @throws PrismsException If an error occurs getting the data
+	 */
+	PasswordConstraints getPasswordConstraints() throws PrismsException;
+
+	/**
 	 * Checks to see when a user's password expires and must be reset
 	 * 
 	 * @param user The user whose password to check for expiration

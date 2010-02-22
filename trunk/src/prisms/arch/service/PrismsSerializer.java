@@ -18,6 +18,47 @@ import prisms.impl.SimpleUser;
 public class PrismsSerializer
 {
 	/**
+	 * Serializes password constraints to JSON
+	 * 
+	 * @param constraints The password constraints to serialize
+	 * @return The JSON-serialize password constraints
+	 */
+	public static JSONObject serializeConstraints(PasswordConstraints constraints)
+	{
+		JSONObject ret = new JSONObject();
+		ret.put("minLength", new Integer(constraints.getMinCharacterLength()));
+		ret.put("minUpperCase", new Integer(constraints.getMinUpperCase()));
+		ret.put("minLowerCase", new Integer(constraints.getMinLowerCase()));
+		ret.put("minDigits", new Integer(constraints.getMinDigits()));
+		ret.put("minSpecialChars", new Integer(constraints.getMinSpecialChars()));
+		ret.put("maxDuration", new Long(constraints.getMaxPasswordDuration()));
+		ret.put("numUnique", new Integer(constraints.getNumPreviousUnique()));
+		ret.put("minChangeInterval", new Long(constraints.getMinPasswordChangeInterval()));
+		return ret;
+	}
+
+	/**
+	 * Deserializes password constraints from JSON
+	 * 
+	 * @param constraints The JSON-serialized password constraints
+	 * @return The deserialized password constraints
+	 */
+	public static PasswordConstraints deserializeConstraints(JSONObject constraints)
+	{
+		PasswordConstraints ret = new PasswordConstraints();
+		ret.setMinCharacterLength(((Number) constraints.get("minLength")).intValue());
+		ret.setMinUpperCase(((Number) constraints.get("minUpperCase")).intValue());
+		ret.setMinLowerCase(((Number) constraints.get("minLowerCase")).intValue());
+		ret.setMinDigits(((Number) constraints.get("minDigits")).intValue());
+		ret.setMinSpecialChars(((Number) constraints.get("minSpecialChars")).intValue());
+		ret.setMaxPasswordDuration(((Number) constraints.get("maxDuration")).longValue());
+		ret.setNumPreviousUnique(((Number) constraints.get("numUnique")).intValue());
+		ret.setMinPasswordChangeInterval(((Number) constraints.get("minChangeInterval"))
+			.longValue());
+		return ret;
+	}
+
+	/**
 	 * Serializes a user to JSON
 	 * 
 	 * @param user The user to serialize

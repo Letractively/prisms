@@ -797,14 +797,13 @@ public class PrismsApplication
 	/**
 	 * Removes the session from this application's list of active sessions
 	 * 
-	 * @param session The session that has expired
+	 * @param session The session to remove
 	 */
-	void expire(PrismsSession session)
+	void removeSession(PrismsSession session)
 	{
 		synchronized(theSessions)
 		{
 			theSessions.remove(session);
-			session.destroy();
 		}
 	}
 

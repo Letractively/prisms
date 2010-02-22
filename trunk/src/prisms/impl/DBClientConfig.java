@@ -77,6 +77,8 @@ public class DBClientConfig implements ClientConfig
 
 	private String theDescrip;
 
+	private long theTimeout;
+
 	private RemoteEventSerializer theSerializer;
 
 	private ArrayList<EventListenerType> theEventTypes;
@@ -104,6 +106,7 @@ public class DBClientConfig implements ClientConfig
 		theID = id;
 		theApp = app;
 		theName = name;
+		theTimeout = -1;
 		theEventTypes = new ArrayList<EventListenerType>();
 		theMonitorTypes = new ArrayList<MonitorType>();
 		thePluginTypes = new java.util.HashMap<String, PluginType>();
@@ -160,6 +163,19 @@ public class DBClientConfig implements ClientConfig
 	public RemoteEventSerializer getSerializer()
 	{
 		return theSerializer;
+	}
+
+	public long getSessionTimeout()
+	{
+		return theTimeout;
+	}
+
+	/**
+	 * @param timeout The inactivity interval after which sessions of this client should be expired
+	 */
+	public void setSessionTimeout(long timeout)
+	{
+		theTimeout = timeout;
 	}
 
 	/**

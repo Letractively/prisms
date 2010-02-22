@@ -38,8 +38,6 @@ public class PrismsSession
 
 	private long theLastCheckedTime;
 
-	private long theTimeout;
-
 	int theBusyCount;
 
 	private final java.util.LinkedHashMap<String, AppPlugin> thePlugins;
@@ -75,7 +73,6 @@ public class PrismsSession
 		theCreationTime = System.currentTimeMillis();
 		theOutgoingQueue = new java.util.ArrayList<JSONObject>();
 		theLastCheckedTime = System.currentTimeMillis();
-		theTimeout = 5 * 60 * 1000; // 5 minutes
 		thePlugins = new java.util.LinkedHashMap<String, AppPlugin>();
 		theProperties = new java.util.HashMap<PrismsProperty<?>, Object>();
 		thePropLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
@@ -164,6 +161,14 @@ public class PrismsSession
 	}
 
 	/**
+	 * Resets this session's counter so that it doesn't timeout
+	 */
+	public void renew()
+	{
+		theLastCheckedTime = System.currentTimeMillis();
+	}
+
+	/**
 	 * Processes events from the remote client
 	 * 
 	 * @param event The event to process
@@ -230,11 +235,11 @@ public class PrismsSession
 			if(plugin == null)
 				throw new IllegalArgumentException("No such plugin: " + pName);
 			plugin.processEvent(evt);
+			renew();
 		}
 
 		if(!theTaskList.isEmpty())
 			runTasks();
-		theLastCheckedTime = System.currentTimeMillis();
 		theApp.runScheduledTasks();
 	}
 
@@ -290,7 +295,6 @@ public class PrismsSession
 				theOutgoingQueue.clear();
 			}
 		}
-		theLastCheckedTime = System.currentTimeMillis();
 		return events;
 	}
 
@@ -328,7 +332,7 @@ public class PrismsSession
 		{
 			finished[0] = true;
 		}
-		theLastCheckedTime = System.currentTimeMillis();
+		renew();
 	}
 
 	/**
@@ -348,6 +352,7 @@ public class PrismsSession
 				plugin.initClient();
 			else
 				log.error("Client requested plugin " + pluginName + " does not exist!");
+			renew();
 		}
 		else if("getEvents".equals(evt.get("method")))
 			return;
@@ -660,21 +665,7 @@ public class PrismsSession
 	 */
 	public boolean isExpired()
 	{
-		boolean ret = System.currentTimeMillis() - theLastCheckedTime > theTimeout;
-		if(ret)
-			getApp().expire(this);
-		return ret;
-	}
-
-	/**
-	 * @param timeout The number of milliseconds of inactivity before this session may be disposed
-	 *        of
-	 */
-	public void setTimeout(long timeout)
-	{
-		if(timeout <= 5 * 1000)
-			throw new IllegalArgumentException("Timeout too short");
-		theTimeout = timeout;
+		return System.currentTimeMillis() - theLastCheckedTime > theClient.getSessionTimeout();
 	}
 
 	/**
@@ -682,6 +673,7 @@ public class PrismsSession
 	 */
 	public void destroy()
 	{
+		getApp().removeSession(this);
 		fireEvent(new PrismsEvent("destroy"));
 	}
 }

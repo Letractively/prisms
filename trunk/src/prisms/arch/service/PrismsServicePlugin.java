@@ -40,7 +40,12 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 			throw new IllegalArgumentException("No method on event");
 		try
 		{
-			if(method.equals("getUser"))
+			if(method.equals("getPasswordConstraints"))
+			{
+				prisms.arch.ds.PasswordConstraints constraints = theSource.getPasswordConstraints();
+				ret.put("constraints", PrismsSerializer.serializeConstraints(constraints));
+			}
+			else if(method.equals("getUser"))
 			{
 				prisms.arch.ds.User user = theSource.getUser((String) evt.get("userName"));
 				if(user == null)
@@ -122,6 +127,7 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				clientConfig.put("name", dbCC.getName());
 				clientConfig.put("description", dbCC.getDescription());
 				clientConfig.put("configXML", dbCC.getConfigXML());
+				clientConfig.put("sessionTimeout", new Long(dbCC.getSessionTimeout()));
 				if(dbCC.getSerializer() instanceof prisms.impl.PlaceholderSerializer)
 					clientConfig.put("serializerStr", ((prisms.impl.PlaceholderSerializer) dbCC
 						.getSerializer()).getSerializerClassName());

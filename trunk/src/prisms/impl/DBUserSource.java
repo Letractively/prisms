@@ -14,7 +14,10 @@ import java.util.concurrent.locks.Lock;
 import org.apache.log4j.Logger;
 
 import prisms.arch.*;
-import prisms.arch.ds.*;
+import prisms.arch.ds.Hashing;
+import prisms.arch.ds.Permission;
+import prisms.arch.ds.User;
+import prisms.arch.ds.UserGroup;
 import prisms.util.DBUtils;
 
 /**
@@ -23,6 +26,17 @@ import prisms.util.DBUtils;
 public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 {
 	private static final Logger log = Logger.getLogger(DBUserSource.class);
+
+	static class PasswordData
+	{
+		int id;
+
+		long [] thePasswordHash;
+
+		long thePasswordTime;
+
+		long thePasswordExpire;
+	}
 
 	private java.util.concurrent.locks.ReentrantReadWriteLock theLock;
 
@@ -35,8 +49,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	private PersisterFactory thePersisterFactory;
 
 	private String theAnonymousUserName;
-
-	private long theDefaultPasswordReset;
 
 	private Hashing theHashing;
 
@@ -65,7 +77,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		theClients = new java.util.HashMap<String, DBClientConfig>();
 		theGroups = new java.util.HashMap<Integer, DBGroup>();
 		theHashing = new Hashing();
-		theDefaultPasswordReset = 30L * 24 * 60 * 60 * 1000;
 		theAnonymousUserName = "anonymous";
 	}
 
@@ -88,9 +99,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		String anonUser = configEl.elementTextTrim("anonymous");
 		if(anonUser != null)
 			theAnonymousUserName = anonUser;
-		String passwordResetStr = configEl.elementTextTrim("passwordReset");
-		if(passwordResetStr != null)
-			theDefaultPasswordReset = Long.parseLong(passwordResetStr);
 		// Set up hashing
 		Statement stmt = null;
 		ResultSet rs = null;
@@ -102,10 +110,10 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			java.util.ArrayList<long []> hashing = new java.util.ArrayList<long []>();
 			while(rs.next())
 			{
-				hashing.add(new long[] {rs.getInt(1), rs.getInt(2)});
+				hashing.add(new long [] {rs.getInt(1), rs.getInt(2)});
 			}
-			long [] mults = new long[hashing.size()];
-			long [] mods = new long[hashing.size()];
+			long [] mults = new long [hashing.size()];
+			long [] mods = new long [hashing.size()];
 			for(int h = 0; h < mults.length; h++)
 			{
 				mults[h] = hashing.get(h)[0];
@@ -122,31 +130,45 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			stmt = null;
 		}
 		if(theHashing.getPrimaryMultiples() == null || theHashing.getPrimaryMultiples().length < 10)
 		{
 			theHashing.randomlyFillPrimary(10);
 			/*
-			 * java.sql.PreparedStatement pStmt = null; try { pStmt =
-			 * thePRISMSConnection.prepareStatement("INSERT INTO " + DBOWNER +
-			 * "prisms_hashing (id, multiple, modulus)" + " VALUES (?, ?, ?)"); for(int i = 0; i <
-			 * theHashing.getPrimaryMultiples().length; i++) { pStmt.setInt(1, i); pStmt.setInt(2,
-			 * theHashing.getPrimaryMultiples()[i]); pStmt.setInt(3,
-			 * theHashing.getPrimaryModulos()[i]); pStmt.execute(); } } catch(SQLException e) {
-			 * throw new IllegalStateException("Cannot commit hashing values" +
-			 * "--passwords not persistable", e); } finally { if(pStmt != null) try { pStmt.close();
-			 * } catch(SQLException e) {} }
-			 */
+			java.sql.PreparedStatement pStmt = null;
+			try
+			{
+				pStmt = thePRISMSConnection.prepareStatement("INSERT INTO " + DBOWNER
+					+ "prisms_hashing (id, multiple, modulus)" + " VALUES (?, ?, ?)");
+				for(int i = 0; i < theHashing.getPrimaryMultiples().length; i++)
+				{
+					pStmt.setInt(1, i);
+					pStmt.setInt(2, theHashing.getPrimaryMultiples()[i]);
+					pStmt.setInt(3, theHashing.getPrimaryModulos()[i]);
+					pStmt.execute();
+				}
+			} catch(SQLException e)
+			{
+				throw new IllegalStateException("Cannot commit hashing values"
+					+ "--passwords not persistable", e);
+			} finally
+			{
+				if(pStmt != null)
+					try
+					{
+						pStmt.close();
+					} catch(SQLException e)
+					{}
+			}
+			*/
 
 			try
 			{
@@ -169,8 +191,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			forceResetUsers();
 		}
@@ -190,6 +211,74 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	public org.dom4j.Element getConnectionConfig()
 	{
 		return theConfigEl.element("connection");
+	}
+
+	public prisms.arch.ds.PasswordConstraints getPasswordConstraints() throws PrismsException
+	{
+		prisms.arch.ds.PasswordConstraints ret = new prisms.arch.ds.PasswordConstraints();
+		Statement stmt = null;
+		ResultSet rs = null;
+		boolean locked;
+		Number minChars;
+		Number minUpper;
+		Number minLower;
+		Number minDigits;
+		Number minSpecial;
+		Number maxDuration;
+		Number numUnique;
+		Number minChangeIntvl;
+		try
+		{
+			stmt = thePRISMSConnection.createStatement();
+			rs = stmt.executeQuery("SELECT * FROM " + DBOWNER + "prisms_password_constraints");
+			if(!rs.next())
+				return ret;
+			locked = DBUtils.getBoolean(rs.getString("constraintsLocked"));
+			minChars = (Number) rs.getObject("minCharLength");
+			minUpper = (Number) rs.getObject("minUpperCase");
+			minLower = (Number) rs.getObject("minLowerCase");
+			minDigits = (Number) rs.getObject("minDigits");
+			minSpecial = (Number) rs.getObject("minSpecialChars");
+			maxDuration = (Number) rs.getObject("maxPasswordDuration");
+			numUnique = (Number) rs.getObject("numPreviousUnique");
+			minChangeIntvl = (Number) rs.getObject("minChangeInterval");
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not retrieve password constraints", e);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{}
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{}
+		}
+		if(minChars != null)
+			ret.setMinCharacterLength(minChars.intValue());
+		if(minUpper != null)
+			ret.setMinUpperCase(minUpper.intValue());
+		if(minLower != null)
+			ret.setMinLowerCase(minLower.intValue());
+		if(minDigits != null)
+			ret.setMinDigits(minDigits.intValue());
+		if(minSpecial != null)
+			ret.setMinSpecialChars(minSpecial.intValue());
+		if(maxDuration != null)
+			ret.setMaxPasswordDuration(maxDuration.longValue());
+		if(numUnique != null)
+			ret.setNumPreviousUnique(numUnique.intValue());
+		if(minChangeIntvl != null)
+			ret.setMinPasswordChangeInterval(minChangeIntvl.longValue());
+		if(locked)
+			ret.lock();
+		return ret;
 	}
 
 	/**
@@ -231,15 +320,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		lock = theLock.writeLock();
 		lock.lock();
@@ -310,15 +397,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		UserGroup [] groups = getGroups(ret, app);
 		for(UserGroup group : groups)
@@ -399,15 +484,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		lock = theLock.writeLock();
 		lock.lock();
@@ -452,20 +535,19 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
-		DBGroup [] ret = new DBGroup[groupIDs.size()];
+		DBGroup [] ret = new DBGroup [groupIDs.size()];
 		for(int g = 0; g < ret.length; g++)
 			ret[g] = (DBGroup) getGroup(groupIDs.get(g).intValue());
-		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>() {
+		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>()
+		{
 			public int compare(DBGroup o1, DBGroup o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
@@ -657,6 +739,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		String descrip;
 		String serializerStr;
 		String configXML;
+		Number timeout;
 		java.sql.Statement stmt = null;
 		java.sql.ResultSet rs = null;
 		checkConnection();
@@ -672,9 +755,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 
 			stmt = thePRISMSConnection.createStatement();
 
-			rs = stmt.executeQuery("SELECT id, configDescrip, configSerializer, configXML"
-				+ " FROM " + DBOWNER + "prisms_client_config WHERE configApp = "
-				+ theAppIDs.get(app.getName()) + " AND configName = " + toSQL(name));
+			rs = stmt.executeQuery("SELECT * FROM " + DBOWNER
+				+ "prisms_client_config WHERE configApp = " + theAppIDs.get(app.getName())
+				+ " AND configName = " + toSQL(name));
 
 			if(!rs.next())
 			{
@@ -684,10 +767,11 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				throw new PrismsException("The client configuration \"" + name
 					+ "\" for application " + app.getName() + " is not recognized.");
 			}
-			id = rs.getInt(1);
-			descrip = rs.getString(2);
-			serializerStr = rs.getString(3);
-			configXML = rs.getString(4);
+			id = rs.getInt("id");
+			descrip = rs.getString("configDescrip");
+			serializerStr = rs.getString("configSerializer");
+			configXML = rs.getString("configXML");
+			timeout = (Number) rs.getObject("sessionTimeout");
 		} catch(java.sql.SQLException e)
 		{
 			throw new PrismsException("Could not query for client " + name + " of application "
@@ -716,6 +800,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		ret.setDescription(descrip);
 		ret.setSerializerClass(serializerStr);
 		ret.setConfigXML(configXML);
+		if(timeout != null)
+			ret.setSessionTimeout(timeout.longValue());
 		lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -774,13 +860,14 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					log.warn("Could not close client config statement", e);
 				}
 		}
-		java.util.Collections.sort(ret, new java.util.Comparator<ClientConfig>() {
+		java.util.Collections.sort(ret, new java.util.Comparator<ClientConfig>()
+		{
 			public int compare(ClientConfig o1, ClientConfig o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
 			}
 		});
-		return ret.toArray(new ClientConfig[ret.size()]);
+		return ret.toArray(new ClientConfig [ret.size()]);
 	}
 
 	/**
@@ -932,26 +1019,34 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return ret;
 	}
 
-	/**
-	 * @see prisms.arch.ds.UserSource#getKey(prisms.arch.ds.User, prisms.arch.ds.Hashing)
-	 */
-	public long [] getKey(User user, Hashing hashing)
+	PasswordData [] getPasswordData(DBUser user, boolean latest)
 	{
-		String dbPwdData;
 		Statement stmt = null;
 		ResultSet rs = null;
 		Lock lock = theLock.readLock();
 		lock.lock();
+		String sql = "SELECT * FROM " + DBOWNER + "prisms_user_password WHERE pwdUser="
+			+ user.getID() + " ORDER BY pwdTime DESC";
+		java.util.ArrayList<PasswordData> data = new ArrayList<PasswordData>();
 		try
 		{
 			stmt = thePRISMSConnection.createStatement();
-			rs = stmt.executeQuery("SELECT pwdData FROM " + DBOWNER + "prisms_user WHERE id = "
-				+ ((DBUser) user).getID());
-			rs.next();
-			dbPwdData = rs.getString(1);
+			rs = stmt.executeQuery(sql);
+			while(rs.next())
+			{
+				if(latest && data.size() > 0)
+					break;
+				PasswordData newData = new PasswordData();
+				newData.id = rs.getInt("id");
+				newData.thePasswordTime = rs.getLong("pwdTime");
+				Number exp = (Number) rs.getObject("pwdExpire");
+				newData.thePasswordExpire = exp == null ? Long.MAX_VALUE : exp.longValue();
+				newData.thePasswordHash = parsePwdData(rs.getString("pwdData"));
+				data.add(newData);
+			}
 		} catch(SQLException e)
 		{
-			log.error("Could not get password data for user " + user.getName(), e);
+			log.error("Could not get password data for user " + user.getName() + ": SQL=" + sql, e);
 			return null;
 		} finally
 		{
@@ -961,18 +1056,26 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
-		long [] dbHash = parsePwdData(dbPwdData);
-		return hashing.generateKey(dbHash);
+		return data.toArray(new PasswordData [data.size()]);
+	}
+
+	/**
+	 * @see prisms.arch.ds.UserSource#getKey(prisms.arch.ds.User, prisms.arch.ds.Hashing)
+	 */
+	public long [] getKey(User user, Hashing hashing)
+	{
+		PasswordData [] password = getPasswordData((DBUser) user, true);
+		if(password.length == 0)
+			return null;
+		return hashing.generateKey(password[0].thePasswordHash);
 	}
 
 	// ManageableUserSource methods now
@@ -1011,15 +1114,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		lock = theLock.writeLock();
 		lock.lock();
@@ -1032,13 +1133,14 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			lock.unlock();
 		}
-		java.util.Collections.sort(ret, new java.util.Comparator<User>() {
+		java.util.Collections.sort(ret, new java.util.Comparator<User>()
+		{
 			public int compare(User o1, User o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
 			}
 		});
-		return ret.toArray(new DBUser[ret.size()]);
+		return ret.toArray(new DBUser [ret.size()]);
 	}
 
 	/**
@@ -1072,24 +1174,23 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
-		PrismsApplication [] ret = new PrismsApplication[appIDs.size()];
+		PrismsApplication [] ret = new PrismsApplication [appIDs.size()];
 		for(int a = 0; a < ret.length; a++)
 		{
 			ret[a] = theApps.get(appIDs.get(a));
 			if(ret[a] == null)
 				ret[a] = getApp(appNames.get(a));
 		}
-		java.util.Arrays.sort(ret, new java.util.Comparator<PrismsApplication>() {
+		java.util.Arrays.sort(ret, new java.util.Comparator<PrismsApplication>()
+		{
 			public int compare(PrismsApplication o1, PrismsApplication o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
@@ -1133,15 +1234,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		return ret;
 	}
@@ -1188,15 +1287,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			if(!accessible)
 			{
@@ -1244,15 +1341,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 
 			String cacheKey = user.getName() + "/" + app.getName();
@@ -1270,32 +1365,60 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 */
 	public void setPassword(User user, long [] hash) throws PrismsException
 	{
+		prisms.arch.ds.PasswordConstraints constraints = getPasswordConstraints();
+		PasswordData [] password = getPasswordData((DBUser) user, false);
+		for(int i = 0; i < constraints.getNumPreviousUnique() && i < password.length; i++)
+		{
+			long [] oldHash = password[i].thePasswordHash;
+			if(oldHash == null)
+				continue;
+			if(oldHash.length != hash.length)
+				continue;
+			int h;
+			for(h = 0; h < oldHash.length; h++)
+				if(oldHash[h] != hash[h])
+					break;
+			if(h == oldHash.length)
+			{
+				String msg = "Password must not be the same as ";
+				if(constraints.getNumPreviousUnique() == 1)
+					throw new PrismsException(msg + "the current password");
+				else if(constraints.getNumPreviousUnique() == 2)
+					throw new PrismsException(msg + "either the current or the previous passwords");
+				else
+					throw new PrismsException(msg + "any of the previous "
+						+ constraints.getNumPreviousUnique() + " passwords");
+			}
+		}
+
 		Statement stmt = null;
 		ResultSet rs = null;
-		Number expire;
 		Lock lock = theLock.writeLock();
 		lock.lock();
+		String sql = null;
+		long now = System.currentTimeMillis();
 		try
 		{
 			stmt = thePRISMSConnection.createStatement();
-			String pwdData;
-			if(hash != null)
-				pwdData = join(hash);
+			sql = "INSERT INTO " + DBOWNER + "prisms_user_password (id, pwdUser, pwdData,"
+				+ " pwdTime, pwdExpire) VALUES (" + getNextID("prisms_user_password", stmt) + ", "
+				+ ((DBUser) user).getID() + ", " + DBUtils.toSQL(join(hash)) + ", " + now + ", ";
+			if(constraints.getMaxPasswordDuration() > 0)
+				sql += (now + constraints.getMaxPasswordDuration());
 			else
-				pwdData = "NULL";
-			stmt.executeUpdate("UPDATE " + DBOWNER + "prisms_user SET pwdData = " + toSQL(pwdData)
-				+ " WHERE id = " + ((DBUser) user).getID());
-			rs = stmt.executeQuery("SELECT pwdExpire FROM " + DBOWNER + "prisms_user WHERE id = "
-				+ ((DBUser) user).getID());
-			rs.next();
-			expire = (Number) rs.getObject(1);
-			if(expire != null && expire.longValue() <= System.currentTimeMillis())
-				stmt.executeUpdate("UPDATE " + DBOWNER + "prisms_user SET pwdExpire= "
-					+ (System.currentTimeMillis() + theDefaultPasswordReset) + " WHERE id = "
-					+ ((DBUser) user).getID());
+				sql += "NULL";
+			sql += ")";
+			stmt.execute(sql);
+
+			for(int p = password.length - 1; p >= 0 && p >= constraints.getNumPreviousUnique(); p--)
+			{
+				sql = "DELETE FROM " + DBOWNER + "prisms_user_password WHERE id=" + password[p].id;
+				stmt.execute(sql);
+			}
 		} catch(SQLException e)
 		{
-			throw new PrismsException("Could not set password data for user " + user, e);
+			throw new PrismsException("Could not set password data for user " + user + ": SQL="
+				+ sql, e);
 		} finally
 		{
 			lock.unlock();
@@ -1304,15 +1427,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 	}
 
@@ -1321,63 +1442,42 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 */
 	public long getPasswordExpiration(User user) throws PrismsException
 	{
-		Statement stmt = null;
-		ResultSet rs = null;
-		Number expire;
-		Lock lock = theLock.readLock();
-		lock.lock();
-		try
-		{
-			stmt = thePRISMSConnection.createStatement();
-			rs = stmt.executeQuery("SELECT pwdExpire FROM " + DBOWNER + "prisms_user WHERE id = "
-				+ ((DBUser) user).getID());
-			rs.next();
-			expire = (Number) rs.getObject(1);
-		} catch(SQLException e)
-		{
-			throw new PrismsException("Could not get password expiration for user " + user, e);
-		} finally
-		{
-			lock.unlock();
-			if(rs != null)
-				try
-				{
-					rs.close();
-				} catch(SQLException e)
-				{
-				}
-			if(stmt != null)
-				try
-				{
-					stmt.close();
-				} catch(SQLException e)
-				{
-				}
-		}
-		if(expire == null)
+		PasswordData [] password = getPasswordData((DBUser) user, true);
+		if(password.length == 0)
 			return Long.MAX_VALUE;
-		else
-			return expire.longValue();
+		return password[0].thePasswordExpire;
 	}
 
 	public void setPasswordExpiration(User user, long time) throws PrismsException
 	{
+		prisms.arch.ds.PasswordConstraints constraints = getPasswordConstraints();
+		if(constraints.getMaxPasswordDuration() > 0
+			&& time - System.currentTimeMillis() > constraints.getMaxPasswordDuration())
+			throw new PrismsException("Password expiration cannot be set for more than "
+				+ prisms.util.ProgramTracker.printTimeLength(constraints.getMaxPasswordDuration())
+				+ " from current date");
+		PasswordData [] password = getPasswordData((DBUser) user, true);
+		if(password.length == 0)
+			return;
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		Statement stmt = null;
+		String sql;
+		String toSet;
+		if(time < Long.MAX_VALUE)
+			toSet = "" + time;
+		else
+			toSet = "NULL";
+		sql = "UPDATE " + DBOWNER + "prisms_user_password SET pwdExpire=" + toSet + " WHERE id="
+			+ password[0].id;
 		try
 		{
 			stmt = thePRISMSConnection.createStatement();
-			String toSet;
-			if(time < Long.MAX_VALUE)
-				toSet = "" + time;
-			else
-				toSet = "NULL";
-			stmt.executeUpdate("UPDATE " + DBOWNER + "prisms_user SET pwdExpire= " + toSet
-				+ " WHERE id = " + ((DBUser) user).getID());
+			stmt.executeUpdate(sql);
 		} catch(SQLException e)
 		{
-			throw new PrismsException("Could not set password expiration for user " + user, e);
+			throw new PrismsException("Could not set password expiration for user " + user
+				+ ": SQL=" + sql, e);
 		} finally
 		{
 			lock.unlock();
@@ -1386,8 +1486,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 	}
 
@@ -1416,8 +1515,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			java.util.Iterator<DBUser> iter = theUsers.values().iterator();
 			while(iter.hasNext())
@@ -1454,11 +1552,10 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			// Uncache the renamed users
-			DBUser [] users = new DBUser[0];
+			DBUser [] users = new DBUser [0];
 			java.util.Iterator<DBUser> iter = theUsers.values().iterator();
 			while(iter.hasNext())
 			{
@@ -1508,15 +1605,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		return getGroup(id);
 	}
@@ -1549,20 +1644,19 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
-		DBGroup [] ret = new DBGroup[groupIDs.size()];
+		DBGroup [] ret = new DBGroup [groupIDs.size()];
 		for(int g = 0; g < ret.length; g++)
 			ret[g] = (DBGroup) getGroup(groupIDs.get(g).intValue());
-		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>() {
+		java.util.Arrays.sort(ret, new java.util.Comparator<DBGroup>()
+		{
 			public int compare(DBGroup o1, DBGroup o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
@@ -1604,15 +1698,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		return ret;
 	}
@@ -1642,8 +1734,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			for(SimpleUser user : theUsers.values())
 				user.removeFrom(group);
@@ -1678,8 +1769,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		((DBGroup) group).setName(newName);
 	}
@@ -1712,8 +1802,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		((DBGroup) group).setDescription(descrip);
 	}
@@ -1746,8 +1835,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		((DBPermission) permission).setDescrip(descrip);
 	}
@@ -1779,8 +1867,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			for(SimpleUser user2 : theUsers.values())
 				if(user.equals(user2))
@@ -1820,8 +1907,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			for(SimpleUser user2 : theUsers.values())
 				if(user.equals(user2))
@@ -1868,15 +1954,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			ret = new DBApplication();
 			ret.setDataSource(this);
@@ -1921,8 +2005,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			theAppIDs.remove(app.getName());
 			theAppIDs.put(newName, new Integer(id));
@@ -2007,23 +2090,22 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
-		java.util.Collections.sort(ret, new java.util.Comparator<DBPermission>() {
+		java.util.Collections.sort(ret, new java.util.Comparator<DBPermission>()
+		{
 			public int compare(DBPermission o1, DBPermission o2)
 			{
 				return o1.getName().compareToIgnoreCase(o2.getName());
 			}
 		});
-		return ret.toArray(new DBPermission[ret.size()]);
+		return ret.toArray(new DBPermission [ret.size()]);
 	}
 
 	/**
@@ -2056,15 +2138,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				{
 					rs.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 			if(stmt != null)
 				try
 				{
 					stmt.close();
 				} catch(SQLException e)
-				{
-				}
+				{}
 		}
 		return new DBPermission(name, descrip, app, id);
 	}
@@ -2091,8 +2171,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			for(SimpleUser user : theUsers.values())
 				for(UserGroup group : user.getGroups())
@@ -2132,8 +2211,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			for(SimpleUser user : theUsers.values())
 				for(UserGroup _group : user.getGroups())
@@ -2173,8 +2251,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			for(SimpleUser user : theUsers.values())
 				for(UserGroup _group : user.getGroups())
@@ -2237,15 +2314,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					{
 						rs.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 				if(stmt != null)
 					try
 					{
 						stmt.close();
 					} catch(SQLException e)
-					{
-					}
+					{}
 			}
 			stmt = null;
 			if(hasUsers)
@@ -2284,9 +2359,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	private long [] parsePwdData(String joined)
 	{
 		if(joined == null)
-			return new long[10];
+			return new long [10];
 		String [] split = joined.split(":");
-		long [] ret = new long[split.length];
+		long [] ret = new long [split.length];
 		for(int i = 0; i < ret.length; i++)
 			ret[i] = Long.parseLong(split[i]);
 		return ret;
@@ -2324,7 +2399,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 * Checks the database connection to ensure (if possible) that the database is accessible.
 	 * 
 	 * @throws IllegalStateException If the database is not accessible and the connection cannot be
-	 *             renewed
+	 *         renewed
 	 */
 	public void checkConnection() throws IllegalStateException
 	{

@@ -13,15 +13,35 @@ CREATE TABLE prisms_hashing (
 	modulus INT NOT NULL
 );
 
+CREATE TABLE prisms_password_constraints(
+	constraintsLocked CHAR(1) NOT NULL,
+	minCharLength INT NULL,
+	minUpperCase INT NULL,
+	minLowerCase INT NULL,
+	minDigits INT NULL,
+	minSpecialChars INT NULL,
+	maxPasswordDuration NUMERIC(14) NULL,
+	numPreviousUnique INT NULL,
+	minChangeInterval NUMERIC(14) NULL
+);
+
 CREATE TABLE prisms_user (
 	id INT NOT NULL PRIMARY KEY,
 	userName VARCHAR NOT NULL,
-	pwdData VARCHAR NULL,
-	pwdExpire NUMERIC(14) NULL,
 	UNIQUE(userName)
 );
 
 CREATE INDEX prisms_user_by_name ON prisms_user (userName);
+
+CREATE TABLE prisms_user_password (
+	id INT NOT NULL PRIMARY KEY,
+	pwdUser INT NOT NULL,
+	pwdData VARCHAR NULL,
+	pwdTime NUMERIC(14) NOT NULL,
+	pwdExpire NUMERIC(14) NULL,
+
+	FOREIGN KEY(pwdUser) REFERENCES prisms_user(id) ON DELETE CASCADE
+);
 
 CREATE TABLE prisms_application (
 	id INT NOT NULL PRIMARY KEY,
@@ -51,6 +71,7 @@ CREATE TABLE prisms_client_config (
 	configDescrip VARCHAR NULL,
 	configSerializer VARCHAR NULL,
 	configXML VARCHAR NOT NULL,
+	sessionTimeout NUMERIC(14) NOT NULL,
 	UNIQUE(configApp, configName),
 	FOREIGN KEY(configApp) REFERENCES prisms_application(id) ON DELETE CASCADE
 );

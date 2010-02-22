@@ -32,6 +32,11 @@ public interface ClientConfig
 	 * @return The event serializer that sessions of this client config will use
 	 */
 	RemoteEventSerializer getSerializer();
+	
+	/**
+	 * @return The amount of inactive time until a session of this client should be expired
+	 */
+	long getSessionTimeout();
 
 	/**
 	 * Adds an event listener type to add to sessions created (in the future) with this client
