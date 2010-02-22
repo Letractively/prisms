@@ -10,7 +10,13 @@ import java.io.IOException;
  */
 public interface Encryption
 {
-	public void init(long [] key, java.util.Map<String, Object> params);
+	/**
+	 * Initializes the encryption with a key and parameters
+	 * 
+	 * @param key The encryption key data to use
+	 * @param params The encryption parameters to use
+	 */
+	public void init(long [] key, java.util.Map<String, String> params);
 
 	/**
 	 * @return Parameters necessary to duplicate this encryption on the client side
@@ -22,6 +28,7 @@ public interface Encryption
 	 * 
 	 * @param text The data to encrypt
 	 * @return The encrypted data
+	 * @throws IOException If an error occurs encrypting the data
 	 */
 	public String encrypt(String text) throws IOException;
 

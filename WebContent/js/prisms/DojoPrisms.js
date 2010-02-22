@@ -48,8 +48,8 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 		prisms.getDefaultUser=function(){
 			return self.getDefaultUser();
 		};
-		prisms.doChangePassword=function(user, hashing, error){
-			self.doChangePassword(user, hashing, error);
+		prisms.doChangePassword=function(user, hashing, constraints, error, message){
+			self.doChangePassword(user, hashing, constraints, error, message);
 		};
 		prisms.doLogin=function(error){
 			self.doLogin(error);
@@ -77,29 +77,93 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 		};
 	},
 
+	setLoginMenu: function(loginMenu){
+		this.loginMenu=loginMenu;
+		this.loginLogoutButton=new dijit.MenuItem({label:"Log In..."});
+		this.loginMenu.dropDown.addChild(this.loginLogoutButton);
+		dojo.connect(this.loginLogoutButton, "onClick", this, this._doLoginLogout);
+		this.switchUserButton=new dijit.MenuItem({label:"Switch User..."});
+		this.switchUserButton.setAttribute("disabled", true);
+		this.switchUserButton.domNode.title="Log in as another user";
+		this.loginMenu.dropDown.addChild(this.switchUserButton);
+		dojo.connect(this.switchUserButton, "onClick", this, this._doSwitchUser);
+		this.changePasswordButton=new dijit.MenuItem({label:"Change Password..."});
+		this.changePasswordButton.setAttribute("disabled", true);
+		this.changePasswordButton.domNode.title="Change your password";
+		this.loginMenu.dropDown.addChild(this.changePasswordButton);
+		dojo.connect(this.changePasswordButton, "onClick", this, this._tryChangePassword);
+	},
+
 	getDefaultUser: function(){
 		return dojo.cookie("prisms_user");
 	},
 
-	doChangePassword: function(user, hashing, error){
+	_doLoginLogout: function(){
+		if(this.loggedIn)
+			this.doLogout();
+		else
+			this.doLogin();
+	},
+
+	_doSwitchUser: function(){
+		this.isSwitching=true;
+		this.doLogin();
+	},
+
+	_tryChangePassword: function(){
+		this.prisms.callServer("tryChangePassword");
+	},
+
+	doChangePassword: function(user, hashing, constraints, error, message){
+		delete this.changedPassword;
 		this.formType="changePassword";
 		if(error)
 		{
+			error=PrismsUtils.fixUnicodeString(error);
+			var err=error.split("\n");
+			error=err.join("<br />");
 			this.loginMessageNode.style.color="red";
 			this.loginMessageNode.innerHTML=error;
 		}
 		else
 		{
 			this.loginMessageNode.style.color="black";
-			this.loginMessageNode.innerHTML="Enter new password for "+user;
+			if(message)
+			{
+				message=PrismsUtils.fixUnicodeString(message);
+				var msg=message.split("\n");
+				message=msg.join("<br />");
+				this.loginMessageNode.innerHTML=message;
+			}
+			else
+				this.loginMessageNode.innerHTML="Enter new password for "+user;
 		}
-		this.userNameRow.style.display="none";
-		this.password2Row.style.display="block";
+		PrismsUtils.setTableRowVisible(this.userNameRow, false);
+		PrismsUtils.setTableRowVisible(this.password2Row, true);
+		PrismsUtils.setTableRowVisible(this.capsLockWarn, false);
 		this._hashing=hashing;
+		this._constraints=constraints;
 		this.loginDialog.show();
 	},
 
 	doLogin: function(error){
+		if(this.changedPassword)
+		{
+			var pwd=this.changedPassword;
+			delete this.changedPassword;
+			this.prisms.submitLogin(this.prisms._login.userName, pwd);
+		}
+		if(!this.isSwitching)
+		{
+			this.prisms.shutdown();
+			this.loggedIn=false;
+			this.loginMenu.setLabel("Not logged in");
+			this.loginLogoutButton.setLabel("Log In...");
+			this.loginLogoutButton.domNode.title="Log into PRISMS";
+			this.switchUserButton.setAttribute("disabled", true);
+			this.changePasswordButton.setAttribute("disabled", true);
+		}
+
 		this.formType="login";
 		if(error)
 		{
@@ -114,10 +178,11 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 //		dojo.style(dijit.byId('spinnerId').domNode, {'visibility': 'hidden'});
 //		dijit.byId('spinnerId').domNode.style.visibility = 'hidden';
 		
-		this.userNameRow.style.display="block";
-		this.passwordRow.style.display="block";
+		PrismsUtils.setTableRowVisible(this.userNameRow, true);
+		PrismsUtils.setTableRowVisible(this.passwordRow, true);
 		
-		this.password2Row.style.display="none";
+		PrismsUtils.setTableRowVisible(this.capsLockWarn, false);
+		PrismsUtils.setTableRowVisible(this.password2Row, false);
 		if(this.prisms._login && this.prisms._login.userName)
 			this.userName.setValue(this.prisms._login.userName);
 		this.loginDialog.show();
@@ -125,7 +190,8 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 	},
 
 	doLogout: function(){
-		this.prisms.submitLogin(null, null);
+		this.isSwitching=false;
+		this.prisms.callServer("logout");
 	},
 
 	appLoading: function(){
@@ -138,10 +204,16 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 	},
 
 	loginSucceeded: function(userName){
+		this.isSwitching=false;
+		this.loggedIn=true;
 		if(userName)
-			this.loginButton.setLabel("Logout as "+userName);
+			this.loginMenu.setLabel("Logged in as "+userName);
 		else
-			this.loginButton.setLabel("Login...");
+			this.loginMenu.setLabel("Logged in anonymously");
+		this.loginLogoutButton.setLabel("Logout");
+		this.loginLogoutButton.domNode.title="End this session.";
+		this.switchUserButton.setAttribute("disabled", false);
+		this.changePasswordButton.setAttribute("disabled", false);
 		if(!dojo.cookie.isSupported())
 			return;
 		if(userName)
@@ -218,8 +290,33 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 	},
 
 	_onKeyPress: function(event){
-		if(event.keyCode==dojo.keys.ENTER)
+		var keyCode=event.keyCode;
+		if(keyCode==__dojo.keys.ENTER)
 			this._submit();
+
+		var shiftPressed;
+		if (typeof event.shiftKey!="undefined")
+			shiftPressed = event.shiftKey;
+		else if (typeof event.modifiers != "undefined")
+			shift_status = (ev.modifiers & 4)!=0;
+		var isLetter=false;
+		var capsLock=false;
+		if(!keyCode)
+			keyCode=event.charCode;
+		if(keyCode>=65 && keyCode<=90)
+		{
+			isLetter=true;
+			capsLock=!shiftPressed;
+		}
+		else if(keyCode>=97 && keyCode<=122)
+		{
+			isLetter=true;
+			capsLock=shiftPressed;
+		}
+		if(capsLock)
+			PrismsUtils.setTableRowVisible(this.capsLockWarn, true);
+		else if(isLetter)
+			PrismsUtils.setTableRowVisible(this.capsLockWarn, false);
 	},
 
 	_submit: function(){
@@ -245,9 +342,19 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 			{
 				this.loginMessageNode.innerHTML="Passwords do not match!";
 				this.loginMessageNode.style.color="red";
+				this.password2.value="";
+				this.password.focus();
 				return;
 			}
 			this.password2.value="";
+			var msg=PrismsUtils.validatePassword(pwd, this._constraints);
+			if(msg)
+			{
+				this.loginMessageNode.innerHTML=msg;
+				this.loginMessageNode.style.color="red";
+				this.password.focus();
+				return;
+			}
 			this._cancelLock=true;
 			try{
 				this.loginDialog.hide();
@@ -255,6 +362,7 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 				delete this._cancelLock;
 			}
 
+			this.changedPassword=pwd;
 			this.prisms.submitPasswordChange(this._hashing, pwd);
 		}
 		else
@@ -279,7 +387,8 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 		}
 		this.password.value="";
 		this.password2.value="";
-		this.prisms.submitLogin(null, null);
+		if(this.formType=="login" && !this.loggedIn)
+			this.prisms.submitLogin(null, null);
 	},
 
 	_fileChanged: function(){

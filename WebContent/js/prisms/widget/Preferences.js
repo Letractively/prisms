@@ -67,6 +67,8 @@ dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 		this.clearTabs();
 		for(var domain in data)
 		{
+			if(typeof data[domain]=="function")
+				continue;
 			var contentPane=new dijit.layout.ContentPane({title:domain});
 			this.tabPane.addChild(contentPane);
 			this.tabs.push(contentPane);
@@ -248,11 +250,12 @@ dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 	clearTabs: function(){
 		for(var domain in this._editors)
 		{
+			if(typeof this._editors[domain]=="function")
 			for(var pref in this._editors[domain])
 				if(typeof this._editors[domain][pref].destroy=="function")
 					this._editors[domain][pref].destroy();
 		}
-		for(var c in this.connectors)
+		for(var c=0;c<this.connectors.length;c++)
 			dojo.disconnect(this.connectors[c]);
 		this._editors={};
 		for(var c=0;c<this.tabs.length;c++)

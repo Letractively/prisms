@@ -111,8 +111,9 @@ dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, dijit._Templated, d
 		}
 	},
 
-	changePassword: function(hashing){
+	changePassword: function(hashing, constraints){
 		this.hashing=hashing;
+		this.constraints=constraints;
 		this.password1.value="";
 		this.password2.value="";
 		this.passwordUserName.innerHTML="Change password for user \""+this.nameField.value+"\"";
@@ -166,6 +167,12 @@ dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, dijit._Templated, d
 		if(this.password2.value!=pwd)
 		{
 			this.prisms.error("Passwords do not match!");
+			return;
+		}
+		var msg=PrismsUtils.validatePassword(pwd, this.constraints);
+		if(msg)
+		{
+			this.prisms.error(msg);
 			return;
 		}
 		this.changePasswordDialog.hide();

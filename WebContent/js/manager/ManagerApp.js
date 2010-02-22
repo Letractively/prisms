@@ -33,7 +33,7 @@ dojo.declare("manager.ManagerApp", [prisms.widget.PrismsWidget, dijit._Templated
 
 	postCreate: function(){
 		if(this.dojoPrisms)
-			this.dojoPrisms.loginButton=this.loginButton;
+			this.dojoPrisms.setLoginMenu(this.loginMenu);
 		if(this.prisms)
 			this.setPrisms(this.prisms);
 		this.inherited("postCreate", arguments);
@@ -42,10 +42,6 @@ dojo.declare("manager.ManagerApp", [prisms.widget.PrismsWidget, dijit._Templated
 			self.setPrisms(self.prisms);
 			self.prisms.prismsConnect();
 		});
-	},
-
-	_loginClicked: function(){
-		this.prisms._loginClicked();
 	},
 
 	refresh: function(){

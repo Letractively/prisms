@@ -63,6 +63,19 @@ public class ServiceUserSource implements UserSource
 		theLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
 	}
 
+	public PasswordConstraints getPasswordConstraints() throws PrismsException
+	{
+		JSONObject res;
+		try
+		{
+			res = theConnector.getResult(thePluginName, "getPasswordConstraints");
+		} catch(java.io.IOException e)
+		{
+			throw new PrismsException("Could not communicate with PRISMS server", e);
+		}
+		return PrismsSerializer.deserializeConstraints((JSONObject) res.get("constraints"));
+	}
+
 	public User getUser(String name) throws PrismsException
 	{
 		JSONObject res;
@@ -309,6 +322,7 @@ public class ServiceUserSource implements UserSource
 		ret.setDescription(descrip);
 		ret.setSerializerClass(serializerStr);
 		ret.setConfigXML(configXML);
+		ret.setSessionTimeout(((Number) clientConfig.get("sessionTimeout")).longValue());
 		org.dom4j.Element configEl = getConfigXML(configXML);
 		dbApp.getConfig().configureClient(ret, configEl);
 		lock = theLock.writeLock();

@@ -4,6 +4,9 @@ import java.io.IOException;
 
 import org.json.simple.JSONObject;
 
+/**
+ * The blowfish encryption implementation. Uses blowfishj.
+ */
 public class BlowfishEncryption implements Encryption
 {
 	private static String BASE_64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -14,6 +17,9 @@ public class BlowfishEncryption implements Encryption
 
 	private blowfishj.BlowfishECB theCipher;
 
+	/**
+	 * Creates a blowfish encryption implementation
+	 */
 	public BlowfishEncryption()
 	{
 		theMaxKeyLength = 448 / 8;
@@ -26,7 +32,7 @@ public class BlowfishEncryption implements Encryption
 		return ret;
 	}
 
-	public void init(long [] key, java.util.Map<String, Object> params)
+	public void init(long [] key, java.util.Map<String, String> params)
 	{
 		theKey = createKey(key);
 		theCipher = new blowfishj.BlowfishECB(theKey.getBytes(), 0, theKey.length());
@@ -34,7 +40,7 @@ public class BlowfishEncryption implements Encryption
 
 	private String createKey(long [] longKey)
 	{
-		String [] keyStringEls = new String[longKey.length];
+		String [] keyStringEls = new String [longKey.length];
 		for(int h = 0; h < longKey.length; h++)
 			keyStringEls[h] = toKeyString(longKey[h]);
 		while(isTooBig(keyStringEls))
@@ -86,9 +92,9 @@ public class BlowfishEncryption implements Encryption
 		int blockSize = blowfishj.BlowfishECB.BLOCKSIZE;
 		if(size % blockSize > 0)
 			size += (blockSize - size % blockSize);
-		byte [] input = new byte[size];
+		byte [] input = new byte [size];
 		System.arraycopy(text.getBytes(), 0, input, 0, text.length());
-		byte [] ret = new byte[size];
+		byte [] ret = new byte [size];
 		theCipher.encrypt(input, 0, ret, 0, size);
 		return new sun.misc.BASE64Encoder().encode(ret);
 	}
@@ -96,14 +102,14 @@ public class BlowfishEncryption implements Encryption
 	public String decrypt(String encrypted) throws IOException
 	{
 		byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
-		byte [] ret = new byte[data.length];
+		byte [] ret = new byte [data.length];
 		theCipher.decrypt(data, 0, ret, 0, ret.length);
 		int retSize = ret.length;
 		while(retSize > 0 && ret[retSize - 1] < ' ')
 			retSize--;
 		if(retSize != ret.length)
 		{
-			byte [] realRet = new byte[retSize];
+			byte [] realRet = new byte [retSize];
 			System.arraycopy(ret, 0, realRet, 0, retSize);
 			ret = realRet;
 		}

@@ -86,6 +86,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 	private Class<? extends Encryption> theEncryptionClass;
 
+	java.util.HashMap<String, String> theEncryptionProperties;
+
 	private RemoteEventSerializer theSerializer;
 
 	private PersisterFactory thePersisterFactory;
@@ -110,7 +112,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Creates a PRISMS Server
 	 * 
 	 * @param log4jXML The address to the XML to use to initialize Log4j, or null if this server
-	 *            should not initialize Log4j
+	 *        should not initialize Log4j
 	 */
 	public PrismsServer(java.net.URL log4jXML)
 	{
@@ -129,7 +131,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Creates a PRISMS Server
 	 * 
 	 * @param log4jprops The properties used to initialize Log4j, or null if this server should not
-	 *            initialize Log4j
+	 *        initialize Log4j
 	 */
 	public PrismsServer(java.util.Properties log4jprops)
 	{
@@ -142,7 +144,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Initializes the log4j system for PRISMS
 	 * 
 	 * @param log4jXML The address to the XML to use to initialize Log4j, or null if this server
-	 *            should not initialize Log4j
+	 *        should not initialize Log4j
 	 */
 	public static void initLog4j(java.net.URL log4jXML)
 	{
@@ -162,7 +164,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * Initializes the log4j system for PRISMS
 	 * 
 	 * @param log4jprops - the properties to use to initialize Log4j, or null if this server should
-	 *            not initialize Log4j
+	 *        not initialize Log4j
 	 */
 	public static void initLog4j(java.util.Properties log4jprops)
 	{
@@ -222,8 +224,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		log.info("Configuring PRISMS...");
 		org.dom4j.Element configEl = getConfigXML();
 
-		String encryptionClass = configEl.elementTextTrim("encryption");
-		if(encryptionClass != null)
+		theEncryptionProperties = new java.util.HashMap<String, String>();
+		org.dom4j.Element encryptionEl = configEl.element("encryption");
+		if(encryptionEl != null)
+		{
+			String encryptionClass = encryptionEl.elementTextTrim("class");
 			try
 			{
 				theEncryptionClass = Class.forName(encryptionClass).asSubclass(Encryption.class);
@@ -233,6 +238,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				throw new IllegalStateException("Could not instantiate encryption "
 					+ encryptionClass, e);
 			}
+			for(org.dom4j.Element propEl : (java.util.List<org.dom4j.Element>) encryptionEl
+				.elements())
+			{
+				if(propEl.getName().equals("class"))
+					continue;
+				theEncryptionProperties.put(propEl.getName(), propEl.getTextTrim());
+			}
+		}
 		else
 			theEncryptionClass = BlowfishEncryption.class;
 
@@ -389,6 +402,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			userName = null;
 		String clientName = req.getParameter("client");
 		String serviceName = req.getParameter("service");
+		String clientServiceName = clientName;
+		if(clientName == null)
+			clientServiceName = serviceName;
 		boolean encrypted = "true".equalsIgnoreCase(req.getParameter("encrypted"));
 		String method = req.getParameter("method");
 		String dataStr = req.getParameter("data");
@@ -423,13 +439,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				dataStr = "{\"serverPadding\":\"padding\"}";
 		}
 
+		String sessionKey;
 		SessionMetadata session = null;
 		if(sessionID != null && userName != null && appName != null
 			&& (serviceName != null || clientName != null))
 		{
-			String key = sessionID + "/" + appName + "/"
+			sessionKey = sessionID + "/" + appName + "/"
 				+ (serviceName != null ? serviceName : clientName) + "/" + userName;
-			session = theSessions.get(key);
+			session = theSessions.get(sessionKey);
 		}
 
 		User user;
@@ -518,15 +535,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				evt.put("sessionID", sessionID);
 				ret.add(evt);
 			}
-			String clientServiceName = clientName;
-			if(clientName == null)
-				clientServiceName = serviceName;
+			sessionKey = sessionID + "/" + appName + "/" + clientServiceName + "/" + userName;
 			lock = theSessionLock.readLock();
 			lock.lock();
 			try
 			{
-				session = theSessions.get(sessionID + "/" + appName + "/" + clientServiceName + "/"
-					+ userName);
+				session = theSessions.get(sessionKey);
 			} finally
 			{
 				lock.unlock();
@@ -541,8 +555,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					lock.lock();
 					try
 					{
-						theSessions.put(sessionID + "/" + appName + "/" + clientServiceName + "/"
-							+ userName, session);
+						theSessions.put(sessionKey, session);
 					} finally
 					{
 						lock.unlock();
@@ -559,6 +572,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 			}
 		}
+		sessionKey = sessionID + "/" + appName + "/" + clientServiceName + "/" + userName;
 
 		boolean decryptionFailed = false;
 		String encryptedText = null;
@@ -572,8 +586,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				dataStr = session.decrypt(dataStr);
 			} catch(Exception e)
 			{
-				log.error(
-					"Decryption of " + encryptedText + " failed with key " + session.getKey(), e);
+				log.error("Decryption of " + encryptedText + " failed with encryption "
+					+ session.getEncryption(), e);
 				decryptionFailed = true;
 				encrypted = false;
 			}
@@ -590,7 +604,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			try
 			{
 				jsonEvents = theSerializer.deserialize(dataStr);
-				events = (JSONObject []) jsonEvents.toArray(new JSONObject[jsonEvents.size()]);
+				events = (JSONObject []) jsonEvents.toArray(new JSONObject [jsonEvents.size()]);
 			} catch(Exception e)
 			{
 				log.error("Deserialization failed: " + e.getMessage());
@@ -601,7 +615,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 		if(decryptionFailed && !user.isLocked())
 		{
-			log.warn("Decryption of " + encryptedText + " failed with key " + session.getKey());
+			log.warn("Decryption of " + encryptedText + " failed with encryption "
+				+ session.getEncryption());
 			try
 			{
 				session.loginFailed();
@@ -641,8 +656,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			pwdExp = System.currentTimeMillis() + 24L * 60 * 60 * 1000;
 		}
 		if(errorCode != null)
-		{
-		}
+		{}
 		else if(appName == null)
 		{
 			errorString = "No application specified";
@@ -719,7 +733,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			JSONObject evt = new JSONObject();
 			evt.put("method", "startEncryption");
-			evt.put("error", "Session has expired or has been removed--please log in again");
+			evt.put("error", "Session has timed out or has been removed--please log in again");
 			JSONObject hashing = session.getHashing().toJson();
 			hashing.put("user", userName);
 			evt.put("hashing", hashing);
@@ -735,23 +749,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				PrismsWmsRequest.respondError(resp, "WMS does not support encryption");
 			else
 			{
-				JSONObject evt = new JSONObject();
-				evt.put("method", "startEncryption");
 				if(user.isLocked())
-					evt.put("error", "Too many incorrect password attempts.\nUser "
-						+ user.getName() + " is locked.  Contact your admin");
+					ret.add(sendLogin(session, "Too many incorrect password attempts.\nUser "
+						+ user.getName() + " is locked." + "  Contact your admin", "init"
+						.equals(method), true));
 				else if(session.authChanged)
-					evt.put("error", user + "'s password has been changed by an administrator."
-						+ " Use the new password or contact your admin");
+					ret.add(sendLogin(session, user + "'s password has been changed."
+						+ " Use the new password or contact your admin", "init".equals(method),
+						true));
 				else
-					evt.put("error", "Incorrect password for user " + userName);
-				JSONObject hashing = session.getHashing().toJson();
-				hashing.put("user", userName);
-				evt.put("hashing", hashing);
-				if("init".equals(method))
-					evt.put("postAction", "callInit");
-				evt.put("code", ErrorCode.RequestDenied.description);
-				ret.add(evt);
+					ret.add(sendLogin(session, "Incorrect password for user " + userName, "init"
+						.equals(method), true));
 				encrypted = false;
 			}
 		}
@@ -830,7 +838,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			try
 			{
 				JSONArray jsonPwdData = (JSONArray) events[0].get("passwordData");
-				pwdData = new long[jsonPwdData.size()];
+				pwdData = new long [jsonPwdData.size()];
 				for(int i = 0; i < pwdData.length; i++)
 					pwdData[i] = ((Number) jsonPwdData.get(i)).longValue();
 				theUserSource.setPassword(appUser, pwdData);
@@ -839,17 +847,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				ret.add(evt);
 			} catch(Exception e)
 			{
+				log.error("Password change failed", e);
 				if(pwdData != null)
 					log.error("Could not set password data for user " + appUser.getName() + " to "
 						+ prisms.util.ArrayUtils.toString(pwdData), e);
 				else
 					log.error("Could not set password data for user " + appUser.getName()
 						+ ": no passwordData sent", e);
-				evt = new JSONObject();
-				evt.put("method", "changePassword");
-				evt.put("error", "Could not change password: " + e.getMessage());
-				evt.put("hashing", session.getHashing().toJson());
-				ret.add(evt);
+				ret.add(sendChangePassword(session, "Could not change password: " + e.getMessage(),
+					true));
 			}
 		}
 		else if(pwdExp < System.currentTimeMillis())
@@ -858,11 +864,26 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				PrismsWmsRequest.respondError(resp, "Password change required for user "
 					+ user.getName());
 			else
+				try
+				{
+					ret.add(sendChangePassword(session, "Password change required for user "
+						+ user.getName(), false));
+				} catch(PrismsException e)
+				{
+					errorCode = ErrorCode.RequestFailed;
+					errorString = "Could not get password change data";
+				}
+		}
+		else if("tryChangePassword".equals(method))
+		{
+			session.renew();
+			try
 			{
-				JSONObject evt = new JSONObject();
-				evt.put("method", "changePassword");
-				evt.put("hashing", session.getHashing().toJson());
-				ret.add(evt);
+				ret.add(sendChangePassword(session, null, false));
+			} catch(PrismsException e)
+			{
+				errorCode = ErrorCode.RequestFailed;
+				errorString = "Could not get password change data";
 			}
 		}
 		else if("getVersion".equals(method))
@@ -907,6 +928,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				ret.add(evt);
 			}
 		}
+		else if("logout".equals(method))
+		{
+			destroySession(sessionKey, session);
+			ret.add(sendLogin(null, "You have been successfully logged out", false, false));
+			encrypted = false;
+		}
 		else if(events == null)
 		{
 			errorString = "No data to process in request";
@@ -944,6 +971,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		else if(wms != null)
 		{
 			session.fillWmsRequest(events[0], wms, resp);
+			session.renew();
 			clean();
 			return;
 		}
@@ -968,12 +996,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				resp.setContentType("image/" + format);
 			java.io.OutputStream out = resp.getOutputStream();
 			session.generateImage(events[0], format, out);
+			session.renew();
 			clean();
 			return;
 		}
 		else if("getDownload".equals(method))
 		{
 			session.getDownload(events[0], resp);
+			session.renew();
 			clean();
 			return;
 		}
@@ -983,6 +1013,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			// We redirect to avoid the browser's resend warning if the user refreshes
 			resp.setStatus(301);
 			resp.sendRedirect("nothing.html");
+			session.renew();
 			clean();
 			return;
 		}
@@ -1073,6 +1104,187 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		doGet(req, resp);
 	}
 
+	JSONObject sendLogin(SessionMetadata session, String error, boolean postInit, boolean isError)
+	{
+		JSONObject evt = new JSONObject();
+		if(session != null)
+		{
+			evt.put("method", "startEncryption");
+			evt.put("encryption", session.getEncryption().getParams());
+			JSONObject hashing = session.getHashing().toJson();
+			hashing.put("user", session.theUser.getName());
+			evt.put("hashing", hashing);
+			if(postInit)
+				evt.put("postAction", "callInit");
+			if(isError)
+				evt.put("code", ErrorCode.RequestDenied.description);
+		}
+		else
+			evt.put("method", "login");
+		evt.put("error", error);
+		return evt;
+	}
+
+	JSONObject sendChangePassword(SessionMetadata session, String message, boolean error)
+		throws PrismsException
+	{
+		prisms.arch.ds.PasswordConstraints pc = theUserSource.getPasswordConstraints();
+		StringBuilder msg = new StringBuilder();
+		if(message != null)
+			msg.append(message);
+		if(pc.getNumConstraints() == 1)
+		{
+			if(msg.length() > 0)
+				msg.append('\n');
+			if(pc.getMinCharacterLength() > 0)
+			{
+				msg.append("The new password must be at least ");
+				msg.append(pc.getMinCharacterLength());
+				msg.append(" characters long");
+			}
+			else if(pc.getMinUpperCase() > 0)
+			{
+				msg.append("The new password must have at least ");
+				msg.append(pc.getMinUpperCase());
+				msg.append(" upper-case letter");
+				if(pc.getMinUpperCase() > 1)
+					msg.append('s');
+			}
+			else if(pc.getMinLowerCase() > 0)
+			{
+				msg.append("The new password must have at least ");
+				msg.append(pc.getMinLowerCase());
+				msg.append(" lower-case letter");
+				if(pc.getMinLowerCase() > 1)
+					msg.append('s');
+			}
+			else if(pc.getMinDigits() > 0)
+			{
+				msg.append("The new password must have at least ");
+				msg.append(pc.getMinDigits());
+				msg.append(" digit");
+				if(pc.getMinDigits() > 1)
+					msg.append('s');
+				msg.append(" (0-9)");
+			}
+			else if(pc.getMinSpecialChars() > 0)
+			{
+				msg.append("The new password must have at least ");
+				msg.append(pc.getMinSpecialChars());
+				msg.append(" special character");
+				if(pc.getMinSpecialChars() > 1)
+					msg.append('s');
+				msg.append(" (&, *, _, @, etc.)");
+			}
+			else if(pc.getNumConstraints() > 0)
+			{
+				msg.append("The new password must not be the same as ");
+				if(pc.getNumConstraints() == 1)
+					msg.append("your current password");
+				else if(pc.getNumConstraints() == 2)
+					msg.append("your current or previous passwords");
+				else
+				{
+					msg.append("any of your previous ");
+					msg.append(pc.getNumConstraints());
+					msg.append(" passwords");
+				}
+			}
+			else
+				throw new IllegalStateException("Unaccounted-for password constraint");
+		}
+		else if(pc.getNumConstraints() > 1)
+		{
+			if(msg.length() > 0)
+				msg.append('\n');
+			msg.append("The new password must:");
+			int count = 1;
+			if(pc.getMinCharacterLength() > 0)
+			{
+				msg.append("\n\t");
+				msg.append(count);
+				msg.append(") be ");
+				msg.append(pc.getMinCharacterLength());
+				msg.append(" characters long");
+				count++;
+			}
+			if(pc.getMinUpperCase() > 0)
+			{
+				msg.append("\n\t");
+				msg.append(count);
+				msg.append(") have at least ");
+				msg.append(pc.getMinUpperCase());
+				msg.append(" upper-case letter");
+				if(pc.getMinUpperCase() > 1)
+					msg.append('s');
+			}
+			if(pc.getMinLowerCase() > 0)
+			{
+				msg.append("\n\t");
+				msg.append(count);
+				msg.append(") have at least ");
+				msg.append(pc.getMinLowerCase());
+				msg.append(" lower-case letter");
+				if(pc.getMinLowerCase() > 1)
+					msg.append('s');
+			}
+			if(pc.getMinDigits() > 0)
+			{
+				msg.append("\n\t");
+				msg.append(count);
+				msg.append(") have at least ");
+				msg.append(pc.getMinDigits());
+				msg.append(" digit");
+				if(pc.getMinDigits() > 1)
+					msg.append('s');
+				msg.append(" (0-9)");
+			}
+			if(pc.getMinSpecialChars() > 0)
+			{
+				msg.append("\n\t");
+				msg.append(count);
+				msg.append(") have at least ");
+				msg.append(pc.getMinSpecialChars());
+				msg.append(" special character");
+				if(pc.getMinSpecialChars() > 1)
+					msg.append('s');
+				msg.append(" (&, *, _, @, etc.)");
+			}
+			if(pc.getNumConstraints() > 0)
+			{
+				msg.append("\n\t");
+				msg.append(count);
+				msg.append(") not be the same as ");
+				if(pc.getNumConstraints() == 1)
+					msg.append("your current password");
+				else if(pc.getNumConstraints() == 2)
+					msg.append("your current or previous passwords");
+				else
+				{
+					msg.append("any of your previous ");
+					msg.append(pc.getNumConstraints());
+					msg.append(" passwords");
+				}
+			}
+		}
+		JSONObject evt = new JSONObject();
+		evt.put("method", "changePassword");
+		if(error)
+			evt.put("error", msg.toString());
+		else
+			evt.put("message", msg.toString());
+		evt.put("constraints", prisms.arch.service.PrismsSerializer.serializeConstraints(pc));
+		evt.put("hashing", session.getHashing().toJson());
+		return evt;
+	}
+
+	void destroySession(String sessionKey, SessionMetadata session)
+	{
+		theSessions.remove(sessionKey);
+		session.destroy();
+		System.gc();
+	}
+
 	/**
 	 * @return The session that this thread is executing in
 	 */
@@ -1107,7 +1319,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		lock.lock();
 		try
 		{
-			SessionMetadata [] sessions = theSessions.values().toArray(new SessionMetadata[0]);
+			SessionMetadata [] sessions = theSessions.values().toArray(new SessionMetadata [0]);
 			theSessions.clear();
 			for(SessionMetadata s : sessions)
 				s.destroy();
@@ -1117,6 +1329,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 		theUserSource.disconnect();
 		thePersisterFactory.destroy();
+		System.gc();
 	}
 
 	class SessionMetadata
@@ -1200,14 +1413,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(theEncryption != null)
 					theEncryption.dispose();
 				theEncryption = createEncryption();
-				theEncryption.init(theKey, null);
+				theEncryption.init(theKey, theEncryptionProperties);
 			}
 			else if(newKey == null)
 			{
 				theKey = null;
 				theEncryption = null;
 			}
-			else if(!theKey.equals(newKey))
+			else if(!prisms.util.ArrayUtils.equals(theKey, newKey))
 			{
 				theKey = newKey;
 				// byte [] init = new byte [10];
@@ -1331,8 +1544,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				{
 					Thread.sleep(100);
 				} catch(InterruptedException e)
-				{
-				}
+				{}
 				/*
 				 * This code checks every quarter second to see if the event has been processed. If
 				 * the processing isn't finished after 1/2 second, this method returns, leaving the
@@ -1347,8 +1559,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						Thread.sleep(250);
 					} catch(InterruptedException e)
-					{
-					}
+					{}
 					waitCount++;
 				}
 			}
@@ -1395,7 +1606,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				// Run session tasks
 				theSession._process(null);
 				java.io.PrintWriter writer;
-				switch (wms.getRequest())
+				switch(wms.getRequest())
 				{
 				case GetCapabilities:
 					response.setContentType("text/xml");
@@ -1540,7 +1751,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						+ " does not match file specified in event: " + eventFileName);
 					throw new IllegalArgumentException("Invalid upload file");
 				}
-				theSession.runEventually(new Runnable() {
+				theSession.runEventually(new Runnable()
+				{
 					public void run()
 					{
 						try
@@ -1557,6 +1769,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			if(!didUpload)
 				throw new IllegalStateException("getUpload called with no non-form field");
+		}
+
+		void renew()
+		{
+			if(theSession != null)
+				theSession.renew();
 		}
 
 		void destroy()

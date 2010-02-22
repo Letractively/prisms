@@ -76,6 +76,8 @@ dojo.declare("prisms.PrismsLink", null, {
 		}
 		for(var p in pluginsCalled)
 		{
+			if(typeof pluginsCalled[p]=="function")
+				continue;
 			var plugin=pluginsCalled[p];
 			if(plugin && typeof plugin.postProcessEvents == "function")
 				plugin.postProcessEvents();
@@ -131,7 +133,8 @@ dojo.declare("prisms.PrismsLink", null, {
 		else if(event.method=="validate")
 			this.doValidate(event.hashing, event.validationFailed);
 		else if(event.method=="changePassword")
-			this.doChangePassword(this._login.userName, event.hashing, event.error);
+			this.doChangePassword(this._login.userName, event.hashing, event.constraints,
+				event.error, event.message);
 		else if(event.method=="init")
 		{
 			this.loginSucceeded((this._login ? this._login.userName : null));
@@ -148,7 +151,11 @@ dojo.declare("prisms.PrismsLink", null, {
 				}, 10000);
 			}
 			for(var p in this.plugins)
+			{
+				if(typeof this.plugins[p]=="function")
+					continue;
 				this.callApp(null, "addPlugin", {pluginToAdd: p});
+			}
 			this.callServer("getVersion");
 		}
 		else if(event.method=="setSessionID")
@@ -181,6 +188,8 @@ dojo.declare("prisms.PrismsLink", null, {
 			dlEvent.method=event.downloadMethod;
 			for(var p in event)
 			{
+				if(typeof p.charAt!="function")
+					continue;
 				if(p=="plugin" || p=="method" || p=="downloadPlugin" || p=="downloadMethod")
 					continue;
 				dlEvent[p]=event[p];
@@ -196,6 +205,8 @@ dojo.declare("prisms.PrismsLink", null, {
 			ulEvent.method=event.uploadMethod;
 			for(var p in event)
 			{
+				if(typeof p.charAt!="function")
+					continue;
 				if(p=="plugin" || p=="method" || p=="uploadPlugin" || p=="uploadMethod")
 					continue;
 				ulEvent[p]=event[p];
@@ -224,7 +235,7 @@ dojo.declare("prisms.PrismsLink", null, {
 			this._postEncryptionAction=postAction;
 		if(this._login && hashing && hashing.user!=this._login.userName)
 		{
-			this._encryptionKey=null;
+			this.cipher=null;
 			this.callServer("init");
 			this.appLoading();
 		}
@@ -264,7 +275,7 @@ dojo.declare("prisms.PrismsLink", null, {
 		alert("ERROR! THIS CLIENT DOES NOT SUPPORT VALIDATION!")
 	},
 
-	doChangePassword: function(user, hashing, error){
+	doChangePassword: function(user, hashing, constraints, error, message){
 		// Default implementation--may be overridden by subclasses
 		alert("ERROR! THIS CLIENT DOES NOT SUPPORT PASSWORD CHANGE!"
 			+"\nContact your administrator or visit the manager page to change it")
@@ -302,11 +313,11 @@ dojo.declare("prisms.PrismsLink", null, {
 			delete this.pingID;
 		}
 		this._login={userName: userName, password: password};
-		delete this._encryptionKey;
+		delete this.cipher;
 		if(this._postLoginAction)
 		{
 			if(this._postLoginAction=="startEncryption")
-				this.startEncryption(this._hashing, null, "callInit");
+				this.startEncryption(this._encryption, this._hashing, null, "callInit");
 			else
 				this.error("Unrecognized post-login action: "+this._postLoginAction);
 			delete this._postLoginAction;
@@ -344,7 +355,7 @@ dojo.declare("prisms.PrismsLink", null, {
 		params.app=this.application;
 		params.client=this.client;
 		params.user=this._login.userName
-		params.encrypted=this._encryptionKey!=null;
+		params.encrypted=this.cipher ? true : false;
 		if(params.encrypted)
 		{
 			var data=params.data;
@@ -384,7 +395,7 @@ dojo.declare("prisms.PrismsLink", null, {
 					{
 						var decrypted=self.cipher.decrypt(data);
 						var len=decrypted.length;
-						while(decrypted.charAt(len-1)<' ')
+						while(len>0 && decrypted.charAt(len-1)<' ')
 							len--;
 						decrypted=decrypted.substring(0, len);
 						data=decrypted;
@@ -392,12 +403,13 @@ dojo.declare("prisms.PrismsLink", null, {
 				}
 				var originalData = data;
 				try {
-					data=dojo.eval(data);
-					self.validateJson(data);
-					self.processEvents(data);
+					data=__dojo.eval(data);
 				} catch (err) {
 					console.log("ERROR WITH JAVASCRIPT EVAL! ",err, originalData);
+					throw new Error("Error with js eval: "+err.message);
 				}
+				self.validateJson(data);
+				self.processEvents(data);
 			},
 			error: function(error){
 				self.appLoaded();
@@ -447,9 +459,9 @@ dojo.declare("prisms.PrismsLink", null, {
 		ret+="&client="+escape(this.client);
 		if(this._login && this._login.userName)
 			ret+="&user="+this._login.userName;
-		ret+="&encrypted="+(this._encryptionKey!=null);
+		ret+="&encrypted="+(this.cipher ? true : false);
 		ret+="&method=generateImage";
-		if(this._encryptionKey)
+		if(this.cipher)
 		{
 			//The purpose of this is to ensure that the encrypted data is long enough to satisfy the
 			//server that the client's encryption is valid
@@ -471,9 +483,9 @@ dojo.declare("prisms.PrismsLink", null, {
 		ret+="&client="+escape(this.client);
 		if(this._login && this._login.userName)
 			ret+="&user="+this._login.userName;
-		ret+="&encrypted="+(this._encryptionKey!=null);
+		ret+="&encrypted="+(this.cipher ? true : false);
 		ret+="&method=getDownload";
-		if(this._encryptionKey)
+		if(this.cipher)
 		{
 			//The purpose of this is to ensure that the encrypted data is long enough to satisfy the
 			//server that the client's encryption is valid
@@ -495,9 +507,9 @@ dojo.declare("prisms.PrismsLink", null, {
 		ret+="&client="+escape(this.client);
 		if(this._login && this._login.userName)
 			ret+="&user="+this._login.userName;
-		ret+="&encrypted="+(this._encryptionKey!=null);
+		ret+="&encrypted="+(this.cipher ? true : false);
 		ret+="&method=doUpload";
-		if(this._encryptionKey)
+		if(this.cipher)
 		{
 			//The purpose of this is to ensure that the encrypted data is long enough to satisfy the
 			//server that the client's encryption is valid
@@ -581,7 +593,11 @@ dojo.declare("prisms.PrismsLink", null, {
 		{
 			copy={};
 			for(var f in val)
+			{
+				if(typeof copy[f]=="function")
+					continue;
 				copy[f]=""+val[f];
+			}
 		}
 		else
 			copy=""+val;

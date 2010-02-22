@@ -76,6 +76,21 @@ public class PrismsServiceConnector
 	}
 
 	/**
+	 * Automatically generates a new password when one expires
+	 */
+	public static interface PasswordChanger
+	{
+		/**
+		 * Creates a new password
+		 * 
+		 * @param message The message to use to create the new password (user interface display)
+		 * @param constraints The constraints that the password must meet
+		 * @return The new password to use
+		 */
+		String getNewPassword(String message, prisms.arch.ds.PasswordConstraints constraints);
+	}
+
+	/**
 	 * The different server methods that may be used
 	 */
 	static enum ServerMethod
@@ -150,9 +165,11 @@ public class PrismsServiceConnector
 
 	private String thePassword;
 
-	private prisms.arch.ds.UserSource theUserSource;
+	private boolean tryEncryptionAgain;
 
-	private int theEncryptionTries;
+	private PasswordChanger thePasswordChanger;
+
+	private prisms.arch.ds.UserSource theUserSource;
 
 	private Validator theValidator;
 
@@ -187,10 +204,18 @@ public class PrismsServiceConnector
 	public void setPassword(String password)
 	{
 		thePassword = password;
-		theEncryptionTries = 0;
 		if(theEncryption != null)
 			theEncryption.dispose();
 		theEncryption = null;
+	}
+
+	/**
+	 * @param changer The password changer to use in case a password change is required while using
+	 *        the service
+	 */
+	public void setPasswordChanger(PasswordChanger changer)
+	{
+		thePasswordChanger = changer;
 	}
 
 	/**
@@ -201,7 +226,6 @@ public class PrismsServiceConnector
 	public void setUserSource(prisms.arch.ds.UserSource source)
 	{
 		theUserSource = source;
-		theEncryptionTries = 0;
 		if(theEncryption != null)
 			theEncryption.dispose();
 		theEncryption = null;
@@ -410,6 +434,19 @@ public class PrismsServiceConnector
 				}
 				else if("startEncryption".equals(json.get("method")))
 				{
+					if(prisms.arch.PrismsServer.ErrorCode.RequestDenied.description.equals(json
+						.get("code")))
+					{
+						if(tryEncryptionAgain)
+						{
+							tryEncryptionAgain = false;
+							theEncryption = null;
+						}
+						else
+							throw new AuthenticationFailedException("Invalid security info--"
+								+ "encryption failed with encryption:" + theEncryption
+								+ " for request " + event);
+					}
 					serverReturn.addAll(i + 1, startEncryption(prisms.arch.ds.Hashing
 						.fromJson((JSONObject) json.get("hashing")), (JSONObject) json
 						.get("encryption"), (String) json.get("postAction"), serverMethod, event));
@@ -423,6 +460,15 @@ public class PrismsServiceConnector
 					log.error("service error: " + json);
 					throw new IOException("Error calling serverMethod " + serverMethod
 						+ " for event " + event + ":\n" + json.get("error"));
+				}
+				else if("changePassword".equals(json.get("method")))
+				{
+					Hashing hashing = Hashing.fromJson((JSONObject) json.get("hashing"));
+					prisms.arch.ds.PasswordConstraints constraints = prisms.arch.service.PrismsSerializer
+						.deserializeConstraints((JSONObject) json.get("constraints"));
+					String message = (String) (json.get("error") == null ? json.get("message")
+						: json.get("error"));
+					serverReturn.addAll(callChangePassword(hashing, constraints, message));
 				}
 				else
 					log.warn("Server message: " + json);
@@ -577,9 +623,6 @@ public class PrismsServiceConnector
 		String postAction, ServerMethod postServerMethod, JSONObject postRequest)
 		throws IOException
 	{
-		if(theEncryptionTries > 0)
-			throw new AuthenticationFailedException("Invalid security info--encryption failed"
-				+ " with encryption:" + theEncryption + " for request " + postRequest);
 		if(theEncryption != null)
 			theEncryption.dispose();
 		theEncryption = null;
@@ -601,24 +644,16 @@ public class PrismsServiceConnector
 				+ " by user " + theUserName);
 		theEncryption = createEncryption((String) encryptionParams.get("type"));
 		theEncryption.init(key, encryptionParams);
-		theEncryptionTries++;
-		try
+		if("callInit".equals(postAction))
 		{
-			if("callInit".equals(postAction))
-			{
-				// No need to call this--this is accomplished by the postRequest
-			}
-			else if(postAction != null)
-				log.warn("Unrecognized postAction: " + postAction);
-			if(postServerMethod != null)
-				return callServer(postServerMethod, postRequest);
-			else
-				return null;
-		} finally
-		{
-			if(theEncryptionTries > 0)
-				theEncryptionTries--;
+			// No need to call this--this is accomplished by the postRequest
 		}
+		else if(postAction != null)
+			log.warn("Unrecognized postAction: " + postAction);
+		if(postServerMethod != null)
+			return callServer(postServerMethod, postRequest);
+		else
+			return null;
 	}
 
 	private prisms.arch.Encryption createEncryption(String type)
@@ -652,5 +687,40 @@ public class PrismsServiceConnector
 		{
 			theValidationTries--;
 		}
+	}
+
+	private JSONArray callChangePassword(Hashing hashing,
+		prisms.arch.ds.PasswordConstraints constraints, String message) throws IOException
+	{
+		if(thePasswordChanger == null)
+			throw new PrismsServiceException("Password change requested",
+				prisms.arch.PrismsServer.ErrorCode.RequestDenied, message);
+		String newPwd = null;
+		do
+		{
+			newPwd = thePasswordChanger.getNewPassword(message, constraints);
+			message = checkPassword(newPwd, constraints);
+			if(message != null)
+				newPwd = null;
+		} while(newPwd == null);
+
+		long [] hash = hashing.partialHash(newPwd);
+		JSONArray pwdData = new JSONArray();
+		for(int h = 0; h < hash.length; h++)
+			pwdData.add(new Long(hash[h]));
+		JSONObject changeEvt = new JSONObject();
+		changeEvt.put("method", "changePassword");
+		changeEvt.put("passwordData", pwdData);
+		tryEncryptionAgain = true;
+		thePassword = newPwd;
+		JSONArray evts = new JSONArray();
+		evts.add(changeEvt);
+		return evts;
+	}
+
+	private String checkPassword(String pwd, prisms.arch.ds.PasswordConstraints constraints)
+	{
+		// TODO check against constraints
+		return null;
 	}
 }

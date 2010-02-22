@@ -216,18 +216,23 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			throw new IllegalStateException("Cannot change password: user source is not manageable");
 		theValidationRequestTime = System.currentTimeMillis();
 		prisms.arch.ds.Hashing hashing;
+		prisms.arch.ds.PasswordConstraints constraints;
 		try
 		{
 			hashing = theSession.getApp().getDataSource().getHashing();
+			constraints = theSession.getApp().getDataSource().getPasswordConstraints();
 		} catch(prisms.arch.PrismsException e)
 		{
-			throw new IllegalStateException("Could not get PRISMS hashing", e);
+			throw new IllegalStateException("Could not get PRISMS hashing or password constraints",
+				e);
 		}
 		theValidationParams = hashing;
 		JSONObject event = new JSONObject();
 		event.put("plugin", theName);
 		event.put("method", "changePassword");
 		event.put("hashing", hashing.toJson());
+		event.put("constraints", prisms.arch.service.PrismsSerializer
+			.serializeConstraints(constraints));
 		theSession.postOutgoingEvent(event);
 	}
 
