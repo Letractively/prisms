@@ -273,7 +273,7 @@ public class PrismsServiceConnector
 	 * connector is still connected.
 	 * 
 	 * @throws IOException If this service connector is unable to initialize communication with the
-	 *             service. This may result from an incorrect password among other things.
+	 *         service. This may result from an incorrect password among other things.
 	 */
 	public void init() throws IOException
 	{
@@ -313,8 +313,8 @@ public class PrismsServiceConnector
 	 * @param plugin The plugin to call
 	 * @param method The method to call
 	 * @param sync Whether the call is to synchronous (will not return until the procedure is
-	 *            completed on the server) or asynchronous (returns immediately and lets the
-	 *            procedure run)
+	 *        completed on the server) or asynchronous (returns immediately and lets the procedure
+	 *        run)
 	 * @param params The parameters to send to the method
 	 * @throws IOException If a problem occurs calling the server
 	 */
@@ -330,8 +330,9 @@ public class PrismsServiceConnector
 		}
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
-		final IOException [] thrown = new IOException[1];
-		Runnable run = new Runnable() {
+		final IOException [] thrown = new IOException [1];
+		Runnable run = new Runnable()
+		{
 			public void run()
 			{
 				try
@@ -366,7 +367,7 @@ public class PrismsServiceConnector
 	 * @param plugin The plugin to call
 	 * @param method The method to call
 	 * @param aRet The interface to receive the return value of the remote call or the error that
-	 *            occurred
+	 *        occurred
 	 * @param params The parameters to send to the method
 	 */
 	public void getResultAsync(String plugin, String method, final AsyncReturn aRet,
@@ -381,7 +382,8 @@ public class PrismsServiceConnector
 		}
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
-		Runnable run = new Runnable() {
+		Runnable run = new Runnable()
+		{
 			public void run()
 			{
 				JSONArray serverReturn;
@@ -478,11 +480,7 @@ public class PrismsServiceConnector
 			serverReturn.remove(i);
 			i--;
 		}
-		if(ret != null)
-			return ret;
-		else
-			throw new IOException("Error interfacing with server: No result returned: "
-				+ serverReturn);
+		return ret;
 	}
 
 	private JSONArray getResult(ServerMethod serverMethod, JSONObject request) throws IOException
@@ -501,7 +499,7 @@ public class PrismsServiceConnector
 			String retStr = ret.toString();
 			if(logRequestsResponses)
 				log.info(retStr);
-			if(theEncryption != null)
+			if(theEncryption != null && isEncrypted(retStr))
 				retStr = theEncryption.decrypt(retStr);
 			return (JSONArray) org.json.simple.JSONValue.parse(retStr);
 		} catch(Throwable e)
@@ -514,6 +512,11 @@ public class PrismsServiceConnector
 		{
 			is.close();
 		}
+	}
+
+	private boolean isEncrypted(String str)
+	{
+		return !str.startsWith("[") || str.endsWith("]");
 	}
 
 	private java.io.InputStream getResultStream(ServerMethod serverMethod, JSONObject request)
