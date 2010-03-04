@@ -516,7 +516,7 @@ public class PrismsServiceConnector
 
 	private boolean isEncrypted(String str)
 	{
-		return !str.startsWith("[") || str.endsWith("]");
+		return !str.startsWith("[") || !str.endsWith("]");
 	}
 
 	private java.io.InputStream getResultStream(ServerMethod serverMethod, JSONObject request)
