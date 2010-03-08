@@ -1218,8 +1218,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			stmt = thePRISMSConnection.createStatement();
 			id = getNextID("prisms_user", stmt);
-			stmt.execute("INSERT INTO " + DBOWNER + "prisms_user (id, userName, pwdData) VALUES ("
-				+ id + ", " + toSQL(name) + ", NULL)");
+			stmt.execute("INSERT INTO " + DBOWNER + "prisms_user (id, userName) VALUES ("
+				+ id + ", " + toSQL(name) + ")");
 			ret = new DBUser(this, name, id);
 			theUsers.put(name + "/null", ret);
 		} catch(SQLException e)

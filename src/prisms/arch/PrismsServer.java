@@ -1109,7 +1109,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if(session != null)
 		{
 			evt.put("method", "startEncryption");
-			evt.put("encryption", session.getEncryption().getParams());
+			if(session.getEncryption() != null)
+				evt.put("encryption", session.getEncryption().getParams());
 			JSONObject hashing = session.getHashing().toJson();
 			hashing.put("user", session.theUser.getName());
 			evt.put("hashing", hashing);
@@ -1427,8 +1428,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				// init[i] = (byte) ((Math.random() - 0.5) * 2 * Byte.MAX_VALUE);
 				if(theEncryption != null)
 					theEncryption.dispose();
-				theEncryption = createEncryption();
-				theEncryption.init(theKey, null);
+				if(theKey != null)
+				{
+					theEncryption = createEncryption();
+					theEncryption.init(theKey, null);
+				}
 				authChanged = true;
 			}
 		}
@@ -1487,6 +1491,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		String decrypt(String encrypted) throws java.io.IOException
 		{
 			checkAuthenticationData(false);
+			if(theEncryption == null)
+				return encrypted;
 			return theEncryption.decrypt(encrypted);
 		}
 
