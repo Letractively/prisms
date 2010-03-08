@@ -252,7 +252,8 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 		}
 		try
 		{
-			theSession.getApp().getDataSource().setPassword(theUser, hash);
+			theSession.getApp().getDataSource().setPassword(theUser, hash,
+				!theUser.getName().equals(theSession.getUser().getName()));
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not set user password", e);

@@ -18,6 +18,11 @@ public interface User
 	UserSource getSource();
 
 	/**
+	 * @return Whether this user is an admin (governs his permission changing passwords)
+	 */
+	boolean isAdmin();
+
+	/**
 	 * @return This user's name
 	 */
 	String getName();

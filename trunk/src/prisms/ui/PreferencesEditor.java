@@ -33,27 +33,28 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 		String ppName = pluginEl.elementText("prefProperty");
 		if(ppName == null)
 			throw new IllegalArgumentException("No preference property specified");
-		thePrefProperty = prisms.arch.event.PrismsProperty.get(pluginEl.elementText("prefProperty"),
-			prisms.util.preferences.Preferences.class);
+		thePrefProperty = prisms.arch.event.PrismsProperty.get(
+			pluginEl.elementText("prefProperty"), prisms.util.preferences.Preferences.class);
 		if(thePrefProperty == null)
 			throw new IllegalArgumentException("Preference property " + ppName + " does not exist");
 
-		theSession.addEventListener("preferencesChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		theSession.addEventListener("preferencesChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(theDataLock)
-					return;
-				prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
-				JSONObject postEvt = new JSONObject();
-				postEvt.put("plugin", theName);
-				postEvt.put("method", "set");
-				postEvt.put("domain", pEvt.getPreference().getDomain());
-				postEvt.put("prefName", pEvt.getPreference().getName());
-				postEvt.put("type", pEvt.getPreference().getType().name());
-				postEvt.put("value", pEvt.getValue());
-			}
-		});
+				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				{
+					if(theDataLock)
+						return;
+					prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
+					JSONObject postEvt = new JSONObject();
+					postEvt.put("plugin", theName);
+					postEvt.put("method", "set");
+					postEvt.put("domain", pEvt.getPreference().getDomain());
+					postEvt.put("prefName", pEvt.getPreference().getName());
+					postEvt.put("type", pEvt.getPreference().getType().name());
+					postEvt.put("value", pEvt.getValue());
+				}
+			});
 	}
 
 	/**
@@ -109,7 +110,7 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 				break;
 			default:
 			}
-			if(domain == null || pref == null)
+			if(domain == null)
 				throw new IllegalArgumentException("No domain/prefName couple");
 			theDataLock = true;
 			try

@@ -92,6 +92,12 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 
 	public java.sql.Connection getConnection(Element el, prisms.arch.ds.UserSource userSource)
 	{
+		if(el == null)
+		{
+			log.error("No PRISMS configuration element was available!");
+			throw new IllegalStateException("No PRISMS configuration element was available!");
+		}
+
 		String name = el.attributeValue("name");
 		if(name == null)
 			name = el.elementTextTrim("name");
@@ -111,12 +117,6 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			if(ret != null)
 				return ret;
 		}
-		if(el == null)
-		{
-			log.error("No PRISMS configuration element was available!");
-			throw new IllegalStateException("No PRISMS configuration element was available!");
-		}
-
 		if("true".equalsIgnoreCase(el.elementText("usePrismsConnection")))
 		{
 			if(userSource instanceof prisms.impl.DBUserSource)

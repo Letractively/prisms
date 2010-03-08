@@ -38,8 +38,93 @@ public class PrismsUtils
 		boolean nodesMatch(T1 node1, T2 node2);
 	}
 
+	private static final java.text.SimpleDateFormat theFcastFormat;
+
+	static
+	{
+		theFcastFormat = new java.text.SimpleDateFormat("ddMMMyyyy HHmm'Z'");
+		theFcastFormat.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+	}
+
 	private PrismsUtils()
 	{
+	}
+
+	/**
+	 * Prints a military-style GMT-referenced date
+	 * 
+	 * @param time The time to represent
+	 * @return The <code>ddMMMyyyy HHmm'Z'</code> representation of <code>time</code>
+	 */
+	public static String print(long time)
+	{
+		return theFcastFormat.format(new java.util.Date(time));
+	}
+
+	/**
+	 * Parses a military-style GMT-referenced date
+	 * 
+	 * @param time The formatted time string
+	 * @return The java time value represented by <code>time</code>
+	 */
+	public static long parse(String time)
+	{
+		try
+		{
+			return theFcastFormat.parse(time).getTime();
+		} catch(java.text.ParseException e)
+		{
+			throw new IllegalArgumentException("Cannot parse " + time + " to a time", e);
+		}
+	}
+
+	/**
+	 * Prints a time length to a string builder
+	 * 
+	 * @param length The length of time in milliseconds
+	 * @return The representation of the time length into
+	 */
+	public static String printTimeLength(long length)
+	{
+		StringBuilder sb = new StringBuilder();
+		if(length == 0)
+			sb.append("no time");
+		int days, hrs, mins, secs, millis;
+		millis = (int) (length % 1000);
+		length /= 1000;
+		secs = (int) (length % 60);
+		length /= 60;
+		mins = (int) (length % 60);
+		length /= 60;
+		hrs = (int) (length % 24);
+		length /= 24;
+		days = (int) length;
+		if(days > 0)
+		{
+			sb.append(days);
+			sb.append(" days ");
+		}
+		if(hrs > 0)
+		{
+			sb.append(hrs);
+			sb.append(" hours ");
+		}
+		if(mins > 0)
+		{
+			sb.append(mins);
+			sb.append(" minutes ");
+		}
+		if(secs > 0)
+		{
+			sb.append(secs);
+			sb.append(" seconds ");
+		}
+		if(millis > 0)
+		{
+			sb.append(millis);
+			sb.append(" millis");
+		}
+		return sb.toString();
 	}
 
 	/**

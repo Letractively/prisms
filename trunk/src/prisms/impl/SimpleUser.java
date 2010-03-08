@@ -15,6 +15,8 @@ import prisms.arch.ds.UserSource;
  */
 public class SimpleUser implements User
 {
+	private boolean isAdmin;
+
 	private final UserSource theSource;
 
 	private String theName;
@@ -79,6 +81,19 @@ public class SimpleUser implements User
 	public SimpleUser getRootUser()
 	{
 		return theRootUser;
+	}
+
+	public boolean isAdmin()
+	{
+		return isAdmin;
+	}
+
+	/**
+	 * @param admin Whether this user is an admin or not
+	 */
+	protected void setAdmin(boolean admin)
+	{
+		isAdmin = admin;
 	}
 
 	/**

@@ -511,7 +511,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(PrismsException e)
 			{
 				log.error("Could not get client " + clientName, e);
-				client = null;
 			}
 		}
 		Lock lock;
@@ -841,7 +840,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				pwdData = new long [jsonPwdData.size()];
 				for(int i = 0; i < pwdData.length; i++)
 					pwdData[i] = ((Number) jsonPwdData.get(i)).longValue();
-				theUserSource.setPassword(appUser, pwdData);
+				theUserSource.setPassword(appUser, pwdData, appUser.isAdmin());
 				evt = new JSONObject();
 				evt.put("method", "callInit");
 				ret.add(evt);
