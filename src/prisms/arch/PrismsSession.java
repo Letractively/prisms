@@ -146,8 +146,7 @@ public class PrismsSession
 			{
 				thePlugins.put(name, ret);
 			}
-			if(ret != null)
-				addPlugin(name, ret);
+			addPlugin(name, ret);
 		}
 		return ret;
 	}
@@ -324,7 +323,7 @@ public class PrismsSession
 					toPrint.append("Initialized plugin ");
 					toPrint.append(p.getKey());
 					toPrint.append(" in ");
-					toPrint.append(prisms.util.ProgramTracker.printTimeLength(newTime - time));
+					toPrint.append(prisms.util.PrismsUtils.printTimeLength(newTime - time));
 					log.debug(toPrint);
 				}
 			}

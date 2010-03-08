@@ -76,25 +76,22 @@ public class OwnedObjectManager<T> extends PersistingPropertyManager<T>
 		if(!(objVal instanceof OwnedObject []))
 			throw new IllegalStateException("OwnedObject array expected, " + objVal.getClass()
 				+ " received");
-		if(objVal != null)
+		ArrayList<OwnedObject> publicList = new ArrayList<OwnedObject>();
+		ArrayList<OwnedObject> privateList = new ArrayList<OwnedObject>();
+		for(OwnedObject o : (OwnedObject []) objVal)
 		{
-			ArrayList<OwnedObject> publicList = new ArrayList<OwnedObject>();
-			ArrayList<OwnedObject> privateList = new ArrayList<OwnedObject>();
-			for(OwnedObject o : (OwnedObject []) objVal)
-			{
-				if(o.isPublic())
-					publicList.add(o);
-				else
-					privateList.add(o);
-			}
-			if(!ArrayUtils.equals(publicList, thePublicList)
-				|| !ArrayUtils.equals(privateList, thePrivateList))
-			{
-				thePublicList = publicList.toArray((OwnedObject []) Array.newInstance(theType,
-					publicList.size()));
-				thePrivateList = privateList.toArray((OwnedObject []) Array.newInstance(theType,
-					privateList.size()));
-			}
+			if(o.isPublic())
+				publicList.add(o);
+			else
+				privateList.add(o);
+		}
+		if(!ArrayUtils.equals(publicList, thePublicList)
+			|| !ArrayUtils.equals(privateList, thePrivateList))
+		{
+			thePublicList = publicList.toArray((OwnedObject []) Array.newInstance(theType,
+				publicList.size()));
+			thePrivateList = privateList.toArray((OwnedObject []) Array.newInstance(theType,
+				privateList.size()));
 		}
 	}
 

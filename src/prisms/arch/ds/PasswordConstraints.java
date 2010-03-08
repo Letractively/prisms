@@ -80,6 +80,9 @@ public class PasswordConstraints
 		return theMinCharacterLength;
 	}
 
+	/**
+	 * @param length The minimum number of characters a password should contain
+	 */
 	public void setMinCharacterLength(int length)
 	{
 		if(isLocked)
@@ -95,6 +98,9 @@ public class PasswordConstraints
 		return theMinUpperCase;
 	}
 
+	/**
+	 * @param count The minimum number of upper-case characters a password should contain
+	 */
 	public void setMinUpperCase(int count)
 	{
 		if(isLocked)
@@ -110,6 +116,9 @@ public class PasswordConstraints
 		return theMinLowerCase;
 	}
 
+	/**
+	 * @param count The minimum number of lower-case characters a password should contain
+	 */
 	public void setMinLowerCase(int count)
 	{
 		if(isLocked)
@@ -125,6 +134,9 @@ public class PasswordConstraints
 		return theMinDigits;
 	}
 
+	/**
+	 * @param count The minimum number of decimal digits a password should contain
+	 */
 	public void setMinDigits(int count)
 	{
 		if(isLocked)
@@ -140,6 +152,9 @@ public class PasswordConstraints
 		return theMinSpecialChars;
 	}
 
+	/**
+	 * @param count The minimum number of special characters a password should contain
+	 */
 	public void setMinSpecialChars(int count)
 	{
 		if(isLocked)
@@ -156,6 +171,10 @@ public class PasswordConstraints
 		return theMaxPasswordDuration;
 	}
 
+	/**
+	 * @param duration The maximum amound of time a password should be valid before requiring the
+	 *        user to change it
+	 */
 	public void setMaxPasswordDuration(long duration)
 	{
 		if(isLocked)
@@ -171,6 +190,9 @@ public class PasswordConstraints
 		return theNumPreviousUnique;
 	}
 
+	/**
+	 * @param count The number of previous passwords a user should not be able to reuse
+	 */
 	public void setNumPreviousUnique(int count)
 	{
 		if(isLocked)
@@ -187,6 +209,10 @@ public class PasswordConstraints
 		return theMinPasswordChangeInterval;
 	}
 
+	/**
+	 * @param interval The minimum time interval that should pass between a user changing his
+	 *        password (does not apply to administrative password changes)
+	 */
 	public void setMinPasswordChangeInterval(long interval)
 	{
 		if(isLocked)

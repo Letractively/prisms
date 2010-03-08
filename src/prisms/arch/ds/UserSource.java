@@ -67,9 +67,10 @@ public interface UserSource
 	 * 
 	 * @param user The user to set the password for
 	 * @param hash The hashed password information
+	 * @param isAdmin Whether this password change is being performed by an admin user
 	 * @throws PrismsException If an error occurs writing the data
 	 */
-	void setPassword(User user, long [] hash) throws PrismsException;
+	void setPassword(User user, long [] hash, boolean isAdmin) throws PrismsException;
 
 	/**
 	 * Locks a user so that all current sessions using this login are disabled and no more may be
@@ -101,7 +102,7 @@ public interface UserSource
 	 * @param client The client configuration to create the session for
 	 * @param user The user to create the session for
 	 * @param asService Whether the new session is to be creates as an M2M client as opposed to as a
-	 *            user interface client
+	 *        user interface client
 	 * @return The new session to use
 	 * @throws PrismsException If an error configuring the session
 	 */

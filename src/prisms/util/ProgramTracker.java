@@ -252,9 +252,9 @@ public class ProgramTracker
 		long length = node.length;
 		for(TrackNode ch : node.children)
 			length -= ch.length;
-		sb.append(printTimeLength(length));
+		sb.append(PrismsUtils.printTimeLength(length));
 		sb.append('(');
-		sb.append(printTimeLength(node.length));
+		sb.append(PrismsUtils.printTimeLength(node.length));
 		sb.append(" total)");
 		out.println(sb.toString());
 		lastTime = node.startTime;
@@ -295,55 +295,6 @@ public class ProgramTracker
 			sb.append(formats[3].format(d));
 		else
 			sb.append(formats[4].format(d));
-	}
-
-	/**
-	 * Prints a time length to a string builder
-	 * 
-	 * @param length The length of time in milliseconds
-	 * @return The representation of the time length into
-	 */
-	public static String printTimeLength(long length)
-	{
-		StringBuilder sb = new StringBuilder();
-		if(length == 0)
-			sb.append("no time");
-		int days, hrs, mins, secs, millis;
-		millis = (int) (length % 1000);
-		length /= 1000;
-		secs = (int) (length % 60);
-		length /= 60;
-		mins = (int) (length % 60);
-		length /= 60;
-		hrs = (int) (length % 24);
-		length /= 24;
-		days = (int) length;
-		if(days > 0)
-		{
-			sb.append(days);
-			sb.append(" days ");
-		}
-		if(hrs > 0)
-		{
-			sb.append(hrs);
-			sb.append(" hours ");
-		}
-		if(mins > 0)
-		{
-			sb.append(mins);
-			sb.append(" minutes ");
-		}
-		if(secs > 0)
-		{
-			sb.append(secs);
-			sb.append(" seconds ");
-		}
-		if(millis > 0)
-		{
-			sb.append(millis);
-			sb.append(" millis");
-		}
-		return sb.toString();
 	}
 
 	final TrackNode merge(TrackNode [] nodes)

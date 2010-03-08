@@ -17,6 +17,8 @@ class DBUser extends SimpleUser
 	{
 		super(rootUser, app);
 		theID = rootUser.getID();
+		if(theID == 0)
+			setAdmin(true);
 	}
 
 	public int getID()

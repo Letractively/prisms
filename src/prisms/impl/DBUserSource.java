@@ -1212,7 +1212,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		int id;
 		DBUser ret;
 		Statement stmt = null;
-		ResultSet rs = null;
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -1229,12 +1228,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		} finally
 		{
 			lock.unlock();
-			if(rs != null)
-				try
-				{
-					rs.close();
-				} catch(SQLException e)
-				{}
 			if(stmt != null)
 				try
 				{
@@ -1361,9 +1354,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	}
 
 	/**
-	 * @see prisms.arch.ds.UserSource#setPassword(prisms.arch.ds.User, long[])
+	 * @see prisms.arch.ds.UserSource#setPassword(prisms.arch.ds.User, long[], boolean)
 	 */
-	public void setPassword(User user, long [] hash) throws PrismsException
+	public void setPassword(User user, long [] hash, boolean isAdmin) throws PrismsException
 	{
 		prisms.arch.ds.PasswordConstraints constraints = getPasswordConstraints();
 		PasswordData [] password = getPasswordData((DBUser) user, false);
@@ -1390,13 +1383,23 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 						+ constraints.getNumPreviousUnique() + " passwords");
 			}
 		}
+		long now = System.currentTimeMillis();
+		if(!isAdmin && password.length > 0)
+		{
+			if(now > password[0].thePasswordTime
+				&& (now - password[0].thePasswordTime) < constraints.getMinPasswordChangeInterval())
+				throw new PrismsException("Password cannot be changed more than every "
+					+ prisms.util.PrismsUtils.printTimeLength(constraints
+						.getMinPasswordChangeInterval())
+					+ "\nPassword can be changed at "
+					+ prisms.util.PrismsUtils.print(password[0].thePasswordTime
+						+ constraints.getMinPasswordChangeInterval()));
+		}
 
 		Statement stmt = null;
-		ResultSet rs = null;
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		String sql = null;
-		long now = System.currentTimeMillis();
 		try
 		{
 			stmt = thePRISMSConnection.createStatement();
@@ -1422,12 +1425,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		} finally
 		{
 			lock.unlock();
-			if(rs != null)
-				try
-				{
-					rs.close();
-				} catch(SQLException e)
-				{}
 			if(stmt != null)
 				try
 				{
@@ -1454,7 +1451,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(constraints.getMaxPasswordDuration() > 0
 			&& time - System.currentTimeMillis() > constraints.getMaxPasswordDuration())
 			throw new PrismsException("Password expiration cannot be set for more than "
-				+ prisms.util.ProgramTracker.printTimeLength(constraints.getMaxPasswordDuration())
+				+ prisms.util.PrismsUtils.printTimeLength(constraints.getMaxPasswordDuration())
 				+ " from current date");
 		PasswordData [] password = getPasswordData((DBUser) user, true);
 		if(password.length == 0)
@@ -1673,7 +1670,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	{
 		int id;
 		Statement stmt = null;
-		ResultSet rs = null;
 		DBGroup ret;
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1693,12 +1689,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		} finally
 		{
 			lock.unlock();
-			if(rs != null)
-				try
-				{
-					rs.close();
-				} catch(SQLException e)
-				{}
 			if(stmt != null)
 				try
 				{
@@ -1935,7 +1925,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		try
 		{
 			Statement stmt = null;
-			ResultSet rs = null;
 			try
 			{
 				stmt = thePRISMSConnection.createStatement();
@@ -1949,12 +1938,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				throw new PrismsException("Could not create application " + name, e);
 			} finally
 			{
-				if(rs != null)
-					try
-					{
-						rs.close();
-					} catch(SQLException e)
-					{}
 				if(stmt != null)
 					try
 					{
@@ -2117,7 +2100,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	{
 		int id;
 		Statement stmt = null;
-		ResultSet rs = null;
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -2133,12 +2115,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		} finally
 		{
 			lock.unlock();
-			if(rs != null)
-				try
-				{
-					rs.close();
-				} catch(SQLException e)
-				{}
 			if(stmt != null)
 				try
 				{
@@ -2345,7 +2321,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		User admin = getUser("admin");
 		if(admin == null)
 			admin = createUser("admin");
-		setPassword(admin, theHashing.partialHash("admin"));
+		setPassword(admin, theHashing.partialHash("admin"), true);
 	}
 
 	private String join(long [] hash)

@@ -83,10 +83,10 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				if(user == null)
 					throw new PrismsException("No such user: " + evt.get("userName"));
 				java.util.List<Long> hashList = (java.util.List<Long>) evt.get("hash");
-				long [] hash = new long[hashList.size()];
+				long [] hash = new long [hashList.size()];
 				for(int h = 0; h < hash.length; h++)
 					hash[h] = hashList.get(h).longValue();
-				theSource.setPassword(user, hash);
+				theSource.setPassword(user, hash, ((Boolean) evt.get("admin")).booleanValue());
 			}
 			else if(method.equals("getAppConfig"))
 			{

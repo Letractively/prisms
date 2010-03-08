@@ -170,7 +170,7 @@ public class ServiceUserSource implements UserSource
 		}
 	}
 
-	public void setPassword(User user, long [] hash) throws PrismsException
+	public void setPassword(User user, long [] hash, boolean admin) throws PrismsException
 	{
 		JSONArray jsonHash = new JSONArray();
 		for(int h = 0; h < hash.length; h++)
@@ -178,7 +178,7 @@ public class ServiceUserSource implements UserSource
 		try
 		{
 			theConnector.callProcedure(thePluginName, "setPassword", true, "userName", user
-				.getName(), "hash", jsonHash);
+				.getName(), "hash", jsonHash, "admin", new Boolean(admin));
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
@@ -495,7 +495,7 @@ public class ServiceUserSource implements UserSource
 		try
 		{
 			JSONArray jsonKey = (JSONArray) res.get("key");
-			long [] ret = new long[jsonKey.size()];
+			long [] ret = new long [jsonKey.size()];
 			for(int i = 0; i < ret.length; i++)
 				ret[i] = ((Number) jsonKey.get(i)).longValue();
 			return ret;
