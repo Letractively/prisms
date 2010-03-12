@@ -702,7 +702,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			evt.put("code", ErrorCode.RequestDenied.description);
 			ret.add(evt);
 		}
-		else if(!encrypted && appUser.isEncryptionRequired())
+		else if(!encrypted && session.isEncryptionRequired())
 		{
 			if(wms != null)
 				PrismsWmsRequest.respondError(resp, "User " + appUser.getName()
@@ -711,7 +711,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			else
 			{
 				JSONObject evt = new JSONObject();
-				evt.put("encryption", session.getEncryption().getParams());
+				evt.put("encryption", session.getEncryption() == null ? null : session
+					.getEncryption().getParams());
 				evt.put("method", "startEncryption");
 				JSONObject hashing = session.getHashing().toJson();
 				hashing.put("user", userName);
@@ -912,7 +913,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(Throwable e)
 			{
 				log.error("Could not create session", e);
-				errorString = "Could not create session: " + e.getMessage();
+				if(e.getCause() != null)
+					errorString = e.getCause().getMessage();
+				else
+					errorString = "Could not create session: " + e.getMessage();
 				errorCode = ErrorCode.RequestFailed;
 			}
 		}
@@ -1407,7 +1411,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 			}
 			long [] newKey = getUserSource().getKey(theUser, theHashing);
-			if(theKey == null)
+			if(theKey == null && newKey != null)
 			{
 				theKey = newKey;
 				if(theEncryption != null)
@@ -1486,6 +1490,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		void validate()
 		{
 			isValidated = true;
+		}
+
+		boolean isEncryptionRequired()
+		{
+			if(theKey == null)
+				return false;
+			return theUser.isEncryptionRequired();
 		}
 
 		String decrypt(String encrypted) throws java.io.IOException

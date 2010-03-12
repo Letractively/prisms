@@ -323,7 +323,7 @@ dojo.declare("prisms.widget.ColorPicker", [dijit._Widget, dijit._Templated], {
 		var _x=x;
 		x=sideLength-y;
 		y=sideLength*sqrt3/2-_x;
-		dojo.marginBox(this.marker, {t: Math.round(y)-2, l:Math.round(x)-2});  
+		dojo.marginBox(this.marker, {t: Math.round(y)-2, l:Math.round(x)-2});
 	},
 
 	_isInteger: function(s){

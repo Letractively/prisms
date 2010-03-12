@@ -468,6 +468,11 @@ public class PrismsSession
 	 */
 	public <T> void setProperty(PrismsProperty<T> propName, T propValue)
 	{
+		// Generics *can* be defeated--check the type here
+		if(propValue != null && !propName.getType().isInstance(propValue))
+			throw new IllegalArgumentException("Cannot set an instance of "
+				+ propValue.getClass().getName() + " for property " + propName + ", type "
+				+ propName.getType().getName());
 		/*
 		 * Many property sets can be going on at once, but only one for each property in a session
 		 */
