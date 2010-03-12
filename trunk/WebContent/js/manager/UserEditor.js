@@ -41,7 +41,7 @@ dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, dijit._Templated, d
 		else if(event.method=="setValue")
 			this.setValue(event.value);
 		else if(event.method=="changePassword")
-			this.changePassword(event.hashing);
+			this.changePassword(event.hashing, event.constraints);
 		else
 			throw new Error("event "+event.plugin+"."+event.method+" not recognized");
 	},
