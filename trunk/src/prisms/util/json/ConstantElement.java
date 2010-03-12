@@ -65,6 +65,28 @@ public class ConstantElement implements JsonElement
 			return 1;
 		if(theValue == null || jsonValue == null)
 			return 0;
+		if(jsonValue instanceof Number && theValue instanceof Number)
+		{
+			if(theValue instanceof Integer || theValue instanceof Long)
+			{
+				if(jsonValue instanceof Integer || jsonValue instanceof Long)
+				{
+					if(((Number) theValue).longValue() == ((Number) jsonValue).longValue())
+						return 1;
+					return 0.5f;
+				}
+				else if(jsonValue instanceof Float || jsonValue instanceof Double)
+				{
+					if(((Number) theValue).doubleValue() == ((Number) jsonValue).doubleValue())
+						return 1;
+					return 0.5f;
+				}
+				else if(theValue.equals(jsonValue))
+					return 1;
+				else if(jsonValue instanceof Number)
+					return 0.25f;
+			}
+		}
 		if(theValue.equals(jsonValue))
 			return 1;
 		if(theValue.getClass().isAssignableFrom(jsonValue.getClass()))

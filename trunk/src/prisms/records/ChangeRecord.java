@@ -94,21 +94,36 @@ public class ChangeRecord
 		if(!type.subjectType.getMajorType().isInstance(majorSubject))
 			throw new IllegalArgumentException("Major subject " + majorSubject
 				+ " is not valid for subject type " + type.subjectType);
-		if(type.subjectType.getMetadataType1() != null
-			&& !type.subjectType.getMetadataType1().isInstance(data1))
-			throw new IllegalArgumentException("Metadata " + majorSubject
-				+ " is not valid for first metadata of subject type " + type.subjectType);
-		if(type.subjectType.getMetadataType2() != null
-			&& !type.subjectType.getMetadataType2().isInstance(data2))
-			throw new IllegalArgumentException("Metadata " + majorSubject
-				+ " is not valid for second metadata of subject type " + type.subjectType);
+		if(type.subjectType.getMetadataType1() != null)
+		{
+			if(!type.subjectType.getMetadataType1().isInstance(data1))
+				throw new IllegalArgumentException("Metadata " + majorSubject
+					+ " is not valid for first metadata of subject type " + type.subjectType);
+		}
+		else if(data1 != null)
+			throw new IllegalArgumentException("Subject type " + type.subjectType
+				+ " does not allow metadata");
+		if(type.subjectType.getMetadataType2() != null)
+		{
+			if(!type.subjectType.getMetadataType2().isInstance(data2))
+				throw new IllegalArgumentException("Metadata " + majorSubject
+					+ " is not valid for second metadata of subject type " + type.subjectType);
+		}
+		else if(data2 != null)
+			throw new IllegalArgumentException("Subject type " + type.subjectType
+				+ " does not allow 2 metadata objects");
 		if(type.additivity == 0 && type.changeType == null)
 			throw new IllegalArgumentException(
 				"A change type must be specified for a modification (additivity=0)");
-		if(type.changeType.getMinorType() != null
-			&& !type.changeType.getMinorType().isInstance(minorSubject))
-			throw new IllegalArgumentException("Minor subject " + minorSubject
-				+ " is not valid for change type " + type.changeType);
+		if(type.changeType != null && type.changeType.getMinorType() != null)
+		{
+			if(!type.changeType.getMinorType().isInstance(minorSubject))
+				throw new IllegalArgumentException("Minor subject " + minorSubject
+					+ " is not valid for change type " + type.changeType);
+		}
+		else if(minorSubject != null)
+			throw new IllegalArgumentException("Change type " + type.changeType
+				+ " does not allow a minor subject");
 		if(previousValue != null)
 		{
 			if(!type.changeType.getObjectType().isInstance(previousValue))
@@ -116,5 +131,34 @@ public class ChangeRecord
 					+ ") is not valid for change type " + type.changeType + ": Not an instance of "
 					+ type.changeType.getObjectType().getName());
 		}
+	}
+
+	public String toString()
+	{
+		if(type.changeType == null)
+		{
+			if(type.additivity > 0)
+				return RecordType.prettify(type.subjectType.toString()) + majorSubject + " created";
+			else
+				return RecordType.prettify(type.subjectType.toString()) + majorSubject + " deleted";
+		}
+		else
+			return type.changeType.toString(type.additivity, majorSubject, minorSubject);
+	}
+
+	/**
+	 * Prints this modification out with context
+	 * 
+	 * @param preValue The value of the field after this change, or null if this is not a field
+	 *        modification
+	 * @return A string representing the change
+	 */
+	public String toString(Object preValue)
+	{
+		if(type.changeType == null)
+			return toString();
+		else
+			return type.changeType.toString(type.additivity, majorSubject, minorSubject,
+				previousValue, preValue);
 	}
 }

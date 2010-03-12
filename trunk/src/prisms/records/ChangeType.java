@@ -28,4 +28,33 @@ public interface ChangeType
 	 *         a serialized string
 	 */
 	boolean isObjectIdentifiable();
+
+	/**
+	 * @param additivity The additivity of the change
+	 * @return A display string for the change type, or null if the change is illegal
+	 */
+	String toString(int additivity);
+
+	/**
+	 * Prints this change type with some context
+	 * 
+	 * @param additivity The additivity of the change
+	 * @param majorSubject The major subject that was changed
+	 * @param minorSubject The minor subject in the change
+	 * @return A string representing the change
+	 */
+	String toString(int additivity, Object majorSubject, Object minorSubject);
+
+	/**
+	 * Prints this change type with complete context
+	 * 
+	 * @param additivity The additivity of the change
+	 * @param majorSubject The major subject that was changed
+	 * @param minorSubject The minor subject in the change
+	 * @param before The field value before the change
+	 * @param after The field value after the change
+	 * @return A string representing the change
+	 */
+	String toString(int additivity, Object majorSubject, Object minorSubject, Object before,
+		Object after);
 }

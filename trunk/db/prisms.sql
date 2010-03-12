@@ -130,8 +130,8 @@ CREATE TABLE prisms_preference (
 );
 
 CREATE TABLE prisms_change_record(
-	id NUMERIC(20) NOT NULL PRIMARY KEY,
-	recordNS VARCHAR(64) NOT NULL PRIMARY KEY,
+	id NUMERIC(20) NOT NULL,
+	recordNS VARCHAR(64) NOT NULL,
 	changeTime TIMESTAMP NOT NULL,
 	changeUser NUMERIC(20) NOT NULL,
 	subjectType VARCHAR(32) NOT NULL,
@@ -143,17 +143,19 @@ CREATE TABLE prisms_change_record(
 	shortPreValue VARCHAR(100) NULL,
     longPreValue LONGVARCHAR NULL,    
 	changeData1 NUMERIC(20) NULL,
-	changeData2 NUMERIC(20) NULL
+	changeData2 NUMERIC(20) NULL,
+
+	PRIMARY KEY(id, recordNS)
 );
 
 CREATE TABLE prisms_center(
-	id INT NULL
+	id INT NULL PRIMARY KEY
 );
 
 CREATE TABLE prisms_center_view(
-	id INT NOT NULL,
-	centerID INT NULL,
+	id INT NOT NULL PRIMARY KEY,
 	recordNS VARCHAR(64) NOT NULL,
+	centerID INT NULL,
 	name VARCHAR(64) NOT NULL,
 	url VARCHAR(512) NULL,
 	serverUserName VARCHAR(64) NULL,
@@ -165,23 +167,29 @@ CREATE TABLE prisms_center_view(
 	lastExportSync TIMESTAMP NULL,
 	deleted CHAR(1) NOT NULL,
 
-	FOREIGN KEY(centerID) REFERENCES prisms_center(id)
+	FOREIGN KEY(centerID) REFERENCES prisms_center(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_sync_record(
-	id INT NOT NULL,
-	syncCenter INT NOT NULL,
+	id INT NOT NULL PRIMARY KEY,
 	recordNS VARCHAR(64) NOT NULL,
+	syncCenter INT NOT NULL,
 	parallelID INT NULL,
 	syncTime TIMESTAMP NOT NULL,
 	syncType VARCHAR(32) NOT NULL,
 	isImport CHAR(1) NOT NULL,
-	syncError VARCHAR(1024) NULL
+	syncError VARCHAR(1024) NULL,
+
+	FOREIGN KEY(syncCenter) REFERENCES prisms_center_view(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_sync_assoc(
+	recordNS VARCHAR(64),
 	syncRecord INT NOT NULL,
-	changeRecord NUMERIC(20) NOT NULL
+	changeRecord NUMERIC(20) NOT NULL,
+
+	FOREIGN KEY(syncRecord) REFERENCES prisms_sync_record(id) ON DELETE CASCADE,
+	FOREIGN KEY(changeRecord, recordNS) REFERENCES prisms_change_record(id, recordNS) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_auto_purge(
@@ -207,4 +215,3 @@ CREATE TABLE prisms_auto_increment(
 	tableName VARCHAR(32) NOT NULL,
 	nextID	  NUMERIC(20) NOT NULL
 );
-

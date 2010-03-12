@@ -1,0 +1,73 @@
+
+<table style="width:100%">
+	<tr>
+		<td style="font-size:x-large;font-weight:bold" dojoAttachPoint="titleHeader"></td>
+		<td style="font-size:large;font-weight:bold" dojoAttachPoint="showAllHistoryDiv">
+			<a href="" onclick="return false" style="color:blue" dojoAttachEvent="onclick:_showAllHistory">Show All History</a>
+		</td>
+	</tr>
+	<tr>
+		<td colspan="2" style="font-size:large;font-weight:bold">Shapshot taken at
+			<span dojoAttachPoint="snapshotTime"></span>
+			<a href="" onclick="return false" style="color:blue" dojoAttachEvent="onclick:_refresh">Refresh</a>
+		</td>
+	</tr>
+	<tr><td colspan="2"><div dojoType="prisms.widget.SortTable" dojoAttachPoint="sortTable"
+		style="width:100%"
+		dojoAttachEvent="sortOn:_sortBy,goToLink:_goTo,navTo:_navTo,selectChanged:_selectChanged">
+	</div></td></tr>
+	<tr>
+		<td colspan="2"><table><tr><td><div dojoType="dijit.form.Button"
+			dojoAttachEvent="onClick:_undoClicked">Undo Selected</div></td>
+		<td><div dojoType="dijit.form.Button" dojoAttachPoint="purgeSelected"
+			dojoAttachEvent="onClick:_purgeClicked">Purge Selected</div></td>
+		</tr></table></td>
+	</tr>
+	<tr dojoType="prisms.widget.CollapsePane" dojoAttachPoint="autoPurgePanel" title="Auto-Purge"
+		governRowCount="4">
+		<td colspan="2" dojoAttachPoint="autoPurgeNotificationCell"
+			style="visibility:hidden;color:red;font-weight:bold;font-size:large">
+			Auto-Purge settings are not changed until the "Save Auto-Purge Changes" button below
+			is clicked. Click "Refresh" above to undo changes. 
+		</td>
+	</tr>
+	<tr>
+		<td colspan="2">
+			<table><tr>
+				<td>Max. Stored Modifications:</td>
+				<td><input type="checkbox" dojoAttachPoint="entryCountCheck"
+					dojoAttachEvent="onclick:_entryCountChanged" /></td>
+				<td><div dojoType="dijit.form.NumberSpinner" dojoAttachPoint="entryCountEditor"
+					constraints="{min:0}" invalidMessage="Must be between a non-negative number"
+					style="width:80px" dojoAttachEvent="onChange:_entryCountChanged" value="1000"></div>
+				<td>Age:</td>
+				<td><input type="checkbox" dojoAttachPoint="ageCheck"
+					dojoAttachEvent="onclick:_ageChanged" /></td>
+				<td><div dojoType="prisms.widget.TimeAmountEditor" monthsEnabled="false"
+					secondsEnabled="false" dojoAttachPoint="ageEditor"
+					dojoAttachEvent="onChange:_ageChanged"></div></td>
+			</tr></table>
+		</td>
+	</tr>
+	<tr>
+		<td colspan="2">
+			<table><tr>
+				<td>Exclude Users</td>
+				<td width="10px">
+<!--				<td>Exclude Modification Types</td>-->
+			</tr><tr><td valign="top">
+				<select multiple="true" size="8" dojoAttachPoint="excludeUsers"
+					dojoAttachEvent="onchange:_excludeUsersChanged"></select>
+<!--			</td><td></td><td valign="top">
+				<select multiple="true" size="8" dojoAttachPoint="excludeTypes"
+					dojoAttachEvent="onchange:_excludeTypesChanged"></select>-->
+			</td></tr></table>
+		</td>
+	</tr>
+	<tr>
+		<td colspan="2">
+			<div dojoType="dijit.form.Button" dojoAttachPoint="autoPurgeButton"
+				dojoAttachEvent="onClick:_sendAutoPurge">Save Auto-Purge Changes</div>
+		</td>
+	</tr>
+</table>
