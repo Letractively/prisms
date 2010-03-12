@@ -31,7 +31,7 @@ public class AutoPurger
 
 	private long theAge;
 
-	private long [] theExcludeUsers;
+	private RecordUser [] theExcludeUsers;
 
 	private RecordType [] theExcludeTypes;
 
@@ -42,7 +42,7 @@ public class AutoPurger
 	{
 		theEntryCount = -1;
 		theAge = -1;
-		theExcludeUsers = new long [0];
+		theExcludeUsers = new RecordUser [0];
 		theExcludeTypes = new RecordType [0];
 	}
 
@@ -83,29 +83,33 @@ public class AutoPurger
 	/**
 	 * @return The users whose modifications (those they cause) will not be purged
 	 */
-	public long [] getExcludeUsers()
+	public RecordUser [] getExcludeUsers()
 	{
 		return theExcludeUsers;
 	}
 
 	/**
-	 * @param user Adds a user to this purger, causing that user's modifications (those they cause)
-	 *        to cease being purged
+	 * Adds a user to this purger, causing that user's modifications (those they cause) to cease
+	 * being purged
+	 * 
+	 * @param user The user to exclude from purge
 	 */
-	public void addExcludeUser(long user)
+	public void addExcludeUser(RecordUser user)
 	{
-		if(!ArrayUtils.containsP(theExcludeUsers, new Long(user)))
-			theExcludeUsers = (long []) ArrayUtils.addP(theExcludeUsers, new Long(user));
+		if(!ArrayUtils.containsP(theExcludeUsers, user))
+			theExcludeUsers = ArrayUtils.add(theExcludeUsers, user);
 	}
 
 	/**
-	 * @param user Removes a user from this purger, causing that user's modifications (those they
-	 *        cause) to resume being purged
+	 * Removes a user from this purger, causing that user's modifications (those they cause) to
+	 * resume being purged
+	 * 
+	 * @param user The user to include in the purge
 	 */
-	public void removeExcludeUser(long user)
+	public void removeExcludeUser(RecordUser user)
 	{
-		int idx = ArrayUtils.indexOf(theExcludeUsers, new Long(user));
-		theExcludeUsers = (long []) ArrayUtils.removeP(theExcludeUsers, idx);
+		int idx = ArrayUtils.indexOf(theExcludeUsers, user);
+		theExcludeUsers = ArrayUtils.remove(theExcludeUsers, idx);
 	}
 
 	/**
@@ -183,24 +187,9 @@ public class AutoPurger
 			changeTypeColumn, additivityColumn);
 		if(ids.length == 0)
 			return;
-		StringBuilder sql = new StringBuilder();
-		sql.append("DELETE FROM ");
-		sql.append(modTable);
-		sql.append(" WHERE recordNS=" + RecordKeeper.toSQL(rk.getNamespace()) + " AND id IN (");
-		for(int i = 0; i < ids.length; i++)
-		{
-			if(i > 0)
-				sql.append(", ");
-			sql.append(ids[i]);
-		}
-		sql.append(')');
-		try
-		{
-			stmt.execute(sql.toString());
-		} catch(SQLException e)
-		{
-			throw new PrismsRecordException("Could not purge modifications: SQL=" + sql, e);
-		}
+		ChangeRecord [] records = rk.getChanges(ids);
+		for(ChangeRecord record : records)
+			rk.purge(record, stmt);
 	}
 
 	/**

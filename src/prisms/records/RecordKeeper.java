@@ -14,10 +14,42 @@ import prisms.records.RecordPersister.ChangeData;
 import prisms.util.ArrayUtils;
 import prisms.util.PrismsUtils;
 
-import static prisms.records.PrismsChanges.*;
-
+/**
+ * Keeps records of changes to a data set
+ */
 public class RecordKeeper
 {
+	/**
+	 * Fields on which the history may be sorted
+	 */
+	public static enum ChangeField implements HistorySorter.Field
+	{
+		/**
+		 * Sort on the subject type
+		 */
+		CHANGE_TYPE("type"),
+		/**
+		 * Sort on the change time
+		 */
+		CHANGE_TIME("changeTime"),
+		/**
+		 * Sort on the user that made the change
+		 */
+		CHANGE_USER("changeUser");
+
+		private final String theDBValue;
+
+		ChangeField(String dbValue)
+		{
+			theDBValue = dbValue;
+		}
+
+		public String toString()
+		{
+			return theDBValue;
+		}
+	}
+
 	static final Logger log = Logger.getLogger(RecordKeeper.class);
 
 	/**
@@ -43,13 +75,20 @@ public class RecordKeeper
 
 	private SyncRecord theSyncRecord;
 
+	/**
+	 * Creates a record keeper
+	 * 
+	 * @param namespace The namespace that this keeper is to use to separate it from other record
+	 *        keepers using the same database.
+	 * @param connEl The XML element to use to obtain a database connection
+	 * @param factory The persister factory to use to obtain a database connection
+	 */
 	public RecordKeeper(String namespace, org.dom4j.Element connEl,
-		prisms.arch.PersisterFactory factory, RecordPersister persister)
+		prisms.arch.PersisterFactory factory)
 	{
 		theNamespace = namespace;
 		theConnEl = connEl;
 		theFactory = factory;
-		thePersister = persister;
 		try
 		{
 			doStartup();
@@ -57,6 +96,20 @@ public class RecordKeeper
 		{
 			log.error("Could not perform startup operations", e);
 		}
+	}
+
+	/**
+	 * This method is for startup purposes ONLY! The persister cannot be changed out dynamically.
+	 * This method must be called before any of the data methods are called.
+	 * 
+	 * @param persister The persister implementation allowing this keeper to associate itself with
+	 *        implementation-specific data
+	 */
+	public void setPersister(RecordPersister persister)
+	{
+		if(thePersister != null)
+			throw new IllegalArgumentException("The persister cannot be changed");
+		thePersister = persister;
 	}
 
 	/**
@@ -68,22 +121,31 @@ public class RecordKeeper
 	{
 		PrismsCenter selfCenter = getCenter(0, null);
 		if(selfCenter != null)
-			theCenterID = selfCenter.getID();
+			theCenterID = selfCenter.getCenterID();
 		else
 		{
-			selfCenter = new PrismsCenter(theNamespace, 0, "Here");
-			selfCenter.setID((int) (Math.random() * theCenterIDRange));
+			selfCenter = new PrismsCenter(0, "Here");
+			selfCenter.setNamespace(theNamespace);
+			selfCenter.setCenterID((int) (Math.random() * theCenterIDRange));
+			theCenterID = selfCenter.getCenterID();
 			putCenter(selfCenter, null);
 			log.debug("Created rules center with ID " + selfCenter.getID());
-			theCenterID = selfCenter.getID();
 		}
 	}
 
+	/**
+	 * @return The namespace that this record keeper is in. More than one record keeper can use the
+	 *         same database, provided they keep different namespaces.
+	 */
 	public String getNamespace()
 	{
 		return theNamespace;
 	}
 
+	/**
+	 * @return The persister implementation allowing this record keeper to associate itself with
+	 *         implementation-specific data
+	 */
 	public RecordPersister getPersister()
 	{
 		return thePersister;
@@ -97,7 +159,20 @@ public class RecordKeeper
 		return theCenterID;
 	}
 
-	PrismsCenter [] getCenters() throws PrismsRecordException
+	/**
+	 * @param objectID The ID of an object
+	 * @return The ID of the center where the given object was created
+	 */
+	public int getCenterID(long objectID)
+	{
+		return (int) (objectID / theCenterIDRange);
+	}
+
+	/**
+	 * @return All non-deleted external centers known in this namespace
+	 * @throws PrismsRecordException If an error occurs retrieving the centers
+	 */
+	public PrismsCenter [] getCenters() throws PrismsRecordException
 	{
 		Statement stmt = null;
 		ResultSet rs = null;
@@ -113,15 +188,15 @@ public class RecordKeeper
 			ArrayList<Number> clientUsers = new ArrayList<Number>();
 			while(rs.next())
 			{
-				PrismsCenter pc = new PrismsCenter(theNamespace, rs.getInt("id"), rs
-					.getString("name"));
-				Number centerID = (Number) rs.getObject("id");
+				PrismsCenter pc = new PrismsCenter(rs.getInt("id"), rs.getString("name"));
+				pc.setNamespace(theNamespace);
+				Number centerID = (Number) rs.getObject("centerID");
 				if(centerID != null)
 					pc.setCenterID(centerID.intValue());
 				pc.setName(rs.getString("name"));
 				pc.setServerURL(rs.getString("url"));
 				pc.setServerUserName(rs.getString("serverUserName"));
-				pc.setServerPassword(rs.getString("serverPassword"));
+				pc.setServerPassword(unprotect(rs.getString("serverPassword")));
 				Number syncFreq = (Number) rs.getObject("syncFrequency");
 				if(syncFreq != null)
 					pc.setServerSyncFrequency(syncFreq.longValue());
@@ -130,10 +205,10 @@ public class RecordKeeper
 				if(changeSaveTime != null)
 					pc.setChangeSaveTime(changeSaveTime.longValue());
 				java.sql.Timestamp time;
-				time = rs.getTimestamp("lastImport");
+				time = rs.getTimestamp("lastImportSync");
 				if(time != null)
 					pc.setLastImport(time.getTime());
-				time = rs.getTimestamp("lastExport");
+				time = rs.getTimestamp("lastExportSync");
 				if(time != null)
 					pc.setLastExport(time.getTime());
 				ret.add(pc);
@@ -173,8 +248,7 @@ public class RecordKeeper
 	PrismsCenter getCenter(int id, Statement stmt) throws PrismsRecordException
 	{
 		ResultSet rs = null;
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_center_view WHERE centerID=" + id
-			+ " AND recordNS=" + toSQL(theNamespace);
+		String sql = null;
 		PrismsCenter pc;
 		Number clientUserID;
 		boolean delStmt = false;
@@ -186,14 +260,20 @@ public class RecordKeeper
 				checkConnection();
 				stmt = theConn.createStatement();
 			}
+			sql = "SELECT * FROM " + DBOWNER + "prisms_center_view WHERE id=" + id
+				+ " AND recordNS=" + toSQL(theNamespace);
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
 				return null;
-			pc = new PrismsCenter(theNamespace, id, rs.getString("name"));
+			pc = new PrismsCenter(id, rs.getString("name"));
+			Number centerID = (Number) rs.getObject("centerID");
+			if(centerID != null)
+				pc.setCenterID(centerID.intValue());
+			pc.setNamespace(theNamespace);
 			pc.setName(rs.getString("name"));
 			pc.setServerURL(rs.getString("url"));
 			pc.setServerUserName(rs.getString("serverUserName"));
-			pc.setServerPassword(rs.getString("serverPassword"));
+			pc.setServerPassword(unprotect(rs.getString("serverPassword")));
 			Number syncFreq = (Number) rs.getObject("syncFrequency");
 			if(syncFreq != null)
 				pc.setServerSyncFrequency(syncFreq.longValue());
@@ -202,10 +282,10 @@ public class RecordKeeper
 			if(changeSaveTime != null)
 				pc.setChangeSaveTime(changeSaveTime.longValue());
 			java.sql.Timestamp time;
-			time = rs.getTimestamp("lastImport");
+			time = rs.getTimestamp("lastImportSync");
 			if(time != null)
 				pc.setLastImport(time.getTime());
-			time = rs.getTimestamp("lastExport");
+			time = rs.getTimestamp("lastExportSync");
 			if(time != null)
 				pc.setLastExport(time.getTime());
 			pc.isDeleted = boolFromSQL(rs.getString("deleted"));
@@ -237,6 +317,13 @@ public class RecordKeeper
 		return pc;
 	}
 
+	/**
+	 * Adds a new center to the record keeper or updates an existing center
+	 * 
+	 * @param center The center to add or update
+	 * @param user The user that caused the change
+	 * @throws PrismsRecordException If an error occurs persisting the data
+	 */
 	public synchronized void putCenter(PrismsCenter center, RecordUser user)
 		throws PrismsRecordException
 	{
@@ -251,19 +338,52 @@ public class RecordKeeper
 			{
 				throw new PrismsRecordException("Could not create statement", e);
 			}
-			PrismsCenter dbCenter = getCenter(theCenterID, stmt);
+			if(center.getID() < 0)
+				try
+				{
+					center.setID(getNextIntID(stmt, DBOWNER + "prisms_center_view", "id"));
+				} catch(SQLException e)
+				{
+					throw new PrismsRecordException("Could not get next center ID", e);
+				}
+			PrismsCenter dbCenter = getCenter(center.getID(), stmt);
 			String sql;
 			if(center.getCenterID() >= 0 && (dbCenter == null || dbCenter.getCenterID() < 0))
 			{
-				sql = "INSERT INTO " + DBOWNER + "prisms_center (id) VALUES (" + center.getID()
-					+ ")";
+				boolean hasCenter;
+				sql = "SELECT id FROM " + DBOWNER + "prisms_center WHERE id="
+					+ center.getCenterID();
+				ResultSet rs = null;
 				try
 				{
-					stmt = theConn.createStatement();
-					stmt.execute(sql);
+					rs = stmt.executeQuery(sql);
+					hasCenter = rs.next();
 				} catch(SQLException e)
 				{
-					throw new PrismsRecordException("Could not insert center: SQL=" + sql, e);
+					throw new PrismsRecordException("Could not query center: SQL=" + sql, e);
+				} finally
+				{
+					if(rs != null)
+						try
+						{
+							rs.close();
+						} catch(SQLException e)
+						{
+							log.error("Connection error", e);
+						}
+				}
+				if(!hasCenter)
+				{
+					sql = "INSERT INTO " + DBOWNER + "prisms_center (id) VALUES ("
+						+ center.getCenterID() + ")";
+					try
+					{
+						stmt = theConn.createStatement();
+						stmt.execute(sql);
+					} catch(SQLException e)
+					{
+						throw new PrismsRecordException("Could not insert center: SQL=" + sql, e);
+					}
 				}
 			}
 			if(dbCenter == null)
@@ -273,15 +393,16 @@ public class RecordKeeper
 					log.warn("Cannot insert PRISMS center view--no user");
 					return;
 				}
+				log.debug("Adding center " + center);
 				sql = "INSERT INTO " + DBOWNER
 					+ "prisms_center_view (id, centerID, recordNS, name,"
 					+ " url, serverUserName, serverPassword, syncFrequency, clientUser,"
-					+ " changeSaveTime, lastImport, lastExport)" + " VALUES(" + center.getID()
-					+ ", ";
+					+ " changeSaveTime, lastImportSync, lastExportSync, deleted) VALUES("
+					+ center.getID() + ", ";
 				sql += (center.getCenterID() >= 0 ? "" + center.getCenterID() : "NULL");
 				sql += ", " + toSQL(theNamespace) + ", " + toSQL(center.getName()) + ", "
 					+ toSQL(center.getServerURL()) + ", " + toSQL(center.getServerUserName())
-					+ ", " + toSQL(center.getServerPassword()) + ", ";
+					+ ", " + toSQL(protect(center.getServerPassword())) + ", ";
 				sql += (center.getServerSyncFrequency() > 0 ? "" + center.getServerSyncFrequency()
 					: "NULL")
 					+ ", ";
@@ -289,7 +410,11 @@ public class RecordKeeper
 					: "NULL")
 					+ ", ";
 				sql += (center.getChangeSaveTime() > 0 ? "" + center.getChangeSaveTime() : "NULL")
-					+ ")";
+					+ ", "
+					+ (center.getLastImport() > 0 ? formatDate(center.getLastImport()) : "NULL")
+					+ ", "
+					+ (center.getLastExport() > 0 ? formatDate(center.getLastExport()) : "NULL")
+					+ ", " + boolToSQL(center.isDeleted()) + ")";
 				try
 				{
 					stmt.execute(sql);
@@ -297,18 +422,17 @@ public class RecordKeeper
 				{
 					throw new PrismsRecordException("Could not insert center: SQL=" + sql, e);
 				}
-				persist(user, PrismsChanges.center, null, 1, center, null, null, null, null);
+				if(user != null)
+					persist(user, PrismsChange.center, null, 1, center, null, null, null, null);
 			}
 			else
 			{
-				String changeMsg = "Updated rules center " + dbCenter + ":\n";
+				String changeMsg = "Updated center " + dbCenter + ":\n";
 				boolean modified = false;
-				boolean centerIDOnly = false;
 				if(dbCenter.getCenterID() < 0 && center.getCenterID() >= 0)
 				{
 					changeMsg += "Center ID set to " + center.getCenterID() + "\n";
 					modified = true;
-					centerIDOnly = true;
 					// No modification here--user-transparent
 					dbCenter.setCenterID(center.getCenterID());
 				}
@@ -317,9 +441,10 @@ public class RecordKeeper
 					changeMsg += "Changed name from " + dbCenter.getName() + " to "
 						+ center.getName() + "\n";
 					modified = true;
-					centerIDOnly = false;
-					persist(user, PrismsChanges.center, CenterChange.name, 0, dbCenter, null,
-						dbCenter.getName(), null, null);
+					if(user == null)
+						throw new PrismsRecordException("Cannot modify a center without a user");
+					persist(user, PrismsChange.center, PrismsChange.CenterChange.name, 0, dbCenter,
+						null, dbCenter.getName(), null, null);
 					dbCenter.setName(center.getName());
 				}
 				if(!equal(dbCenter.getServerURL(), center.getServerURL()))
@@ -327,9 +452,10 @@ public class RecordKeeper
 					changeMsg += "Changed URL from " + dbCenter.getServerURL() + " to "
 						+ center.getServerURL() + "\n";
 					modified = true;
-					centerIDOnly = false;
-					persist(user, PrismsChanges.center, CenterChange.url, 0, dbCenter, null,
-						dbCenter.getServerURL(), null, null);
+					if(user == null)
+						throw new PrismsRecordException("Cannot modify a center without a user");
+					persist(user, PrismsChange.center, PrismsChange.CenterChange.url, 0, dbCenter,
+						null, dbCenter.getServerURL(), null, null);
 					dbCenter.setServerURL(center.getServerURL());
 				}
 				if(!equal(dbCenter.getServerUserName(), center.getServerUserName()))
@@ -337,9 +463,10 @@ public class RecordKeeper
 					changeMsg += "Changed server user name from " + dbCenter.getServerUserName()
 						+ " to " + center.getServerUserName() + "\n";
 					modified = true;
-					centerIDOnly = false;
-					persist(user, PrismsChanges.center, CenterChange.serverUserName, 0, dbCenter,
-						null, dbCenter.getServerUserName(), null, null);
+					if(user == null)
+						throw new PrismsRecordException("Cannot modify a center without a user");
+					persist(user, PrismsChange.center, PrismsChange.CenterChange.serverUserName, 0,
+						dbCenter, null, dbCenter.getServerUserName(), null, null);
 					dbCenter.setServerUserName(center.getServerUserName());
 				}
 				if(!equal(dbCenter.getServerPassword(), center.getServerPassword()))
@@ -358,9 +485,10 @@ public class RecordKeeper
 							changeMsg += '*';
 					changeMsg += "\n";
 					modified = true;
-					centerIDOnly = false;
-					persist(user, PrismsChanges.center, CenterChange.serverPassword, 0, dbCenter,
-						null, dbCenter.getServerPassword(), null, null);
+					if(user == null)
+						throw new PrismsRecordException("Cannot modify a center without a user");
+					persist(user, PrismsChange.center, PrismsChange.CenterChange.serverPassword, 0,
+						dbCenter, null, dbCenter.getServerPassword(), null, null);
 					dbCenter.setServerPassword(center.getServerPassword());
 				}
 				if(dbCenter.getServerSyncFrequency() != center.getServerSyncFrequency())
@@ -372,12 +500,13 @@ public class RecordKeeper
 						+ (center.getServerSyncFrequency() >= 0 ? PrismsUtils
 							.printTimeLength(center.getServerSyncFrequency()) : "none") + "\n";
 					modified = true;
-					centerIDOnly = false;
-					persist(user, PrismsChanges.center, CenterChange.syncFrequency, 0, dbCenter,
-						null, new Long(dbCenter.getServerSyncFrequency()), null, null);
+					if(user == null)
+						throw new PrismsRecordException("Cannot modify a center without a user");
+					persist(user, PrismsChange.center, PrismsChange.CenterChange.syncFrequency, 0,
+						dbCenter, null, new Long(dbCenter.getServerSyncFrequency()), null, null);
 					dbCenter.setServerSyncFrequency(center.getServerSyncFrequency());
 				}
-				else if(!equal(dbCenter.getClientUser(), center.getClientUser()))
+				if(!equal(dbCenter.getClientUser(), center.getClientUser()))
 				{
 					changeMsg += "Changed client user from "
 						+ (dbCenter.getClientUser() == null ? "none" : dbCenter.getClientUser()
@@ -386,9 +515,10 @@ public class RecordKeeper
 						+ (center.getClientUser() == null ? "none" : center.getClientUser()
 							.getName()) + "\n";
 					modified = true;
-					centerIDOnly = false;
-					persist(user, PrismsChanges.center, CenterChange.clientUser, 0, dbCenter, null,
-						dbCenter.getClientUser(), null, null);
+					if(user == null)
+						throw new PrismsRecordException("Cannot modify a center without a user");
+					persist(user, PrismsChange.center, PrismsChange.CenterChange.clientUser, 0,
+						dbCenter, null, dbCenter.getClientUser(), null, null);
 					dbCenter.setClientUser(center.getClientUser());
 				}
 				if(dbCenter.getChangeSaveTime() != center.getChangeSaveTime())
@@ -400,30 +530,52 @@ public class RecordKeeper
 						+ (center.getChangeSaveTime() >= 0 ? PrismsUtils.printTimeLength(center
 							.getChangeSaveTime()) : "none") + "\n";
 					modified = true;
-					centerIDOnly = false;
-					persist(user, PrismsChanges.center, CenterChange.changeSaveTime, 0, dbCenter,
-						null, new Long(dbCenter.getChangeSaveTime()), null, null);
+					if(user == null)
+						throw new PrismsRecordException("Cannot modify a center without a user");
+					persist(user, PrismsChange.center, PrismsChange.CenterChange.changeSaveTime, 0,
+						dbCenter, null, new Long(dbCenter.getChangeSaveTime()), null, null);
 					dbCenter.setChangeSaveTime(center.getChangeSaveTime());
 				}
+				if(dbCenter.getLastImport() != center.getLastImport())
+				{
+					changeMsg += "Change last import time from "
+						+ (dbCenter.getLastImport() > 0 ? PrismsUtils.print(dbCenter
+							.getLastImport()) : "none")
+						+ " to "
+						+ (center.getLastImport() > 0 ? PrismsUtils.print(center.getLastImport())
+							: "none");
+					modified = true;
+					dbCenter.setLastImport(center.getLastImport());
+				}
+				if(dbCenter.getLastExport() != center.getLastExport())
+				{
+					changeMsg += "Change last export time from "
+						+ (dbCenter.getLastExport() > 0 ? PrismsUtils.print(dbCenter
+							.getLastExport()) : "none")
+						+ " to "
+						+ (center.getLastExport() > 0 ? PrismsUtils.print(dbCenter.getLastExport())
+							: "none");
+					modified = true;
+					dbCenter.setLastExport(center.getLastExport());
+				}
 
-				if(dbCenter.isDeleted() && (!center.isDeleted() || center == dbCenter))
+				if(dbCenter.isDeleted() && !center.isDeleted())
 				{
 					changeMsg += "Re-creating center";
-					persist(user, PrismsChanges.center, null, 1, dbCenter, null, null, null, null);
+					if(user == null)
+						throw new PrismsRecordException(
+							"Cannot modify a rules center without a user");
+					persist(user, PrismsChange.center, null, 1, dbCenter, null, null, null, null);
+					dbCenter.isDeleted = false;
 					modified = true;
-					centerIDOnly = false;
 				}
 
 				if(modified)
 				{
-					if(!centerIDOnly && center.getID() != 0 && user == null)
-					{
-						log.warn("Cannot modify a rules center without a user");
-						return;
-					}
 					log.debug(changeMsg.substring(0, changeMsg.length() - 1));
 					sql = "UPDATE " + DBOWNER + "prisms_center_view SET centerID="
-						+ dbCenter.getCenterID() + ", name=" + toSQL(dbCenter.getName()) + ", url="
+						+ (dbCenter.getCenterID() < 0 ? "NULL" : "" + dbCenter.getCenterID())
+						+ ", name=" + toSQL(dbCenter.getName()) + ", url="
 						+ toSQL(dbCenter.getServerURL()) + ", serverUserName="
 						+ toSQL(dbCenter.getServerUserName()) + ", serverPassword="
 						+ toSQL(protect(dbCenter.getServerPassword()));
@@ -435,8 +587,11 @@ public class RecordKeeper
 							+ dbCenter.getClientUser().getID());
 					sql += ", changeSaveTime="
 						+ (dbCenter.getChangeSaveTime() > 0 ? "" + dbCenter.getChangeSaveTime()
-							: "NULL") + ", deleted=" + boolToSQL(false) + " WHERE id="
-						+ dbCenter.getID();
+							: "NULL") + ", deleted=" + boolToSQL(dbCenter.isDeleted());
+					sql += ", lastImportSync=" + formatDate(dbCenter.getLastImport())
+						+ ", lastExportSync=" + formatDate(dbCenter.getLastExport());
+					sql += " WHERE id=" + dbCenter.getID();
+
 					try
 					{
 						stmt.executeUpdate(sql);
@@ -459,9 +614,273 @@ public class RecordKeeper
 		}
 	}
 
-	public long [] getChangeIDs() throws PrismsRecordException
+	/**
+	 * Deletes a center
+	 * 
+	 * @param center The center to delete
+	 * @param user The user that caused the change
+	 * @throws PrismsRecordException If an error occurs deleting the center
+	 */
+	public synchronized void removeCenter(PrismsCenter center, RecordUser user)
+		throws PrismsRecordException
 	{
-		return getChangeRecords(null, null, null, "changeTime DESC");
+		Statement stmt = null;
+		String sql = "UPDATE " + DBOWNER + "prisms_center_view SET deleted=" + boolToSQL(true)
+			+ " WHERE id=" + center.getID();
+		checkConnection();
+		try
+		{
+			stmt = theConn.createStatement();
+			stmt.executeUpdate(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not delete center: SQL=" + sql, e);
+		}
+		center.isDeleted = true;
+		persist(user, PrismsChange.center, null, -1, center, null, null, null, null);
+	}
+
+	/**
+	 * Gets the synchronization records for a center
+	 * 
+	 * @param center The center to get synchronization records for
+	 * @param isImport true if this method should only get import records, false if it should only
+	 *        get export records, null if it should get both types
+	 * @return The requested synchronization records
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
+	public SyncRecord [] getSyncRecords(PrismsCenter center, Boolean isImport)
+		throws PrismsRecordException
+	{
+		Statement stmt = null;
+		ResultSet rs = null;
+		String sql = "SELECT * FROM " + DBOWNER + "prisms_sync_record WHERE recordNS="
+			+ toSQL(theNamespace) + " AND syncCenter=" + center.getID();
+		if(isImport != null)
+			sql += " AND isImport=" + boolToSQL(isImport.booleanValue());
+		sql += " ORDER BY syncTime DESC";
+		ArrayList<SyncRecord> ret = new ArrayList<SyncRecord>();
+		checkConnection();
+		try
+		{
+			stmt = theConn.createStatement();
+			rs = stmt.executeQuery(sql);
+			while(rs.next())
+			{
+				SyncRecord sr = new SyncRecord(rs.getInt("id"), center, SyncRecord.Type.byName(rs
+					.getString("syncType")), rs.getTimestamp("syncTime").getTime(), boolFromSQL(rs
+					.getString("isImport")));
+				sr.setParallelID(rs.getInt("parallelID"));
+				sr.setSyncError(rs.getString("syncError"));
+				ret.add(sr);
+			}
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not get sync records: SQL=" + sql, e);
+		}
+		return ret.toArray(new SyncRecord [ret.size()]);
+	}
+
+	/**
+	 * Puts a new synchronization record in the database or updates an existing record
+	 * 
+	 * @param record The synchronization record to add or update
+	 * @throws PrismsRecordException If an error occurs setting the data
+	 */
+	public synchronized void putSyncRecord(SyncRecord record) throws PrismsRecordException
+	{
+		Statement stmt = null;
+		checkConnection();
+		try
+		{
+			try
+			{
+				stmt = theConn.createStatement();
+			} catch(SQLException e)
+			{
+				throw new PrismsRecordException("Could not create statement", e);
+			}
+			SyncRecord dbRecord = getSyncRecord(record.getCenter(), record.getID(), stmt);
+			String sql;
+			if(dbRecord != null)
+			{
+				String changeMsg = "Updated sync record " + dbRecord + ":\n";
+				boolean modified = false;
+				if(!dbRecord.getSyncType().equals(record.getSyncType()))
+				{
+					changeMsg += "Changed type from " + dbRecord.getSyncType() + " to "
+						+ record.getSyncType() + "\n";
+					modified = true;
+					dbRecord.setSyncType(record.getSyncType());
+				}
+				if(dbRecord.isImport() != record.isImport())
+				{
+					changeMsg += "Changed import from " + dbRecord.isImport() + " to "
+						+ record.isImport() + "\n";
+					modified = true;
+					dbRecord.setImport(record.isImport());
+				}
+				if(dbRecord.getSyncTime() != record.getSyncTime())
+				{
+					changeMsg += "Changed time from " + PrismsUtils.print(dbRecord.getSyncTime())
+						+ " to " + PrismsUtils.print(record.getSyncTime()) + "\n";
+					modified = true;
+					dbRecord.setSyncTime(record.getSyncTime());
+				}
+				if(dbRecord.getParallelID() != record.getParallelID())
+				{
+					changeMsg += "Changed parallel ID from "
+						+ (dbRecord.getParallelID() < 0 ? "none" : "" + dbRecord.getParallelID())
+						+ " to "
+						+ (record.getParallelID() < 0 ? "none" : "" + record.getParallelID());
+					modified = true;
+					dbRecord.setParallelID(record.getParallelID());
+				}
+				if(!equal(dbRecord.getSyncError(), record.getSyncError()))
+				{
+					changeMsg += "Changed error from "
+						+ (dbRecord.getSyncError() != null ? dbRecord.getSyncError() : "none")
+						+ " to " + (record.getSyncError() != null ? record.getSyncError() : "none")
+						+ "\n";
+					modified = true;
+					dbRecord.setSyncError(record.getSyncError());
+				}
+
+				if(modified)
+				{
+					log.debug(changeMsg.substring(0, changeMsg.length() - 1));
+					sql = "UPDATE " + DBOWNER + "prisms_sync_record SET syncType="
+						+ toSQL(dbRecord.getSyncType().toString()) + ", isImport="
+						+ boolToSQL(dbRecord.isImport()) + ", syncTime="
+						+ formatDate(dbRecord.getSyncTime()) + ", parallelID="
+						+ (dbRecord.getParallelID() < 0 ? "NULL" : "" + dbRecord.getParallelID())
+						+ ", syncError=" + toSQL(dbRecord.getSyncError()) + " WHERE id="
+						+ dbRecord.getID();
+					try
+					{
+						stmt.executeUpdate(sql);
+					} catch(SQLException e)
+					{
+						throw new PrismsRecordException("Could not update sync record: SQL=" + sql,
+							e);
+					}
+				}
+			}
+			else
+			{
+				log.debug("Sync record " + record + " inserted");
+				try
+				{
+					record.setID(getNextIntID(stmt, DBOWNER + "prisms_sync_record", "id"));
+				} catch(SQLException e)
+				{
+					throw new PrismsRecordException("Could not get next record ID", e);
+				}
+				sql = "INSERT INTO " + DBOWNER + "prisms_sync_record (id, syncCenter, recordNS,"
+					+ " syncType, isImport, syncTime, parallelID, syncError) VALUES ("
+					+ record.getID() + ", " + record.getCenter().getID() + ", "
+					+ toSQL(theNamespace) + ", " + toSQL(record.getSyncType().toString()) + ", "
+					+ boolToSQL(record.isImport()) + ", " + formatDate(record.getSyncTime()) + ", "
+					+ (record.getParallelID() < 0 ? "NULL" : "" + record.getParallelID()) + ", "
+					+ toSQL(record.getSyncError()) + ")";
+				try
+				{
+					stmt.execute(sql);
+				} catch(SQLException e)
+				{
+					throw new PrismsRecordException("Could not insert sync record: SQL=" + sql, e);
+				}
+			}
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
+	SyncRecord getSyncRecord(PrismsCenter center, int id, Statement stmt)
+		throws PrismsRecordException
+	{
+		ResultSet rs = null;
+		String sql = "SELECT * FROM " + DBOWNER + "prisms_sync_record WHERE recordNS="
+			+ toSQL(theNamespace) + " AND id=" + id;
+		try
+		{
+			rs = stmt.executeQuery(sql);
+			if(!rs.next())
+				return null;
+			SyncRecord sr = new SyncRecord(rs.getInt("id"), center, SyncRecord.Type.byName(rs
+				.getString("syncType")), rs.getTimestamp("syncTime").getTime(), boolFromSQL(rs
+				.getString("isImport")));
+			sr.setParallelID(rs.getInt("parallelID"));
+			sr.setSyncError(rs.getString("syncError"));
+			return sr;
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not get sync records: SQL=" + sql, e);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
+	/**
+	 * Removes a synchronization record from the database
+	 * 
+	 * @param record The record to remove
+	 * @throws PrismsRecordException If an error occurs deleting the record
+	 */
+	public void removeSyncRecord(SyncRecord record) throws PrismsRecordException
+	{
+		log.debug("Removed sync record " + record);
+		String sql = "DELETE FROM " + DBOWNER + "prisms_sync_record WHERE recordNS="
+			+ toSQL(theNamespace) + " AND id=" + record.getID();
+		Statement stmt = null;
+		checkConnection();
+		try
+		{
+			stmt = theConn.createStatement();
+			stmt.execute(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not remove sync record: SQL=" + sql, e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
+	/**
+	 * Gets the IDs of changes that have happened since a given time
+	 * 
+	 * @param since The earliest time to retrieve changes from
+	 * @return The IDs of all requested changes
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
+	public long [] getChangeIDs(long since) throws PrismsRecordException
+	{
+		return getChangeRecords(null, null,
+			(since > 0 ? "changeTime>=" + formatDate(since) : null), "changeTime DESC");
 	}
 
 	private long [] getChangeRecords(Statement stmt, String join, String where, String order)
@@ -473,7 +892,7 @@ public class RecordKeeper
 		String sql = "SELECT id FROM " + DBOWNER + "prisms_change_record";
 		if(join != null)
 			sql += " " + join;
-		sql += " WHERE changeNS=" + toSQL(theNamespace);
+		sql += " WHERE recordNS=" + toSQL(theNamespace);
 		if(where != null)
 			sql += " AND (" + where + ")";
 		if(order != null)
@@ -514,12 +933,19 @@ public class RecordKeeper
 		return retArray;
 	}
 
+	/**
+	 * Gets the IDs of all changes to an item
+	 * 
+	 * @param historyItem The item to get the history of
+	 * @return The IDs of all changes to the item
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
 	public long [] getHistory(Object historyItem) throws PrismsRecordException
 	{
 		long itemID = getDataID(historyItem);
 		String where = "(majorSubject=" + itemID + " OR changeData1=" + itemID + " OR changeData2="
 			+ itemID + ")";
-		SubjectType [] changeTypes = thePersister.getHistoryDomains(historyItem);
+		SubjectType [] changeTypes = getHistoryDomains(historyItem);
 		where += " AND subjectType IN (";
 		for(int i = 0; i < changeTypes.length; i++)
 		{
@@ -531,11 +957,41 @@ public class RecordKeeper
 		return getChangeRecords(null, null, where, "changeTime DESC");
 	}
 
+	SubjectType [] getHistoryDomains(Object item) throws PrismsRecordException
+	{
+		if(item instanceof PrismsCenter)
+			return new SubjectType [] {PrismsChange.center};
+		if(item instanceof AutoPurger)
+			return new SubjectType [] {PrismsChange.autoPurge};
+		else
+			return thePersister.getHistoryDomains(item);
+	}
+
+	/**
+	 * Gets the IDs of all changes effected by a given user
+	 * 
+	 * @param user The user to get the activity of
+	 * @return The IDs of all changes that the user caused
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
+	public long [] getHistoryBy(RecordUser user) throws PrismsRecordException
+	{
+		return getChangeRecords(null, null, "changeUser=" + user.getID(), "changeTime DESC");
+	}
+
+	/**
+	 * Gets all changes that are to the same subject and field as the given change but occur after
+	 * it.
+	 * 
+	 * @param change The change to get the successors of
+	 * @return The IDs of the successors of the given change
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
 	public long [] getSuccessors(ChangeRecord change) throws PrismsRecordException
 	{
 		String where = "majorSubject=" + getDataID(change.majorSubject);
 		if(change.minorSubject != null)
-			where += " AND minorSubject = " + thePersister.getID(change.minorSubject);
+			where += " AND minorSubject = " + getDataID(change.minorSubject);
 		else
 			where += " AND minorSubject IS NULL";
 		where += " AND subjectType=" + toSQL(change.type.subjectType.toString());
@@ -547,19 +1003,39 @@ public class RecordKeeper
 			where += " AND additivity=0";
 		else
 			where += " AND additivity<>0";
+		where += " AND changeTime>" + formatDate(change.time);
+		where += " AND id<>" + change.id;
 		return getChangeRecords(null, null, where, "changeTime");
 	}
 
+	/**
+	 * Gets all changes that are associated with a synchronization record
+	 * 
+	 * @param syncRecord The synchronization record to get the changes of
+	 * @return All changes associated with the synchronization record
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
 	public long [] getSyncChanges(SyncRecord syncRecord) throws PrismsRecordException
 	{
 		return getChangeRecords(null, "INNER JOIN " + DBOWNER
-			+ "prisms_sync_assoc ON changeRecord=id", "syncAttempt=" + syncRecord.getID(),
+			+ "prisms_sync_assoc ON changeRecord=id", "syncRecord=" + syncRecord.getID(),
 			"changeTime DESC");
 	}
 
-	public long [] sortChangeIDs(long [] ids, HistorySorter sorter) throws PrismsRecordException
+	/**
+	 * Sorts a set of change IDs based on a set of criteria
+	 * 
+	 * @param ids The IDs of the changes to sort
+	 * @param sorter The sorter determining how the changes should be sorted
+	 * @return The same IDs as passed in, but ordered differently. The only time the unordered set
+	 *         will be different is if one or more of the IDs passed in corresponds to a change that
+	 *         has been purged or does not exist.
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
+	public long [] sortChangeIDs(long [] ids, HistorySorter<ChangeField> sorter)
+		throws PrismsRecordException
 	{
-		if(ids.length <= 1)
+		if(ids.length <= 1 || sorter.getSortCount() == 0)
 			return ids;
 		String where = "id IN (";
 		for(int i = 0; i < ids.length; i++)
@@ -570,15 +1046,26 @@ public class RecordKeeper
 		}
 		where += ")";
 		String order;
-		if(sorter != null && sorter.getSortCount() > 0)
+		if(sorter.getSortCount() > 0)
 		{
 			order = "";
 			for(int sc = 0; sc < sorter.getSortCount(); sc++)
 			{
 				if(sc > 0)
 					order += ", ";
-				order += sorter.getField(sc).toString()
-					+ (sorter.isAscending(sc) ? " ASC" : " DESC");
+				ChangeField field = sorter.getField(sc);
+				switch(field)
+				{
+				case CHANGE_TYPE:
+					order += " subjectType " + (sorter.isAscending(sc) ? "ASC" : "DESC") + ",";
+					order += " changeType " + (sorter.isAscending(sc) ? "ASC" : "DESC");
+					break;
+				case CHANGE_TIME:
+				case CHANGE_USER:
+					order += " " + sorter.getField(sc).toString()
+						+ (sorter.isAscending(sc) ? " ASC" : " DESC");
+					break;
+				}
 			}
 		}
 		else
@@ -586,6 +1073,13 @@ public class RecordKeeper
 		return getChangeRecords(null, null, where, order);
 	}
 
+	/**
+	 * Gets changes by IDs
+	 * 
+	 * @param ids The IDs of the changes to get
+	 * @return The changes whose IDs are given
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
 	public ChangeRecord [] getChanges(long [] ids) throws PrismsRecordException
 	{
 		return getChanges(null, ids);
@@ -638,7 +1132,8 @@ public class RecordKeeper
 				throw new PrismsRecordException("Could not create statement", e);
 			}
 		}
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record  WHERE id IN (";
+		String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record  WHERE recordNS="
+			+ toSQL(theNamespace) + " AND id IN (";
 		for(int i = 0; i < ids.length; i++)
 		{
 			sql += ids[i];
@@ -672,10 +1167,10 @@ public class RecordKeeper
 						template.preValueID = pvNumber;
 					else
 					{
-						template.previousValue = rs.getString("shortFieldValue");
+						template.previousValue = rs.getString("shortPreValue");
 						if(template.previousValue == null)
 						{
-							java.sql.Clob clob = rs.getClob("longFieldValue");
+							java.sql.Clob clob = rs.getClob("longPreValue");
 							if(clob != null)
 								try
 								{
@@ -695,7 +1190,7 @@ public class RecordKeeper
 				}
 			} catch(SQLException e)
 			{
-				throw new PrismsRecordException("Could not get modifications", e);
+				throw new PrismsRecordException("Could not get modifications: SQL=" + sql, e);
 			} finally
 			{
 				try
@@ -767,7 +1262,7 @@ public class RecordKeeper
 
 	SubjectType getType(String typeName) throws PrismsRecordException
 	{
-		for(PrismsChanges ch : PrismsChanges.values())
+		for(PrismsChange ch : PrismsChange.values())
 			if(ch.name().equals(typeName))
 				return ch;
 		return thePersister.getType(typeName);
@@ -775,6 +1270,8 @@ public class RecordKeeper
 
 	long getDataID(Object obj) throws PrismsRecordException
 	{
+		if(obj instanceof PrismsCenter)
+			return ((PrismsCenter) obj).getID();
 		if(obj instanceof AutoPurger)
 			return 0;
 		return thePersister.getID(obj);
@@ -784,15 +1281,17 @@ public class RecordKeeper
 		Number minorSubjectID, Number data1ID, Number data2ID, Number preValueID)
 		throws PrismsRecordException
 	{
-		if(subjectType instanceof PrismsChanges)
+		if(subjectType instanceof PrismsChange)
 		{
-			PrismsChanges pc = (PrismsChanges) subjectType;
+			PrismsChange pc = (PrismsChange) subjectType;
 			switch(pc)
 			{
 			case center:
 				PrismsCenter ctr = getCenter((int) majorSubjectID, null);
 				ChangeData ret = new ChangeData(ctr, null, null, null, null);
-				switch((PrismsChanges.CenterChange) changeType)
+				if(changeType == null)
+					return ret;
+				switch((PrismsChange.CenterChange) changeType)
 				{
 				case name:
 				case url:
@@ -810,7 +1309,9 @@ public class RecordKeeper
 			case autoPurge:
 				AutoPurger ap = getAutoPurger();
 				ret = new ChangeData(ap, null, null, null, null);
-				switch((PrismsChanges.AutoPurgeChange) changeType)
+				if(changeType == null)
+					return ret;
+				switch((PrismsChange.AutoPurgeChange) changeType)
 				{
 				case age:
 				case entryCount:
@@ -890,7 +1391,7 @@ public class RecordKeeper
 		long ret = nowTime;
 		Statement stmt = null;
 		ResultSet rs = null;
-		String sql = "SELECT changeSaveTime, lastExport FROM " + DBOWNER
+		String sql = "SELECT changeSaveTime, lastExportSync FROM " + DBOWNER
 			+ "prisms_center_view WHERE recordNS=" + toSQL(theNamespace);
 		checkConnection();
 		try
@@ -900,7 +1401,7 @@ public class RecordKeeper
 			while(rs.next())
 			{
 				long lastSync;
-				java.sql.Timestamp time = rs.getTimestamp("lastExport");
+				java.sql.Timestamp time = rs.getTimestamp("lastExportSync");
 				lastSync = time == null ? -1 : time.getTime();
 				long saveTime = rs.getLong("changeSaveTime");
 				if(lastSync < nowTime - saveTime)
@@ -910,11 +1411,16 @@ public class RecordKeeper
 			}
 		} catch(SQLException e)
 		{
-			throw new PrismsRecordException("Could not check centers for purge times", e);
+			throw new PrismsRecordException("Could not check centers for purge times: SQL=" + sql,
+				e);
 		}
 		return ret;
 	}
 
+	/**
+	 * @return The auto-purger that manages the changes in this record keeper
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
 	public AutoPurger getAutoPurger() throws PrismsRecordException
 	{
 		if(theAutoPurger != null)
@@ -942,7 +1448,15 @@ public class RecordKeeper
 		return theAutoPurger;
 	}
 
-	public void setAutoPurger(AutoPurger purger, RecordUser user) throws PrismsRecordException
+	/**
+	 * Modifies the auto-purge settings that manage the changes in this record keeper
+	 * 
+	 * @param purger The purger that this record keeper should use to auto-purge its entries
+	 * @param user The user that caused this change
+	 * @throws PrismsRecordException If an error occurs setting the data
+	 */
+	public synchronized void setAutoPurger(AutoPurger purger, RecordUser user)
+		throws PrismsRecordException
 	{
 		Statement stmt = null;
 		checkConnection();
@@ -972,7 +1486,7 @@ public class RecordKeeper
 	 *         were set
 	 * @throws PrismsRecordException If an error occurs performing the calculation
 	 */
-	public int previewAutoPurge(final AutoPurger purger) throws PrismsRecordException
+	public synchronized int previewAutoPurge(final AutoPurger purger) throws PrismsRecordException
 	{
 		Statement stmt = null;
 		checkConnection();
@@ -998,11 +1512,32 @@ public class RecordKeeper
 		}
 	}
 
-	public void setSyncRecord(SyncRecord record)
+	/**
+	 * Sets the sync record that is to be associated with each persisted change until the sync
+	 * record is cleared
+	 * 
+	 * @param record The record that should be associated with each change record persisted, or null
+	 *        if no record should be associated so
+	 */
+	public synchronized void setSyncRecord(SyncRecord record)
 	{
 		theSyncRecord = record;
 	}
 
+	/**
+	 * Persists a change
+	 * 
+	 * @param user The user that caused the change
+	 * @param subjectType The subject type of the change
+	 * @param changeType The type of the change to the subject
+	 * @param additivity The additivity of the change
+	 * @param majorSubject The major component of the subject
+	 * @param minorSubject The minor component of the subject
+	 * @param previousValue The value that was set for the field before this change
+	 * @param data1 The first item of metadata
+	 * @param data2 The second item of metadata
+	 * @throws PrismsRecordException If an error occurs setting the data
+	 */
 	public synchronized void persist(RecordUser user, SubjectType subjectType,
 		ChangeType changeType, int additivity, Object majorSubject, Object minorSubject,
 		Object previousValue, Object data1, Object data2) throws PrismsRecordException
@@ -1013,7 +1548,7 @@ public class RecordKeeper
 		try
 		{
 			stmt = theConn.createStatement();
-			id = getNextID(stmt, "prisms_change_record", "id", null);
+			id = getNextID(stmt, DBOWNER + "prisms_change_record", "id", null);
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not persist " + subjectType + " change");
@@ -1033,14 +1568,37 @@ public class RecordKeeper
 		persist(record);
 	}
 
+	/**
+	 * Persists a change that already has an assigned ID
+	 * 
+	 * @param record The record of the change
+	 * @throws PrismsRecordException If an error occurs setting the data
+	 */
 	public synchronized void persist(ChangeRecord record) throws PrismsRecordException
 	{
 		Statement stmt = null;
+		ResultSet rs = null;
 		java.sql.PreparedStatement pStmt = null;
 		checkConnection();
 		String sql = null;
 		try
 		{
+			stmt = theConn.createStatement();
+			sql = "SELECT id FROM " + DBOWNER + "prisms_change_record WHERE id=" + record.id;
+			rs = stmt.executeQuery(sql);
+			if(rs.next())
+			{ // modification already exists
+				rs.close();
+				rs = null;
+				if(theSyncRecord != null)
+				{
+					sql = "INSERT INTO " + DBOWNER + "prisms_sync_assoc (recordNS, syncRecord,"
+						+ " changeRecord) VALUES (" + toSQL(theNamespace) + ", "
+						+ theSyncRecord.getID() + ", " + record.id + ")";
+					stmt.execute(sql);
+				}
+				return;
+			}
 			sql = "INSERT INTO " + DBOWNER + "prisms_change_record (id, recordNS, changeTime,"
 				+ " changeUser, subjectType, changeType, additivity, majorSubject, minorSubject,"
 				+ " preValueID, shortPreValue, longPreValue, changeData1, changeData2)"
@@ -1051,7 +1609,7 @@ public class RecordKeeper
 			pStmt.setTimestamp(3, new java.sql.Timestamp(System.currentTimeMillis()));
 			pStmt.setLong(4, record.user.getID());
 			pStmt.setString(5, record.type.subjectType.name());
-			pStmt.setString(6, record.type.changeType == null ? "NULL" : record.type.changeType
+			pStmt.setString(6, record.type.changeType == null ? null : record.type.changeType
 				.name());
 			pStmt.setString(7, record.type.additivity < 0 ? "-" : (record.type.additivity > 0 ? "+"
 				: "0"));
@@ -1101,17 +1659,29 @@ public class RecordKeeper
 			pStmt.execute();
 			if(theSyncRecord != null)
 			{
-				stmt = theConn.createStatement();
-				sql = "INSERT INTO " + DBOWNER + "prisms_sync_assoc (syncRecord, changeRecord)"
-					+ " VALUES (" + theSyncRecord.getID() + ", " + record.id + ")";
+				sql = "INSERT INTO " + DBOWNER + "prisms_sync_assoc (recordNS, syncRecord,"
+					+ " changeRecord) VALUES (" + toSQL(theNamespace) + ", "
+					+ theSyncRecord.getID() + ", " + record.id + ")";
 				stmt.execute(sql);
 			}
+			if(theAutoPurger == null)
+				getAutoPurger();
+			theAutoPurger.doPurge(this, stmt, DBOWNER + "prisms_change_record", "changeTime",
+				"changeUser", "subjectType", "changeType", "additivity");
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not persist " + record.type.subjectType
-				+ " change");
+				+ " change: SQL=" + sql);
 		} finally
 		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
 			if(stmt != null)
 				try
 				{
@@ -1136,15 +1706,311 @@ public class RecordKeeper
 		}
 	}
 
-	public void purge(ChangeRecord record) throws PrismsRecordException
+	/**
+	 * Associates a change with a synchronization record. For use when the change is already in the
+	 * database when the synchronization attempt occurs.
+	 * 
+	 * @param change The already-existent change to associate with the sync record
+	 * @param syncRecord The synchronization record to associate the change with
+	 * @throws PrismsRecordException If an error occurs setting the data
+	 */
+	public synchronized void associate(ChangeRecord change, SyncRecord syncRecord)
+		throws PrismsRecordException
 	{
-		// TODO
+		Statement stmt = null;
+		checkConnection();
+		String sql = "INSERT INTO " + DBOWNER + "prisms_sync_assoc (recordNS, syncRecord,"
+			+ " changeRecord) VALUES (" + toSQL(theNamespace) + ", " + syncRecord.getID() + ", "
+			+ change.id + ")";
+		try
+		{
+			stmt = theConn.createStatement();
+			stmt.execute(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not associate change " + change
+				+ " with sync record " + syncRecord + ": SQL=" + sql, e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
 	}
 
-	public boolean hasRecords(Object dbObject) throws PrismsRecordException
+	/**
+	 * Purges a record from the database
+	 * 
+	 * @param record The record to purge
+	 * @param stmt The optional statement to use for the operation
+	 * @throws PrismsRecordException If an error occurs deleting the data
+	 */
+	public synchronized void purge(ChangeRecord record, Statement stmt)
+		throws PrismsRecordException
 	{
-		// TODO
-		return true;
+		boolean closeStmt = false;
+		if(stmt == null)
+		{
+			checkConnection();
+			closeStmt = true;
+			try
+			{
+				stmt = theConn.createStatement();
+			} catch(SQLException e)
+			{
+				throw new PrismsRecordException("Could not create statement", e);
+			}
+		}
+		String sql = "SELECT id FROM " + DBOWNER + "jme3_modification WHERE id=" + record.id;
+		ResultSet rs = null;
+		try
+		{
+			rs = stmt.executeQuery(sql);
+			if(!rs.next())
+			{
+				log.warn("Attempted to purge modification " + record
+					+ " from database but it no longer exists");
+				return;
+			}
+			dbDeleteMod(record, stmt);
+			checkForExpiredData(record, stmt);
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException(
+				"Could not verify presence of modification: SQL=" + sql, e);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+			if(stmt != null && closeStmt)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
+	void dbDeleteMod(ChangeRecord record, Statement stmt) throws PrismsRecordException
+	{
+		String sql = "DELETE FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
+			+ toSQL(theNamespace) + " AND id=" + record.id;
+		try
+		{
+			stmt.execute(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not purge modification: SQL=" + sql, e);
+		}
+	}
+
+	void checkForExpiredData(ChangeRecord record, Statement stmt) throws PrismsRecordException
+	{
+		if(getRecords(record.majorSubject, stmt).length == 0)
+			checkItemForDelete(record.majorSubject, stmt);
+		if(record.data1 != null && getRecords(record.data1, stmt).length == 0)
+			checkItemForDelete(record.data1, stmt);
+		if(record.data2 != null && getRecords(record.data2, stmt).length == 0)
+			checkItemForDelete(record.data2, stmt);
+		if(record.minorSubject != null && getRecords(record.minorSubject, stmt).length == 0)
+			checkItemForDelete(record.minorSubject, stmt);
+		if(record.previousValue != null && getRecords(record.previousValue, stmt).length == 0)
+			checkItemForDelete(record.minorSubject, stmt);
+	}
+
+	/**
+	 * Checks the database for references to a particular object
+	 * 
+	 * @param dbObject The object to check for references to
+	 * @param stmt The optional statement to use for the operation
+	 * @return Whether the database has any references to the given object
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
+	public long [] getRecords(Object dbObject, Statement stmt) throws PrismsRecordException
+	{
+		boolean closeStmt = false;
+		if(stmt == null)
+		{
+			checkConnection();
+			closeStmt = true;
+			try
+			{
+				stmt = theConn.createStatement();
+			} catch(SQLException e)
+			{
+				throw new PrismsRecordException("Could not create statement", e);
+			}
+		}
+		long [] ret = new long [0];
+		try
+		{
+			try
+			{
+				stmt = theConn.createStatement();
+			} catch(SQLException e)
+			{
+				throw new PrismsRecordException("Could not create statement", e);
+			}
+			SubjectType [] types = PrismsChange.values();
+			for(SubjectType type : types)
+			{
+				long [] temp = getRecords(type, dbObject, stmt);
+				if(temp.length > 0)
+					ret = (long []) ArrayUtils.concatP(Long.TYPE, ret, temp);
+			}
+			types = getAllDomains();
+			for(SubjectType type : types)
+			{
+				long [] temp = getRecords(type, dbObject, stmt);
+				if(temp.length > 0)
+					ret = (long []) ArrayUtils.concatP(Long.TYPE, ret, temp);
+			}
+		} finally
+		{
+			if(stmt != null && closeStmt)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+		return ret;
+	}
+
+	SubjectType [] getAllDomains() throws PrismsRecordException
+	{
+		SubjectType [] ret = new SubjectType [] {PrismsChange.center, PrismsChange.autoPurge};
+		ret = ArrayUtils.concat(SubjectType.class, ret, thePersister.getAllDomains());
+		return ret;
+	}
+
+	long [] getRecords(SubjectType type, Object dbObject, Statement stmt)
+		throws PrismsRecordException
+	{
+		String where = "";
+		if(type.getMajorType().isInstance(dbObject))
+			where += "(subjectType=" + toSQL(type.name()) + " AND majorSubject="
+				+ getDataID(dbObject) + ")";
+		if(type.getMetadataType1() != null && type.getMetadataType1().isInstance(dbObject))
+		{
+			if(where.length() > 0)
+				where += " OR ";
+			where += "(subjectType=" + toSQL(type.name()) + " AND data1=" + getDataID(dbObject)
+				+ ")";
+		}
+		if(type.getMetadataType2() != null && type.getMetadataType2().isInstance(dbObject))
+		{
+			if(where.length() > 0)
+				where += " OR ";
+			where += "(subjectType=" + toSQL(type.name()) + " AND data2=" + getDataID(dbObject)
+				+ ")";
+		}
+		for(ChangeType ct : (ChangeType []) type.getChangeTypes().getEnumConstants())
+		{
+			if(ct.getMinorType() != null && ct.getMinorType().isInstance(dbObject))
+			{
+				if(where.length() > 0)
+					where += " OR ";
+				where += "(subjectType=" + toSQL(type.name()) + " AND changeType="
+					+ toSQL(ct.name()) + " AND minorSubject=" + getDataID(dbObject) + ")";
+			}
+			if(ct.isObjectIdentifiable() && ct.getObjectType() != null
+				&& ct.getObjectType().isInstance(dbObject))
+			{
+				if(where.length() > 0)
+					where += " OR ";
+				where += "(subjectType=" + toSQL(type.name()) + " AND changeType="
+					+ toSQL(ct.name()) + " AND preValueID=" + getDataID(dbObject) + ")";
+			}
+		}
+		return getChangeRecords(stmt, null, where, null);
+	}
+
+	void checkItemForDelete(Object item, Statement stmt) throws PrismsRecordException
+	{
+		if(item instanceof String || item instanceof Integer || item instanceof Long
+			|| item instanceof Float || item instanceof Double || item instanceof Boolean)
+			return;
+		if(item instanceof PrismsCenter)
+		{
+			if(!((PrismsCenter) item).isDeleted())
+				return;
+			dbDeleteCenter(((PrismsCenter) item).getID(), stmt);
+		}
+		else if(item instanceof AutoPurger)
+			return;
+		else
+			thePersister.checkItemForDelete(item, stmt);
+	}
+
+	void dbDeleteCenter(int id, Statement stmt) throws PrismsRecordException
+	{
+		String sql = "DELETE FROM " + DBOWNER + "prisms_center_view WHERE recordNS="
+			+ toSQL(theNamespace) + " AND id=" + id;
+		try
+		{
+			stmt.execute(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not delete center: SQL=" + sql, e);
+		}
+	}
+
+	/**
+	 * Purges all changes containing an item from the database
+	 * 
+	 * @param item The item to purge
+	 * @param stmt The optional statement to use for the operation
+	 * @throws PrismsRecordException If an error occurs purging the changes
+	 */
+	public void purgeItem(Object item, Statement stmt) throws PrismsRecordException
+	{
+		boolean closeStmt = stmt == null;
+		if(stmt == null)
+		{
+			checkConnection();
+			try
+			{
+				stmt = theConn.createStatement();
+			} catch(SQLException e)
+			{
+				throw new PrismsRecordException("Could not create statement", e);
+			}
+		}
+		try
+		{
+			long [] ids = getRecords(item, stmt);
+			if(ids.length == 0)
+				return;
+			ChangeRecord [] records = getChanges(ids);
+			for(ChangeRecord record : records)
+				purge(record, stmt);
+		} finally
+		{
+			if(stmt != null && closeStmt)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
 	}
 
 	AutoPurger dbGetAutoPurger(Statement stmt) throws PrismsRecordException
@@ -1193,7 +2059,7 @@ public class RecordKeeper
 		{
 			rs = stmt.executeQuery(sql);
 			while(rs.next())
-				ret.addExcludeUser(rs.getLong("exclUser"));
+				ret.addExcludeUser(thePersister.getUser(rs.getLong("exclUser")));
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not get auto-purge excluded users: SQL=" + sql,
@@ -1243,7 +2109,7 @@ public class RecordKeeper
 		return ret;
 	}
 
-	void dbSetAutoPurger(final Statement stmt, AutoPurger purger, final RecordUser user)
+	synchronized void dbSetAutoPurger(final Statement stmt, AutoPurger purger, final RecordUser user)
 		throws PrismsRecordException
 	{
 		final AutoPurger dbPurger = dbGetAutoPurger(stmt);
@@ -1256,8 +2122,8 @@ public class RecordKeeper
 				+ (dbPurger.getEntryCount() >= 0 ? "" + dbPurger.getEntryCount() : "none") + " to "
 				+ (purger.getEntryCount() >= 0 ? "" + purger.getEntryCount() : "none") + "\n";
 			modified = true;
-			persist(user, autoPurge, AutoPurgeChange.entryCount, 0, dbPurger, null, new Integer(
-				dbPurger.getEntryCount()), null, null);
+			persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.entryCount, 0,
+				dbPurger, null, new Integer(dbPurger.getEntryCount()), null, null);
 			dbPurger.setEntryCount(purger.getEntryCount());
 		}
 		if(dbPurger.getAge() != purger.getAge())
@@ -1268,8 +2134,8 @@ public class RecordKeeper
 				+ (purger.getAge() >= 0 ? PrismsUtils.printTimeLength(purger.getAge()) : "none")
 				+ "\n";
 			modified = true;
-			persist(user, autoPurge, AutoPurgeChange.age, 0, dbPurger, null, new Long(dbPurger
-				.getAge()), null, null);
+			persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.age, 0, dbPurger,
+				null, new Long(dbPurger.getAge()), null, null);
 			dbPurger.setAge(purger.getAge());
 		}
 		if(modified)
@@ -1287,28 +2153,23 @@ public class RecordKeeper
 				throw new PrismsRecordException("Could not update auto-purge: SQL=" + sql, e);
 			}
 		}
-		Long [] oldUsers = new Long [dbPurger.getExcludeUsers().length];
-		for(int i = 0; i < oldUsers.length; i++)
-			oldUsers[i] = new Long(dbPurger.getExcludeUsers()[i]);
-		Long [] newUsers = new Long [purger.getExcludeUsers().length];
-		for(int i = 0; i < newUsers.length; i++)
-			newUsers[i] = new Long(purger.getExcludeUsers()[i]);
-		ArrayUtils.adjust(oldUsers, oldUsers,
-			new ArrayUtils.DifferenceListenerE<Long, Long, PrismsRecordException>()
+		ArrayUtils.adjust(dbPurger.getExcludeUsers(), purger.getExcludeUsers(),
+			new ArrayUtils.DifferenceListenerE<RecordUser, RecordUser, PrismsRecordException>()
 			{
-				public boolean identity(Long o1, Long o2)
+				public boolean identity(RecordUser o1, RecordUser o2)
 				{
-					return o1.equals(o2);
+					return o1.getID() == o2.getID();
 				}
 
-				public Long added(Long o, int idx, int retIdx) throws PrismsRecordException
+				public RecordUser added(RecordUser o, int idx, int retIdx)
+					throws PrismsRecordException
 				{
 					log.debug("Excluding user " + o + " from auto-purge");
-					persist(user, autoPurge, AutoPurgeChange.excludeUser, 1, dbPurger, null,
-						thePersister.getUser(o.longValue()), null, null);
+					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeUser,
+						1, dbPurger, null, thePersister.getUser(o.getID()), null, null);
 					String sql = "INSERT INTO " + DBOWNER
 						+ "jme3_purge_excl_user (recordNS, exclUser) VALUES(" + toSQL(theNamespace)
-						+ ", " + o.longValue() + ")";
+						+ ", " + o.getID() + ")";
 					try
 					{
 						stmt.execute(sql);
@@ -1319,14 +2180,14 @@ public class RecordKeeper
 					return o;
 				}
 
-				public Long removed(Long o, int idx, int incMod, int retIdx)
+				public RecordUser removed(RecordUser o, int idx, int incMod, int retIdx)
 					throws PrismsRecordException
 				{
 					log.debug("Re-including user " + o + " in auto-purge");
-					persist(user, autoPurge, AutoPurgeChange.excludeUser, -1, dbPurger, null,
-						thePersister.getUser(o.longValue()), null, null);
+					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeUser,
+						-1, dbPurger, null, thePersister.getUser(o.getID()), null, null);
 					String sql = "DELETE FROM " + DBOWNER + "jme3_purge_excl_user WHERE recordNS="
-						+ toSQL(theNamespace) + " AND exclUser=" + o.longValue();
+						+ toSQL(theNamespace) + " AND exclUser=" + o.getID();
 					try
 					{
 						stmt.execute(sql);
@@ -1337,7 +2198,8 @@ public class RecordKeeper
 					return null;
 				}
 
-				public Long set(Long o1, int idx1, int incMod, Long o2, int idx2, int retIdx)
+				public RecordUser set(RecordUser o1, int idx1, int incMod, RecordUser o2, int idx2,
+					int retIdx)
 				{
 					return o1;
 				}
@@ -1354,8 +2216,8 @@ public class RecordKeeper
 					throws PrismsRecordException
 				{
 					log.debug("Excluding modification type " + o + " from auto-purge");
-					persist(user, autoPurge, AutoPurgeChange.excludeType, 1, dbPurger, o, null,
-						null, null);
+					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeType,
+						1, dbPurger, o, null, null, null);
 					String sql = "INSERT INTO " + DBOWNER
 						+ "jme3_purge_excl_type (recordNS, exclSubjectType, exclChangeType,"
 						+ " exclAdditivity) VALUES(" + toSQL(theNamespace) + ", ";
@@ -1376,8 +2238,8 @@ public class RecordKeeper
 					throws PrismsRecordException
 				{
 					log.debug("Re-including modification type " + o + " in auto-purge");
-					persist(user, autoPurge, AutoPurgeChange.excludeType, -1, dbPurger, null, o,
-						null, null);
+					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeType,
+						-1, dbPurger, null, o, null, null);
 					String sql = "DELETE FROM " + DBOWNER + "jme3_purge_excl_type WHERE recordNS="
 						+ toSQL(theNamespace) + " AND exclSubjectType="
 						+ toSQL(o.subjectType.name()) + " AND exclChangeType=";
@@ -1403,13 +2265,28 @@ public class RecordKeeper
 	}
 
 	// Utility methods
+
+	/**
+	 * Gets the next ID for the given table within this center and namespace
+	 * 
+	 * @param prismsStmt The active statement pointing to the PRISMS records database. Cannot be
+	 *        null or closed.
+	 * @param table The name of the table to get the next ID for (including any applicable prefix)
+	 * @param column The ID column of the table
+	 * @param extStmt The active statement pointing to the database where the actual implementation
+	 *        data resides. If this is null it will be assumed that the implementation data resides
+	 *        in the same database as the PRISMS records data and will use the prismsStmt for
+	 *        implementation-specific queries.
+	 * @return The next ID that should be used for an entry in the table
+	 * @throws PrismsRecordException If an error occurs deriving the data
+	 */
 	public long getNextID(Statement prismsStmt, String table, String column, Statement extStmt)
-		throws SQLException, PrismsRecordException
+		throws PrismsRecordException
 	{
 		if(extStmt == null)
 			extStmt = prismsStmt;
 		ResultSet rs = null;
-		String sql;
+		String sql = null;
 		try
 		{
 			long centerMin = ((long) theCenterID) * theCenterIDRange;
@@ -1427,8 +2304,8 @@ public class RecordKeeper
 			rs.close();
 			if(ret < 0)
 			{
-				sql = "SELECT MAX(" + column + ") FROM " + DBOWNER + table + " WHERE " + column
-					+ ">=" + centerMin + " AND " + column + " <=" + centerMax;
+				sql = "SELECT MAX(" + column + ") FROM " + table + " WHERE " + column + ">="
+					+ centerMin + " AND " + column + " <=" + centerMax;
 				rs = extStmt.executeQuery(sql);
 				if(rs.next())
 				{
@@ -1444,8 +2321,8 @@ public class RecordKeeper
 					throw new PrismsRecordException("All " + table + " ids are used!");
 				// update the db
 				sql = "INSERT INTO " + DBOWNER + "prisms_auto_increment (recordNS, tableName,"
-					+ " nextID) VALUES(" + toSQL(theNamespace) + toSQL(table) + ", " + centerMin
-					+ ")";
+					+ " nextID) VALUES(" + toSQL(theNamespace) + ", " + toSQL(table) + ", "
+					+ centerMin + ")";
 				prismsStmt.execute(sql);
 			}
 			long nextTry = nextAvailableID(extStmt, table, column, ret + 1);
@@ -1458,6 +2335,9 @@ public class RecordKeeper
 				+ " WHERE recordNS=" + toSQL(theNamespace) + " AND tableName = " + toSQL(table);
 			prismsStmt.executeUpdate(sql);
 			return ret;
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not get next ID: SQL=" + sql, e);
 		} finally
 		{
 			try
@@ -1500,13 +2380,22 @@ public class RecordKeeper
 		return start;
 	}
 
+	/**
+	 * Gets the next ID for a table whose value is not dependent on the center
+	 * 
+	 * @param stmt The statement pointing to the given table
+	 * @param tableName The table to get the next ID for
+	 * @param column The ID column in the table
+	 * @return The next ID to use for an entry in the table
+	 * @throws SQLException If an error occurs retrieving the data
+	 */
 	public int getNextIntID(Statement stmt, String tableName, String column) throws SQLException
 	{
 		int id = 0;
 		ResultSet rs = null;
 		try
 		{
-			rs = stmt.executeQuery("SELECT DISTINCT " + column + " FROM " + DBOWNER + tableName
+			rs = stmt.executeQuery("SELECT DISTINCT " + column + " FROM " + tableName
 				+ " ORDER BY " + column);
 			while(rs.next())
 			{
@@ -1528,6 +2417,72 @@ public class RecordKeeper
 			}
 		}
 		return id;
+	}
+
+	/**
+	 * Gets the maximum length of data for a field
+	 * 
+	 * @param tableName The name of the table
+	 * @param fieldName The name of the field to get the length for
+	 * @return The maximum length that data in the given field can be
+	 * @throws PrismsRecordException If an error occurs retrieving the information
+	 */
+	public int getFieldSize(String tableName, String fieldName) throws PrismsRecordException
+	{
+		checkConnection();
+		return getFieldSize(theConn, DBOWNER + "tableName", fieldName);
+	}
+
+	/**
+	 * Gets the maximum length of data for a field
+	 * 
+	 * @param conn The connection to get information from
+	 * @param tableName The name of the table
+	 * @param fieldName The name of the field to get the length for
+	 * @return The maximum length that data in the given field can be
+	 * @throws PrismsRecordException If an error occurs retrieving the information, such as the
+	 *         table or field not existing
+	 */
+	public static int getFieldSize(java.sql.Connection conn, String tableName, String fieldName)
+		throws PrismsRecordException
+	{
+		ResultSet rs = null;
+		try
+		{
+			String schema = null;
+			tableName = tableName.toUpperCase();
+			int dotIdx = tableName.indexOf('.');
+			if(dotIdx >= 0)
+			{
+				schema = tableName.substring(0, dotIdx).toUpperCase();
+				tableName = tableName.substring(dotIdx + 1).toUpperCase();
+			}
+			rs = conn.getMetaData().getColumns(null, schema, tableName, null);
+			while(rs.next())
+			{
+				String name = rs.getString("COLUMN_NAME");
+				if(name.equalsIgnoreCase(fieldName))
+					return rs.getInt("COLUMN_SIZE");
+			}
+
+			throw new PrismsRecordException("No such field " + fieldName + " in table "
+				+ (schema != null ? schema + "." : "") + tableName);
+
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not get field length of " + tableName + "."
+				+ fieldName, e);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
 	}
 
 	private Boolean _isOracle = null;
@@ -1702,7 +2657,7 @@ public class RecordKeeper
 		return o1 == null ? o2 == null : o1.equals(o2);
 	}
 
-	void checkConnection() throws IllegalStateException
+	void checkConnection() throws PrismsRecordException
 	{
 		try
 		{
@@ -1713,7 +2668,7 @@ public class RecordKeeper
 			}
 		} catch(SQLException e)
 		{
-			throw new IllegalStateException("Could not renew connection ", e);
+			throw new PrismsRecordException("Could not renew connection ", e);
 		}
 	}
 }

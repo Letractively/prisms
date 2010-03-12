@@ -9,7 +9,7 @@ package prisms.records;
  */
 public class PrismsCenter
 {
-	private final String theNamespace;
+	private String theNamespace;
 
 	private int theID;
 
@@ -38,13 +38,11 @@ public class PrismsCenter
 	/**
 	 * Creates a center
 	 * 
-	 * @param namespace The namespace that this view of the PRISMS center is in
 	 * @param id The local center ID
 	 * @param name The name of the center
 	 */
-	public PrismsCenter(String namespace, int id, String name)
+	public PrismsCenter(int id, String name)
 	{
-		theNamespace = namespace;
 		theID = id;
 		theCenterID = -1;
 		theName = name;
@@ -55,12 +53,11 @@ public class PrismsCenter
 	/**
 	 * Creates a center
 	 * 
-	 * @param namespace The namespace that this view of the PRISMS center is in
 	 * @param name The name of the center
 	 */
-	public PrismsCenter(String namespace, String name)
+	public PrismsCenter(String name)
 	{
-		this(namespace, -1, name);
+		this(-1, name);
 	}
 
 	/**
@@ -69,6 +66,14 @@ public class PrismsCenter
 	public String getNamespace()
 	{
 		return theNamespace;
+	}
+
+	/**
+	 * @param namespace The namespace that this view of the PRISMS center is in
+	 */
+	void setNamespace(String namespace)
+	{
+		theNamespace = namespace;
 	}
 
 	/**

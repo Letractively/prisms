@@ -5,45 +5,19 @@ package prisms.records;
 
 /**
  * Sorts database modifications
+ * 
+ * @param <T> The type of field in this history sorter
  */
-public class HistorySorter
+public class HistorySorter<T extends HistorySorter.Field>
 {
 	/**
-	 * Fields on which the history may be sorted
+	 * A field to sort on
 	 */
-	public static enum Field
+	public static interface Field
 	{
-		/**
-		 * Sort on the change time
-		 */
-		TIME("changeTime"),
-		/**
-		 * Sort on the change type
-		 */
-		DOMAIN("changeDomain"),
-		/**
-		 * Sort on the user that made the change
-		 */
-		USER("changeUser"),
-		/**
-		 * Sort on the field that was changed
-		 */
-		FIELD("field");
-
-		private final String theDBValue;
-
-		Field(String dbValue)
-		{
-			theDBValue = dbValue;
-		}
-
-		public String toString()
-		{
-			return theDBValue;
-		}
 	}
 
-	private Field [] theFields;
+	private T [] theFields;
 
 	private boolean [] theAscendings;
 
@@ -52,17 +26,19 @@ public class HistorySorter
 	 */
 	public HistorySorter()
 	{
-		theFields = new Field [0];
+		theFields = (T []) new Field [0];
 		theAscendings = new boolean [0];
 	}
 
 	/**
-	 * Adds a field to sort by
+	 * Adds a field to sort by. Entries will be sorted by the most recently added sort criterion.
+	 * Within like categories of that criterion, entries will be sorted according to previously
+	 * added criteria.
 	 * 
 	 * @param field The field to sort by
 	 * @param ascending Whether to sort on the field ascending or descending
 	 */
-	public synchronized void addSort(Field field, boolean ascending)
+	public synchronized void addSort(T field, boolean ascending)
 	{
 		int idx = prisms.util.ArrayUtils.indexOf(theFields, field);
 		if(idx >= 0)
@@ -84,7 +60,7 @@ public class HistorySorter
 	 */
 	public synchronized void clear()
 	{
-		theFields = new Field [0];
+		theFields = (T []) new Field [0];
 		theAscendings = new boolean [0];
 	}
 
@@ -100,7 +76,7 @@ public class HistorySorter
 	 * @param sortIdx The index of the field to get
 	 * @return The sorted field at the given index
 	 */
-	public Field getField(int sortIdx)
+	public T getField(int sortIdx)
 	{
 		return theFields[sortIdx];
 	}

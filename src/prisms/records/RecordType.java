@@ -39,7 +39,7 @@ public class RecordType
 		subjectType = st;
 		changeType = ct;
 		additivity = add;
-		if(!subjectType.getChangeTypes().isInstance(changeType))
+		if(changeType != null && !subjectType.getChangeTypes().isInstance(changeType))
 			throw new IllegalArgumentException("Change type " + changeType
 				+ " is not valid for subject type " + subjectType);
 	}
@@ -52,5 +52,52 @@ public class RecordType
 		return subjectType.equals(rt.subjectType)
 			&& (changeType == null ? rt.changeType == null : changeType.equals(rt.changeType))
 			&& additivity == rt.additivity;
+	}
+
+	public String toString()
+	{
+		if(changeType == null)
+		{
+			if(additivity > 0)
+				return prettify(subjectType.toString()) + " Created";
+			else
+				return prettify(subjectType.toString()) + " Deleted";
+		}
+		else
+			return changeType.toString(additivity);
+	}
+
+	/**
+	 * @param label The camel-case label, e.g. "assetRuleChanged"
+	 * @return The user-displayable label, e.g. "Asset Rule Changed"
+	 */
+	public static final String prettify(String label)
+	{
+		StringBuilder ret = new StringBuilder();
+		for(int c = 0; c < label.length(); c++)
+		{
+			if(c == 0)
+				ret.append(upper(label.charAt(c)));
+			else if(isUpper(label.charAt(c)))
+			{
+				ret.append(' ');
+				ret.append(label.charAt(c));
+			}
+			else
+				ret.append(label.charAt(c));
+		}
+		return ret.toString();
+	}
+
+	static final char upper(char c)
+	{
+		if(isUpper(c))
+			return c;
+		return (char) (c + 'A' - 'a');
+	}
+
+	static final boolean isUpper(char c)
+	{
+		return c >= 'A' && c <= 'Z';
 	}
 }
