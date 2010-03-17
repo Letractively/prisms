@@ -9,14 +9,6 @@ package prisms.records;
  */
 public class SyncRecord
 {
-	private static final java.text.SimpleDateFormat theFcastFormat;
-
-	static
-	{
-		theFcastFormat = new java.text.SimpleDateFormat("ddMMMyyyy HHmm'Z'");
-		theFcastFormat.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
-	}
-
 	/**
 	 * The type of the synchronization attempt
 	 */
@@ -239,6 +231,6 @@ public class SyncRecord
 	public String toString()
 	{
 		return theSyncType + (isImport ? " import from " : " export to ") + theCenter + " at "
-			+ theFcastFormat.format(new java.util.Date(theSyncTime));
+			+ prisms.util.PrismsUtils.print(theSyncTime);
 	}
 }
