@@ -676,7 +676,13 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				log.error("Could not get successors of " + fMods[0], e);
 				succ = new ChangeRecord [0];
 			}
-			uiStr = "modification " + fMods[0].toString(succ.length > 0 ? succ[0] : null);
+			Object preValue;
+			if(succ.length > 0)
+				preValue = succ[0].previousValue;
+			else
+				preValue = getFieldValue(fMods[0].majorSubject, fMods[0].minorSubject,
+					fMods[0].type);
+			uiStr = "modification " + fMods[0].toString(preValue);
 		}
 		ui.confirm("Are you sure you want to undo " + uiStr + "?", cl);
 	}
