@@ -14,7 +14,6 @@ public class PrismsRecordException extends Exception
 	public PrismsRecordException(String message)
 	{
 		super(message);
-		// TODO Auto-generated constructor stub
 	}
 
 	/**
@@ -23,6 +22,5 @@ public class PrismsRecordException extends Exception
 	public PrismsRecordException(String message, Throwable cause)
 	{
 		super(message, cause);
-		// TODO Auto-generated constructor stub
 	}
 }
