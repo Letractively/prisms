@@ -943,17 +943,37 @@ public class RecordKeeper
 	public long [] getHistory(Object historyItem) throws PrismsRecordException
 	{
 		long itemID = getDataID(historyItem);
-		String where = "(majorSubject=" + itemID + " OR changeData1=" + itemID + " OR changeData2="
-			+ itemID + ")";
-		SubjectType [] changeTypes = getHistoryDomains(historyItem);
-		where += " AND subjectType IN (";
-		for(int i = 0; i < changeTypes.length; i++)
+		SubjectType [] types = getHistoryDomains(historyItem);
+		String where = "";
+		for(int i = 0; i < types.length; i++)
 		{
 			if(i > 0)
-				where += ", ";
-			where += toSQL(changeTypes[i].toString());
+				where += " OR ";
+			where += "(subjectType=" + toSQL(types[i].name()) + " AND (";
+			boolean useOr = false;
+			if(types[i].getMajorType().isInstance(historyItem))
+			{
+				where += "majorSubject=" + itemID;
+				useOr = true;
+			}
+			if(types[i].getMetadataType1() != null
+				&& types[i].getMetadataType1().isInstance(historyItem))
+			{
+				if(useOr)
+					where += " OR ";
+				where += "changeData1=" + itemID;
+				useOr = true;
+			}
+			if(types[i].getMetadataType2() != null
+				&& types[i].getMetadataType2().isInstance(historyItem))
+			{
+				if(useOr)
+					where += " OR ";
+				where += "changeData2=" + itemID;
+				useOr = true;
+			}
+			where += "))";
 		}
-		where += ")";
 		return getChangeRecords(null, null, where, "changeTime DESC");
 	}
 
