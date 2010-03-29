@@ -170,14 +170,19 @@ public class HttpForwarder
 
 	private HttpInterceptor theInterceptor;
 
+	private String theCookiePrefix;
+
 	/**
 	 * Creates an HTTP forwarder
 	 * 
 	 * @param interceptor The interceptor for this forwarder to use
+	 * @param cookiePrefix The prefix to use for cookies forwarded to the client by this forwarder.
+	 *        This prefix prevents cookie-clashing.
 	 */
-	public HttpForwarder(HttpInterceptor interceptor)
+	public HttpForwarder(HttpInterceptor interceptor, String cookiePrefix)
 	{
 		theInterceptor = interceptor;
+		theCookiePrefix = cookiePrefix;
 	}
 
 	/**
@@ -272,9 +277,13 @@ public class HttpForwarder
 		{
 			for(javax.servlet.http.Cookie cookie : cookies)
 			{
+				String cookieName = cookie.getName();
+				if(!cookieName.startsWith(theCookiePrefix))
+					continue;
+				cookieName = cookieName.substring(theCookiePrefix.length());
 				if(cookiesString.length() != 0)
 					cookiesString.append(';');
-				cookiesString.append(cookie.getName());
+				cookiesString.append(cookieName);
 				cookiesString.append('=');
 				cookiesString.append(cookie.getValue());
 			}
@@ -299,7 +308,8 @@ public class HttpForwarder
 					if(name.equalsIgnoreCase("Path"))
 						continue; // Path is a reserved word in the HTTP cookie spec
 					String value = cookie.substring(idx + 1);
-					response.addCookie(new javax.servlet.http.Cookie(name, value));
+					response
+						.addCookie(new javax.servlet.http.Cookie(theCookiePrefix + name, value));
 				}
 			}
 			i++;
