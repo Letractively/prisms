@@ -214,22 +214,6 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		if(pi != null)
 			pi.setProgressText("Connecting to center " + center + " at URL "
 				+ center.getServerURL());
-		prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(center
-			.getServerURL(), theAppName, theClientName, center.getServerUserName());
-		conn.setPassword(center.getServerPassword());
-		try
-		{
-			conn.init();
-		} catch(prisms.util.PrismsServiceConnector.AuthenticationFailedException e)
-		{
-			throw new PrismsRecordException("User name/password combiniation is incorrect", e);
-		} catch(IOException e)
-		{
-			throw new PrismsRecordException("Could not communicate with server", e);
-		}
-
-		if(pi != null)
-			pi.setProgressText("Synchronizing with center " + center);
 		long lastSync = center.getLastImport();
 		SyncRecord record = null;
 		if(theKeeper != null)
@@ -239,11 +223,33 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 			session.fireEvent("syncAttempted", "record", record);
 		}
 		String error = null;
+		prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(center
+			.getServerURL(), theAppName, theClientName, center.getServerUserName());
+		conn.setPassword(center.getServerPassword());
 		Number serverRecordID = null;
 		long now = System.currentTimeMillis();
 		int centerID = theKeeper == null ? 0 : theKeeper.getCenterID();
 		try
 		{
+			try
+			{
+				conn.init();
+			} catch(prisms.util.PrismsServiceConnector.AuthenticationFailedException e)
+			{
+				error = "User name/password combination is incorrect";
+				throw new PrismsRecordException(error, e);
+			} catch(IOException e)
+			{
+				error = "Could not communicate with server" + e.getMessage();
+				throw new PrismsRecordException(error, e);
+			} catch(Throwable e)
+			{
+				error = "Could not communicated with server: " + e.getMessage();
+				throw new PrismsRecordException(error, e);
+			}
+
+			if(pi != null)
+				pi.setProgressText("Synchronizing with center " + center);
 			JSONObject res;
 			try
 			{

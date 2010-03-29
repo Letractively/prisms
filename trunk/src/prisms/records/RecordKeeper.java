@@ -2450,7 +2450,7 @@ public class RecordKeeper
 	public int getFieldSize(String tableName, String fieldName) throws PrismsRecordException
 	{
 		checkConnection();
-		return getFieldSize(theConn, DBOWNER + "tableName", fieldName);
+		return getFieldSize(theConn, DBOWNER + tableName, fieldName);
 	}
 
 	/**
