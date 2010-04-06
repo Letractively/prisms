@@ -25,6 +25,19 @@ public class JsonSchemaException extends Exception
 	}
 
 	/**
+	 * @param msg The message of why the value did not match the schema
+	 * @param schemaEl The schema element that was not matched
+	 * @param jsonValue The value that did not match the schema
+	 * @param cause The exception that caused this exception
+	 */
+	public JsonSchemaException(String msg, JsonElement schemaEl, Object jsonValue, Throwable cause)
+	{
+		super(msg, cause);
+		theSchemaElement = schemaEl;
+		theValue = jsonValue;
+	}
+
+	/**
 	 * @return The schema element that was not matched
 	 */
 	public JsonElement getSchemaElement()

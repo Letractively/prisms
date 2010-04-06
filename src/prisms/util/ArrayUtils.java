@@ -264,28 +264,35 @@ public final class ArrayUtils
 	 */
 	public static Object mergeExclusiveP(Class<?> type, Object... arrays)
 	{
-		java.util.HashSet<Object> allEls = new java.util.HashSet<Object>();
-		java.util.LinkedHashSet<Object> retSet = new java.util.LinkedHashSet<Object>();
-		int i, j;
-		for(i = 0; i < arrays.length; i++)
+		if(arrays.length == 0)
+			return Array.newInstance(type, 0);
+		java.util.ArrayList<Object> retSet = new java.util.ArrayList<Object>();
+		int i, j, k;
+		int len = Array.getLength(arrays[0]);
+		for(j = 0; j < len; j++)
+			retSet.add(Array.get(arrays[0], j));
+		for(i = 1; i < arrays.length; i++)
 		{
-			int len = Array.getLength(arrays[i]);
-			Object el;
-			for(j = 0; j < len; j++)
+			for(j = 0; j < retSet.size(); j++)
 			{
-				el = Array.get(arrays[i], j);
-				if(!allEls.contains(el))
-					retSet.add(el);
-				allEls.add(el);
+				len = Array.getLength(arrays[i]);
+				boolean hasEl = false;
+				for(k = 0; k < len; k++)
+					if(equalsUnordered(retSet.get(j), Array.get(arrays[i], k)))
+					{
+						hasEl = true;
+						break;
+					}
+				if(!hasEl)
+				{
+					retSet.remove(j);
+					j--;
+				}
 			}
 		}
 		Object ret = Array.newInstance(type, retSet.size());
-		i = 0;
-		for(Object el : retSet)
-		{
-			put(ret, el, i);
-			i++;
-		}
+		for(i = 0; i < retSet.size(); i++)
+			Array.set(ret, i, retSet.get(i));
 		return ret;
 	}
 
@@ -302,19 +309,28 @@ public final class ArrayUtils
 	 */
 	public static <T1, T2 extends T1> T1 [] mergeExclusive(Class<T1> type, T2 []... arrays)
 	{
-		java.util.HashSet<Object> allEls = new java.util.HashSet<Object>();
-		java.util.LinkedHashSet<Object> retSet = new java.util.LinkedHashSet<Object>();
-		int i, j;
-		for(i = 0; i < arrays.length; i++)
+		if(arrays.length == 0)
+			return (T1 []) Array.newInstance(type, 0);
+		java.util.ArrayList<Object> retSet = new java.util.ArrayList<Object>();
+		int i, j, k;
+		for(j = 0; j < arrays[0].length; j++)
+			retSet.add(arrays[0][j]);
+		for(i = 1; i < arrays.length; i++)
 		{
-			int len = Array.getLength(arrays[i]);
-			Object el;
-			for(j = 0; j < len; j++)
+			for(j = 0; j < retSet.size(); j++)
 			{
-				el = Array.get(arrays[i], j);
-				if(!allEls.contains(el))
-					retSet.add(el);
-				allEls.add(el);
+				boolean hasEl = false;
+				for(k = 0; k < arrays[i].length; k++)
+					if(equalsUnordered(retSet.get(j), arrays[i][k]))
+					{
+						hasEl = true;
+						break;
+					}
+				if(!hasEl)
+				{
+					retSet.remove(j);
+					j--;
+				}
 			}
 		}
 		return retSet.toArray((T1 []) Array.newInstance(type, retSet.size()));

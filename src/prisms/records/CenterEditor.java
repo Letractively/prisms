@@ -91,7 +91,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				.getFieldSize("prisms_center_view", "serverPassword");
 		} catch(PrismsRecordException e)
 		{
-			log.error("Could not get field length", e);
+			// log.error("Could not get field length", e);
 			theNameLength = 64;
 			theUrlLength = 256;
 			theUserNameLength = 32;
@@ -453,7 +453,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 			{
 				theCenter.setClientUser(null);
 				for(RecordUser user : getUsers())
-					if(theRecordKeeper.getCenterID(user.getID()) == theRecordKeeper.getCenterID()
+					if(RecordKeeper.getCenterID(user.getID()) == theRecordKeeper.getCenterID()
 						&& user.getName().equals(userName))
 					{
 						theCenter.setClientUser(user);
@@ -538,7 +538,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 		evt.put("method", "setUsers");
 		org.json.simple.JSONArray jsonUsers = new org.json.simple.JSONArray();
 		for(int u = 0; u < users.length; u++)
-			if(theRecordKeeper.getCenterID() == theRecordKeeper.getCenterID(users[u].getID()))
+			if(theRecordKeeper.getCenterID() == RecordKeeper.getCenterID(users[u].getID()))
 				jsonUsers.add(users[u].getName());
 		evt.put("users", jsonUsers);
 		theSession.postOutgoingEvent(evt);
@@ -689,7 +689,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 		int items;
 		try
 		{
-			items = getSynchronizer().checkSync(theCenter, theSession, pi);
+			items = getSynchronizer().checkSync(theCenter, pi);
 		} catch(prisms.records.PrismsRecordException e)
 		{
 			log.error("URL test failed", e);
@@ -952,7 +952,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 
 		try
 		{
-			int items = getSynchronizer().sync(theCenter, theSession,
+			int items = getSynchronizer().sync(theCenter, theSession.getApp(),
 				SyncRecord.Type.MANUAL_REMOTE, pi);
 			if(items > 0)
 				((UI) theSession.getPlugin("UI")).info("Synchronization successful--" + items

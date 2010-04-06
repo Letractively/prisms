@@ -3,7 +3,7 @@
  */
 package prisms.records;
 
-import prisms.arch.PrismsSession;
+import prisms.arch.PrismsApplication;
 import prisms.ui.UI.DefaultProgressInformer;
 
 /**
@@ -20,6 +20,11 @@ public interface SynchronizeImpl<SyncDataType extends SynchronizeImpl.SyncData>
 	public static class SyncData
 	{
 		/**
+		 * The synchronizer using the implementation
+		 */
+		public final PrismsSynchronizer<?> synchronizer;
+
+		/**
 		 * The center to import from
 		 */
 		public final PrismsCenter center;
@@ -27,7 +32,7 @@ public interface SynchronizeImpl<SyncDataType extends SynchronizeImpl.SyncData>
 		/**
 		 * The session to use to get application data and perform changes
 		 */
-		public final PrismsSession session;
+		public final PrismsApplication app;
 
 		/**
 		 * The progress informer interested in information about synchronization progress. May be
@@ -48,17 +53,19 @@ public interface SynchronizeImpl<SyncDataType extends SynchronizeImpl.SyncData>
 		/**
 		 * Creates a sync data object
 		 * 
+		 * @param sync The synchronizer using the implementation
 		 * @param _center The center being imported from
-		 * @param aSession The session to use for application data retrieval and modification
+		 * @param anApp The application to use for data retrieval and modification
 		 * @param _pi The progress informer
 		 * @param _items The items to synchronize
 		 * @param _mods The changes to synchronize
 		 */
-		public SyncData(PrismsCenter _center, PrismsSession aSession, DefaultProgressInformer _pi,
-			Object [] _items, ChangeRecord [] _mods)
+		public SyncData(PrismsSynchronizer<?> sync, PrismsCenter _center, PrismsApplication anApp,
+			DefaultProgressInformer _pi, Object [] _items, ChangeRecord [] _mods)
 		{
+			synchronizer = sync;
 			center = _center;
-			session = aSession;
+			app = anApp;
 			pi = _pi;
 			items = _items;
 			mods = _mods;
@@ -103,15 +110,17 @@ public interface SynchronizeImpl<SyncDataType extends SynchronizeImpl.SyncData>
 	/**
 	 * Generates synchronization data to pass to the other synchronization methods
 	 * 
+	 * @param synchronizer The synchronizer using this implementation
 	 * @param center The center being imported from
-	 * @param session The session to use to access and modify application data
+	 * @param app The application to use to access and modify data
 	 * @param pi The progress informer
 	 * @param items The items to synchronize
 	 * @param mods The changes to synchronize
 	 * @return The sync data to pass to the other synchronization methods
 	 */
-	SyncDataType genSyncData(PrismsCenter center, PrismsSession session,
-		prisms.ui.UI.DefaultProgressInformer pi, Object [] items, ChangeRecord [] mods);
+	SyncDataType genSyncData(PrismsSynchronizer<? super SyncDataType> synchronizer,
+		PrismsCenter center, PrismsApplication app, prisms.ui.UI.DefaultProgressInformer pi,
+		Object [] items, ChangeRecord [] mods);
 
 	/**
 	 * Gets the value of a field in a record
@@ -186,8 +195,9 @@ public interface SynchronizeImpl<SyncDataType extends SynchronizeImpl.SyncData>
 		throws PrismsRecordException;
 
 	/**
-	 * @param session The session to use to get the export data
+	 * @param app The application to use to get the export data
+	 * @param center The center to send the items to
 	 * @return All items in the application that should be synchronized with another center
 	 */
-	Object [] getExportItems(PrismsSession session);
+	Object [] getExportItems(PrismsApplication app, PrismsCenter center);
 }

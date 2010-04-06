@@ -101,7 +101,10 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	{
 		if(theDataLock)
 			return;
-		changeValues((PrismsSession) evt.getSource());
+		if(evt.getSource() instanceof PrismsSession)
+			changeValues((PrismsSession) evt.getSource());
+		else
+			changeValues(null);
 	}
 
 	/**

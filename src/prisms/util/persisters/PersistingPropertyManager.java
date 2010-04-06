@@ -133,11 +133,12 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 			return;
 		if(thePersister instanceof RequiresSession)
 		{
-			synchronized(thePersister)
-			{
-				((RequiresSession) thePersister).setSession(session);
-				thePersister.setValue(getApplicationValue());
-			}
+			if(session != null)
+				synchronized(thePersister)
+				{
+					((RequiresSession) thePersister).setSession(session);
+					thePersister.setValue(getApplicationValue());
+				}
 		}
 		else
 			thePersister.setValue(getApplicationValue());

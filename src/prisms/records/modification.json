@@ -1,0 +1,16 @@
+
+{
+	"id":{"valueType":"number"},
+	"time":{"valueType":"number"},
+	"user":{"valueType":"prisms/recordUser" /* Put custom user type here */},
+	"subjectType":{"valueType":"string"},
+	"changeType":{"valueType":"string", "nullable":true},
+	"additivity":{"valueType":"oneOf",
+		"values":[-1, 0, 1]
+	},
+	"majorSubject":{"valueType":"prisms/majorSubject" /* Put items schemas here */},
+	"minorSubject":{"valueType":"prisms/minorSubject" /* Put items schemas here */, "nullable":true},
+	"preValue":{"valueType":"prisms/item" /* Put items schemas here */, "nullable":true},
+	"data1":{"valueType":"prisms/majorSubject" /* Put items schemas here */, "nullable":true},
+	"data2":{"valueType":"prisms/majorSubject" /* Put items schemas here */, "nullable":true}
+}

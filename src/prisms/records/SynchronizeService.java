@@ -39,6 +39,8 @@ public abstract class SynchronizeService implements prisms.arch.AppPlugin
 	}
 
 	/**
+	 * Creates and returns the validators for this service
+	 * 
 	 * @return The client input and server output validators, respectively against which to validate
 	 *         this service
 	 */
@@ -70,11 +72,35 @@ public abstract class SynchronizeService implements prisms.arch.AppPlugin
 	}
 
 	/**
+	 * @return The validator used to validate client input to this service
+	 */
+	protected JsonElement getClientValidator()
+	{
+		return theClientValidator;
+	}
+
+	/**
+	 * @return The validator used to validate server output from this service
+	 */
+	protected JsonElement getServerValidator()
+	{
+		return theServerValidator;
+	}
+
+	/**
 	 * @return The session using this service
 	 */
 	public PrismsSession getSession()
 	{
 		return theSession;
+	}
+
+	/**
+	 * @return The name of this plugin
+	 */
+	public String getPluginName()
+	{
+		return thePluginName;
 	}
 
 	public void processEvent(JSONObject evt)
@@ -128,7 +154,8 @@ public abstract class SynchronizeService implements prisms.arch.AppPlugin
 		SyncRecord syncAttempt = null;
 		if("synchronize".equals(evt.get("method")))
 		{
-			log.debug("Center " + center + " is attempting to synchronize");
+			if(centerID > 0)
+				log.debug("Center " + center + " is attempting to synchronize");
 			if(typeStr == null)
 				throw new IllegalArgumentException("Must include synchronization type for record");
 			SyncRecord.Type type = SyncRecord.Type.byName(typeStr);
@@ -145,7 +172,7 @@ public abstract class SynchronizeService implements prisms.arch.AppPlugin
 			}
 			try
 			{
-				synchronizer.genSynchronizeJson(ret, syncAttempt, sinceTime, theSession);
+				synchronizer.genSynchronizeJson(ret, syncAttempt, sinceTime, theSession.getApp());
 			} catch(PrismsRecordException e)
 			{
 				throw new IllegalStateException("Could not generate synchronization data", e);
@@ -155,7 +182,7 @@ public abstract class SynchronizeService implements prisms.arch.AppPlugin
 		{
 			log.debug("Center " + center + " is attempting to check synchronization status");
 			ret.put("itemCount", new Integer(synchronizer.getItemCount(center, sinceTime,
-				theSession)));
+				theSession.getApp())));
 		}
 		else if("reportSuccess".equals(evt.get("method")))
 		{

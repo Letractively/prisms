@@ -499,7 +499,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 		row.cell(TYPE).setLabel(mod.type.toString());
 		row.setSelected(theSelectedIndices.contains(new Long(mod.id)));
 		setUser(row.cell(USER), mod.user);
-		int centerID = theRecordKeeper.getCenterID(mod.user.getID());
+		int centerID = RecordKeeper.getCenterID(mod.user.getID());
 		if(centerID == theRecordKeeper.getCenterID())
 			row.cell(CENTER).setLabel("Here");
 		else
