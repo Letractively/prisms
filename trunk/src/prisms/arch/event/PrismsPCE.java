@@ -42,7 +42,11 @@ public class PrismsPCE<T>
 	}
 
 	/**
-	 * @return The source that fired the event
+	 * @return The source that fired the event. Normally, this will be the session on which the
+	 *         event was originally fired. If the event was fired globally (via
+	 *         {@link prisms.arch.PrismsApplication#fireGlobalPropertyChange(PrismsProperty, PropertyManager, Object)}
+	 *         ), this will be either the property manager passed to the method or the application
+	 *         itself if the given manager was null.
 	 */
 	public Object getSource()
 	{

@@ -272,10 +272,13 @@ public class PrismsServiceConnector
 	 * quicker initial communication or as a ping to see if the service is still running and this
 	 * connector is still connected.
 	 * 
+	 * @throws AuthenticationFailedException If this connector is unable to log in to the PRISMS
+	 *         server
+	 * @throws PrismsServiceException If a PRISMS error occurs
 	 * @throws IOException If this service connector is unable to initialize communication with the
-	 *         service. This may result from an incorrect password among other things.
+	 *         service for any other reason
 	 */
-	public void init() throws IOException
+	public void init() throws AuthenticationFailedException, PrismsServiceException, IOException
 	{
 		JSONObject initObject = new JSONObject();
 		initObject.put("iAm", "whoIsayIam");
@@ -290,7 +293,10 @@ public class PrismsServiceConnector
 	 * @param method The method to call
 	 * @param params The parameters to send to the method
 	 * @return The method's result
-	 * @throws IOException If a problem occurs calling the server
+	 * @throws AuthenticationFailedException If this connector is unable to log in to the PRISMS
+	 *         server
+	 * @throws PrismsServiceException If a PRISMS error occurs
+	 * @throws IOException If any other problem occurs calling the server
 	 */
 	public JSONObject getResult(String plugin, String method, Object... params) throws IOException
 	{
@@ -316,7 +322,10 @@ public class PrismsServiceConnector
 	 *        completed on the server) or asynchronous (returns immediately and lets the procedure
 	 *        run)
 	 * @param params The parameters to send to the method
-	 * @throws IOException If a problem occurs calling the server
+	 * @throws AuthenticationFailedException If this connector is unable to log in to the PRISMS
+	 *         server
+	 * @throws PrismsServiceException If a PRISMS error occurs
+	 * @throws IOException If any other problem occurs calling the server
 	 */
 	public void callProcedure(String plugin, String method, final boolean sync, Object... params)
 		throws IOException
@@ -471,6 +480,10 @@ public class PrismsServiceConnector
 					String message = (String) (json.get("error") == null ? json.get("message")
 						: json.get("error"));
 					serverReturn.addAll(callChangePassword(hashing, constraints, message));
+				}
+				else if("init".equals(json.get("method")))
+				{
+					// Do nothing here--connection successful
 				}
 				else
 					log.warn("Server message: " + json);

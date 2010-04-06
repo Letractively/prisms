@@ -98,7 +98,7 @@ public class CustomSchemaElement extends DefaultJsonElement
 			theSchemaEl = getParser().getExternalSchema(theSchemaName, theSchemaLocation, this);
 		} catch(RuntimeException e)
 		{
-			throw new JsonSchemaException(e.getMessage(), this, null);
+			throw new JsonSchemaException(e.getMessage(), this, null, e);
 		}
 	}
 }

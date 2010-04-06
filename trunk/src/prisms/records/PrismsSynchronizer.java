@@ -11,7 +11,8 @@ import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import prisms.arch.PrismsSession;
+import prisms.arch.PrismsApplication;
+import prisms.arch.event.PrismsEvent;
 import prisms.ui.UI.DefaultProgressInformer;
 
 /**
@@ -47,6 +48,14 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	}
 
 	/**
+	 * @return The synchronize implementation that powers this synchronizer
+	 */
+	public SynchronizeImpl<SyncDataType> getImpl()
+	{
+		return theImpl;
+	}
+
+	/**
 	 * Sets the PRISMS application info this synchronizer needs to connect to a PRISMS server
 	 * 
 	 * @param appName The name of the application to connect to
@@ -55,6 +64,9 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 */
 	public void setAppInfo(String appName, String clientName, String pluginName)
 	{
+		if(appName == null || clientName == null || pluginName == null)
+			throw new IllegalStateException(
+				"Application, client, and plugin names must be specified");
 		theAppName = appName;
 		theClientName = clientName;
 		thePluginName = pluginName;
@@ -69,12 +81,47 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	}
 
 	/**
+	 * @param center The center to connect to
+	 * @return An uninitialized connection to connect to the given center
+	 * @throws PrismsRecordException If the connection cannot be made
+	 */
+	public prisms.util.PrismsServiceConnector connect(PrismsCenter center)
+		throws PrismsRecordException
+	{
+		prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(center
+			.getServerURL(), theAppName, theClientName, center.getServerUserName());
+		conn.setPassword(center.getServerPassword());
+		try
+		{
+			conn.init();
+		} catch(prisms.util.PrismsServiceConnector.AuthenticationFailedException e)
+		{
+			throw new PrismsRecordException("User name/password combination is incorrect", e);
+		} catch(prisms.util.PrismsServiceConnector.PrismsServiceException pse)
+		{
+			throw new PrismsRecordException(pse.getMessage(), pse);
+		} catch(java.io.IOException e)
+		{
+			throw new PrismsRecordException("Could not communicate with server", e);
+		}
+		return conn;
+	}
+
+	/**
+	 * @return The name of the plugin that this synchronizer calls
+	 */
+	public String getPluginName()
+	{
+		return thePluginName;
+	}
+
+	/**
 	 * Synchronizes with all centers for which a synchronization attempt is due
 	 * 
-	 * @param session The session that caused the synchronization attempt
+	 * @param app The application to synchronize data into
 	 * @param pi The progress informer to notify of synchronization progress
 	 */
-	public void autoSync(PrismsSession session, DefaultProgressInformer pi)
+	public void autoSync(PrismsApplication app, DefaultProgressInformer pi)
 	{
 		if(theKeeper == null)
 		{
@@ -110,7 +157,7 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		{
 			try
 			{
-				sync(rc, session, SyncRecord.Type.AUTOMATIC, pi);
+				sync(rc, app, SyncRecord.Type.AUTOMATIC, pi);
 			} catch(PrismsRecordException e)
 			{
 				log.error("Could not synchronize with center " + rc, e);
@@ -122,13 +169,12 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 * Checks the synchronization status with a center
 	 * 
 	 * @param center The center to check synchronization with
-	 * @param session The session get info necessary for the check
 	 * @param pi The progress informer to notify of synchronization progress
 	 * @return The number of updates that are waiting to be applied upon synchronization, or -1 if
 	 *         the number cannot be determined (as upon initial synchronization)
 	 * @throws PrismsRecordException If an error occurs checking the synchronization status
 	 */
-	public int checkSync(PrismsCenter center, PrismsSession session, DefaultProgressInformer pi)
+	public int checkSync(PrismsCenter center, DefaultProgressInformer pi)
 		throws PrismsRecordException
 	{
 		if(pi != null)
@@ -138,23 +184,7 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		if(pi != null)
 			pi.setProgressText("Connecting to center " + center + " at URL "
 				+ center.getServerURL());
-		prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(center
-			.getServerURL(), theAppName, theClientName, center.getServerUserName());
-		conn.setPassword(center.getServerPassword());
-		try
-		{
-			conn.init();
-		} catch(prisms.util.PrismsServiceConnector.AuthenticationFailedException e)
-		{
-			throw new PrismsRecordException("User name/password combination is incorrect", e);
-		} catch(prisms.util.PrismsServiceConnector.PrismsServiceException pse)
-		{
-			throw new PrismsRecordException(pse.getMessage(), pse);
-		} catch(java.io.IOException e)
-		{
-			throw new PrismsRecordException("Could not communicate with server", e);
-		}
-
+		prisms.util.PrismsServiceConnector conn = connect(center);
 		long lastSync = center.getLastImport();
 
 		if(pi != null)
@@ -198,13 +228,13 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 * Synchronizes with a center
 	 * 
 	 * @param center The center to synchronize with
-	 * @param session The session to use for synchronization
+	 * @param app The application to synchronize data into
 	 * @param syncType The type of synchronization to be performed
 	 * @param pi The progress informer to notify of synchronization progress
 	 * @return The number of items synchronized
 	 * @throws PrismsRecordException If an error occurs during synchronization
 	 */
-	public int sync(PrismsCenter center, PrismsSession session, SyncRecord.Type syncType,
+	public int sync(PrismsCenter center, PrismsApplication app, SyncRecord.Type syncType,
 		DefaultProgressInformer pi) throws PrismsRecordException
 	{
 		if(pi != null)
@@ -220,32 +250,23 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		{
 			record = new SyncRecord(center, syncType, System.currentTimeMillis(), true);
 			record.setSyncError("?");
-			session.fireEvent("syncAttempted", "record", record);
+			theKeeper.putSyncRecord(record);
+			app.fireGlobally(null, new PrismsEvent("syncAttempted", "record", record));
 		}
 		String error = null;
-		prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(center
-			.getServerURL(), theAppName, theClientName, center.getServerUserName());
-		conn.setPassword(center.getServerPassword());
 		Number serverRecordID = null;
 		long now = System.currentTimeMillis();
 		int centerID = theKeeper == null ? 0 : theKeeper.getCenterID();
+		prisms.util.PrismsServiceConnector conn = null;
 		try
 		{
 			try
 			{
-				conn.init();
-			} catch(prisms.util.PrismsServiceConnector.AuthenticationFailedException e)
+				conn = connect(center);
+			} catch(PrismsRecordException e)
 			{
-				error = "User name/password combination is incorrect";
-				throw new PrismsRecordException(error, e);
-			} catch(IOException e)
-			{
-				error = "Could not communicate with server" + e.getMessage();
-				throw new PrismsRecordException(error, e);
-			} catch(Throwable e)
-			{
-				error = "Could not communicated with server: " + e.getMessage();
-				throw new PrismsRecordException(error, e);
+				error = e.getMessage();
+				throw e;
 			}
 
 			if(pi != null)
@@ -272,7 +293,8 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 			{
 				serverRecordID = (Number) res.get("recordID");
 				record.setParallelID(serverRecordID.intValue());
-				session.fireEvent("syncAttemptChanged", "record", record);
+				theKeeper.putSyncRecord(record);
+				app.fireGlobally(null, new PrismsEvent("syncAttemptChanged", "record", record));
 			}
 			if(center.getCenterID() < 0)
 			{
@@ -294,7 +316,7 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 					"The center contacted is different than the one stored.\n"
 						+ "Please create a new center to synchronize to a different location.");
 			}
-			return synchronize(center, session, record, pi, res);
+			return synchronize(center, app, record, pi, res);
 		} catch(PrismsRecordException e)
 		{
 			error = e.getMessage();
@@ -328,7 +350,7 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 					{
 						log.error("Could not write synchronization error", e);
 					}
-				session.fireEvent("syncAttemptChanged", "record", record);
+				app.fireGlobally(null, new PrismsEvent("syncAttemptChanged", "record", record));
 			}
 			if(serverRecordID != null)
 			{
@@ -352,14 +374,14 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 * Synchronizes a center with the given JSON response
 	 * 
 	 * @param center The center to synchronize on
-	 * @param session The session to use for synchronization
+	 * @param app The application to synchronize data into
 	 * @param record The synchronization records to write the modifications with
 	 * @param pi The progress informer to notify the user with
 	 * @param json The JSON synchronization service response
 	 * @return The number of items synchronized
 	 * @throws PrismsRecordException If an error occurs during synchronization
 	 */
-	public int synchronize(PrismsCenter center, PrismsSession session, SyncRecord record,
+	public int synchronize(PrismsCenter center, PrismsApplication app, SyncRecord record,
 		prisms.ui.UI.DefaultProgressInformer pi, JSONObject json) throws PrismsRecordException
 	{
 		ChangeRecord [] mods;
@@ -398,15 +420,15 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		Object syncObj = theKeeper != null ? theKeeper : this;
 		synchronized(syncObj)
 		{
-			SyncDataType data = theImpl.genSyncData(center, session, pi, items, mods);
+			SyncDataType data = theImpl.genSyncData(this, center, app, pi, items, mods);
 			if(theKeeper != null)
 				theKeeper.setSyncRecord(record);
 			try
 			{
 				if(mods.length > 0)
-					syncModifications(center, session, mods, pi, data);
+					syncModifications(data);
 				if(items.length > 0)
-					syncItems(center, session, items, pi, data);
+					syncItems(data);
 			} catch(PrismsRecordException e)
 			{
 				throw new PrismsRecordException("Synchronization failed: " + e.getMessage(), e);
@@ -524,10 +546,9 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		return theImpl.deserializeItem(json);
 	}
 
-	private void syncItems(PrismsCenter center, PrismsSession session, Object [] items,
-		DefaultProgressInformer pi, SyncDataType data) throws PrismsRecordException
+	private void syncItems(SyncDataType data) throws PrismsRecordException
 	{
-		for(Object item : items)
+		for(Object item : data.items)
 		{
 			if(item == null)
 				continue; // May have already been done as a dependent of a previous item
@@ -536,11 +557,9 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		data.dispose();
 	}
 
-	private void syncModifications(PrismsCenter center, PrismsSession session,
-		ChangeRecord [] mods, prisms.ui.UI.DefaultProgressInformer pi, SyncDataType data)
-		throws PrismsRecordException
+	private void syncModifications(SyncDataType data) throws PrismsRecordException
 	{
-		for(ChangeRecord mod : mods)
+		for(ChangeRecord mod : data.mods)
 		{
 			if(mod == null)
 				continue;
@@ -608,9 +627,8 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 						theKeeper.persist(rs);
 					} catch(PrismsRecordException e)
 					{
-						log.error("Could not enact modification " + mod, e);
 						throw new PrismsRecordException("Could not enact modification: "
-							+ e.getMessage());
+							+ e.getMessage(), e);
 					}
 			}
 		}
@@ -653,30 +671,34 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 * @param json The JSONObject to fill in with the info. If null, a new one will be created
 	 * @param record The synchronization record
 	 * @param sinceTime The last time the center synchronized with this center
-	 * @param session The session to use to get the information
+	 * @param app The application to use to get the information
 	 * @return The JSON synchronization response
 	 * @throws PrismsRecordException If an error occurs generating the synchronization data
 	 */
 	public JSONObject genSynchronizeJson(JSONObject json, SyncRecord record, long sinceTime,
-		PrismsSession session) throws PrismsRecordException
+		PrismsApplication app) throws PrismsRecordException
 	{
 		if(json == null)
 			json = new JSONObject();
-		ChangeRecord [] mods = getExportModsSince(record.getCenter().getClientUser(), sinceTime);
-		for(ChangeRecord mod : mods)
-		{
-			try
-			{
-				theKeeper.associate(mod, record);
-			} catch(PrismsRecordException e)
-			{
-				log.error("Could not associate client synchronization record " + record
-					+ " with modification " + mod, e);
-			}
-		}
-		json.put("mods", serializeChanges(mods));
 		if(needsItems(record.getCenter(), sinceTime, record.getCenter().getClientUser()))
-			json.put("items", serializeItems(session));
+			json.put("items", serializeItems(app, record.getCenter()));
+		if(record.getCenter().getCenterID() != 0 || json.get("items") == null)
+		{ /* Don't put modifications for for a zero-center unless they save space */
+			ChangeRecord [] mods = getExportModsSince(record.getCenter().getClientUser(), sinceTime);
+			for(ChangeRecord mod : mods)
+			{
+				try
+				{
+					if(record.getCenter().getCenterID() > 0)
+						theKeeper.associate(mod, record);
+				} catch(PrismsRecordException e)
+				{
+					log.error("Could not associate client synchronization record " + record
+						+ " with modification " + mod, e);
+				}
+			}
+			json.put("mods", serializeChanges(mods));
+		}
 		return json;
 	}
 
@@ -704,9 +726,10 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		return ret;
 	}
 
-	JSONArray serializeItems(PrismsSession session) throws PrismsRecordException
+	JSONArray serializeItems(PrismsApplication app, PrismsCenter center)
+		throws PrismsRecordException
 	{
-		Object [] items = theImpl.getExportItems(session);
+		Object [] items = theImpl.getExportItems(app, center);
 		JSONArray ret = new JSONArray();
 		for(int i = 0; i < items.length; i++)
 			ret.add(serializeItem(items[i]));
@@ -809,16 +832,16 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 * 
 	 * @param center The center synchronizing with this center
 	 * @param sinceTime The last time the center synchronized with this center
-	 * @param session The session to use to get the information
+	 * @param app The application to use to get the information
 	 * @return The number of items (including modifications and items) that would be sent in
 	 *         response to a request for synchronization
 	 */
-	public int getItemCount(PrismsCenter center, long sinceTime, PrismsSession session)
+	public int getItemCount(PrismsCenter center, long sinceTime, PrismsApplication app)
 	{
 		ChangeRecord [] mods = getExportModsSince(center.getClientUser(), sinceTime);
 		int itemCount = mods.length;
 		if(needsItems(center, sinceTime, center.getClientUser()))
-			itemCount += theImpl.getExportItems(session).length;
+			itemCount += theImpl.getExportItems(app, center).length;
 		return itemCount;
 	}
 }

@@ -84,7 +84,13 @@ public class ReadOnlyManager<T> extends PropertyManager<T>
 	@Override
 	public synchronized void propertyChange(prisms.arch.event.PrismsPCE<T> evt)
 	{
-		if(!isValueCorrect((PrismsSession) evt.getSource(), evt.getNewValue()))
+		boolean isCorrect;
+		if(evt.getSource() instanceof PrismsSession)
+			isCorrect = isValueCorrect((PrismsSession) evt.getSource(), evt.getNewValue());
+		else
+			isCorrect = prisms.util.ArrayUtils.equals(evt.getNewValue(), getApp()
+				.getGlobalProperty(getProperty()));
+		if(!isCorrect)
 			throw new IllegalArgumentException("Cannot change the value of the read-only property "
 				+ getProperty());
 	}
@@ -104,7 +110,8 @@ public class ReadOnlyManager<T> extends PropertyManager<T>
 	}
 
 	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession, java.lang.Object)
+	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession,
+	 *      java.lang.Object)
 	 */
 	@Override
 	public boolean isValueCorrect(PrismsSession session, Object val)

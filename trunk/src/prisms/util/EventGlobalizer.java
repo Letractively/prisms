@@ -25,7 +25,8 @@ public class EventGlobalizer implements prisms.arch.event.ConfiguredPEL
 	 */
 	public void eventOccurred(final prisms.arch.event.PrismsEvent evt)
 	{
-		if(evt.getProperty("globalEventID") != null)
+		if(evt.getProperty("globalEventID") != null
+			|| Boolean.TRUE.equals(evt.getProperty("globalEvent")))
 			return;
 		evt.setProperty("globalEventID", new Integer(id));
 		id++;

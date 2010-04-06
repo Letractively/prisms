@@ -405,8 +405,67 @@ public class PrismsApplication
 	}
 
 	/**
+	 * Sets the application value of a property
+	 * 
+	 * @param <T> The type of the property to set
+	 * @param prop The property to set the value of
+	 * @param value The value of the property to set
+	 */
+	public <T> void setGlobalProperty(PrismsProperty<T> prop, T value)
+	{
+		PrismsPCE<T> propEvt = new PrismsPCE<T>(this, prop, null, value);
+		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
+		thePropLock.lock();
+		PropertyManager<T> manager = null;
+		try
+		{
+			for(PropertyManager<?> mgr : theManagers)
+			{
+				if(mgr != manager && mgr.getProperty().equals(prop))
+				{
+					PropertyManager<T> propMgr = (PropertyManager<T>) mgr;
+					if(manager == null && propMgr.getApplicationValue() != null)
+						manager = propMgr;
+					propMgr.propertyChange(propEvt);
+				}
+			}
+			value = getGlobalProperty(prop);
+			thePropertyStack.add(prop);
+			try
+			{
+				for(PrismsPCL<T> l : listeners)
+				{
+					l.propertyChange(propEvt);
+					/*
+					 * If this property is changed as a result of the above PCL, stop this notification
+					 */
+					if(!thePropertyStack.contains(prop))
+						break;
+				}
+				for(PrismsSession session : getSessions())
+				{
+					T sessionValue = session.getProperty(prop);
+					if(manager == null && !prisms.util.ArrayUtils.equals(sessionValue, value))
+						session.setProperty(prop, sessionValue);
+					else if(manager != null
+						&& !manager.isValueCorrect(session, session.getProperty(prop)))
+						session.setProperty(prop, manager.getCorrectValue(session));
+				}
+			} finally
+			{
+				thePropertyStack.remove(prop);
+			}
+		} finally
+		{
+			thePropLock.unlock();
+		}
+	}
+
+	/**
 	 * Signals that data for a globally managed property is changed. This is called when the data
 	 * available to the application is changed, not just that available to a particular session.
+	 * This method does not change the data in a session--it merely fires the appropriate property
+	 * change listeners.
 	 * 
 	 * @param <T> The type of property that changed
 	 * @param prop The property whose value is changed
@@ -416,11 +475,11 @@ public class PrismsApplication
 	public <T> void fireGlobalPropertyChange(PrismsProperty<T> prop, PropertyManager<T> manager,
 		T value)
 	{
+		PrismsPCE<T> propEvt = new PrismsPCE<T>(manager != null ? manager : this, prop, null, value);
 		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
 		thePropLock.lock();
 		try
 		{
-			PrismsPCE<T> propEvt = new PrismsPCE<T>(manager, prop, null, value);
 			thePropertyStack.add(prop);
 			for(PrismsPCL<T> l : listeners)
 			{
@@ -524,6 +583,7 @@ public class PrismsApplication
 	 */
 	public void fireGlobally(PrismsSession session, final PrismsEvent toFire)
 	{
+		toFire.setProperty("globalEvent", Boolean.TRUE);
 		runSessionTask(session, new SessionTask()
 		{
 			public void run(PrismsSession s)

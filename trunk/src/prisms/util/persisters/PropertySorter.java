@@ -56,6 +56,8 @@ public class PropertySorter<T> extends prisms.arch.event.PropertyManager<T []>
 	public T [] getCorrectValue(prisms.arch.PrismsSession session)
 	{
 		T [] ret = session.getProperty(getProperty());
+		if(ret == null)
+			return ret;
 		ret = ret.clone();
 		java.util.Arrays.sort(ret, theComparator);
 		return ret;
@@ -64,6 +66,8 @@ public class PropertySorter<T> extends prisms.arch.event.PropertyManager<T []>
 	@Override
 	public boolean isValueCorrect(prisms.arch.PrismsSession session, Object [] val)
 	{
+		if(val == null)
+			return true;
 		if(theComparator != null)
 		{
 			for(int i = 0; i < val.length - 1; i++)

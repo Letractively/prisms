@@ -55,7 +55,7 @@ public class RecordKeeper
 	/**
 	 * The range of IDS that may exist in a given PRISMS center
 	 */
-	protected int theCenterIDRange = 1000000000;
+	protected static int theCenterIDRange = 1000000000;
 
 	final String theNamespace;
 
@@ -163,7 +163,7 @@ public class RecordKeeper
 	 * @param objectID The ID of an object
 	 * @return The ID of the center where the given object was created
 	 */
-	public int getCenterID(long objectID)
+	public static int getCenterID(long objectID)
 	{
 		return (int) (objectID / theCenterIDRange);
 	}
@@ -1568,10 +1568,10 @@ public class RecordKeeper
 		try
 		{
 			stmt = theConn.createStatement();
-			id = getNextID(stmt, DBOWNER + "prisms_change_record", "id", null);
+			id = getNextID(stmt, DBOWNER, "prisms_change_record", "id", null);
 		} catch(SQLException e)
 		{
-			throw new PrismsRecordException("Could not persist " + subjectType + " change");
+			throw new PrismsRecordException("Could not persist " + subjectType + " change", e);
 		} finally
 		{
 			if(stmt != null)
@@ -1665,7 +1665,8 @@ public class RecordKeeper
 				else
 				{
 					pStmt.setNull(11, java.sql.Types.VARCHAR);
-					pStmt.setCharacterStream(12, new java.io.StringReader(serialized));
+					pStmt.setCharacterStream(12, new java.io.StringReader(serialized), serialized
+						.length());
 				}
 			}
 			if(record.data1 == null)
@@ -1691,7 +1692,7 @@ public class RecordKeeper
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not persist " + record.type.subjectType
-				+ " change: SQL=" + sql);
+				+ " change: SQL=" + sql, e);
 		} finally
 		{
 			if(rs != null)
@@ -2291,6 +2292,7 @@ public class RecordKeeper
 	 * 
 	 * @param prismsStmt The active statement pointing to the PRISMS records database. Cannot be
 	 *        null or closed.
+	 * @param prefix The table prefix to use for the query
 	 * @param table The name of the table to get the next ID for (including any applicable prefix)
 	 * @param column The ID column of the table
 	 * @param extStmt The active statement pointing to the database where the actual implementation
@@ -2300,8 +2302,8 @@ public class RecordKeeper
 	 * @return The next ID that should be used for an entry in the table
 	 * @throws PrismsRecordException If an error occurs deriving the data
 	 */
-	public long getNextID(Statement prismsStmt, String table, String column, Statement extStmt)
-		throws PrismsRecordException
+	public long getNextID(Statement prismsStmt, String prefix, String table, String column,
+		Statement extStmt) throws PrismsRecordException
 	{
 		if(extStmt == null)
 			extStmt = prismsStmt;
@@ -2312,9 +2314,10 @@ public class RecordKeeper
 			long centerMin = ((long) theCenterID) * theCenterIDRange;
 			long centerMax = centerMin + theCenterIDRange - 1;
 
-			rs = prismsStmt.executeQuery("SELECT DISTINCT nextID FROM " + DBOWNER
+			sql = "SELECT DISTINCT nextID FROM " + DBOWNER
 				+ "prisms_auto_increment WHERE recordNS=" + toSQL(theNamespace) + " AND tableName="
-				+ toSQL(table));
+				+ toSQL(table);
+			rs = prismsStmt.executeQuery(sql);
 
 			long ret;
 			if(rs.next())
@@ -2324,8 +2327,8 @@ public class RecordKeeper
 			rs.close();
 			if(ret < 0)
 			{
-				sql = "SELECT MAX(" + column + ") FROM " + table + " WHERE " + column + ">="
-					+ centerMin + " AND " + column + " <=" + centerMax;
+				sql = "SELECT MAX(" + column + ") FROM " + prefix + table + " WHERE " + column
+					+ ">=" + centerMin + " AND " + column + " <=" + centerMax;
 				rs = extStmt.executeQuery(sql);
 				if(rs.next())
 				{
@@ -2345,9 +2348,10 @@ public class RecordKeeper
 					+ centerMin + ")";
 				prismsStmt.execute(sql);
 			}
-			long nextTry = nextAvailableID(extStmt, table, column, ret + 1);
+			sql = null;
+			long nextTry = nextAvailableID(extStmt, prefix + table, column, ret + 1);
 			if(nextTry > centerMax)
-				nextTry = nextAvailableID(extStmt, table, column, centerMin);
+				nextTry = nextAvailableID(extStmt, prefix + table, column, centerMin);
 			if(nextTry == ret || nextTry > centerMax)
 				throw new PrismsRecordException("All " + table + " ids are used!");
 
@@ -2372,13 +2376,14 @@ public class RecordKeeper
 	}
 
 	private long nextAvailableID(Statement stmt, String table, String column, long start)
-		throws SQLException
+		throws PrismsRecordException
 	{
+		String sql = "SELECT DISTINCT " + column + " FROM " + table + " WHERE " + column + ">="
+			+ start + " ORDER BY " + column;
 		ResultSet rs = null;
 		try
 		{
-			rs = stmt.executeQuery("SELECT DISTINCT " + column + " FROM " + DBOWNER + table
-				+ " WHERE " + column + ">=" + start + " ORDER BY " + column);
+			rs = stmt.executeQuery(sql);
 			while(rs.next())
 			{
 				long tempID = rs.getLong(1);
@@ -2386,6 +2391,9 @@ public class RecordKeeper
 					break;
 				start++;
 			}
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not get next available table ID: SQL=" + sql, e);
 		} finally
 		{
 			try
@@ -2466,6 +2474,9 @@ public class RecordKeeper
 	public static int getFieldSize(java.sql.Connection conn, String tableName, String fieldName)
 		throws PrismsRecordException
 	{
+		if(isOracle(conn))
+			throw new PrismsRecordException(
+				"Accessing Oracle metadata is unsafe--cannot get field size");
 		ResultSet rs = null;
 		try
 		{
@@ -2505,6 +2516,15 @@ public class RecordKeeper
 		}
 	}
 
+	/**
+	 * @param conn The connection to test
+	 * @return Whether the connection is to an oracle database
+	 */
+	public static boolean isOracle(java.sql.Connection conn)
+	{
+		return conn.getClass().getName().toLowerCase().contains("ora");
+	}
+
 	private Boolean _isOracle = null;
 
 	/**
@@ -2513,7 +2533,7 @@ public class RecordKeeper
 	protected boolean isOracle()
 	{
 		if(_isOracle == null)
-			_isOracle = new Boolean(theConn.getClass().getName().toLowerCase().contains("ora"));
+			_isOracle = new Boolean(isOracle(theConn));
 		return _isOracle.booleanValue();
 	}
 
@@ -2685,6 +2705,8 @@ public class RecordKeeper
 			{
 				theConn = theFactory.getConnection(theConnEl, null);
 				DBOWNER = theFactory.getTablePrefix(theConn, theConnEl, null);
+				if(DBOWNER.length() > 0 || isOracle())
+					DBOWNER = DBOWNER + "V3";
 			}
 		} catch(SQLException e)
 		{
