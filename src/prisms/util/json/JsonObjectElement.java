@@ -31,6 +31,8 @@ public class JsonObjectElement extends DefaultJsonElement
 
 	private OnExtraEl theExtraEl;
 
+	private CustomSchemaElement theInheritance;
+
 	@Override
 	public void configure(JsonSchemaParser parser, JsonElement parent, String name,
 		JSONObject schemaEl)
@@ -53,6 +55,19 @@ public class JsonObjectElement extends DefaultJsonElement
 			else
 				// If no parent, use WARN as default
 				theExtraEl = OnExtraEl.WARN;
+		}
+		if(schemaEl.get("inheritSchema") != null)
+		{
+			theInheritance = getParser().createElementForType(
+				(String) schemaEl.get("inheritSchema"));
+			theInheritance.configure(parser, this, "inheritSchema", null);
+			schemaEl.remove("inheritSchema");
+			if(!(theInheritance.getSchemaElement() instanceof JsonObjectElement))
+				throw new IllegalStateException(
+					"The inheritsSchema attribute must point to a valid JSON object schema");
+			for(java.util.Map.Entry<String, JsonElement> entry : ((JsonObjectElement) theInheritance
+				.getSchemaElement()).theChildren.entrySet())
+				theChildren.put(entry.getKey(), entry.getValue());
 		}
 		for(Map.Entry<String, Object> entry : ((Map<String, Object>) schemaEl).entrySet())
 			theChildren.put(entry.getKey(), parser.parseSchema(this, entry.getKey(), entry
