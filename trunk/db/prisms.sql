@@ -148,6 +148,11 @@ CREATE TABLE prisms_change_record(
 	PRIMARY KEY(id, recordNS)
 );
 
+CREATE TABLE prisms_installation(
+	recordNS VARCHAR(64) NOT NULL,
+	installDate TIMESTAMP NOT NULL
+);
+
 CREATE TABLE prisms_center(
 	id INT NULL PRIMARY KEY
 );
