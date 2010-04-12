@@ -120,16 +120,22 @@ public class RecordKeeper
 	protected void doStartup() throws PrismsRecordException
 	{
 		PrismsCenter selfCenter = getCenter(0, null);
-		if(selfCenter != null)
-			theCenterID = selfCenter.getCenterID();
+		if(getInstallDate() < 0)
+			installRecordKeeper(selfCenter);
 		else
 		{
-			selfCenter = new PrismsCenter(0, "Here");
-			selfCenter.setNamespace(theNamespace);
-			selfCenter.setCenterID((int) (Math.random() * theCenterIDRange));
-			theCenterID = selfCenter.getCenterID();
-			putCenter(selfCenter, null);
-			log.debug("Created rules center with ID " + selfCenter.getID());
+			if(selfCenter == null)
+			{
+				int newCenterID = (int) (Math.random() * theCenterIDRange);
+				selfCenter = new PrismsCenter(0, "Here");
+				selfCenter.setNamespace(theNamespace);
+				selfCenter.setCenterID(newCenterID);
+				theCenterID = selfCenter.getCenterID();
+				putCenter(selfCenter, null);
+				log.debug("Created rules center with ID " + selfCenter.getCenterID());
+			}
+			else
+				theCenterID = selfCenter.getCenterID();
 		}
 	}
 
@@ -166,6 +172,152 @@ public class RecordKeeper
 	public static int getCenterID(long objectID)
 	{
 		return (int) (objectID / theCenterIDRange);
+	}
+
+	/**
+	 * @return The date when this set of records was installed
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
+	public long getInstallDate() throws PrismsRecordException
+	{
+		Statement stmt = null;
+		ResultSet rs = null;
+		String sql = "SELECT installDate FROM " + DBOWNER + "prisms_installation WHERE recordNS="
+			+ toSQL(theNamespace);
+		checkConnection();
+		try
+		{
+			stmt = theConn.createStatement();
+			rs = stmt.executeQuery(sql);
+			if(!rs.next())
+				return -1;
+			return rs.getTimestamp(1).getTime();
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not query PRISMS installation", e);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
+	/**
+	 * Installs this record keeper into the database
+	 * 
+	 * @param selfCenter The center that was "Here" in the old installation--may be null
+	 * @throws PrismsRecordException If an error occurs installing this record keeper
+	 */
+	private void installRecordKeeper(final PrismsCenter selfCenter) throws PrismsRecordException
+	{
+		/* This is a new installation with copied data. We need to assert our independence.
+		 * We need to delete all the auto-increment tables. Then we will move the center
+		 * that was "Here" when the data was copied to a different ID under the name
+		 * "Installation".  Then we create the "Here" center like normal. Then we update the
+		 * synchronization records to point to "Here", since we know that the data is
+		 * synchronized with other centers just as it was when the data was copied.  We also
+		 * add a sync record with the Installation server since we have all the data it had
+		 * when it was copied.
+		 */
+		Statement stmt = null;
+		ResultSet rs = null;
+		String sql;
+		boolean autoCommit = true;
+		boolean complete = false;
+		ignoreUser = true;
+		try
+		{
+			autoCommit = theConn.getAutoCommit();
+			theConn.setAutoCommit(false);
+
+			stmt = theConn.createStatement();
+			sql = "DELETE FROM " + DBOWNER + "prisms_auto_increment WHERE recordNS="
+				+ toSQL(theNamespace);
+			stmt.execute(sql);
+			// Make a new center to represent the old "Here" center
+			PrismsCenter oldHere = new PrismsCenter("Installation");
+			oldHere.setCenterID(selfCenter.getCenterID());
+			putCenter(oldHere, null);
+
+			// Adjust the center ID of the real "Here"
+			int newCenterID = (int) (Math.random() * theCenterIDRange);
+			selfCenter.setCenterID(newCenterID);
+			putCenter(selfCenter, null);
+			theCenterID = selfCenter.getCenterID();
+			log.debug("Created rules center with ID " + selfCenter.getCenterID());
+
+			sql = "SELECT MAX(changeTime) FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
+				+ toSQL(theNamespace);
+			rs = stmt.executeQuery(sql);
+			if(rs.next())
+			{
+				java.sql.Timestamp time = rs.getTimestamp(1);
+				if(time != null)
+				{
+					SyncRecord record = new SyncRecord(oldHere, SyncRecord.Type.AUTOMATIC, time
+						.getTime(), true);
+					putSyncRecord(record);
+				}
+			}
+			sql = "INSERT INTO " + DBOWNER + "prisms_installation (recordNS, installDate) VALUES ("
+				+ toSQL(theNamespace) + ", " + formatDate(System.currentTimeMillis()) + ")";
+			stmt.execute(sql);
+			theConn.commit();
+			complete = true;
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not install record keeper", e);
+		} finally
+		{
+			ignoreUser = false;
+			if(!complete)
+			{
+				try
+				{
+					theConn.rollback();
+				} catch(SQLException e)
+				{
+					log.error("Could not perform rollback", e);
+				}
+			}
+			try
+			{
+				theConn.setAutoCommit(autoCommit);
+			} catch(SQLException e)
+			{
+				throw new IllegalStateException("Connection error", e);
+			}
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
 	}
 
 	/**
@@ -317,6 +469,8 @@ public class RecordKeeper
 		return pc;
 	}
 
+	private boolean ignoreUser = false;
+
 	/**
 	 * Adds a new center to the record keeper or updates an existing center
 	 * 
@@ -388,7 +542,7 @@ public class RecordKeeper
 			}
 			if(dbCenter == null)
 			{
-				if(user == null && center.getID() != 0)
+				if(user == null && center.getID() != 0 && !ignoreUser)
 				{
 					log.warn("Cannot insert PRISMS center view--no user");
 					return;
@@ -2325,6 +2479,8 @@ public class RecordKeeper
 			else
 				ret = -1;
 			rs.close();
+			if(ret < centerMin || ret > centerMax)
+				ret = -1;
 			if(ret < 0)
 			{
 				sql = "SELECT MAX(" + column + ") FROM " + prefix + table + " WHERE " + column
