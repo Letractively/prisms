@@ -102,7 +102,7 @@ public class JsonSchemaParser
 	 * @param type The type of schema to get
 	 * @return The schema for the given type
 	 */
-	public JsonElement createElementForType(String type)
+	public CustomSchemaElement createElementForType(String type)
 	{
 		int idx = type.indexOf('/');
 		if(idx < 0)

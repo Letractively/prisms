@@ -51,6 +51,15 @@ public class CustomSchemaElement extends DefaultJsonElement
 		super.configure(parser, parent, name, schemaEl);
 	}
 
+	/**
+	 * @return The schema element that this custom schema points to and which will be validated
+	 *         against
+	 */
+	public JsonElement getSchemaElement()
+	{
+		return theSchemaEl;
+	}
+
 	@Override
 	public float doesValidate(Object jsonValue)
 	{
