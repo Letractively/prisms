@@ -7,12 +7,7 @@ import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
 import prisms.arch.ds.User;
-import prisms.arch.event.ListenerManager;
-import prisms.arch.event.PrismsEvent;
-import prisms.arch.event.PrismsEventListener;
-import prisms.arch.event.PrismsPCE;
-import prisms.arch.event.PrismsPCL;
-import prisms.arch.event.PrismsProperty;
+import prisms.arch.event.*;
 
 /**
  * A PluginAppSession serves as the core of the plugin architecture and the remote session for the
@@ -149,6 +144,25 @@ public class PrismsSession
 			addPlugin(name, ret);
 		}
 		return ret;
+	}
+
+	/**
+	 * Removes all outgoing events marked for the given plugin
+	 * 
+	 * @param pluginName The name of the plugin to remove the outgoing events for
+	 */
+	public void removeOutgoingEvents(String pluginName)
+	{
+		synchronized(theOutgoingQueue)
+		{
+			java.util.Iterator<JSONObject> queueIter = theOutgoingQueue.iterator();
+			while(queueIter.hasNext())
+			{
+				JSONObject evt = queueIter.next();
+				if(pluginName.equals(evt.get("plugin")))
+					queueIter.remove();
+			}
+		}
 	}
 
 	/**

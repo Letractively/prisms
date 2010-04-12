@@ -8,11 +8,7 @@ import java.util.ArrayList;
 import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
-import prisms.arch.AppPlugin;
-import prisms.arch.ClientConfig;
-import prisms.arch.PrismsApplication;
-import prisms.arch.PrismsSession;
-import prisms.arch.RemoteEventSerializer;
+import prisms.arch.*;
 import prisms.arch.event.PrismsEventListener;
 import prisms.arch.event.SessionMonitor;
 
@@ -319,6 +315,7 @@ public class DBClientConfig implements ClientConfig
 			return null;
 		}
 		plugin.initPlugin(session, pt.theConfigEl);
+		session.removeOutgoingEvents(pluginName);
 		return plugin;
 	}
 }
