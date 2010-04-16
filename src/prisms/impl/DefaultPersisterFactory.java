@@ -98,9 +98,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			throw new IllegalStateException("No PRISMS configuration element was available!");
 		}
 
-		String name = el.attributeValue("name");
-		if(name == null)
-			name = el.elementTextTrim("name");
+		String name = el.attributeValue("ref");
 		if(name != null)
 		{
 			java.sql.Connection ret = theNamedConnections.get(name);
@@ -168,9 +166,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		do
 		{
 			connEl = ret;
-			String name = connEl.attributeValue("name");
-			if(name == null)
-				name = connEl.elementTextTrim("name");
+			String name = connEl.attributeValue("ref");
 			if(name != null)
 				ret = getConnectionElement(name);
 			else

@@ -228,11 +228,11 @@ dojo.declare("prisms.widget.CenterEditor", [dijit._Widget, dijit._Templated, dij
 	},
 
 	_sortByImp: function(column, ascending){
-		this.prisms.callApp(this.pluginName, "sortBy", {column: column, ascending: ascending, import: true});
+		this.prisms.callApp(this.pluginName, "sortBy", {column: column, ascending: ascending, isImport: true});
 	},
 
 	_sortByExp: function(column, ascending){
-		this.prisms.callApp(this.pluginName, "sortBy", {column: column, ascending: ascending, import: false});
+		this.prisms.callApp(this.pluginName, "sortBy", {column: column, ascending: ascending, isImport: false});
 	},
 
 	_goToImp: function(linkID){
@@ -244,29 +244,29 @@ dojo.declare("prisms.widget.CenterEditor", [dijit._Widget, dijit._Templated, dij
 	},
 
 	_navToImp: function(start){
-		this.prisms.callApp(this.pluginName, "navigateTo", {import: true, start: start});
+		this.prisms.callApp(this.pluginName, "navigateTo", {isImport: true, start: start});
 	},
 
 	_navToExp: function(start){
-		this.prisms.callApp(this.pluginName, "navigateTo", {import: false, start: start});
+		this.prisms.callApp(this.pluginName, "navigateTo", {isImport: false, start: start});
 	},
 
 	_selectChangedImp: function(start, end, selected){
-		this.prisms.callApp(this.pluginName, "selectChanged", {import: true, start: start,
+		this.prisms.callApp(this.pluginName, "selectChanged", {isImport: true, start: start,
 			end: end, selected: selected});
 	},
 
 	_selectChangedExp: function(start, end, selected){
-		this.prisms.callApp(this.pluginName, "selectChanged", {import: false, start: start,
+		this.prisms.callApp(this.pluginName, "selectChanged", {isImport: false, start: start,
 			end: end, selected: selected});
 	},
 
 	_purgeImportSyncs: function(){
-		this.prisms.callApp(this.pluginName, "purgeSyncRecords", {import: true});
+		this.prisms.callApp(this.pluginName, "purgeSyncRecords", {isImport: true});
 	},
 
 	_purgeExportSyncs: function(){
-		this.prisms.callApp(this.pluginName, "purgeSyncRecords", {import: false});
+		this.prisms.callApp(this.pluginName, "purgeSyncRecords", {isImport: false});
 	},
 
 	_onPasswordKeyPress: function(event){

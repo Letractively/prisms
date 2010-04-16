@@ -1,7 +1,7 @@
 
 <table><tr>
 	<td>
-		<a href="" onclick="return false" dojoAttachPoint="yearsLink"
+		<a href="" onclick="event.returnValue=false; return false;" dojoAttachPoint="yearsLink"
 			dojoAttachEvent="onfocus:_yearsSelected"></a>
 		<input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="yearsBox"
 			constraints="{min:0, max:10, places:0}" style="width:60px"
@@ -9,7 +9,7 @@
 	</td><td dojoAttachPoint="yearsLabelCell">
 		year&nbsp;
 	</td><td>
-		<a href="" onclick="return false" dojoAttachPoint="monthsLink"
+		<a href="" onclick="event.returnValue=false; return false;" dojoAttachPoint="monthsLink"
 			dojoAttachEvent="onfocus:_monthsSelected"></a>
 		<input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="monthsBox"
 			constraints="{min:0, max:11, places:0}" style="width:60px"
@@ -17,7 +17,7 @@
 	</td><td dojoAttachPoint="monthsLabelCell">
 		month&nbsp;
 	</td><td>
-		<a href="" onclick="return false" dojoAttachPoint="daysLink"
+		<a href="" onclick="event.returnValue=false; return false;" dojoAttachPoint="daysLink"
 			dojoAttachEvent="onfocus:_daysSelected"></a>
 		<input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="daysBox"
 			constraints="{min:0, max:1000, places:0}" style="width:60px"
@@ -25,7 +25,7 @@
 	</td><td dojoAttachPoint="daysLabelCell">
 		day&nbsp;
 	</td><td>
-		<a href="" onclick="return false" dojoAttachPoint="hoursLink"
+		<a href="" onclick="event.returnValue=false; return false;" dojoAttachPoint="hoursLink"
 			dojoAttachEvent="onfocus:_hoursSelected"></a>
 		<input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="hoursBox"
 			constraints="{min:0, max:23, places:0}" style="width:60px"
@@ -33,7 +33,7 @@
 	</td><td dojoAttachPoint="hoursLabelCell">
 		hour&nbsp;
 	</td><td>
-		<a href="" onclick="return false" dojoAttachPoint="minutesLink"
+		<a href="" onclick="event.returnValue=false; return false;" dojoAttachPoint="minutesLink"
 			dojoAttachEvent="onfocus:_minutesSelected"></a>
 		<input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="minutesBox"
 			constraints="{min:0, max:59, places:0}" style="width:60px"
@@ -41,7 +41,7 @@
 	</td><td dojoAttachPoint="minutesLabelCell">
 		min&nbsp;
 	</td><td>
-		<a href="" onclick="return false" dojoAttachPoint="secondsLink"
+		<a href="" onclick="event.returnValue=false; return false;" dojoAttachPoint="secondsLink"
 			dojoAttachEvent="onfocus:_secondsSelected"></a>
 		<input dojoType="dijit.form.NumberSpinner" dojoAttachPoint="secondsBox"
 			constraints="{min:0, max:59, places:0}" style="width:60px"

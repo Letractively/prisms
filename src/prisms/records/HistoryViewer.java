@@ -351,7 +351,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 		sendDisplay(show);
 	}
 
-	void sendDisplay(boolean show)
+	/**
+	 * Sends the display information to the client
+	 * 
+	 * @param show Whether this method should switch the user's view to the history tab
+	 */
+	protected void sendDisplay(boolean show)
 	{
 		ChangeRecord [] mods;
 		long [] fs = getFilteredSnapshot();
@@ -396,7 +401,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 		{
 			jsonItem = new JSONObject();
 			jsonItem.put("isCenterActivity", Boolean.TRUE);
-			jsonItem.put("import", new Boolean(isCenterActivityImport));
+			jsonItem.put("isImport", new Boolean(isCenterActivityImport));
 			jsonItem.put("text", theActivityCenter.getName());
 		}
 		else if(theActivitySyncRecord != null)

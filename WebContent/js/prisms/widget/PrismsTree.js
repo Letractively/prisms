@@ -269,7 +269,9 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 		}
 		if(this.selection.length==0)
 			return;
-		var actions=this.selection[0].item.actions;
+		var actions=[];
+		for(var a=0;a<this.selection[0].item.actions.length;a++)
+			actions.push(this.selection[0].item.actions[a]);
 		for(var s=1;s<this.selection.length;s++)
 		{
 			for(var a=0;a<actions.length;a++)

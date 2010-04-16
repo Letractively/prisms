@@ -152,7 +152,7 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 				this.titleHeader.innerHTML="Actions of "+item.text;
 			else if(item.isCenterActivity || item.isSyncRecordActivity)
 			{
-				if(item.import)
+				if(item.isImport)
 					this.titleHeader.innerHTML="Modifications imported from "+item.text;
 				else
 					this.titleHeader.innerHTML="Modifications exported to "+item.text;
