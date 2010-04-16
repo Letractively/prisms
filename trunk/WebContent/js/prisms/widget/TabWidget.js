@@ -67,9 +67,13 @@ dojo.declare("prisms.widget.TabWidget", [dijit._Widget, dijit._Contained], {
 				this.parentTabContainer.addChild(this.parentTab, index);
 			this._visible=true;
 			this.setSelected(true);
-			if(this.parentTabContainer.getChildren().length==2
-				&& this.parentTabContainer.getChildren()[0].isPlaceholder)
-				this.parentTabContainer.removeChild(this.parentTabContainer.getChildren()[0]);
+			if(this.parentTabContainer.getChildren().length==2)
+			{
+				if(this.parentTabContainer.getChildren()[0].isPlaceholder)
+					this.parentTabContainer.removeChild(this.parentTabContainer.getChildren()[0]);
+				else if(this.parentTabContainer.getChildren()[1].isPlaceholder)
+					this.parentTabContainer.removeChild(this.parentTabContainer.getChildren()[1]);
+			}
 		}
 		else
 		{

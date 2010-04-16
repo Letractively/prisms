@@ -79,7 +79,7 @@ dojo.declare("prisms.widget.SharedObjectAccess", [dijit._Widget, dijit._Template
 				if(groups[g]==selGroup)
 					selIdx=g;
 				if(dojo.isIE > 6)
-					this.groupSelect.add(option, 0);
+					this.groupSelect.add(option);
 				else
 					this.groupSelect.add(option, null);
 			}

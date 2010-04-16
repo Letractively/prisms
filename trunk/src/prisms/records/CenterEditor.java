@@ -3,14 +3,10 @@
  */
 package prisms.records;
 
-import prisms.records.HistorySorter;
-import prisms.records.SyncRecord;
-
 import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
 import prisms.arch.PrismsSession;
-import prisms.records.PrismsCenter;
 import prisms.ui.UI;
 
 /**
@@ -296,20 +292,20 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 		else if("sortBy".equals(evt.get("method")))
 		{
 			sortBy((String) evt.get("column"), ((Boolean) evt.get("ascending")).booleanValue(),
-				((Boolean) evt.get("import")).booleanValue());
+				((Boolean) evt.get("isImport")).booleanValue());
 			return;
 		}
 		else if("navigateTo".equals(evt.get("method")))
 		{
-			navigateTo(((Number) evt.get("start")).intValue(), ((Boolean) evt.get("import"))
+			navigateTo(((Number) evt.get("start")).intValue(), ((Boolean) evt.get("isImport"))
 				.booleanValue());
 			return;
 		}
 		else if("selectChanged".equals(evt.get("method")))
 		{
-			selectChanged(((Boolean) evt.get("import")).booleanValue(), ((Number) evt.get("start"))
-				.intValue(), ((Number) evt.get("end")).intValue(), ((Boolean) evt.get("selected"))
-				.booleanValue());
+			selectChanged(((Boolean) evt.get("isImport")).booleanValue(), ((Number) evt
+				.get("start")).intValue(), ((Number) evt.get("end")).intValue(), ((Boolean) evt
+				.get("selected")).booleanValue());
 			return;
 		}
 		else if("getRecordResults".equals(evt.get("method")))
@@ -320,7 +316,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 		}
 		else if("purgeSyncRecords".equals(evt.get("method")))
 		{
-			purgeSyncRecords(((Boolean) evt.get("import")).booleanValue());
+			purgeSyncRecords(((Boolean) evt.get("isImport")).booleanValue());
 			return;
 		}
 
@@ -497,7 +493,13 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				status));
 	}
 
-	void sendCenter(boolean show, boolean refresh)
+	/**
+	 * Sends the display information for this plugin to the client
+	 * 
+	 * @param show Whether this method should select its client editor's tab
+	 * @param refresh Whether to refresh the synchronization records for the center
+	 */
+	protected void sendCenter(boolean show, boolean refresh)
 	{
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -972,12 +974,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 
 	void showAllImportHistory()
 	{
-		theSession.fireEvent("showCenterHistory", "center", theCenter, "import", Boolean.TRUE);
+		theSession.fireEvent("showCenterHistory", "center", theCenter, "isImport", Boolean.TRUE);
 	}
 
 	void showAllExportHistory()
 	{
-		theSession.fireEvent("showCenterHistory", "center", theCenter, "import", Boolean.FALSE);
+		theSession.fireEvent("showCenterHistory", "center", theCenter, "isImport", Boolean.FALSE);
 	}
 
 	enum SyncRecordField implements HistorySorter.Field

@@ -25,6 +25,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 	setupTable: function(){
 		this.table=document.createElement("table");
 		this.table.style.width="100%";
+		this.table.style.emptyCells="show";
 		this.table.border=1;
 		this.domNode.appendChild(this.table);
 		this.topSelectRow=this.table.insertRow(-1);
@@ -62,7 +63,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		td.style.width=5;
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\""
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\""
 			+" title=\"Selects All Displayed Items\">All Displayed</a>";
 		var link=td.childNodes[0];
 		if(!this.displayAllDisplayedLink)
@@ -75,7 +76,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			td.style.display="none";
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\""
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\""
 			+" title=\"Deselects All Displayed Items\">None Displayed</a>";
 		link=td.childNodes[0];
 		if(!this.displayNoneDisplayedLink)
@@ -88,7 +89,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			td.style.display="none";
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\""
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\""
 			+ " title=\"Selects All Items In Search, Even Those Not Displayed\">All</a>";
 		link=td.childNodes[0];
 		this.selectAllLinks.push(link);
@@ -97,7 +98,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		td.innerHTML=", ";
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\""
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\""
 			+" title=\"Deselects All Items In Search, Even Those Not Displayed\">None</a>";
 		link=td.childNodes[0];
 		this.selectAllLinks.push(link);
@@ -109,7 +110,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		tr=table.insertRow(-1);
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">&lt;&lt;First</a>";
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">&lt;&lt;First</a>";
 		link=td.childNodes[0];
 		if(!this.displayFirstLink)
 			link.style.display="none";
@@ -117,7 +118,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		dojo.connect(link, "onclick", this, this._firstClicked);
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">&lt;Previous</a>";
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">&lt;Previous</a>";
 		link=td.childNodes[0];
 		this.previousLinks.push(link);
 		dojo.connect(link, "onclick", this, this._previousClicked);
@@ -140,13 +141,13 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		this.totalCountCells.push(td);
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Next&gt;</a>";
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">Next&gt;</a>";
 		link=td.childNodes[0];
 		this.nextLinks.push(link);
 		dojo.connect(link, "onclick", this, this._nextClicked);
 
 		td=tr.insertCell(-1);
-		td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">Last&gt;&gt;</a>";
+		td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">Last&gt;&gt;</a>";
 		link=td.childNodes[0];
 		if(!this.displayLastLink)
 			link.style.display="none";
@@ -200,7 +201,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			else
 				option.text=i+" - "+max;
 			if(dojo.isIE > 6)
-				this.pageBoxes[index].add(option, 0);
+				this.pageBoxes[index].add(option);
 			else
 				this.pageBoxes[index].add(option, null);
 		}
@@ -210,7 +211,7 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 			var option=document.createElement("option");
 			option.text=metadata.start+" - "+metadata.end;
 			if(dojo.isIE > 6)
-				this.pageBoxes[index].add(option, 0);
+				this.pageBoxes[index].add(option);
 			else
 				this.pageBoxes[index].add(option, null);
 			this.pageBoxes[index].selectedIndex=this.pageBoxes[index].options.length-1;
@@ -310,17 +311,19 @@ dojo.declare("prisms.widget.SortTable", dijit._Widget, {
 		var labelCell;
 		if(dataCell.linkID)
 		{
-			td.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">"+dataCell.label+"</a>";
+			td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">"+dataCell.label+"</a>";
 			labelCell=td.childNodes[0];
 			this.dojoConnects.push(dojo.connect(labelCell, "onclick", this, function(){
 				this.goToLink(dataCell.linkID);
 			}));
-			td.innerHTML="";
 		}
 		else
 		{
 			labelCell=document.createElement("span");
-			labelCell.innerHTML=dataCell.label;
+			if(dataCell.label.length>0)
+				labelCell.innerHTML=dataCell.label;
+			else
+				labelCell.innerHTML="&nbsp;"
 		}
 		if(dataCell.tooltip)
 			labelCell.title=dataCell.tooltip; //TODO Parse \n into <br />

@@ -215,7 +215,7 @@ dojo.declare("prisms.widget.LayerConfigurator", prisms.widget.PrismsDialog, {
 
 	addLink: function(tableCell, label, callback){
 		var div=document.createElement("div");
-		div.innerHTML="<a href=\"\" onclick=\"return false\" style=\"color:blue\">"+label+"</a>";
+		div.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">"+label+"</a>";
 		var a=div.childNodes[0];
 		this._listeners.push(dojo.connect(a, "onclick", this, callback));
 		tableCell.appendChild(a);

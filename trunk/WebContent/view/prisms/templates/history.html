@@ -3,13 +3,13 @@
 	<tr>
 		<td style="font-size:x-large;font-weight:bold" dojoAttachPoint="titleHeader"></td>
 		<td style="font-size:large;font-weight:bold" dojoAttachPoint="showAllHistoryDiv">
-			<a href="" onclick="return false" style="color:blue" dojoAttachEvent="onclick:_showAllHistory">Show All History</a>
+			<a href="" onclick="event.returnValue=false; return false;" style="color:blue" dojoAttachEvent="onclick:_showAllHistory">Show All History</a>
 		</td>
 	</tr>
 	<tr>
 		<td colspan="2" style="font-size:large;font-weight:bold">Shapshot taken at
 			<span dojoAttachPoint="snapshotTime"></span>
-			<a href="" onclick="return false" style="color:blue" dojoAttachEvent="onclick:_refresh">Refresh</a>
+			<a href="" onclick="event.returnValue=false; return false;" style="color:blue" dojoAttachEvent="onclick:_refresh">Refresh</a>
 		</td>
 	</tr>
 	<tr><td colspan="2"><div dojoType="prisms.widget.SortTable" dojoAttachPoint="sortTable"

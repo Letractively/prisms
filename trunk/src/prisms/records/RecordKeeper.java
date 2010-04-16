@@ -222,7 +222,7 @@ public class RecordKeeper
 	 * @param selfCenter The center that was "Here" in the old installation--may be null
 	 * @throws PrismsRecordException If an error occurs installing this record keeper
 	 */
-	private void installRecordKeeper(final PrismsCenter selfCenter) throws PrismsRecordException
+	private void installRecordKeeper(PrismsCenter selfCenter) throws PrismsRecordException
 	{
 		/* This is a new installation with copied data. We need to assert our independence.
 		 * We need to delete all the auto-increment tables. Then we will move the center
@@ -249,9 +249,15 @@ public class RecordKeeper
 				+ toSQL(theNamespace);
 			stmt.execute(sql);
 			// Make a new center to represent the old "Here" center
-			PrismsCenter oldHere = new PrismsCenter("Installation");
-			oldHere.setCenterID(selfCenter.getCenterID());
-			putCenter(oldHere, null);
+			PrismsCenter oldHere = null;
+			if(selfCenter != null)
+			{
+				oldHere = new PrismsCenter("Installation");
+				oldHere.setCenterID(selfCenter.getCenterID());
+				putCenter(oldHere, null);
+			}
+			else
+				selfCenter = new PrismsCenter(0, "Here");
 
 			// Adjust the center ID of the real "Here"
 			int newCenterID = (int) (Math.random() * theCenterIDRange);
@@ -260,17 +266,20 @@ public class RecordKeeper
 			theCenterID = selfCenter.getCenterID();
 			log.debug("Created rules center with ID " + selfCenter.getCenterID());
 
-			sql = "SELECT MAX(changeTime) FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
-				+ toSQL(theNamespace);
-			rs = stmt.executeQuery(sql);
-			if(rs.next())
+			if(oldHere != null)
 			{
-				java.sql.Timestamp time = rs.getTimestamp(1);
-				if(time != null)
+				sql = "SELECT MAX(changeTime) FROM " + DBOWNER
+					+ "prisms_change_record WHERE recordNS=" + toSQL(theNamespace);
+				rs = stmt.executeQuery(sql);
+				if(rs.next())
 				{
-					SyncRecord record = new SyncRecord(oldHere, SyncRecord.Type.AUTOMATIC, time
-						.getTime(), true);
-					putSyncRecord(record);
+					java.sql.Timestamp time = rs.getTimestamp(1);
+					if(time != null)
+					{
+						SyncRecord record = new SyncRecord(oldHere, SyncRecord.Type.AUTOMATIC, time
+							.getTime(), true);
+						putSyncRecord(record);
+					}
 				}
 			}
 			sql = "INSERT INTO " + DBOWNER + "prisms_installation (recordNS, installDate) VALUES ("
@@ -502,7 +511,8 @@ public class RecordKeeper
 				}
 			PrismsCenter dbCenter = getCenter(center.getID(), stmt);
 			String sql;
-			if(center.getCenterID() >= 0 && (dbCenter == null || dbCenter.getCenterID() < 0))
+			if(center.getCenterID() >= 0
+				&& (dbCenter == null || dbCenter.getCenterID() != center.getCenterID()))
 			{
 				boolean hasCenter;
 				sql = "SELECT id FROM " + DBOWNER + "prisms_center WHERE id="
@@ -583,7 +593,7 @@ public class RecordKeeper
 			{
 				String changeMsg = "Updated center " + dbCenter + ":\n";
 				boolean modified = false;
-				if(dbCenter.getCenterID() < 0 && center.getCenterID() >= 0)
+				if(dbCenter.getCenterID() != center.getCenterID())
 				{
 					changeMsg += "Center ID set to " + center.getCenterID() + "\n";
 					modified = true;
@@ -595,10 +605,13 @@ public class RecordKeeper
 					changeMsg += "Changed name from " + dbCenter.getName() + " to "
 						+ center.getName() + "\n";
 					modified = true;
-					if(user == null)
-						throw new PrismsRecordException("Cannot modify a center without a user");
-					persist(user, PrismsChange.center, PrismsChange.CenterChange.name, 0, dbCenter,
-						null, dbCenter.getName(), null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a center without a user");
+						persist(user, PrismsChange.center, PrismsChange.CenterChange.name, 0,
+							dbCenter, null, dbCenter.getName(), null, null);
+					}
 					dbCenter.setName(center.getName());
 				}
 				if(!equal(dbCenter.getServerURL(), center.getServerURL()))
@@ -606,10 +619,13 @@ public class RecordKeeper
 					changeMsg += "Changed URL from " + dbCenter.getServerURL() + " to "
 						+ center.getServerURL() + "\n";
 					modified = true;
-					if(user == null)
-						throw new PrismsRecordException("Cannot modify a center without a user");
-					persist(user, PrismsChange.center, PrismsChange.CenterChange.url, 0, dbCenter,
-						null, dbCenter.getServerURL(), null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a center without a user");
+						persist(user, PrismsChange.center, PrismsChange.CenterChange.url, 0,
+							dbCenter, null, dbCenter.getServerURL(), null, null);
+					}
 					dbCenter.setServerURL(center.getServerURL());
 				}
 				if(!equal(dbCenter.getServerUserName(), center.getServerUserName()))
@@ -617,10 +633,14 @@ public class RecordKeeper
 					changeMsg += "Changed server user name from " + dbCenter.getServerUserName()
 						+ " to " + center.getServerUserName() + "\n";
 					modified = true;
-					if(user == null)
-						throw new PrismsRecordException("Cannot modify a center without a user");
-					persist(user, PrismsChange.center, PrismsChange.CenterChange.serverUserName, 0,
-						dbCenter, null, dbCenter.getServerUserName(), null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a center without a user");
+						persist(user, PrismsChange.center,
+							PrismsChange.CenterChange.serverUserName, 0, dbCenter, null, dbCenter
+								.getServerUserName(), null, null);
+					}
 					dbCenter.setServerUserName(center.getServerUserName());
 				}
 				if(!equal(dbCenter.getServerPassword(), center.getServerPassword()))
@@ -639,10 +659,14 @@ public class RecordKeeper
 							changeMsg += '*';
 					changeMsg += "\n";
 					modified = true;
-					if(user == null)
-						throw new PrismsRecordException("Cannot modify a center without a user");
-					persist(user, PrismsChange.center, PrismsChange.CenterChange.serverPassword, 0,
-						dbCenter, null, dbCenter.getServerPassword(), null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a center without a user");
+						persist(user, PrismsChange.center,
+							PrismsChange.CenterChange.serverPassword, 0, dbCenter, null, dbCenter
+								.getServerPassword(), null, null);
+					}
 					dbCenter.setServerPassword(center.getServerPassword());
 				}
 				if(dbCenter.getServerSyncFrequency() != center.getServerSyncFrequency())
@@ -654,10 +678,14 @@ public class RecordKeeper
 						+ (center.getServerSyncFrequency() >= 0 ? PrismsUtils
 							.printTimeLength(center.getServerSyncFrequency()) : "none") + "\n";
 					modified = true;
-					if(user == null)
-						throw new PrismsRecordException("Cannot modify a center without a user");
-					persist(user, PrismsChange.center, PrismsChange.CenterChange.syncFrequency, 0,
-						dbCenter, null, new Long(dbCenter.getServerSyncFrequency()), null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a center without a user");
+						persist(user, PrismsChange.center, PrismsChange.CenterChange.syncFrequency,
+							0, dbCenter, null, new Long(dbCenter.getServerSyncFrequency()), null,
+							null);
+					}
 					dbCenter.setServerSyncFrequency(center.getServerSyncFrequency());
 				}
 				if(!equal(dbCenter.getClientUser(), center.getClientUser()))
@@ -669,10 +697,13 @@ public class RecordKeeper
 						+ (center.getClientUser() == null ? "none" : center.getClientUser()
 							.getName()) + "\n";
 					modified = true;
-					if(user == null)
-						throw new PrismsRecordException("Cannot modify a center without a user");
-					persist(user, PrismsChange.center, PrismsChange.CenterChange.clientUser, 0,
-						dbCenter, null, dbCenter.getClientUser(), null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a center without a user");
+						persist(user, PrismsChange.center, PrismsChange.CenterChange.clientUser, 0,
+							dbCenter, null, dbCenter.getClientUser(), null, null);
+					}
 					dbCenter.setClientUser(center.getClientUser());
 				}
 				if(dbCenter.getChangeSaveTime() != center.getChangeSaveTime())
@@ -684,10 +715,14 @@ public class RecordKeeper
 						+ (center.getChangeSaveTime() >= 0 ? PrismsUtils.printTimeLength(center
 							.getChangeSaveTime()) : "none") + "\n";
 					modified = true;
-					if(user == null)
-						throw new PrismsRecordException("Cannot modify a center without a user");
-					persist(user, PrismsChange.center, PrismsChange.CenterChange.changeSaveTime, 0,
-						dbCenter, null, new Long(dbCenter.getChangeSaveTime()), null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a center without a user");
+						persist(user, PrismsChange.center,
+							PrismsChange.CenterChange.changeSaveTime, 0, dbCenter, null, new Long(
+								dbCenter.getChangeSaveTime()), null, null);
+					}
 					dbCenter.setChangeSaveTime(center.getChangeSaveTime());
 				}
 				if(dbCenter.getLastImport() != center.getLastImport())
@@ -716,10 +751,14 @@ public class RecordKeeper
 				if(dbCenter.isDeleted() && !center.isDeleted())
 				{
 					changeMsg += "Re-creating center";
-					if(user == null)
-						throw new PrismsRecordException(
-							"Cannot modify a rules center without a user");
-					persist(user, PrismsChange.center, null, 1, dbCenter, null, null, null, null);
+					if(!ignoreUser)
+					{
+						if(user == null)
+							throw new PrismsRecordException("Cannot modify a rules center"
+								+ " without a user");
+						persist(user, PrismsChange.center, null, 1, dbCenter, null, null, null,
+							null);
+					}
 					dbCenter.isDeleted = false;
 					modified = true;
 				}
@@ -1174,9 +1213,9 @@ public class RecordKeeper
 		else
 			where += " AND changeType IS NULL";
 		if(change.type.additivity == 0)
-			where += " AND additivity=0";
+			where += " AND additivity='0'";
 		else
-			where += " AND additivity<>0";
+			where += " AND additivity<>'0'";
 		where += " AND changeTime>" + formatDate(change.time);
 		where += " AND id<>" + change.id;
 		return getChangeRecords(null, null, where, "changeTime");
@@ -2861,8 +2900,6 @@ public class RecordKeeper
 			{
 				theConn = theFactory.getConnection(theConnEl, null);
 				DBOWNER = theFactory.getTablePrefix(theConn, theConnEl, null);
-				if(DBOWNER.length() > 0 || isOracle())
-					DBOWNER = DBOWNER + "V3";
 			}
 		} catch(SQLException e)
 		{

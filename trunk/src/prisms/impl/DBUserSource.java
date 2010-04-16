@@ -14,10 +14,7 @@ import java.util.concurrent.locks.Lock;
 import org.apache.log4j.Logger;
 
 import prisms.arch.*;
-import prisms.arch.ds.Hashing;
-import prisms.arch.ds.Permission;
-import prisms.arch.ds.User;
-import prisms.arch.ds.UserGroup;
+import prisms.arch.ds.*;
 import prisms.util.DBUtils;
 
 /**
@@ -1211,6 +1208,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			throw new IllegalArgumentException("User " + name + " already exists");
 		int id;
 		DBUser ret;
+		String sql = null;
 		Statement stmt = null;
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1218,13 +1216,14 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			stmt = thePRISMSConnection.createStatement();
 			id = getNextID("prisms_user", stmt);
-			stmt.execute("INSERT INTO " + DBOWNER + "prisms_user (id, userName) VALUES ("
-				+ id + ", " + toSQL(name) + ")");
+			sql = "INSERT INTO " + DBOWNER + "prisms_user (id, userName) VALUES (" + id + ", "
+				+ toSQL(name) + ")";
+			stmt.execute(sql);
 			ret = new DBUser(this, name, id);
 			theUsers.put(name + "/null", ret);
 		} catch(SQLException e)
 		{
-			throw new PrismsException("Could not create user " + name, e);
+			throw new PrismsException("Could not create user " + name + ": SQL=" + sql, e);
 		} finally
 		{
 			lock.unlock();

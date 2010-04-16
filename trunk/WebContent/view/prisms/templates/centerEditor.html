@@ -17,7 +17,7 @@
 		<tr><td colspan="2"><table style="width:100%">
 			<tr>
 				<td style="font-weight:bold;width:80px" nowrap="nowrap">By File:</td>
-				<td><a href="" onclick="return false" style="color:blue"
+				<td><a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 					dojoAttachPoint="importFileSyncLink"
 					dojoAttachEvent="onclick:_importFileSync">Import File...</a></td>
 			</tr>
@@ -38,7 +38,7 @@
 			</tr>
 			<tr>
 				<td>Password:</td>
-				<td><a href="" onclick="return false" style="color:blue"
+				<td><a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 						dojoAttachPoint="changePasswordLink"
 						dojoAttachEvent="onclick:_changePassword">Change Password</a></td>
 			</tr>
@@ -51,11 +51,11 @@
 			<tr>
 				<td>Synchronize:</td>
 				<td>
-					<a href="" onclick="return false" style="color:blue"
+					<a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 						dojoAttachPoint="testUrlLink"
 						dojoAttachEvent="onclick:_testURL">Test Connection</a>
 						&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-					<a href="" onclick="return false" style="color:blue"
+					<a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 						dojoAttachPoint="syncNowLink"
 						dojoAttachEvent="onclick:_syncNow">Synchronize Now</a>
 				</td>
@@ -64,7 +64,7 @@
 		<td colspan="2" valign="top"><table>
 			<tr>
 				<td style="font-weight:bold" nowrap="nowrap">By File:</td>
-				<td colspan="2"><a href="" onclick="return false" style="color:blue"
+				<td colspan="2"><a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 					dojoAttachPoint="exportFileSyncLink"
 					dojoAttachEvent="onclick:_exportFileSync">Export File...</a></td>
 			</tr>
@@ -90,11 +90,11 @@
 		<tr><td colspan="5" style="height:0px;width:100%;border:1px solid black"></td></tr>
 		<tr>
 			<td style="font-weight:bold">History</td>
-			<td align="right">(<a href="" onclick="return false" style="color:blue"
+			<td align="right">(<a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 				dojoAttachPoint="showAllImportHistLink"
 				dojoAttachEvent="onclick:_showAllImportHistory">Show All Imported History</a>)</td>
 			<td style="font-weight:bold">History</td>
-			<td align="right">(<a href="" onclick="return false" style="color:blue"
+			<td align="right">(<a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 				dojoAttachPoint="showAllExportHistLink"
 				dojoAttachEvent="onclick:_showAllExportHistory">Show All Exported History</a>)</td>
 		</tr>
