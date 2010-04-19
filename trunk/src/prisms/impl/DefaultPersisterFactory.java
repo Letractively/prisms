@@ -91,18 +91,18 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			throw new IllegalStateException("No PRISMS configuration element was available!");
 		}
 
-		String name = el.attributeValue("ref");
-		if(name != null)
+		String ref = el.attributeValue("ref");
+		if(ref != null)
 		{
-			java.sql.Connection ret = theNamedConnections.get(name);
+			java.sql.Connection ret = theNamedConnections.get(ref);
 			if(ret == null)
 			{
-				org.dom4j.Element namedConnEl = getConnectionElement(name);
+				org.dom4j.Element namedConnEl = getConnectionElement(ref);
 				if(namedConnEl != null)
 				{
 					ret = getConnection(namedConnEl, userSource);
 					if(ret != null)
-						theNamedConnections.put(name, ret);
+						theNamedConnections.put(ref, ret);
 				}
 			}
 			if(ret != null)
@@ -159,9 +159,9 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		do
 		{
 			connEl = ret;
-			String name = connEl.attributeValue("ref");
-			if(name != null)
-				ret = getConnectionElement(name);
+			String ref = connEl.attributeValue("ref");
+			if(ref != null)
+				ret = getConnectionElement(ref);
 			else
 				ret = null;
 		} while(ret != null);
@@ -179,12 +179,10 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				return getTablePrefix(dbus.getConnection(), dbus.getConnectionConfig(), null);
 			}
 		}
-		String name = connEl.attributeValue("name");
-		if(name == null)
-			name = connEl.elementTextTrim("name");
-		if(name != null)
+		String ref = connEl.attributeValue("ref");
+		if(ref != null)
 		{
-			Element namedEl = getConnectionElement(name);
+			Element namedEl = getConnectionElement(ref);
 			if(namedEl != null)
 				return getTablePrefix(conn, namedEl, userSource);
 		}
