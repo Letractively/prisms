@@ -18,11 +18,11 @@ public interface RemoteEventSerializer
 	String serialize(org.json.simple.JSONArray events) throws java.io.NotSerializableException;
 
 	/**
-	 * Deserializes a set of events from the client to be interpreted by the server
+	 * Deserializes an event from the client to be interpreted by the server
 	 * 
-	 * @param evtString The deserializable string representing the events to deserialize
-	 * @return The events from the client
+	 * @param evtString The deserializable string representing the event to deserialize
+	 * @return The event from the client
 	 * @throws java.io.InvalidObjectException If the string cannot be deserialized
 	 */
-	org.json.simple.JSONArray deserialize(String evtString) throws java.io.InvalidObjectException;
+	org.json.simple.JSONObject deserialize(String evtString) throws java.io.InvalidObjectException;
 }

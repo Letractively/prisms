@@ -422,14 +422,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				serviceName = "WMS";
 			if((appName == null || userName == null) && dataStr != null)
 			{
-				JSONArray data;
+				JSONObject data;
 				try
 				{
 					data = new JsonSerializer().deserialize(dataStr);
 					if(appName == null)
-						appName = (String) ((JSONObject) data.get(0)).get("app");
+						appName = (String) data.get("app");
 					if(userName == null)
-						userName = (String) ((JSONObject) data.get(0)).get("user");
+						userName = (String) data.get("user");
 				} catch(Exception e)
 				{
 					log.warn("Couldn't retrieve necessary parameters from data");
@@ -593,17 +593,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 		boolean tooShort = dataStr == null || dataStr.length() < 20;
 		boolean deserializationFailed = false;
-		JSONObject [] events = null;
+		JSONObject event = null;
 		if(!decryptionFailed && session != null && !newSession && dataStr != null)
 		{
 			int commentIdx = dataStr.indexOf("-XXSERVERPADDING");
 			if(commentIdx >= 0)
 				dataStr = dataStr.substring(0, commentIdx);
-			JSONArray jsonEvents;
 			try
 			{
-				jsonEvents = theSerializer.deserialize(dataStr);
-				events = (JSONObject []) jsonEvents.toArray(new JSONObject [jsonEvents.size()]);
+				event = theSerializer.deserialize(dataStr);
 			} catch(Exception e)
 			{
 				log.error("Deserialization failed: " + e.getMessage());
@@ -781,7 +779,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			try
 			{
 				valid = validator == null
-					|| validator.validate(appUser, app, session.theClient, req, events[0]);
+					|| validator.validate(appUser, app, session.theClient, req, event);
 			} catch(RuntimeException e)
 			{
 				valid = false;
@@ -837,7 +835,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			JSONObject evt;
 			try
 			{
-				JSONArray jsonPwdData = (JSONArray) events[0].get("passwordData");
+				JSONArray jsonPwdData = (JSONArray) event.get("passwordData");
 				pwdData = new long [jsonPwdData.size()];
 				for(int i = 0; i < pwdData.length; i++)
 					pwdData[i] = ((Number) jsonPwdData.get(i)).longValue();
@@ -937,19 +935,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			ret.add(sendLogin(null, "You have been successfully logged out", false, false));
 			encrypted = false;
 		}
-		else if(events == null)
+		else if(event == null)
 		{
 			errorString = "No data to process in request";
-			errorCode = ErrorCode.RequestIncomplete;
-		}
-		else if(events.length > 1)
-		{
-			errorString = "Only one event allowed per request";
-			errorCode = ErrorCode.RequestFailed;
-		}
-		else if(events.length == 0)
-		{
-			errorString = "No events in the request";
 			errorCode = ErrorCode.RequestIncomplete;
 		}
 		else if("processEvent".equals(method))
@@ -960,7 +948,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			try
 			{
-				ret.addAll(session.process(events[0]));
+				ret.addAll(session.process(event));
 			} catch(Throwable e)
 			{
 				log.error("Could not process session events", e);
@@ -973,7 +961,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 		else if(wms != null)
 		{
-			session.fillWmsRequest(events[0], wms, resp);
+			session.fillWmsRequest(event, wms, resp);
 			session.renew();
 			clean();
 			return;
@@ -998,21 +986,21 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			else
 				resp.setContentType("image/" + format);
 			java.io.OutputStream out = resp.getOutputStream();
-			session.generateImage(events[0], format, out);
+			session.generateImage(event, format, out);
 			session.renew();
 			clean();
 			return;
 		}
 		else if("getDownload".equals(method))
 		{
-			session.getDownload(events[0], resp);
+			session.getDownload(event, resp);
 			session.renew();
 			clean();
 			return;
 		}
 		else if("doUpload".equals(method))
 		{
-			session.doUpload(events[0], req);
+			session.doUpload(event, req);
 			// We redirect to avoid the browser's resend warning if the user refreshes
 			resp.setStatus(301);
 			resp.sendRedirect("nothing.html");

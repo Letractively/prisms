@@ -30,7 +30,7 @@ public class PlaceholderSerializer implements prisms.arch.RemoteEventSerializer
 		return theSerializerClassName;
 	}
 
-	public org.json.simple.JSONArray deserialize(String evtString)
+	public org.json.simple.JSONObject deserialize(String evtString)
 	{
 		throw new IllegalStateException("Unrecognized RemoteEventSerializer implementation: "
 			+ theSerializerClassName);

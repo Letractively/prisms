@@ -19,7 +19,7 @@ public class JsonSerializer implements RemoteEventSerializer
 	/**
 	 * @see prisms.arch.RemoteEventSerializer#deserialize(java.lang.String)
 	 */
-	public JSONArray deserialize(String evtString) throws java.io.InvalidObjectException
+	public JSONObject deserialize(String evtString) throws java.io.InvalidObjectException
 	{
 		String replaced = evtString.replaceAll("undefined", "null");
 		if(replaced != evtString)
@@ -37,14 +37,9 @@ public class JsonSerializer implements RemoteEventSerializer
 			throw new java.io.InvalidObjectException("Could not deserialize event string \""
 				+ evtString + "\": " + e.getMessage());
 		}
-		JSONArray ret;
-		if(json instanceof JSONArray)
-			ret = (JSONArray) json;
-		else if(json instanceof JSONObject)
-		{
-			ret = new JSONArray();
-			ret.add(json);
-		}
+		JSONObject ret;
+		if(json instanceof JSONObject)
+			ret = (JSONObject) json;
 		else
 			throw new java.io.InvalidObjectException("Could not deserialize event from "
 				+ evtString);
