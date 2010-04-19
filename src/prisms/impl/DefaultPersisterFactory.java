@@ -44,18 +44,11 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			java.util.List<Element> nameEls = connEl.elements("name");
 			for(Element nameEl : nameEls)
 				names = prisms.util.ArrayUtils.add(names, nameEl.getTextTrim());
-			for(Element nameEl : nameEls)
-				connEl.remove(nameEl);
 
 			if(names.length == 0)
 				throw new IllegalArgumentException("No name for connection: " + connEl.asXML());
-			theNamedConnEls.put(names[0], connEl);
-			for(int n = 1; n < names.length; n++)
-			{
-				Element mapEl = org.dom4j.DocumentFactory.getInstance().createElement("connection");
-				mapEl.addAttribute("name", names[0]);
-				theNamedConnEls.put(names[n], mapEl);
-			}
+			for(String name : names)
+				theNamedConnEls.put(name, connEl);
 		}
 	}
 

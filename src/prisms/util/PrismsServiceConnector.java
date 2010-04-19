@@ -545,7 +545,7 @@ public class PrismsServiceConnector
 		if(request == null)
 			dataStr = null;
 		else
-			dataStr = "[" + request.toString() + "]";
+			dataStr = request.toString();
 		if(dataStr != null && theEncryption != null)
 		{
 			if(dataStr.length() <= 20)
