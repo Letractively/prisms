@@ -26,6 +26,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
 	{
 		super.initPlugin(session, pluginEl);
+		setDisplaySelectedOnly(false);
 		DELETE_USER_ACTION = new javax.swing.AbstractAction("Delete")
 		{
 			public void actionPerformed(java.awt.event.ActionEvent evt)

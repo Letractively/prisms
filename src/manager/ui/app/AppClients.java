@@ -73,6 +73,7 @@ public class AppClients extends SelectableList<ClientConfig>
 			}
 		};
 		super.initPlugin(session, pluginEl);
+		setDisplaySelectedOnly(false);
 		setSelectionMode(SelectionMode.SINGLE);
 		prisms.arch.ds.UserSource us = session.getApp().getDataSource();
 		if(!(us instanceof prisms.arch.ds.ManageableUserSource))

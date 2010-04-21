@@ -17,12 +17,14 @@ public class AllApplicationsList extends prisms.ui.list.SelectableList<PrismsApp
 	private static final Logger log = Logger.getLogger(AllApplicationsList.class);
 
 	/**
-	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
+	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession,
+	 *      org.dom4j.Element)
 	 */
 	@Override
 	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
 	{
 		super.initPlugin(session, pluginEl);
+		setDisplaySelectedOnly(false);
 		setSelectionMode(SelectionMode.SINGLE);
 		setListData(session.getProperty(ManagerProperties.applications));
 		if(session.getProperty(ManagerProperties.selectedApp) != null)
