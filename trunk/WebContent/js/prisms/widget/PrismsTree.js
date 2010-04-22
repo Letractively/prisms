@@ -5,78 +5,65 @@ dojo.require("dijit.Tree");
 dojo.require("dijit.Menu");
 dojo.require("dijit.Tooltip");
 
-dojo.declare("prisms.widget._PrismsTreeNode",
-	dijit._TreeNode,
-	{
-		postCreate: function()
-		{
-			this.inherited("postCreate", arguments);
-			this.selected=false;
-		},
+dojo.declare("prisms.widget._PrismsTreeNode", dijit._TreeNode, {
+	postCreate: function(){
+		this.inherited("postCreate", arguments);
+		this.selected=false;
+	},
 
-		_updateItemClasses: function(item)
+	_updateItemClasses: function(item){
+		this.item=item;
+		this.inherited("_updateItemClasses", arguments);
+		if(typeof item.icon == "string" && item.icon!="")
 		{
-			this.item=item;
-			this.inherited("_updateItemClasses", arguments);
-			if(typeof item.icon == "string" && item.icon!="")
-			{
-				if(item.icon.charAt(0)=='{')
-					item.icon=dojo.eval("["+item.icon+"]")[0];
-			}
-			if(typeof item.icon=="string")
-				this.iconNode.style.backgroundImage="url(../rsrc/icons/"+item.icon+".png)";
-			else if(typeof item.icon=="object" && item.icon!=null)
-				this.iconNode.style.backgroundImage="url("
-					+this.tree.model.prisms.getDynamicImageSource(item.icon.plugin, item.icon.method,
-						0, 0, 16, 16, 16, 16)+")";
-			if(typeof item.bgColor != "undefined")
-				this.labelNode.style.backgroundColor=item.bgColor;
-			if(typeof item.textColor != "undefined")
-				this.labelNode.style.color=item.textColor;
-		},
-
-		setSelected: function(sel)
-		{
-			this.selected=sel;
-			if(this.selected)
-				this.labelNode.style.fontWeight="bold";
-			else
-				this.labelNode.style.fontWeight="normal";
+			if(item.icon.charAt(0)=='{')
+				item.icon=dojo.eval("["+item.icon+"]")[0];
 		}
+		if(typeof item.icon=="string")
+			this.iconNode.style.backgroundImage="url(__webContentRoot/rsrc/icons/"+item.icon+".png)";
+		else if(typeof item.icon=="object" && item.icon!=null)
+			this.iconNode.style.backgroundImage="url("
+				+this.tree.model.prisms.getDynamicImageSource(item.icon.plugin, item.icon.method,
+					0, 0, 16, 16, 16, 16)+")";
+		this.iconNode.style.backgroundRepeat="no-repeat";
+		if(typeof item.bgColor != "undefined")
+			this.labelNode.style.backgroundColor=item.bgColor;
+		if(typeof item.textColor != "undefined")
+			this.labelNode.style.color=item.textColor;
+	},
+
+	setSelected: function(sel){
+		this.selected=sel;
+		if(this.selected)
+			this.labelNode.style.fontWeight="bold";
+		else
+			this.labelNode.style.fontWeight="normal";
 	}
-);
+});
 
-dojo.declare("prisms.widget._PrismsTreeMenuItem",
-	dijit.MenuItem,
-	{
-		postCreate: function()
-		{
-			this.inherited("postCreate", arguments);
-			if(!this.tree)
-				throw "A PrismsTreeMenuItem must be created with a PrismsTree";
-		},
+dojo.declare("prisms.widget._PrismsTreeMenuItem", dijit.MenuItem, {
+	postCreate: function(){
+		this.inherited("postCreate", arguments);
+		if(!this.tree)
+			throw "A PrismsTreeMenuItem must be created with a PrismsTree";
+	},
 
-		setLabel: function(label)
-		{
-			this.label=label;
-			this.containerNode.innerHTML=label;
-		},
+	setLabel: function(label){
+		this.label=label;
+		this.containerNode.innerHTML=label;
+	},
 
-		onClick: function()
-		{
-			this.inherited("onClick", arguments);
-			this.tree.fireAction(this.label);
-		}
+	onClick: function(){
+		this.inherited("onClick", arguments);
+		this.tree.fireAction(this.label);
 	}
-);
+});
 
 dojo.provide("prisms.widget.PrismsTree");
-dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
-{
+dojo.declare("prisms.widget.PrismsTree", dijit.Tree, {
 	searchPrisms: true,
 
-	postCreate: function()
-	{
+	postCreate: function(){
 		this.inherited("postCreate", arguments);
 		this.selection=[];
 		this.menuItemCache=[];
@@ -105,6 +92,15 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 			this.domNode.removeChild(this.loadButtonDiv);
 			this.loadButtonDiv.style.display="none";
 		});
+		this.actionLead=document.createElement("div");
+		this.actionLead.style.position="absolute";
+		this.actionIcon=document.createElement("div");
+		this.actionLead.appendChild(this.actionIcon);
+		this.actionIcon.style.position="relative";
+		this.actionIcon.style.backgroundImage="url(__webContentRoot/rsrc/icons/prisms/actionIcon.png)"
+		this.actionIcon.style.width="10px";
+		this.actionIcon.style.height="6px";
+		dojo.connect(this.actionIcon, "onmouseover", this, this.showActions);
 
 //		Dojo's tooltips are pretty annoying, so I'm disabling this
 /*		var self=this;
@@ -146,8 +142,7 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 		return new prisms.widget._PrismsTreeNode(args);
 	},
 
-	toggleSelection: function(treeNode)
-	{
+	toggleSelection: function(treeNode){
 		if(typeof treeNode.setSelected != "function")
 			return;
 		var s;
@@ -166,8 +161,7 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 		this._notifySelection();
 	},
 
-	setSelection: function(treeNodes)
-	{
+	setSelection: function(treeNodes){
 		for(var n=0;n<treeNodes.length;n++)
 			if(typeof treeNodes[n].setSelected != "function")
 				treeNodes.splice(n, 1);
@@ -180,6 +174,19 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 	},
 
 	_notifySelection: function(){
+		var actions=this.getSelectedActions();
+		if(actions.length==0)
+		{
+			if(this.actionLead.parentNode)
+				this.actionLead.parentNode.removeChild(this.actionLead);
+		}
+		else
+		{
+			var lastSelect=this.selection[this.selection.length-1];
+			lastSelect.domNode.appendChild(this.actionLead);
+			this.actionIcon.style.top=(-lastSelect.domNode.offsetHeight+5)+"px"
+			this.actionIcon.style.left="35px";
+		}
 		var items=[];
 		for(var s=0;s<this.selection.length;s++)
 			if(this.selection[s].item)
@@ -187,8 +194,7 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 		this.model.notifySelection(items);
 	},
 
-	isSelected: function(treeNode)
-	{
+	isSelected: function(treeNode){
 		if(typeof treeNode.setSelected != "function")
 			return false;
 		var s;
@@ -199,15 +205,13 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 	},
 
 
-	_onClick: function(e)
-	{
+	_onClick: function(e){
 		this._selectMultiple=e.ctrlKey;
 		this._shiftKey=e.shiftKey;
 		this.inherited("_onClick", arguments);
 	},
 
-	onClick: function(dataNode, treeNode)
-	{
+	onClick: function(dataNode, treeNode){
 		if (this._shiftKey) {
 			var startNode = this.lastClickedTreeNode;
 			var endNode = treeNode;
@@ -226,11 +230,12 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 		this.inherited("onClick", arguments);
 	},
 	
-	processShiftTreeNodes: function(startNode, endNode) {
+	processShiftTreeNodes: function(startNode, endNode){
 		var parent=startNode.getParent();
 		var started=false;
 		var selection=[];
-		for (var c=0;c<parent.getChildren().length;c++) {
+		for (var c=0;c<parent.getChildren().length;c++)
+		{
 			var child=parent.getChildren()[c];
 			if (started) {
 				selection.push(child);
@@ -250,26 +255,14 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 		this._notifySelection();
 	},
 
-	addMenuItems: function(e)
-	{
-		dojo.stopEvent(e);
-		var tn = dijit.getEnclosingWidget(e.target);	
-		if(!tn || !tn.isTreeNode){
-			return;
-		}
-		if(e.ctrlKey)
-		{
-			if(!this.isSelected(tn))
-				this.toggleSelection(tn);
-		}
-		else
-		{
-			if(!this.isSelected(tn))
-				this.setSelection([tn]);
-		}
-		if(this.selection.length==0)
-			return;
+	showActions: function(evt){
+		this.prismsMenu._openMyself(evt);
+	},
+
+	getSelectedActions: function(){
 		var actions=[];
+		if(this.selection.length==0)
+			return actions;
 		for(var a=0;a<this.selection[0].item.actions.length;a++)
 			actions.push(this.selection[0].item.actions[a]);
 		for(var s=1;s<this.selection.length;s++)
@@ -289,11 +282,32 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 					actions.splice(a, 1);
 			}
 		}
+		return actions;
+	},
+
+	addMenuItems: function(e){
+		if(e)
+		{
+			dojo.stopEvent(e);
+			var tn = dijit.getEnclosingWidget(e.target);	
+			if(tn && tn.isTreeNode){
+				if(e.ctrlKey)
+				{
+					if(!this.isSelected(tn))
+						this.toggleSelection(tn);
+				}
+				else
+				{
+					if(!this.isSelected(tn))
+						this.setSelection([tn]);
+				}
+			}
+		}
+		var actions=this.getSelectedActions();
 		this.addMenuItemsFromActions(actions);
 	},
 
-	addMenuItemsFromActions: function(actions)
-	{  
+	addMenuItemsFromActions: function(actions){  
 		var items=this.prismsMenu.getChildren();
 		var i;
 		for(i=0;i<items.length && i<actions.length;i++)
@@ -318,8 +332,7 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 		}
 	},
 
-	setTooltipText: function(domNode)
-	{
+	setTooltipText: function(domNode){
 		var tn = dijit.getEnclosingWidget(domNode);
 		if(!tn || !tn.isTreeNode){
 			return;
@@ -330,8 +343,7 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 			this.prismsTooltip.label="";
 	},
 
-	fireAction: function(action)
-	{
+	fireAction: function(action){
 		var items=[];
 		for(var s=0;s<this.selection.length;s++)
 			items[s]=this.selection[s].item;
@@ -343,8 +355,7 @@ dojo.declare("prisms.widget.PrismsTree", dijit.Tree,
 			throw new Error("No performAction function in model or store for tree");
 	},
 
-	getIconClass: function(item)
-	{
+	getIconClass: function(item){
 		if(!item)
 			return "";
 		if(typeof item.icon != "undefined" && item.icon)
