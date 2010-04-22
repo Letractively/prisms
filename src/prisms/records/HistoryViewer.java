@@ -368,7 +368,18 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				mods = theRecordKeeper.getChanges(fs);
 			} catch(PrismsRecordException e)
 			{
-				throw new IllegalStateException("Could not get history", e);
+				log.error("Could not get history in batch", e);
+				mods = new ChangeRecord [fs.length];
+				for(int m = 0; m < mods.length; m++)
+				{
+					try
+					{
+						mods[m] = theRecordKeeper.getChangeError(fs[m]);
+					} catch(PrismsRecordException e2)
+					{
+						log.error("Could not get history item for ID " + fs[m], e2);
+					}
+				}
 			}
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -470,7 +481,46 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 			for(RecordUser u : ap.getExcludeUsers())
 				jsonA.add(u.getName());
 			autoPurge.put("excludeUsers", jsonA);
-			// TODO auto-purge types
+
+			jsonA = new JSONArray();
+			SubjectType [] sts;
+			try
+			{
+				sts = theRecordKeeper.getAllDomains();
+			} catch(PrismsRecordException e)
+			{
+				throw new IllegalStateException("Could not get subject types", e);
+			}
+			java.util.Arrays.sort(sts, new java.util.Comparator<SubjectType>()
+			{
+				public int compare(SubjectType st1, SubjectType st2)
+				{
+					return st1.name().compareToIgnoreCase(st2.name());
+				}
+			});
+			for(SubjectType st : sts)
+			{
+				jsonA.add(RecordType.recordTypeString(st, null, 1));
+				jsonA.add(RecordType.recordTypeString(st, null, -1));
+				for(ChangeType ct : (ChangeType []) st.getChangeTypes().getEnumConstants())
+				{
+					String str = RecordType.recordTypeString(st, ct, 1);
+					if(str != null)
+						jsonA.add(str);
+					str = RecordType.recordTypeString(st, ct, -1);
+					if(str != null)
+						jsonA.add(str);
+					str = RecordType.recordTypeString(st, ct, 0);
+					if(str != null)
+						jsonA.add(str);
+				}
+			}
+			autoPurge.put("allTypes", jsonA);
+
+			jsonA = new JSONArray();
+			for(RecordType type : ap.getExcludeTypes())
+				jsonA.add(type.toString());
+			autoPurge.put("excludeTypes", jsonA);
 		}
 		evt.put("autoPurge", autoPurge);
 		theSession.postOutgoingEvent(evt);
@@ -501,7 +551,6 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 			row.cell(TIME).setLabel("---------");
 			return;
 		}
-		row.cell(TYPE).setLabel(mod.type.toString());
 		row.setSelected(theSelectedIndices.contains(new Long(mod.id)));
 		setUser(row.cell(USER), mod.user);
 		int centerID = RecordKeeper.getCenterID(mod.user.getID());
@@ -529,6 +578,16 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				row.cell(CENTER).setLabel("Unknown");
 		}
 		row.cell(TIME).setLabel(printTime(new Long(mod.time)));
+		if(mod.type.subjectType instanceof RecordKeeper.ErrorSubjectType)
+		{
+			row.cell(TYPE).setLabel(mod.type.toString() + " (Error)");
+			row.cell(ITEM1).setLabel("---------");
+			row.cell(ITEM2).setLabel("---------");
+			row.cell(BEFORE).setLabel("---------");
+			row.cell(AFTER).setLabel("---------");
+			return;
+		}
+		row.cell(TYPE).setLabel(mod.type.toString());
 		Object afterValue = null;
 		if(mod.type.changeType != null)
 		{
@@ -795,13 +854,47 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 		else
 			purger.setAge(-1);
 		for(RecordUser u : getUsers())
-		{
 			if(((JSONArray) ap.get("excludeUsers")).contains(u.getName()))
 				purger.addExcludeUser(u);
-			else if(ArrayUtils.contains(purger.getExcludeUsers(), u))
-				purger.removeExcludeUser(u);
+
+		JSONArray jsonExcludeTypes = (JSONArray) ap.get("excludeTypes");
+		SubjectType [] sts;
+		try
+		{
+			sts = theRecordKeeper.getAllDomains();
+		} catch(PrismsRecordException e)
+		{
+			throw new IllegalStateException("Could not get subject types", e);
 		}
-		// TODO exclude types
+		java.util.Arrays.sort(sts, new java.util.Comparator<SubjectType>()
+		{
+			public int compare(SubjectType st1, SubjectType st2)
+			{
+				return st1.name().compareToIgnoreCase(st2.name());
+			}
+		});
+		for(SubjectType st : sts)
+		{
+			String str = RecordType.recordTypeString(st, null, 1);
+			if(jsonExcludeTypes.contains(str))
+				purger.addExcludeType(new RecordType(st, null, 1));
+			str = RecordType.recordTypeString(st, null, -1);
+			if(jsonExcludeTypes.contains(str))
+				purger.addExcludeType(new RecordType(st, null, -1));
+			for(ChangeType ct : (ChangeType []) st.getChangeTypes().getEnumConstants())
+			{
+				str = RecordType.recordTypeString(st, ct, 1);
+				if(str != null && jsonExcludeTypes.contains(str))
+					purger.addExcludeType(new RecordType(st, ct, 1));
+				str = RecordType.recordTypeString(st, ct, -1);
+				if(str != null && jsonExcludeTypes.contains(str))
+					purger.addExcludeType(new RecordType(st, ct, -1));
+				str = RecordType.recordTypeString(st, ct, 0);
+				if(str != null && jsonExcludeTypes.contains(str))
+					purger.addExcludeType(new RecordType(st, ct, 0));
+			}
+		}
+
 		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		try
 		{
@@ -1101,7 +1194,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				setUser(minorSubjectCell, (RecordUser) mod.minorSubject);
 				return;
 			case excludeType:
-				minorSubjectCell.setLabel((String) mod.previousValue);
+				minorSubjectCell.setLabel(mod.previousValue.toString());
 				return;
 			}
 			throw new IllegalStateException("Unrecognized auto-purge change " + mod.type.changeType);

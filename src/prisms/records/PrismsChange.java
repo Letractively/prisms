@@ -128,6 +128,8 @@ public enum PrismsChange implements SubjectType
 
 		public String toString(int add)
 		{
+			if(add != 0)
+				return null;
 			switch(this)
 			{
 			case name:
@@ -150,6 +152,8 @@ public enum PrismsChange implements SubjectType
 
 		public String toString(int add, Object major, Object minor)
 		{
+			if(add != 0)
+				return null;
 			switch(this)
 			{
 			case name:
@@ -173,6 +177,8 @@ public enum PrismsChange implements SubjectType
 		public String toString(int add, Object major, Object minor, Object before, Object after)
 		{
 			String ret = toString(add, major, minor);
+			if(ret == null)
+				return null;
 			switch(this)
 			{
 			case name:
@@ -215,7 +221,7 @@ public enum PrismsChange implements SubjectType
 		/**
 		 * The exclusion or inclusion of a type from auto-purge
 		 */
-		excludeType(null, String.class, false);
+		excludeType(null, RecordType.class, false);
 
 		private final Class<?> theMinorType;
 
@@ -250,19 +256,27 @@ public enum PrismsChange implements SubjectType
 			switch(this)
 			{
 			case entryCount:
+				if(add != 0)
+					return null;
 				return "Auto-Purge Entry Count Changed";
 			case age:
+				if(add != 0)
+					return null;
 				return "Auto-Purge Age Changed";
 			case excludeType:
 				if(add > 0)
 					return "Auto-Purge Type Excluded";
-				else
+				else if(add < 0)
 					return "Auto-Purge Type Included";
+				else
+					return null;
 			case excludeUser:
 				if(add > 0)
 					return "Auto-Purge User Excluded";
-				else
+				else if(add < 0)
 					return "Auto-Purge User Included";
+				else
+					return null;
 			}
 			throw new IllegalStateException("Unrecognized change type " + name());
 		}
@@ -277,11 +291,15 @@ public enum PrismsChange implements SubjectType
 			switch(this)
 			{
 			case entryCount:
+				if(add != 0)
+					return null;
 				int bec = ((Number) before).intValue();
 				int aec = ((Number) after).intValue();
 				return toString(add, major, minor) + " from " + (bec < 0 ? "none" : "" + bec)
 					+ " to " + (aec < 0 ? "none" : "" + aec);
 			case age:
+				if(add != 0)
+					return null;
 				long bAge = ((Number) before).longValue();
 				long aAge = ((Number) after).longValue();
 				return toString(add, major, minor) + " from "
@@ -290,13 +308,17 @@ public enum PrismsChange implements SubjectType
 			case excludeType:
 				if(add > 0)
 					return "Type '" + before + "' excluded from auto-purge";
-				else
+				else if(add < 0)
 					return "Type '" + before + "' re-included in auto-purge";
+				else
+					return null;
 			case excludeUser:
 				if(add > 0)
 					return "User " + minor + " excluded from auto-purge";
-				else
+				else if(add < 0)
 					return "User " + minor + " re-included in auto-purge";
+				else
+					return null;
 			}
 			throw new IllegalStateException("Unrecognized change type " + name());
 		}

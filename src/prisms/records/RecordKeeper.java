@@ -50,6 +50,127 @@ public class RecordKeeper
 		}
 	}
 
+	/**
+	 * A subject type that substitutes for a real subject type in a change record that cannot be
+	 * retrieved fully
+	 */
+	public static class ErrorSubjectType implements SubjectType
+	{
+		private final String theName;
+
+		/**
+		 * The wrapped actual subject type--may be null if this could not be retrieved
+		 */
+		public final SubjectType theSubjectType;
+
+		/**
+		 * The wrapped actual change type if this could be retrieved, or a phony change type if it
+		 * could not be retrieved, or null if the change type for the record was null
+		 */
+		public final ChangeType theChangeType;
+
+		/**
+		 * Creates an ErrorSubjectType for a subject/change type that are not recognized by the
+		 * persister
+		 * 
+		 * @param subjectType The name of the subject type
+		 * @param changeType The name of the change type
+		 */
+		public ErrorSubjectType(final String subjectType, final String changeType)
+		{
+			theName = subjectType;
+			theSubjectType = null;
+			if(changeType != null)
+			{
+				theChangeType = new ChangeType()
+				{
+					public String name()
+					{
+						return changeType;
+					}
+
+					public Class<?> getMinorType()
+					{
+						return Object.class;
+					}
+
+					public Class<?> getObjectType()
+					{
+						return null;
+					}
+
+					public boolean isObjectIdentifiable()
+					{
+						return false;
+					}
+
+					public String toString(int additivity)
+					{
+						String ret = theSubjectType + " " + name();
+						if(additivity > 0)
+							ret += " added";
+						else if(additivity < 0)
+							ret += " removed";
+						else
+							ret += " changed";
+						return ret;
+					}
+
+					public String toString(int additivity, Object majorSubject, Object minorSubject)
+					{
+						return toString(additivity);
+					}
+
+					public String toString(int additivity, Object majorSubject,
+						Object minorSubject, Object before, Object after)
+					{
+						return toString(additivity, majorSubject, minorSubject);
+					}
+				};
+			}
+			else
+				theChangeType = null;
+		}
+
+		/**
+		 * Creates an ErrorSubjectType that wraps an actual subject/change type pair
+		 * 
+		 * @param wrap The subject type to wrap
+		 * @param ct The change type for the error
+		 */
+		public ErrorSubjectType(SubjectType wrap, ChangeType ct)
+		{
+			theName = wrap.name();
+			theSubjectType = wrap;
+			theChangeType = ct;
+		}
+
+		public String name()
+		{
+			return theName;
+		}
+
+		public Class<?> getMajorType()
+		{
+			return Object.class;
+		}
+
+		public Class<?> getMetadataType1()
+		{
+			return null;
+		}
+
+		public Class<?> getMetadataType2()
+		{
+			return null;
+		}
+
+		public Class<? extends Enum<? extends ChangeType>> getChangeTypes()
+		{
+			return null;
+		}
+	}
+
 	static final Logger log = Logger.getLogger(RecordKeeper.class);
 
 	/**
@@ -1086,7 +1207,7 @@ public class RecordKeeper
 		if(join != null)
 			sql += " " + join;
 		sql += " WHERE recordNS=" + toSQL(theNamespace);
-		if(where != null)
+		if(where != null && where.length() > 0)
 			sql += " AND (" + where + ")";
 		if(order != null)
 			sql += " ORDER BY " + order;
@@ -1298,6 +1419,121 @@ public class RecordKeeper
 		return getChanges(null, ids);
 	}
 
+	/**
+	 * Gets the change record with the given ID. If the change record cannot be retrieved, a record
+	 * is returned with error fields so that some information can be displayed to the user
+	 * 
+	 * @param id The ID of the record to get
+	 * @return The record with the given ID, or as much information about the record as can be
+	 *         retrieved
+	 * @throws PrismsRecordException If not enough information about the record cannot be retrieved
+	 *         to construct an errored object
+	 */
+	public ChangeRecord getChangeError(long id) throws PrismsRecordException
+	{
+		String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
+			+ toSQL(theNamespace) + " AND id=" + id;
+		Statement stmt;
+		checkConnection();
+		try
+		{
+			stmt = theConn.createStatement();
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not create statement", e);
+		}
+		ResultSet rs = null;
+		try
+		{
+			rs = stmt.executeQuery(sql);
+			if(!rs.next())
+				return null;
+			final ChangeTemplate template = getChangeTemplate(rs);
+			rs.close();
+			rs = null;
+			SubjectType subjectType;
+			ChangeType changeType;
+			RecordUser user;
+			try
+			{
+				user = thePersister.getUser(template.userID);
+			} catch(PrismsRecordException e)
+			{
+				user = new RecordUser()
+				{
+
+					public long getID()
+					{
+						return template.id;
+					}
+
+					public String getName()
+					{
+						return "Error";
+					}
+
+					public boolean isDeleted()
+					{
+						return false;
+					}
+				};
+			}
+			int add = template.add == '+' ? 1 : (template.add == '-' ? -1 : 0);
+			try
+			{
+				subjectType = getType(template.subjectType);
+				changeType = getChangeType(subjectType, template.changeType);
+				try
+				{
+					ChangeData changeData = getChangeData(subjectType, changeType,
+						template.majorSubjectID, template.minorSubjectID, template.data1,
+						template.data2, template.preValueID);
+					if(changeData.preValue == null && template.previousValue != null)
+						changeData.preValue = deserialize(changeType.getObjectType(),
+							template.previousValue);
+					return new ChangeRecord(template.id, template.time, thePersister
+						.getUser(template.userID), subjectType, changeType, add,
+						changeData.majorSubject, changeData.minorSubject, changeData.preValue,
+						changeData.data1, changeData.data2);
+				} catch(PrismsRecordException e)
+				{
+					ErrorSubjectType est = new ErrorSubjectType(subjectType, changeType);
+					return new ChangeRecord(template.id, template.time, user, est,
+						est.theChangeType, add, new Object(), est.theChangeType == null ? null
+							: new Object(), null, null, null);
+				}
+			} catch(PrismsRecordException e)
+			{
+				ErrorSubjectType est = new ErrorSubjectType(template.subjectType,
+					template.changeType);
+				return new ChangeRecord(template.id, template.time, user, est, est.theChangeType,
+					add, new Object(), est.theChangeType == null ? null : new Object(), null, null,
+					null);
+			}
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not get record data: SQL=" + sql, e);
+		} finally
+		{
+			try
+			{
+				if(rs != null)
+					rs.close();
+			} catch(SQLException e)
+			{
+				log.error("Connection error", e);
+			}
+			try
+			{
+				if(stmt != null)
+					stmt.close();
+			} catch(SQLException e)
+			{
+				log.error("Connection error", e);
+			}
+		}
+	}
+
 	private class ChangeTemplate
 	{
 		long id;
@@ -1345,7 +1581,7 @@ public class RecordKeeper
 				throw new PrismsRecordException("Could not create statement", e);
 			}
 		}
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record  WHERE recordNS="
+		String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
 			+ toSQL(theNamespace) + " AND id IN (";
 		for(int i = 0; i < ids.length; i++)
 		{
@@ -1363,43 +1599,8 @@ public class RecordKeeper
 				rs = stmt.executeQuery(sql);
 				while(rs.next())
 				{
-					ChangeTemplate template = new ChangeTemplate();
+					ChangeTemplate template = getChangeTemplate(rs);
 					changeList.add(template);
-					template.id = rs.getLong("id");
-					template.subjectType = fromSQL(rs.getString("subjectType"));
-					template.changeType = fromSQL(rs.getString("changeType"));
-					template.add = rs.getString("additivity").charAt(0);
-					template.time = rs.getTimestamp("changeTime").getTime();
-					template.userID = rs.getLong("changeUser");
-					template.majorSubjectID = rs.getLong("majorSubject");
-					template.minorSubjectID = (Number) rs.getObject("minorSubject");
-					template.data1 = (Number) rs.getObject("changeData1");
-					template.data2 = (Number) rs.getObject("changeData2");
-					Number pvNumber = (Number) rs.getObject("preValueID");
-					if(pvNumber != null)
-						template.preValueID = pvNumber;
-					else
-					{
-						template.previousValue = rs.getString("shortPreValue");
-						if(template.previousValue == null)
-						{
-							java.sql.Clob clob = rs.getClob("longPreValue");
-							if(clob != null)
-								try
-								{
-									StringBuilder fv = new StringBuilder();
-									java.io.Reader reader = clob.getCharacterStream();
-									int read;
-									while((read = reader.read()) >= 0)
-										fv.append((char) read);
-									template.previousValue = fv.toString();
-								} catch(java.io.IOException e)
-								{
-									throw new PrismsRecordException(
-										"Could not read long field value", e);
-								}
-						}
-					}
 				}
 			} catch(SQLException e)
 			{
@@ -1471,6 +1672,47 @@ public class RecordKeeper
 				log.error("Connection error", e);
 			}
 		}
+	}
+
+	private ChangeTemplate getChangeTemplate(ResultSet rs) throws SQLException,
+		PrismsRecordException
+	{
+		ChangeTemplate template = new ChangeTemplate();
+		template.id = rs.getLong("id");
+		template.subjectType = fromSQL(rs.getString("subjectType"));
+		template.changeType = fromSQL(rs.getString("changeType"));
+		template.add = rs.getString("additivity").charAt(0);
+		template.time = rs.getTimestamp("changeTime").getTime();
+		template.userID = rs.getLong("changeUser");
+		template.majorSubjectID = rs.getLong("majorSubject");
+		template.minorSubjectID = (Number) rs.getObject("minorSubject");
+		template.data1 = (Number) rs.getObject("changeData1");
+		template.data2 = (Number) rs.getObject("changeData2");
+		Number pvNumber = (Number) rs.getObject("preValueID");
+		if(pvNumber != null)
+			template.preValueID = pvNumber;
+		else
+		{
+			template.previousValue = rs.getString("shortPreValue");
+			if(template.previousValue == null)
+			{
+				java.sql.Clob clob = rs.getClob("longPreValue");
+				if(clob != null)
+					try
+					{
+						StringBuilder fv = new StringBuilder();
+						java.io.Reader reader = clob.getCharacterStream();
+						int read;
+						while((read = reader.read()) >= 0)
+							fv.append((char) read);
+						template.previousValue = fv.toString();
+					} catch(java.io.IOException e)
+					{
+						throw new PrismsRecordException("Could not read long field value", e);
+					}
+			}
+		}
+		return template;
 	}
 
 	SubjectType getType(String typeName) throws PrismsRecordException
@@ -1980,7 +2222,7 @@ public class RecordKeeper
 				throw new PrismsRecordException("Could not create statement", e);
 			}
 		}
-		String sql = "SELECT id FROM " + DBOWNER + "jme3_modification WHERE id=" + record.id;
+		String sql = "SELECT id FROM " + DBOWNER + "prisms_change_record WHERE id=" + record.id;
 		ResultSet rs = null;
 		try
 		{
@@ -2355,7 +2597,7 @@ public class RecordKeeper
 		if(modified)
 		{
 			log.debug(changeMsg.substring(0, changeMsg.length() - 1));
-			String sql = "UPDATE " + DBOWNER + "jme3_auto_purge SET entryCount="
+			String sql = "UPDATE " + DBOWNER + "prisms_auto_purge SET entryCount="
 				+ (dbPurger.getEntryCount() < 0 ? "NULL" : "" + dbPurger.getEntryCount())
 				+ ", age=" + (dbPurger.getAge() < 0 ? "NULL" : "" + dbPurger.getAge())
 				+ " WHERE recordNS=" + toSQL(theNamespace);
@@ -2382,8 +2624,8 @@ public class RecordKeeper
 					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeUser,
 						1, dbPurger, null, thePersister.getUser(o.getID()), null, null);
 					String sql = "INSERT INTO " + DBOWNER
-						+ "jme3_purge_excl_user (recordNS, exclUser) VALUES(" + toSQL(theNamespace)
-						+ ", " + o.getID() + ")";
+						+ "prisms_purge_excl_user (recordNS, exclUser) VALUES("
+						+ toSQL(theNamespace) + ", " + o.getID() + ")";
 					try
 					{
 						stmt.execute(sql);
@@ -2400,8 +2642,9 @@ public class RecordKeeper
 					log.debug("Re-including user " + o + " in auto-purge");
 					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeUser,
 						-1, dbPurger, null, thePersister.getUser(o.getID()), null, null);
-					String sql = "DELETE FROM " + DBOWNER + "jme3_purge_excl_user WHERE recordNS="
-						+ toSQL(theNamespace) + " AND exclUser=" + o.getID();
+					String sql = "DELETE FROM " + DBOWNER
+						+ "prisms_purge_excl_user WHERE recordNS=" + toSQL(theNamespace)
+						+ " AND exclUser=" + o.getID();
 					try
 					{
 						stmt.execute(sql);
@@ -2431,9 +2674,9 @@ public class RecordKeeper
 				{
 					log.debug("Excluding modification type " + o + " from auto-purge");
 					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeType,
-						1, dbPurger, o, null, null, null);
+						1, dbPurger, null, o, null, null);
 					String sql = "INSERT INTO " + DBOWNER
-						+ "jme3_purge_excl_type (recordNS, exclSubjectType, exclChangeType,"
+						+ "prisms_purge_excl_type (recordNS, exclSubjectType, exclChangeType,"
 						+ " exclAdditivity) VALUES(" + toSQL(theNamespace) + ", ";
 					sql += toSQL(o.subjectType.name()) + ", "
 						+ (o.changeType == null ? "NULL" : toSQL(o.changeType.name())) + ", "
@@ -2454,11 +2697,12 @@ public class RecordKeeper
 					log.debug("Re-including modification type " + o + " in auto-purge");
 					persist(user, PrismsChange.autoPurge, PrismsChange.AutoPurgeChange.excludeType,
 						-1, dbPurger, null, o, null, null);
-					String sql = "DELETE FROM " + DBOWNER + "jme3_purge_excl_type WHERE recordNS="
-						+ toSQL(theNamespace) + " AND exclSubjectType="
-						+ toSQL(o.subjectType.name()) + " AND exclChangeType=";
+					String sql = "DELETE FROM " + DBOWNER
+						+ "prisms_purge_excl_type WHERE recordNS=" + toSQL(theNamespace)
+						+ " AND exclSubjectType=" + toSQL(o.subjectType.name())
+						+ " AND exclChangeType=";
 					sql += (o.changeType == null ? "NULL" : toSQL(o.changeType.name()))
-						+ " AND additivity= ";
+						+ " AND exclAdditivity= ";
 					sql += toSQL(o.additivity < 0 ? "-" : (o.additivity > 0 ? "+" : "0"));
 					try
 					{
@@ -2810,7 +3054,7 @@ public class RecordKeeper
 		return "t".equalsIgnoreCase(dbBool);
 	}
 
-	private static final String XOR_KEY = "JmE3_sYnC_xOr_EnCrYpT_kEy_769465";
+	private static final String XOR_KEY = "PrIsMs_sYnC_xOr_EnCrYpT_kEy_769465";
 
 	/**
 	 * Protects a password so that it is not stored in clear text
