@@ -56,6 +56,18 @@ public class RecordType
 
 	public String toString()
 	{
+		return recordTypeString(subjectType, changeType, additivity);
+	}
+
+	/**
+	 * @param subjectType The subject type to represent
+	 * @param changeType The change type to represent
+	 * @param additivity The additivity of the change to represent
+	 * @return A string representation of the change type
+	 */
+	public static String recordTypeString(SubjectType subjectType, ChangeType changeType,
+		int additivity)
+	{
 		if(changeType == null)
 		{
 			if(additivity > 0)

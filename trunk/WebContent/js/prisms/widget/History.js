@@ -50,7 +50,7 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 		else if(event.method=="setFilter")
 			this.setFilter(event.filter);
 		else
-			throw new Error("Unrecognized "+this.pluginName +" method: " + event.method)
+			throw new Error("Unrecognized "+this.pluginName +" method: " + event.method);
 	},
 
 	setPurgeEnabled: function(enabled){
@@ -69,8 +69,8 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 			this.ageCheck.disabled=true;
 			this.ageEditor.setDisabled(true);
 		}
-		/*this.excludeUsers.setDisabled(!enabled);*/
 		this.excludeUsers.disabled=!enabled;
+		this.excludeTypes.disabled=!enabled;
 		this.autoPurgeButton.setAttribute("disabled", !enabled);
 		this.purgeSelected.setAttribute("disabled", !enabled);
 	},
@@ -107,18 +107,6 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 		}
 		else
 			this.ageCheck.checked=false;
-		/*this.excludeUsers.clearOptions();
-		for(var i=0;i<purge.allUsers.length;i++)
-		{
-			var option=this.excludeUsers.addOption();
-			option.text=purge.allUsers[i];
-			for(var j=0;j<purge.excludeUsers.length;j++)
-				if(purge.excludeUsers[j]==purge.allUsers[i])
-				{
-					option.selected=true;
-					break;
-				}
-		}*/
 		while(this.excludeUsers.options.length>0)
 			this.excludeUsers.remove(this.excludeUsers.options.length-1);
 		for(var i=0;i<purge.allUsers.length;i++)
@@ -132,9 +120,27 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 					break;
 				}
 			if(dojo.isIE > 6)
-				this.excludeUsers.add(option, 0);
+				this.excludeUsers.add(option);
 			else
 				this.excludeUsers.add(option, null);
+		}
+
+		while(this.excludeTypes.options.length>0)
+			this.excludeTypes.remove(this.excludeTypes.options.length-1);
+		for(var i=0;i<purge.allTypes.length;i++)
+		{
+			var option=document.createElement("option");
+			option.text=purge.allTypes[i];
+			for(var j=0;j<purge.excludeTypes.length;j++)
+				if(purge.excludeTypes[j]==purge.allTypes[i])
+				{
+					option.selected=true;
+					break;
+				}
+			if(dojo.isIE > 6)
+				this.excludeTypes.add(option);
+			else
+				this.excludeTypes.add(option, null);
 		}
 		} finally{
 			this.dataLock=false;
@@ -261,11 +267,40 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 		this.autoPurgeNotificationCell.style.visibility="visible";
 	},
 
+	_excludeTypesChanged: function(index, selected){
+		if(this.dataLock)
+			return;
+		if(typeof index=="number")
+		{ // The prisms.widget.MultiSelect widget
+			var name=this.excludeTypes.options[index].text;
+			if(selected)
+				this.autoPurge.excludeTypes.push(name);
+			else
+			{
+				for(var i=0;i<this.autoPurge.excludeTypes.length;i++)
+					if(this.autoPurge.excludeTypes[i]==name)
+					{
+						this.autoPurge.excludeTypes.splice(i, 1);
+						break;
+					}
+			}
+		}
+		else
+		{
+			this.autoPurge.excludeTypes.splice(0, this.autoPurge.excludeTypes.length);
+			for(var i=0;i<this.excludeTypes.options.length;i++)
+				if(this.excludeTypes.options[i].selected)
+					this.autoPurge.excludeTypes.push(this.excludeTypes.options[i].text);
+		}
+		this.autoPurgeNotificationCell.style.visibility="visible";
+	},
+
 	_sendAutoPurge: function(){
 		var ap={};
 		ap.entryCount=this.autoPurge.entryCount;
 		ap.age=this.autoPurge.age;
 		ap.excludeUsers=this.autoPurge.excludeUsers;
+		ap.excludeTypes=this.autoPurge.excludeTypes;
 		this.prisms.callApp(this.pluginName, "setAutoPurge", {autoPurge: ap});
 	}
 });
