@@ -8,6 +8,11 @@
 				<td><div dojoType="dijit.form.TextBox" dojoAttachPoint="userName"
 					dojoAttachEvent="_onKeyPress:_onKeyPress"></div></td>
 			</tr>
+			<tr dojoAttachPoint="capsLockWarn" style="display:none">
+				<td></td>
+				<td style="font-weight:bold;color:red">
+					WARNING! Caps Lock is on. Passwords are case-sensitive.</td>
+			</tr>
 			<tr dojoAttachPoint="passwordRow">
 				<td>Password:</td>
 				<td><input type="password" dojoAttachPoint="password"
