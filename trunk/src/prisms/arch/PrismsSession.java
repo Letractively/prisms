@@ -17,6 +17,17 @@ import prisms.arch.event.*;
  */
 public class PrismsSession
 {
+	/**
+	 * Listens for events posted for the client
+	 */
+	public static interface EventListener
+	{
+		/**
+		 * @param event The event that was posted
+		 */
+		void eventPosted(JSONObject event);
+	}
+
 	static final Logger log = Logger.getLogger(PrismsSession.class);
 
 	private final PrismsApplication theApp;
@@ -50,6 +61,10 @@ public class PrismsSession
 
 	private final java.util.ArrayList<Runnable> theTaskList;
 
+	private final java.util.Map<Thread, String> theInvocations;
+
+	private EventListener theListener;
+
 	/**
 	 * Creates a PluginAppSession
 	 * 
@@ -76,6 +91,16 @@ public class PrismsSession
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
 		theELs = new ListenerManager<PrismsEventListener>(PrismsEventListener.class);
 		theTaskList = new java.util.ArrayList<Runnable>();
+		theInvocations = new java.util.concurrent.ConcurrentHashMap<Thread, String>();
+	}
+
+	/**
+	 * @param listener The listener to listen to this session for posted events to be sent to the
+	 *        client
+	 */
+	public void setListener(EventListener listener)
+	{
+		theListener = listener;
 	}
 
 	/**
@@ -179,6 +204,27 @@ public class PrismsSession
 	public void renew()
 	{
 		theLastCheckedTime = System.currentTimeMillis();
+	}
+
+	/**
+	 * Processes an event from a service client
+	 * 
+	 * @param event The event to process
+	 * @param invocationID An invocation ID with which to tag all events that are posted for output
+	 *        as a result of this invocation. When this same ID is passed to
+	 *        {@link #getEvents(String)}, only those events that are a direct result of this
+	 *        invocation will be returned.
+	 */
+	public void process(JSONObject event, String invocationID)
+	{
+		theInvocations.put(Thread.currentThread(), invocationID);
+		try
+		{
+			process(event);
+		} finally
+		{
+			theInvocations.remove(Thread.currentThread());
+		}
 	}
 
 	/**
@@ -300,12 +346,38 @@ public class PrismsSession
 	public org.json.simple.JSONArray getEvents()
 	{
 		org.json.simple.JSONArray events = new org.json.simple.JSONArray();
-		synchronized(theOutgoingQueue)
+		if(!theOutgoingQueue.isEmpty())
 		{
-			if(!theOutgoingQueue.isEmpty())
+			synchronized(theOutgoingQueue)
 			{
 				events.addAll(theOutgoingQueue);
 				theOutgoingQueue.clear();
+			}
+		}
+		return events;
+	}
+
+	/**
+	 * @param invocationID The ID that was passed to {@link #process(JSONObject, String)}
+	 * @return The set of events posted to this session as a result of the invocation with the given
+	 *         ID
+	 */
+	public org.json.simple.JSONArray getEvents(String invocationID)
+	{
+		org.json.simple.JSONArray events = new org.json.simple.JSONArray();
+		if(!theOutgoingQueue.isEmpty())
+		{
+			synchronized(theOutgoingQueue)
+			{
+				for(int i = 0; i < theOutgoingQueue.size(); i++)
+				{
+					JSONObject evt = theOutgoingQueue.get(i);
+					if(invocationID.equals(evt.get("invocationID")))
+					{
+						events.add(evt);
+						theOutgoingQueue.remove(i);
+					}
+				}
 			}
 		}
 		return events;
@@ -380,6 +452,9 @@ public class PrismsSession
 	 */
 	public void postOutgoingEvent(JSONObject evt)
 	{
+		String invocationID = theInvocations.get(Thread.currentThread());
+		if(invocationID != null)
+			evt.put("invocationID", invocationID);
 		try
 		{
 			prisms.arch.JsonSerializer.validate(evt);
@@ -387,6 +462,8 @@ public class PrismsSession
 			{
 				theOutgoingQueue.add(evt);
 			}
+			if(theListener != null)
+				theListener.eventPosted(evt);
 		} catch(java.io.NotSerializableException e)
 		{
 			log.error("Could not serialize event", e);

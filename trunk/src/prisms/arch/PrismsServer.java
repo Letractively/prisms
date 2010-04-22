@@ -275,7 +275,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				throw new IllegalStateException("Could not instantiate persister factory "
 					+ className, e);
 			}
-			thePersisterFactory.configure(this, persisterFactoryEl);
+			thePersisterFactory.configure(persisterFactoryEl);
 		}
 		if(thePersisterFactory == null)
 			throw new IllegalStateException("No PersisterFactory set--cannot configure PRISMS");
@@ -1535,36 +1535,47 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			theSession.getApp().putApplicationEvents(theSession);
 			int busyness = theSession.getBusyCount();
+			String invocationID = null;
 			if(theSession.getApp().isOpen(theSession))
 			{
 				try
 				{
-					theSession.process(event);
+					if(isService)
+					{
+						invocationID = Integer
+							.toHexString((int) (Math.random() * Integer.MAX_VALUE));
+						theSession.process(event, invocationID);
+					}
+					else
+						theSession.process(event);
 				} catch(Throwable e)
 				{
 					log.error("Session error processing events", e);
 				}
-				try
-				{
-					Thread.sleep(100);
-				} catch(InterruptedException e)
-				{}
-				/*
-				 * This code checks every quarter second to see if the event has been processed. If
-				 * the processing isn't finished after 1/2 second, this method returns, leaving the
-				 * final results of the event on the queue to be retrieved at the next client poll
-				 * or user action. This allows progress bars to be shown to the user quickly while a
-				 * long operation progresses.
-				 */
-				int waitCount = 0;
-				while(theSession.getBusyCount() > busyness && waitCount < 2)
+				if(!isService)
 				{
 					try
 					{
-						Thread.sleep(250);
+						Thread.sleep(100);
 					} catch(InterruptedException e)
 					{}
-					waitCount++;
+					/*
+					 * This code checks every quarter second to see if the event has been processed. If
+					 * the processing isn't finished after 1/2 second, this method returns, leaving the
+					 * final results of the event on the queue to be retrieved at the next client poll
+					 * or user action. This allows progress bars to be shown to the user quickly while a
+					 * long operation progresses.
+					 */
+					int waitCount = 0;
+					while(theSession.getBusyCount() > busyness && waitCount < 2)
+					{
+						try
+						{
+							Thread.sleep(250);
+						} catch(InterruptedException e)
+						{}
+						waitCount++;
+					}
 				}
 			}
 			else
@@ -1584,8 +1595,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					lock.unlock();
 				}
 			}
-			JSONArray ret = theSession.getEvents();
-			if(theSession.getBusyCount() > busyness)
+			JSONArray ret;
+			if(invocationID != null)
+				ret = theSession.getEvents(invocationID);
+			else
+				ret = theSession.getEvents();
+			if(invocationID == null && theSession.getBusyCount() > busyness)
 			{
 				JSONObject getEventsEvent = new JSONObject();
 				getEventsEvent.put("method", "getEvents");
