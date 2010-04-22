@@ -272,6 +272,11 @@ dojo.declare("prisms.widget.ColorPicker", [dijit._Widget, dijit._Templated], {
 		if(r < 0 || r > 1 || g < 0 || g > 1 || b < 0 || b > 1)
 			return;
 
+
+		var bright = this.brightnessSlider.getValue();
+		r = r * bright/255;
+		g = g * bright/255;
+		b = b * bright/255;
 		this.setValue({r: Math.round(r*255), g: Math.round(g*255), b: Math.round(b*255),
 			a: this.value.a}, true);
 	},
