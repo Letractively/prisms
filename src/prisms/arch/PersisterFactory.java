@@ -17,10 +17,9 @@ public interface PersisterFactory
 	/**
 	 * Configures this factory
 	 * 
-	 * @param server The server that this factory is for
 	 * @param configEl The XML element to use to configure this factory
 	 */
-	void configure(PrismsServer server, Element configEl);
+	void configure(Element configEl);
 
 	/**
 	 * Creates a persister from an XML configuration element

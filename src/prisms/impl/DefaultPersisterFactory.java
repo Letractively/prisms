@@ -7,7 +7,6 @@ import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
 import prisms.arch.Persister;
-import prisms.arch.PrismsServer;
 import prisms.arch.event.PropertyDataSource;
 
 /**
@@ -30,7 +29,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		theNamedConnEls = new java.util.HashMap<String, Element>();
 	}
 
-	public void configure(PrismsServer server, Element configEl)
+	public void configure(Element configEl)
 	{
 		for(Element connEl : (java.util.List<Element>) configEl.elements("connection"))
 		{
