@@ -212,6 +212,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 
 	public prisms.arch.ds.PasswordConstraints getPasswordConstraints() throws PrismsException
 	{
+		checkConnection();
 		prisms.arch.ds.PasswordConstraints ret = new prisms.arch.ds.PasswordConstraints();
 		Statement stmt = null;
 		ResultSet rs = null;
@@ -287,6 +288,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			name = theAnonymousUserName;
 		if(name == null)
 			return null;
+		checkConnection();
 		Lock lock = theLock.readLock();
 		lock.lock();
 		DBUser ret;
@@ -349,6 +351,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		DBUser ret = theUsers.get(cacheKey);
 		if(ret != null)
 			return ret;
+		checkConnection();
 		Statement stmt = null;
 		ResultSet rs = null;
 		Lock lock = theLock.readLock();
@@ -556,6 +559,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	public DBApplication getApp(String appName) throws PrismsException
 	{
 		DBApplication ret;
+		checkConnection();
 		Lock lock = theLock.readLock();
 		lock.lock();
 		try
@@ -1020,6 +1024,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	{
 		Statement stmt = null;
 		ResultSet rs = null;
+		checkConnection();
 		Lock lock = theLock.readLock();
 		lock.lock();
 		String sql = "SELECT * FROM " + DBOWNER + "prisms_user_password WHERE pwdUser="
@@ -1085,6 +1090,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		ArrayList<DBUser> ret = new ArrayList<DBUser>();
 		Statement stmt = null;
 		ResultSet rs = null;
+		checkConnection();
 		Lock lock = theLock.readLock();
 		lock.lock();
 		try
@@ -1149,6 +1155,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		ArrayList<String> appNames = new ArrayList<String>();
 		Statement stmt = null;
 		ResultSet rs = null;
+		checkConnection();
 		Lock lock = theLock.readLock();
 		lock.lock();
 		try
@@ -1210,6 +1217,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		DBUser ret;
 		String sql = null;
 		Statement stmt = null;
+		checkConnection();
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -1240,6 +1248,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	public void setUserAccess(User user, PrismsApplication app, boolean accessible)
 		throws PrismsException
 	{
+		checkConnection();
 		// if user access is true do an insert
 		Lock lock = theLock.writeLock();
 		lock.lock();
@@ -1303,6 +1312,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	public void setEncryptionRequired(User user, PrismsApplication app, boolean encrypted)
 		throws PrismsException
 	{
+		checkConnection();
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -1491,6 +1501,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 */
 	public void deleteUser(User user) throws PrismsException
 	{
+		checkConnection();
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -1528,6 +1539,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	 */
 	public void rename(User user, String newName) throws PrismsException
 	{
+		checkConnection();
 		Lock lock = theLock.writeLock();
 		lock.lock();
 		try
@@ -1579,6 +1591,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		int id;
 		Statement stmt = null;
 		ResultSet rs = null;
+		checkConnection();
 		Lock lock = theLock.readLock();
 		lock.lock();
 		try
@@ -1620,6 +1633,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		ArrayList<Integer> groupIDs = new ArrayList<Integer>();
 		Statement stmt = null;
 		ResultSet rs = null;
+		checkConnection();
 		Lock lock = theLock.readLock();
 		lock.lock();
 		try
