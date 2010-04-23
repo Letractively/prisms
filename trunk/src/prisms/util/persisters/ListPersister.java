@@ -6,8 +6,8 @@ package prisms.util.persisters;
 import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
-import prisms.arch.PrismsApplication;
 import prisms.arch.Persister;
+import prisms.arch.PrismsApplication;
 import prisms.arch.event.PrismsProperty;
 import prisms.util.ArrayUtils;
 
@@ -26,10 +26,23 @@ public abstract class ListPersister<T> implements Persister<T []>
 
 		T theAvailableValue;
 
+		boolean isLocked;
+
 		ListElementContainer(T dbValue, T availableValue)
 		{
 			theDBValue = dbValue;
 			theAvailableValue = availableValue;
+		}
+
+		void queue(T value)
+		{
+			synchronized(ListPersister.this)
+			{
+				for(int i = 0; i < theUpdateQueue.length; i++)
+					if(equivalent(theUpdateQueue[i], value))
+						return; // Already queued
+				theUpdateQueue = ArrayUtils.add(theUpdateQueue, value);
+			}
 		}
 	}
 
@@ -43,6 +56,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 
 	java.util.ArrayList<ListElementContainer> theElements;
 
+	T [] theUpdateQueue;
+
 	/**
 	 * @see prisms.arch.Persister#configure(org.dom4j.Element, prisms.arch.PrismsApplication,
 	 *      prisms.arch.event.PrismsProperty)
@@ -53,6 +68,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 		theConfigEl = configEl;
 		theProperty = property;
 		theElements = new java.util.ArrayList<ListElementContainer>();
+		theUpdateQueue = (T []) java.lang.reflect.Array.newInstance(property.getType()
+			.getComponentType(), 0);
 		reload();
 	}
 
@@ -118,18 +135,6 @@ public abstract class ListPersister<T> implements Persister<T []>
 					return equivalent(o1.theDBValue, o2);
 				}
 
-				public ListElementContainer set(ListElementContainer o1, int idx1, int incMod,
-					T o2, int idx2, int retIdx)
-				{
-					// update(o1.theDBValue, o2);
-					if(incMod != retIdx)
-					{
-						ListElementContainer lec = theElements.remove(incMod);
-						theElements.add(retIdx, lec);
-					}
-					return o1;
-				}
-
 				/**
 				 * @see ArrayUtils.DifferenceListener#added(java.lang.Object, int, int)
 				 */
@@ -139,7 +144,10 @@ public abstract class ListPersister<T> implements Persister<T []>
 					if(dbArea != null)
 					{
 						ListElementContainer ret = new ListElementContainer(dbArea, o);
-						theElements.add(retIdx, ret);
+						synchronized(theElements)
+						{
+							theElements.add(retIdx, ret);
+						}
 						return ret;
 					}
 					else
@@ -149,9 +157,30 @@ public abstract class ListPersister<T> implements Persister<T []>
 				public ListElementContainer removed(ListElementContainer o, int index, int incMod,
 					int retIdx)
 				{
-					remove(o.theDBValue);
-					theElements.remove(incMod);
+					synchronized(o.theDBValue)
+					{
+						remove(o.theDBValue);
+					}
+					synchronized(theElements)
+					{
+						theElements.remove(incMod);
+					}
 					return null;
+				}
+
+				public ListElementContainer set(ListElementContainer o1, int idx1, int incMod,
+					T o2, int idx2, int retIdx)
+				{
+					// update(o1.theDBValue, o2);
+					if(incMod != retIdx)
+					{
+						synchronized(theElements)
+						{
+							ListElementContainer lec = theElements.remove(incMod);
+							theElements.add(retIdx, lec);
+						}
+					}
+					return o1;
 				}
 			});
 	}
@@ -164,9 +193,43 @@ public abstract class ListPersister<T> implements Persister<T []>
 		for(ListElementContainer el : theElements)
 			if(equivalent(el.theDBValue, (T) o))
 			{
-				update(el.theDBValue, (T) o);
+				/* If this item is already being updated, there's no reason to do multiple updates
+				 * at the same time, so we'll queue the item up to be updated once more after the
+				 * current update finishes. This is so if the updating has passed the data that
+				 * changed with this invocation, it will be reflected in the database. This allows
+				 * repeated calls to this persister to be ignored, with update only being called
+				 * twice. */
+				if(el.isLocked)
+					el.queue((T) o);
+				else
+					synchronized(el.theDBValue)
+					{
+						boolean preLocked = el.isLocked;
+						el.isLocked = true;
+						try
+						{
+							update(el.theDBValue, (T) o);
+						} finally
+						{
+							el.isLocked = preLocked;
+						}
+					}
 				break;
 			}
+		T toUpdate = null;
+		if(theUpdateQueue.length > 0)
+		{
+			synchronized(this)
+			{
+				if(theUpdateQueue.length > 0)
+				{
+					toUpdate = theUpdateQueue[0];
+					theUpdateQueue = ArrayUtils.remove(theUpdateQueue, 0);
+				}
+			}
+		}
+		if(toUpdate != null)
+			valueChanged(fullValue, toUpdate);
 	}
 
 	/**
