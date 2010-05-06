@@ -815,6 +815,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					if(!validator.validate(appUser, app, session.theClient, req, null))
 						throw new IllegalArgumentException("Validation unsuccessful");
 					session.validate();
+					JSONObject evt = new JSONObject();
+					evt.put("method", "callInit");
+					ret.add(evt);
 				} catch(RuntimeException e)
 				{
 					errorString = e.getMessage();
