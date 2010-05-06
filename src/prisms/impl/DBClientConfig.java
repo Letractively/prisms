@@ -291,31 +291,24 @@ public class DBClientConfig implements ClientConfig
 		}
 		for(PluginType pt : thePluginTypes.values())
 		{
-			if("true".equalsIgnoreCase(pt.theConfigEl.elementTextTrim("loadOnInit")))
-				session.getPlugin(pt.thePluginName);
+			AppPlugin plugin;
+			try
+			{
+				plugin = pt.thePluginType.newInstance();
+			} catch(Exception e)
+			{
+				log.error("Could not instantiate plugin " + pt.thePluginType.getName(), e);
+				continue;
+			}
+			try
+			{
+				plugin.initPlugin(session, pt.theConfigEl);
+				session.removeOutgoingEvents(pt.thePluginName);
+			} catch(Exception e)
+			{
+				log.error("Could not initialize plugin " + pt.thePluginName, e);
+			}
+			session.addPlugin(pt.thePluginName, plugin);
 		}
-	}
-
-	/**
-	 * @see prisms.arch.ClientConfig#createPlugin(java.lang.String, prisms.arch.PrismsSession)
-	 */
-	public AppPlugin createPlugin(String pluginName, PrismsSession session)
-	{
-		PluginType pt = thePluginTypes.get(pluginName);
-		if(pt == null)
-			return null;
-		log.debug("Adding plugin:\n" + pt.theConfigEl.asXML());
-		AppPlugin plugin;
-		try
-		{
-			plugin = pt.thePluginType.newInstance();
-		} catch(Exception e)
-		{
-			log.error("Could not instantiate plugin " + pt.thePluginType.getName(), e);
-			return null;
-		}
-		plugin.initPlugin(session, pt.theConfigEl);
-		session.removeOutgoingEvents(pluginName);
-		return plugin;
 	}
 }
