@@ -40,6 +40,12 @@ public class PrismsUtils
 
 	private static final java.text.SimpleDateFormat theFcastFormat;
 
+	private static final String randomEvent = Long
+		.toHexString((long) (Math.random() * Long.MAX_VALUE));
+
+	private static final prisms.arch.event.PrismsProperty<?> randomProperty = prisms.arch.event.PrismsProperty
+		.create(randomEvent, PrismsUtils.class);
+
 	static
 	{
 		theFcastFormat = new java.text.SimpleDateFormat("ddMMMyyyy HHmm'Z'");
@@ -349,5 +355,32 @@ public class PrismsUtils
 			ret.append(printTree(child, interp, indent + 1));
 		}
 		return ret.toString();
+	}
+
+	/**
+	 * @param session The session to check
+	 * @param eventName The event name to check
+	 * @return Whether the event has any listeners in the session
+	 */
+	public static boolean hasEventListeners(prisms.arch.PrismsSession session, String eventName)
+	{
+		prisms.arch.event.PrismsEventListener[] listeners = session.getEventListeners(eventName);
+		prisms.arch.event.PrismsEventListener[] generalListeners = session
+			.getEventListeners(randomEvent);
+		return listeners.length > generalListeners.length;
+	}
+
+	/**
+	 * @param session The session to check
+	 * @param property The property to check
+	 * @return Whether the property has any listeners in the session
+	 */
+	public static boolean hasPropertyListeners(prisms.arch.PrismsSession session,
+		prisms.arch.event.PrismsProperty<?> property)
+	{
+		prisms.arch.event.PrismsPCL<?> [] listeners = session.getPropertyChangeListeners(property);
+		prisms.arch.event.PrismsPCL<?> [] generalListeners = session
+			.getPropertyChangeListeners(randomProperty);
+		return listeners.length > generalListeners.length;
 	}
 }
