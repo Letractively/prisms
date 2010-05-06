@@ -800,8 +800,11 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				latestRecord = holder.theRecord;
 		}
 		if(latestRecord == null)
+		{
 			((UI) theSession.getPlugin("UI")).error("No synchronizations have been attempted"
 				+ "--cannot generate synchronization receipt");
+			return;
+		}
 		genSyncReceipt(latestRecord);
 	}
 
