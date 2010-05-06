@@ -32,7 +32,7 @@ public interface ClientConfig
 	 * @return The event serializer that sessions of this client config will use
 	 */
 	RemoteEventSerializer getSerializer();
-	
+
 	/**
 	 * @return The amount of inactive time until a session of this client should be expired
 	 */
@@ -67,7 +67,7 @@ public interface ClientConfig
 	void addPluginType(String pluginName, Class<? extends AppPlugin> type, Element configEl);
 
 	/**
-	 * Adds event listeners and monitors, but not plugins--those must be added by name
+	 * Adds event listeners, monitors, and plugins to the session
 	 * 
 	 * @param session The session to configure
 	 */
@@ -82,13 +82,4 @@ public interface ClientConfig
 	 * Notifies this client config that it has been configured
 	 */
 	void setConfigured();
-
-	/**
-	 * Creates a new plugin for a session
-	 * 
-	 * @param pluginName The name of the plugin to create
-	 * @param session The session to create the plugin for
-	 * @return The created plugin
-	 */
-	AppPlugin createPlugin(String pluginName, PrismsSession session);
 }
