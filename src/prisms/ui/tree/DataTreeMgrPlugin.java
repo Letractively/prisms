@@ -48,6 +48,8 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 
 	java.util.ArrayList<DataTreeNode> theSelection;
 
+	boolean isClientInitialized;
+
 	/**
 	 * Creates a DataTreeMgrPlugin
 	 */
@@ -289,6 +291,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 	 */
 	public void initClient()
 	{
+		isClientInitialized = true;
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", getName());
 		evt.put("method", "refresh");
@@ -435,5 +438,45 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 		}
 		else
 			throw new IllegalArgumentException("Unrecognized event: " + evt);
+	}
+
+	@Override
+	public void nodeAdded(DataTreeNode node, int index)
+	{
+		if(!isClientInitialized)
+			return;
+		super.nodeAdded(node, index);
+	}
+
+	@Override
+	public void nodeChanged(DataTreeNode node, boolean recursive)
+	{
+		if(!isClientInitialized)
+			return;
+		super.nodeChanged(node, recursive);
+	}
+
+	@Override
+	public void nodeMoved(DataTreeNode node, int toIdx)
+	{
+		if(!isClientInitialized)
+			return;
+		super.nodeMoved(node, toIdx);
+	}
+
+	@Override
+	public void nodeRemoved(DataTreeNode node)
+	{
+		if(!isClientInitialized)
+			return;
+		super.nodeRemoved(node);
+	}
+
+	@Override
+	public void treeRefreshed()
+	{
+		if(!isClientInitialized)
+			return;
+		super.treeRefreshed();
 	}
 }
