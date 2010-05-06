@@ -152,23 +152,10 @@ public class PrismsSession
 	 */
 	public AppPlugin getPlugin(String name)
 	{
-		AppPlugin ret;
 		synchronized(thePlugins)
 		{
-			ret = thePlugins.get(name);
+			return thePlugins.get(name);
 		}
-		if(ret == null)
-		{
-			ret = theClient.createPlugin(name, this);
-			if(ret == null)
-				return null;
-			synchronized(thePlugins)
-			{
-				thePlugins.put(name, ret);
-			}
-			addPlugin(name, ret);
-		}
-		return ret;
 	}
 
 	/**
