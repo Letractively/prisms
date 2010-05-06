@@ -17,6 +17,8 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 
 	String theActionName;
 
+	boolean requiresListeners;
+
 	private String theEventName;
 
 	private String [] theEventPropertiesIn;
@@ -49,6 +51,10 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 		theActionName = configEl.elementTextTrim("actionname");
 		if(theActionName == null)
 			throw new IllegalArgumentException("No actionname configured: " + configEl.asXML());
+		if("false".equalsIgnoreCase(configEl.elementTextTrim("requireListeners")))
+			requiresListeners = false;
+		else
+			requiresListeners = true;
 		theEventName = configEl.elementTextTrim("eventname");
 		if(theEventName == null)
 			throw new IllegalArgumentException("No eventname configured: " + configEl.asXML());
@@ -108,6 +114,17 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 					public void actionPerformed(java.awt.event.ActionEvent actionEvent)
 					{
 						UserActionAlerter.this.actionPerformed(toFire, actionEvent);
+					}
+
+					public boolean isEnabled()
+					{
+						/* We want only specific listeners for this event. If the event has no
+						 * listeners, we don't want to display the action because it won't do
+						 * anything. */
+						if(requiresListeners
+							&& !prisms.util.PrismsUtils.hasEventListeners(theSession, toFire.name))
+							return false;
+						return true;
 					}
 				}));
 			}
