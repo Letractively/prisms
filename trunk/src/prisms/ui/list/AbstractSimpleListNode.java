@@ -97,9 +97,11 @@ public abstract class AbstractSimpleListNode implements JsonListNode
 
 	public NodeAction [] getActions()
 	{
-		NodeAction [] ret = new NodeAction [theActions.length];
-		for(int a = 0; a < ret.length; a++)
+		NodeAction [] ret = new NodeAction [0];
+		for(int a = 0; a < theActions.length; a++)
 		{
+			if(!theActions[a].isEnabled())
+				continue;
 			boolean multi;
 			if(theActions[a].getValue("multiple") instanceof String)
 				multi = "true".equalsIgnoreCase((String) theActions[a].getValue("multiple"));
@@ -107,7 +109,8 @@ public abstract class AbstractSimpleListNode implements JsonListNode
 				multi = ((Boolean) theActions[a].getValue("multiple")).booleanValue();
 			else
 				multi = false;
-			ret[a] = new NodeAction((String) theActions[a].getValue(Action.NAME), multi);
+			ret = prisms.util.ArrayUtils.add(ret, new NodeAction((String) theActions[a]
+				.getValue(Action.NAME), multi));
 		}
 		return ret;
 	}
@@ -124,6 +127,9 @@ public abstract class AbstractSimpleListNode implements JsonListNode
 		if(toDo == null)
 			throw new IllegalArgumentException("Unrecognized action " + action + " on node "
 				+ getText());
+		if(!toDo.isEnabled())
+			throw new IllegalArgumentException("Action " + action + " on node " + getText()
+				+ " is disabled");
 		java.awt.event.ActionEvent evt = new java.awt.event.ActionEvent(this, 0, action);
 		toDo.actionPerformed(evt);
 	}
