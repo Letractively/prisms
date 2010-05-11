@@ -910,14 +910,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			configure(client);
 		PrismsSession ret = new PrismsSession(client.getApp(), client, user, asService);
 		client.getApp().configureSession(ret);
-		try
-		{
-			client.configure(ret);
-		} catch(Throwable e)
-		{
-			throw new PrismsException("Could not configure client " + client.getName()
-				+ " of application " + client.getApp().getName() + " for user " + user, e);
-		}
 
 		prisms.arch.AppConfig appConfig;
 		java.sql.Statement stmt = null;
@@ -929,7 +921,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			stmt = thePRISMSConnection.createStatement();
 			rs = stmt.executeQuery("SELECT configClass FROM " + DBOWNER
-				+ "prisms_application WHERE" + " id = " + theAppIDs.get(client.getApp().getName()));
+				+ "prisms_application WHERE id = " + theAppIDs.get(client.getApp().getName()));
 			if(!rs.next())
 				throw new PrismsException("No application named " + client.getApp().getName());
 			String configClass = rs.getString(1);
@@ -973,6 +965,14 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			throw new PrismsException("Could not configure session of application "
 				+ client.getApp().getName(), e);
+		}
+		try
+		{
+			client.configure(ret);
+		} catch(Throwable e)
+		{
+			throw new PrismsException("Could not configure client " + client.getName()
+				+ " of application " + client.getApp().getName() + " for user " + user, e);
 		}
 		return ret;
 	}
