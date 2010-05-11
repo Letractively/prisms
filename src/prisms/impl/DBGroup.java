@@ -3,9 +3,14 @@
  */
 package prisms.impl;
 
-class DBGroup extends SimpleGroup
+/**
+ * A database implementation of a PRISMS group
+ */
+public class DBGroup extends prisms.arch.ds.UserGroup
 {
-	private final int theID;
+	private int theID;
+
+	private boolean isDeleted;
 
 	/**
 	 * @param src The source of this group
@@ -20,9 +25,33 @@ class DBGroup extends SimpleGroup
 		theID = id;
 	}
 
+	/**
+	 * @return This group's database ID
+	 */
 	public int getID()
 	{
 		return theID;
+	}
+
+	/**
+	 * @param id The ID to set for this group
+	 */
+	public void setID(int id)
+	{
+		theID = id;
+	}
+
+	/**
+	 * @return Whether this group is deleted
+	 */
+	public boolean isDeleted()
+	{
+		return isDeleted;
+	}
+
+	void setDeleted(boolean deleted)
+	{
+		isDeleted = deleted;
 	}
 
 	public boolean equals(Object o)

@@ -22,8 +22,6 @@ public class UserGroups extends SelectableList<UserGroup>
 
 	PrismsApplication theApp;
 
-	private User theAppUser;
-
 	/**
 	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession,
 	 *      org.dom4j.Element)
@@ -95,7 +93,7 @@ public class UserGroups extends SelectableList<UserGroup>
 					if(getSession().getUser().getName().equals(
 						((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 						initClient();// Refresh this tree to take new permissions changes into
-										// account
+					// account
 				}
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
@@ -116,10 +114,17 @@ public class UserGroups extends SelectableList<UserGroup>
 
 	void setUserApp(User user, PrismsApplication app)
 	{
-		prisms.arch.ds.UserSource src = getSession().getApp().getDataSource();
+		prisms.arch.ds.ManageableUserSource src = (prisms.arch.ds.ManageableUserSource) getSession()
+			.getApp().getDataSource();
 		theUser = user;
 		theApp = app;
-		if(theApp != null)
+		setListParams();
+		if(theApp == null)
+		{
+			setListData(new UserGroup [0]);
+			return;
+		}
+		else
 			try
 			{
 				setListData(src.getGroups(theApp));
@@ -127,26 +132,16 @@ public class UserGroups extends SelectableList<UserGroup>
 			{
 				throw new IllegalStateException("Could not get PRISMS groups", e);
 			}
-		if(user == null || app == null)
+		if(theUser != null)
 		{
-			theAppUser = null;
-			setListData(new UserGroup [0]);
+			UserGroup [] groups = new UserGroup [0];
+			for(UserGroup g : theUser.getGroups())
+				if(g.getApp().equals(theApp))
+					groups = prisms.util.ArrayUtils.add(groups, g);
+			setSelectedObjects(groups);
 		}
-		else if(user.getApp() != null && user.getApp().equals(app))
-			theAppUser = user;
-		else
-			try
-			{
-				theAppUser = getSession().getApp().getDataSource().getUser(user, app);
-			} catch(prisms.arch.PrismsException e)
-			{
-				throw new IllegalStateException("Could not get application user", e);
-			}
-		if(theAppUser != null)
-			setSelectedObjects(theAppUser.getGroups());
 		else
 			setSelectedObjects(new UserGroup [0]);
-		setListParams();
 	}
 
 	/**

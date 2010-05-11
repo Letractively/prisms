@@ -32,7 +32,8 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 	}
 
 	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession, java.lang.Object)
+	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession,
+	 *      java.lang.Object)
 	 */
 	@Override
 	public <V extends T> boolean isValueCorrect(PrismsSession session, V val)
@@ -157,7 +158,8 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 	}
 
 	/**
-	 * @see prisms.util.persisters.PersistingPropertyManager#changeValue(PrismsSession, java.lang.Object, java.lang.Object)
+	 * @see prisms.util.persisters.PersistingPropertyManager#changeValue(PrismsSession,
+	 *      java.lang.Object, java.lang.Object)
 	 */
 	@Override
 	public void changeValue(PrismsSession session, T fullValue, Object o)
@@ -169,12 +171,11 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 			log.warn("Element " + o + " not found in global value");
 			return;
 		}
+		super.changeValue(session, fullValue, o);
 		if(!so.getShareKey().equals(theKeys[idx]))
 		{
 			theKeys[idx] = so.getShareKey().clone();
 			super.changeValues(null);
 		}
-		else
-			super.changeValue(session, fullValue, o);
 	}
 }

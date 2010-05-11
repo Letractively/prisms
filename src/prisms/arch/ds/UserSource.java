@@ -20,6 +20,12 @@ public interface UserSource
 	void configure(org.dom4j.Element configEl, PersisterFactory factory) throws PrismsException;
 
 	/**
+	 * @return The PRISMS user source's password constraints
+	 * @throws PrismsException If an error occurs getting the data
+	 */
+	PasswordConstraints getPasswordConstraints() throws PrismsException;
+
+	/**
 	 * Gets a user based on his/her id
 	 * 
 	 * @param name The id of the user to get
@@ -27,87 +33,6 @@ public interface UserSource
 	 * @throws PrismsException If an error occurs getting the data
 	 */
 	User getUser(String name) throws PrismsException;
-
-	/**
-	 * Gets a specialized user for a given app with the correct permissions settings
-	 * 
-	 * @param serverUser The validated user on the server
-	 * @param app The application to get the user for
-	 * @return A user with the same name as <code>serverUser</code>, but with permissions
-	 *         specialized for the given application
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	User getUser(User serverUser, PrismsApplication app) throws PrismsException;
-
-	/**
-	 * Retrieves all users from this user source
-	 * 
-	 * @return All users available from this user source
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	User [] getAllUsers() throws PrismsException;
-
-	/**
-	 * @return The PRISMS user source's password constraints
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	PasswordConstraints getPasswordConstraints() throws PrismsException;
-
-	/**
-	 * Checks to see when a user's password expires and must be reset
-	 * 
-	 * @param user The user whose password to check for expiration
-	 * @return The given user's password expiration time
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	long getPasswordExpiration(User user) throws PrismsException;
-
-	/**
-	 * Sets a user's password
-	 * 
-	 * @param user The user to set the password for
-	 * @param hash The hashed password information
-	 * @param isAdmin Whether this password change is being performed by an admin user
-	 * @throws PrismsException If an error occurs writing the data
-	 */
-	void setPassword(User user, long [] hash, boolean isAdmin) throws PrismsException;
-
-	/**
-	 * Locks a user so that all current sessions using this login are disabled and no more may be
-	 * created until the user is unlocked.
-	 * 
-	 * @param user The user to lock
-	 * @throws PrismsException If an error occurs writing the data
-	 */
-	void lockUser(User user) throws PrismsException;
-
-	/**
-	 * @param name The name of the application to get
-	 * @return The stored application with the given name
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	PrismsApplication getApp(String name) throws PrismsException;
-
-	/**
-	 * @param app The application for the configuration to retrieve
-	 * @param name The name of the client configuration to retrieve
-	 * @return The client configuration of the given application and name
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	ClientConfig getClient(PrismsApplication app, String name) throws PrismsException;
-
-	/**
-	 * Creates a new session for an application
-	 * 
-	 * @param client The client configuration to create the session for
-	 * @param user The user to create the session for
-	 * @param asService Whether the new session is to be creates as an M2M client as opposed to as a
-	 *        user interface client
-	 * @return The new session to use
-	 * @throws PrismsException If an error configuring the session
-	 */
-	PrismsSession createSession(ClientConfig client, User user, boolean asService)
-		throws PrismsException;
 
 	/**
 	 * Retrieves a user group
@@ -120,13 +45,27 @@ public interface UserSource
 	UserGroup getGroup(PrismsApplication app, String groupName) throws PrismsException;
 
 	/**
-	 * Retrieves all user groups that apply to an application
-	 * 
-	 * @param app The application to get the groups of
-	 * @return All groups in this user source for the given application
+	 * @param name The name of the application to get
+	 * @return The stored application with the given name
 	 * @throws PrismsException If an error occurs getting the data
 	 */
-	UserGroup [] getGroups(PrismsApplication app) throws PrismsException;
+	PrismsApplication getApp(String name) throws PrismsException;
+
+	/**
+	 * @param user The user requesting access to the application
+	 * @param app The application the user is requesting access to
+	 * @return Whether the user has permission to access the given application
+	 * @throws PrismsException If an error occurs accessing the data
+	 */
+	boolean canAccess(User user, PrismsApplication app) throws PrismsException;
+
+	/**
+	 * @param app The application for the configuration to retrieve
+	 * @param name The name of the client configuration to retrieve
+	 * @return The client configuration of the given application and name
+	 * @throws PrismsException If an error occurs getting the data
+	 */
+	ClientConfig getClient(PrismsApplication app, String name) throws PrismsException;
 
 	/**
 	 * Gets a set of password hashing data to generate an encryption key from
@@ -145,6 +84,54 @@ public interface UserSource
 	 * @throws PrismsException If an error occurs getting the data
 	 */
 	long [] getKey(User user, Hashing hashing) throws PrismsException;
+
+	/**
+	 * Sets a user's password
+	 * 
+	 * @param user The user to set the password for
+	 * @param hash The hashed password information
+	 * @param isAdmin Whether this password change is being performed by an admin user
+	 * @throws PrismsException If an error occurs writing the data
+	 */
+	void setPassword(User user, long [] hash, boolean isAdmin) throws PrismsException;
+
+	/**
+	 * Checks to see when a user's password expires and must be reset
+	 * 
+	 * @param user The user whose password to check for expiration
+	 * @return The given user's password expiration time
+	 * @throws PrismsException If an error occurs getting the data
+	 */
+	long getPasswordExpiration(User user) throws PrismsException;
+
+	/**
+	 * Locks a user so that all current sessions using this login are disabled and no more may be
+	 * created until the user is unlocked.
+	 * 
+	 * @param user The user to lock
+	 * @throws PrismsException If an error occurs writing the data
+	 */
+	void lockUser(User user) throws PrismsException;
+
+	/**
+	 * Retrieves all users from this user source
+	 * 
+	 * @return All users available from this user source
+	 * @throws PrismsException If an error occurs getting the data
+	 */
+	User [] getAllUsers() throws PrismsException;
+
+	/**
+	 * Creates a new session for an application
+	 * 
+	 * @param client The client configuration to create the session for
+	 * @param user The user to create the session for
+	 * @param asService Whether the new session is to be creates as an M2M client as opposed to as a
+	 *        user interface client
+	 * @return The new session to use
+	 * @throws PrismsException If an error configuring the session
+	 */
+	PrismsSession createSession(ClientConfig client, User user) throws PrismsException;
 
 	/**
 	 * Disposes of this data source's resources

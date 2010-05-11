@@ -28,10 +28,8 @@ CREATE TABLE prisms_password_constraints(
 CREATE TABLE prisms_user (
 	id INT NOT NULL PRIMARY KEY,
 	userName VARCHAR NOT NULL,
-	UNIQUE(userName)
+	deleted CHAR(1) NOT NULL
 );
-
-CREATE INDEX prisms_user_by_name ON prisms_user (userName);
 
 CREATE TABLE prisms_user_password (
 	id INT NOT NULL PRIMARY KEY,
@@ -49,16 +47,13 @@ CREATE TABLE prisms_application (
 	appDescrip VARCHAR NULL,
 	configClass VARCHAR NOT NULL,
 	configXML VARCHAR NOT NULL,
-	UNIQUE(appName)
+	userRestrictive CHAR(1) NOT NULL,
+	deleted CHAR(1) NOT NULL
 );
-
-CREATE INDEX prisms_application_by_name ON prisms_application (appName);
 
 CREATE TABLE prisms_user_app_assoc (
 	assocUser INT NOT NULL,
 	assocApp INT NOT NULL,
-	encryption CHAR(1) NOT NULL,
-	validationClass VARCHAR NULL,
 	PRIMARY KEY(assocUser, assocApp),
 	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
 	FOREIGN KEY(assocApp) REFERENCES prisms_application(id) ON DELETE CASCADE
@@ -71,8 +66,11 @@ CREATE TABLE prisms_client_config (
 	configDescrip VARCHAR NULL,
 	configSerializer VARCHAR NULL,
 	configXML VARCHAR NOT NULL,
+	validatorClass VARCHAR NULL,
+	isService CHAR(1) NOT NULL,
 	sessionTimeout NUMERIC(14) NOT NULL,
-	UNIQUE(configApp, configName),
+	allowAnonymous CHAR(1) NOT NULL,
+	deleted CHAR(1) NOT NULL,
 	FOREIGN KEY(configApp) REFERENCES prisms_application(id) ON DELETE CASCADE
 );
 
@@ -81,6 +79,7 @@ CREATE TABLE prisms_user_group (
 	groupName VARCHAR NOT NULL,
 	groupDescrip VARCHAR NULL,
 	groupApp INT NOT NULL,
+	deleted CHAR(1) NOT NULL,
 	FOREIGN KEY(groupApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
 	UNIQUE(groupApp, groupName)
 );
@@ -106,7 +105,7 @@ CREATE TABLE prisms_permission (
 	pApp INT NOT NULL,
 	pName VARCHAR NOT NULL,
 	pDescrip VARCHAR NULL,
-	UNIQUE(pApp, pName),
+	deleted CHAR(1) NOT NULL,
 	FOREIGN KEY(pApp) REFERENCES prisms_application(id) ON DELETE CASCADE
 );
 
@@ -118,6 +117,9 @@ CREATE TABLE prisms_group_permissions (
 	FOREIGN KEY(assocPermission) REFERENCES prisms_permission(id) ON DELETE CASCADE
 );
 
+-- End of PRISMS-proper table schema
+
+-- The PRISMS preference table allows applications to store small user-specific data persistently
 CREATE TABLE prisms_preference (
 	pApp VARCHAR NOT NULL,
 	pUser VARCHAR NOT NULL,
@@ -128,6 +130,9 @@ CREATE TABLE prisms_preference (
 	pValue VARCHAR NULL,
 	UNIQUE(pApp, pUser, pDomain, pName)
 );
+
+-- The PRISMS records schema allows applications to keep track of changes to sets of data and to
+-- synchronize data sets between servers
 
 CREATE TABLE prisms_change_record(
 	id NUMERIC(20) NOT NULL,

@@ -3,23 +3,67 @@
  */
 package prisms.arch.ds;
 
+import prisms.arch.PrismsApplication;
+
 /**
  * Represents a permission in the PRISMS architecture
  */
-public interface Permission
+public class Permission
 {
+	private final String theName;
+
+	private String theDescrip;
+
+	private final PrismsApplication theApp;
+
 	/**
-	 * @return The application that this permission applies to
+	 * Creates a simple permission
+	 * 
+	 * @param name The name of the permission
+	 * @param descrip A description for the permission
+	 * @param app The application that this permission belongs to
 	 */
-	prisms.arch.PrismsApplication getApp();
+	public Permission(String name, String descrip, PrismsApplication app)
+	{
+		theName = name;
+		theDescrip = descrip;
+		theApp = app;
+	}
 
 	/**
 	 * @return The name of this permission
 	 */
-	String getName();
+	public String getName()
+	{
+		return theName;
+	}
 
 	/**
 	 * @return A description of what capability this permission conveys
 	 */
-	String getDescrip();
+	public String getDescrip()
+	{
+		return theDescrip;
+	}
+
+	/**
+	 * @param descrip The description to set for this permission
+	 */
+	public void setDescrip(String descrip)
+	{
+		theDescrip = descrip;
+	}
+
+	/**
+	 * @return The application that this permission applies to
+	 */
+	public PrismsApplication getApp()
+	{
+		return theApp;
+	}
+
+	public String toString()
+	{
+		return theName;
+	}
 }

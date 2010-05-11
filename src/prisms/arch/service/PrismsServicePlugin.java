@@ -50,15 +50,17 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				prisms.arch.ds.User user = theSource.getUser((String) evt.get("userName"));
 				if(user == null)
 					ret.put("user", null);
-				String appName = (String) evt.get("appName");
-				if(appName != null)
-				{
-					prisms.arch.PrismsApplication app = theSource.getApp(appName);
-					if(app == null)
-						throw new PrismsException("No such application: " + appName);
-					user = theSource.getUser(user, app);
-				}
-				ret.put("user", PrismsSerializer.serializeUser((prisms.impl.SimpleUser) user));
+				ret.put("user", PrismsSerializer.serializeUser(user));
+			}
+			else if(method.equals("canAccess"))
+			{
+				prisms.arch.ds.User user = theSource.getUser((String) evt.get("userName"));
+				if(user == null)
+					ret.put("canAccess", Boolean.FALSE);
+				prisms.arch.PrismsApplication app = theSource.getApp((String) evt.get("appName"));
+				if(app == null)
+					ret.put("canAccess", Boolean.FALSE);
+				ret.put("canAccess", new Boolean(theSource.canAccess(user, app)));
 			}
 			else if(method.equals("getAllUsers"))
 				ret.put("users", PrismsSerializer.serializeUsers(theSource.getAllUsers()));
@@ -142,13 +144,6 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 					throw new PrismsException("No such application: " + evt.get("appName"));
 				ret.put("group", PrismsSerializer.serializeGroup(theSource.getGroup(app,
 					(String) evt.get("groupName"))));
-			}
-			else if(method.equals("getGroups"))
-			{
-				prisms.arch.PrismsApplication app = theSource.getApp((String) evt.get("appName"));
-				if(app == null)
-					throw new PrismsException("No such application: " + evt.get("appName"));
-				ret.put("groups", PrismsSerializer.serializeGroups(theSource.getGroups(app)));
 			}
 			else if(method.equals("getHashing"))
 				ret.put("hashing", theSource.getHashing().toJson());

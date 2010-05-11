@@ -64,8 +64,8 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 					.getDataSource();
 				try
 				{
-					mus.createGroup(createNewGroupName("New " + theApp.getName() + " Group"),
-						theApp);
+					mus.createGroup(theApp,
+						createNewGroupName("New " + theApp.getName() + " Group"));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user group", e);
@@ -157,7 +157,8 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 				{
 					throw new IllegalStateException("Could not get groups", e);
 				}
-			if(manager.app.ManagerUtils.canEdit(getSession().getUser(), theApp))
+			if(manager.app.ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(),
+				theApp))
 			{
 				prisms.ui.list.ActionListNode action = new prisms.ui.list.ActionListNode(
 					AppGroups.this, "createNewGroup");
@@ -195,7 +196,7 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 	public ItemNode createObjectNode(UserGroup item)
 	{
 		ItemNode ret = super.createObjectNode(item);
-		if(manager.app.ManagerUtils.canEdit(getSession().getUser(), theApp))
+		if(manager.app.ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(), theApp))
 		{
 			ret.addAction(new javax.swing.AbstractAction("Delete")
 			{
@@ -218,14 +219,6 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 							users = users.clone();
 							for(int u = 0; u < users.length; u++)
 							{
-								try
-								{
-									users[u] = mus.getUser(users[u], group.getApp());
-								} catch(prisms.arch.PrismsException e)
-								{
-									throw new IllegalStateException(
-										"Could not get application user", e);
-								}
 								if(users[u] == null
 									|| !prisms.util.ArrayUtils
 										.contains(users[u].getGroups(), group))

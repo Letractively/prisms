@@ -53,6 +53,10 @@
 			<class>manager.ui.app.AppClients</class>
 		</plugin>
 		<plugin>
+			<name>Client Editor</name>
+			<class>manager.ui.app.ClientEditor</class>
+		</plugin>
+		<plugin>
 			<name>Application Groups</name>
 			<class>manager.ui.app.AppGroups</class>
 		</plugin>

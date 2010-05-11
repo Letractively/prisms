@@ -111,9 +111,10 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				+ " in application " + theGroup.getApp() + " to " + newName);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
+			theGroup.setName(newName);
 			try
 			{
-				source.rename(theGroup, newName);
+				source.putGroup(theGroup);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify group", e);
@@ -138,9 +139,10 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				+ " in application " + theGroup.getApp() + " to " + newDescrip);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
+			theGroup.setDescription(newDescrip);
 			try
 			{
-				source.setDescription(theGroup, newDescrip);
+				source.putGroup(theGroup);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify group", e);
@@ -169,14 +171,15 @@ public class GroupEditor implements prisms.arch.AppPlugin
 
 	boolean isEditable()
 	{
-		return theGroup != null && manager.app.ManagerUtils.canEdit(theSession.getUser(), theGroup);
+		return theGroup != null
+			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theGroup);
 	}
 
 	void assertEditable()
 	{
 		if(theGroup == null)
 			throw new IllegalArgumentException("No group selected to edit");
-		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theGroup))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theGroup))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " does not have permission to edit group " + theGroup.getName());
 	}

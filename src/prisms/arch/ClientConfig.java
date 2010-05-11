@@ -39,6 +39,23 @@ public interface ClientConfig
 	long getSessionTimeout();
 
 	/**
+	 * @return Whether this client serves as a web service in a request-response paradigm rather
+	 *         than an event-driven one.
+	 */
+	boolean isService();
+
+	/**
+	 * @return Whether this client allows anonymous access without authentication
+	 */
+	boolean allowsAnonymous();
+
+	/**
+	 * @return A validator that allows this client to configure user access in an
+	 *         implementation-specific way
+	 */
+	Validator getValidator();
+
+	/**
 	 * Adds an event listener type to add to sessions created (in the future) with this client
 	 * config
 	 * 

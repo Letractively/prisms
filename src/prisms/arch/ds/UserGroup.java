@@ -8,30 +8,99 @@ import prisms.arch.PrismsApplication;
 /**
  * A group that a user can belong to that gives the user permissions
  */
-public interface UserGroup
+public class UserGroup
 {
-	/**
-	 * @return This user's source
-	 */
-	public UserSource getSource();
+	private final UserSource theSource;
+
+	private String theName;
+
+	private final PrismsApplication theApp;
+
+	private String theDescription;
+
+	private SimplePermissions thePermissions;
 
 	/**
-	 * @return This user's name
+	 * Creates a UserGroup
+	 * 
+	 * @param src The source that the group belongs to
+	 * @param name The name of the group
+	 * @param app This group's application
 	 */
-	public String getName();
+	public UserGroup(UserSource src, String name, PrismsApplication app)
+	{
+		theSource = src;
+		theName = name;
+		theApp = app;
+		thePermissions = new SimplePermissions();
+	}
+
+	/**
+	 * @return This group's source
+	 */
+	public UserSource getSource()
+	{
+		return theSource;
+	}
+
+	/**
+	 * @return This group's name
+	 */
+	public String getName()
+	{
+		return theName;
+	}
+
+	/**
+	 * @param name The name for this group
+	 */
+	public void setName(String name)
+	{
+		theName = name;
+	}
 
 	/**
 	 * @return The name of the application that this group applies to
 	 */
-	public PrismsApplication getApp();
+	public PrismsApplication getApp()
+	{
+		return theApp;
+	}
 
 	/**
 	 * @return The group's description
 	 */
-	public String getDescription();
+	public String getDescription()
+	{
+		return theDescription;
+	}
 
 	/**
-	 * @return This user's permissions
+	 * @param descrip A description for the group
 	 */
-	public Permissions getPermissions();
+	public void setDescription(String descrip)
+	{
+		theDescription = descrip;
+	}
+
+	/**
+	 * @return This group's permissions
+	 */
+	public SimplePermissions getPermissions()
+	{
+		return thePermissions;
+	}
+
+	/**
+	 * @param per The permissions for this group
+	 */
+	public void setPermissions(SimplePermissions per)
+	{
+		thePermissions = per;
+	}
+
+	public String toString()
+	{
+		return theName;
+	}
 }

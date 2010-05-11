@@ -24,8 +24,8 @@ CREATE TABLE prisms_password_constraints(
 
 CREATE TABLE prisms_user (
 	id INT NOT NULL PRIMARY KEY,
-	userName VARCHAR(1024) NOT NULL,
-	UNIQUE(userName)
+	userName VARCHAR(128) NOT NULL,
+	deleted CHAR(1) NOT NULL
 );
 
 CREATE TABLE prisms_user_password (
@@ -39,82 +39,85 @@ CREATE TABLE prisms_user_password (
 
 CREATE TABLE prisms_application (
 	id INT NOT NULL PRIMARY KEY,
-	appName VARCHAR(1024) NOT NULL,
+	appName VARCHAR(64) NOT NULL,
 	appDescrip VARCHAR(1024) NULL,
-	configClass VARCHAR(1024) NOT NULL,
-	configXML VARCHAR(1024) NOT NULL,
-	UNIQUE(appName)
+	configClass VARCHAR(256) NOT NULL,
+	configXML VARCHAR(256) NOT NULL,
+	userRestrictive CHAR(1) NOT NULL,
+	deleted CHAR(1) NOT NULL
 );
 
 CREATE TABLE prisms_user_app_assoc (
 	assocUser INT NOT NULL,
 	assocApp INT NOT NULL,
-	encryption CHAR(1) NOT NULL,
-	validationClass VARCHAR(1024) NULL,
-	PRIMARY KEY (assocUser, assocApp),
-	FOREIGN KEY (assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
-	FOREIGN KEY (assocApp)	REFERENCES prisms_application(id) ON DELETE CASCADE
+	PRIMARY KEY(assocUser, assocApp),
+	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
+	FOREIGN KEY(assocApp) REFERENCES prisms_application(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_client_config (
 	id INT NOT NULL PRIMARY KEY,
 	configApp INT NOT NULL,
-	configName VARCHAR(1024) NOT NULL,
-	configDescrip VARCHAR(2048) NULL,
-	configSerializer VARCHAR(1024) NULL,
-	configXML VARCHAR(1024) NOT NULL,
+	configName VARCHAR(128) NOT NULL,
+	configDescrip VARCHAR(1024) NULL,
+	configSerializer VARCHAR(256) NULL,
+	configXML VARCHAR(256) NOT NULL,
+	validatorClass VARCHAR(256) NULL,
+	isService CHAR(1) NOT NULL,
 	sessionTimeout NUMERIC(14) NOT NULL,
-	UNIQUE (configApp, configName),
-	FOREIGN KEY (configApp) REFERENCES prisms_application(id) ON DELETE CASCADE
+	allowAnonymous CHAR(1) NOT NULL,
+	deleted CHAR(1) NOT NULL,
+	FOREIGN KEY(configApp) REFERENCES prisms_application(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_user_group (
 	id INT NOT NULL PRIMARY KEY,
-	groupName VARCHAR(1024) NOT NULL,
-	groupDescrip VARCHAR(1024) NULL,
+	groupName VARCHAR(64) NOT NULL,
+	groupDescrip VARCHAR(512) NULL,
 	groupApp INT NOT NULL,
-	UNIQUE (groupApp, groupName),
-	FOREIGN KEY (groupApp) REFERENCES prisms_application(id) ON DELETE CASCADE
+	deleted CHAR(1) NOT NULL,
+	FOREIGN KEY(groupApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
+	UNIQUE(groupApp, groupName)
 );
 
 CREATE TABLE prisms_app_admin_group (
 	adminApp INT NOT NULL,
 	adminGroup INT NOT NULL,
-	PRIMARY KEY (adminApp, adminGroup),
-	FOREIGN KEY (adminApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
-	FOREIGN KEY (adminGroup) REFERENCES prisms_user_group(id)
+	PRIMARY KEY(adminApp, adminGroup),
+	FOREIGN KEY(adminApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
+	FOREIGN KEY(adminGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_user_group_assoc (
 	assocUser INT NOT NULL,
 	assocGroup INT NOT NULL,
-	PRIMARY KEY (assocUser, assocGroup),
-	FOREIGN KEY (assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
-	FOREIGN KEY (assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
+	PRIMARY KEY(assocUser, assocGroup),
+	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
+	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_permission (
 	id INT NOT NULL PRIMARY KEY,
 	pApp INT NOT NULL,
-	pName VARCHAR(1024) NOT NULL,
-	pDescrip VARCHAR(1024) NULL,
-	UNIQUE (pApp, pName),
-	FOREIGN KEY (pApp) REFERENCES prisms_application(id) ON DELETE CASCADE
+	pName VARCHAR(128) NOT NULL,
+	pDescrip VARCHAR(256) NULL,
+	deleted CHAR(1) NOT NULL,
+	FOREIGN KEY(pApp) REFERENCES prisms_application(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_group_permissions (
 	assocGroup INT NOT NULL,
 	assocPermission INT NOT NULL,
-	PRIMARY KEY (assocGroup, assocPermission),
-	FOREIGN KEY (assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE,
-	FOREIGN KEY (assocPermission) REFERENCES prisms_permission(id)
+	PRIMARY KEY(assocGroup, assocPermission),
+	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE,
+	FOREIGN KEY(assocPermission) REFERENCES prisms_permission(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_preference (
-	pApp VARCHAR(256) NOT NULL,
-	pUser VARCHAR(1024) NOT NULL,
-	pDomain VARCHAR(1024) NOT NULL,
-	pName VARCHAR(1024) NOT NULL,
+	pApp VARCHAR(64) NOT NULL,
+	pUser VARCHAR(128) NOT NULL,
+	pDomain VARCHAR(128) NOT NULL,
+	pName VARCHAR(128) NOT NULL,
 	pType VARCHAR(32) NOT NULL,
 	pDisplayed CHAR(1) NOT NULL,
 	pValue VARCHAR(1024) NULL,

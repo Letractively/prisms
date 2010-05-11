@@ -36,8 +36,6 @@ public class PrismsSession
 
 	private final User theUser;
 
-	private final boolean isService;
-
 	private final long theCreationTime;
 
 	private final java.util.ArrayList<JSONObject> theOutgoingQueue;
@@ -71,15 +69,13 @@ public class PrismsSession
 	 * @param app The application that this session was created for
 	 * @param client The client that this session was created for
 	 * @param user The user to create the session for
-	 * @param asService Whether this session is made to service an M2M client
 	 */
 	@SuppressWarnings("unchecked")
-	public PrismsSession(PrismsApplication app, ClientConfig client, User user, boolean asService)
+	public PrismsSession(PrismsApplication app, ClientConfig client, User user)
 	{
 		theApp = app;
 		theClient = client;
 		theUser = user;
-		isService = asService;
 		theCreationTime = System.currentTimeMillis();
 		theOutgoingQueue = new java.util.ArrayList<JSONObject>();
 		theLastCheckedTime = System.currentTimeMillis();
@@ -128,14 +124,14 @@ public class PrismsSession
 	}
 
 	/**
-	 * @return Whether this session serves an M2M client as opposed to a user interface client. When
-	 *         a service session processes events, events will be processed in the HTTP thread
-	 *         (where the servlet's doGet method is called); otherwise the event may be processed in
-	 *         a separate thread.
+	 * A convenience method for getting this session's user's permissions for this session's
+	 * application.
+	 * 
+	 * @return This session's permissions according to its user and application
 	 */
-	public boolean isService()
+	public prisms.arch.ds.Permissions getPermissions()
 	{
-		return isService;
+		return theUser.getPermissions(theApp);
 	}
 
 	/**
@@ -246,7 +242,7 @@ public class PrismsSession
 				}
 			}
 		};
-		if(isService())
+		if(theClient.isService())
 			toRun.run();
 		else
 			theApp.getWorker().run(toRun, new Worker.ErrorListener()
@@ -320,7 +316,7 @@ public class PrismsSession
 	{
 		JSONObject ret = new JSONObject();
 		ret.put("method", "error");
-		ret.put("userError", "false");
+		ret.put("code", PrismsServer.ErrorCode.ApplicationError.description);
 		ret.put("title", title);
 		ret.put("message", e.getMessage() != null ? e.getMessage() : e.getClass().getName());
 		return ret;
@@ -442,6 +438,8 @@ public class PrismsSession
 		String invocationID = theInvocations.get(Thread.currentThread());
 		if(invocationID != null)
 			evt.put("invocationID", invocationID);
+		else if(theClient.isService())
+			return; // Events must be tied to an invocation if this session is for a web service
 		try
 		{
 			prisms.arch.JsonSerializer.validate(evt);

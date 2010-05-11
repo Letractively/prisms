@@ -42,7 +42,7 @@ public class AppClients extends SelectableList<ClientConfig>
 				if(theUserSource == null)
 					throw new IllegalStateException("Data source is not manageable"
 						+ "--cannot manage clients");
-				if(!ManagerUtils.canEdit(getSession().getUser(), theApp))
+				if(!ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(), theApp))
 					throw new IllegalArgumentException("User " + getSession().getUser()
 						+ " does not have permission to delete a client of application "
 						+ theApp.getName());
@@ -147,7 +147,8 @@ public class AppClients extends SelectableList<ClientConfig>
 	{
 		NodeAction [] ret = super.getActions();
 
-		if(theApp != null && ManagerUtils.canEdit(getSession().getUser(), theApp))
+		if(theApp != null
+			&& ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(), theApp))
 			ret = prisms.util.ArrayUtils.add(ret, new NodeAction("New Client", false));
 		return ret;
 	}
@@ -163,7 +164,7 @@ public class AppClients extends SelectableList<ClientConfig>
 			if(theUserSource == null || theApp == null)
 				throw new IllegalStateException(
 					"User source not manageable or application not selected");
-			if(!ManagerUtils.canEdit(getSession().getUser(), theApp))
+			if(!ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(), theApp))
 				throw new IllegalArgumentException("User " + getSession().getUser()
 					+ " does not have permission to create new clients for application "
 					+ theApp.getName());
@@ -218,7 +219,7 @@ public class AppClients extends SelectableList<ClientConfig>
 	public ItemNode createObjectNode(ClientConfig a)
 	{
 		ItemNode ret = super.createObjectNode(a);
-		if(ManagerUtils.canEdit(getSession().getUser(), theApp))
+		if(ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(), theApp))
 			ret.addAction(DELETE_USER_ACTION);
 		return ret;
 	}

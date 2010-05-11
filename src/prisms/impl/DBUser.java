@@ -3,33 +3,61 @@
  */
 package prisms.impl;
 
-class DBUser extends SimpleUser
+/**
+ * A database implementation of a user
+ */
+public class DBUser extends prisms.arch.ds.User
 {
-	private final int theID;
+	private int theID;
 
+	private boolean isDeleted;
+
+	/**
+	 * Creates a user
+	 * 
+	 * @param source The user source that this user is for
+	 * @param name The name for the user
+	 * @param id The database ID for the user
+	 */
 	public DBUser(prisms.arch.ds.UserSource source, String name, int id)
 	{
 		super(source, name);
 		theID = id;
 	}
 
-	public DBUser(DBUser rootUser, prisms.arch.PrismsApplication app)
-	{
-		super(rootUser, app);
-		theID = rootUser.getID();
-		if(theID == 0)
-			setAdmin(true);
-	}
-
+	/**
+	 * @return This user's database ID
+	 */
 	public int getID()
 	{
 		return theID;
 	}
 
-	/*
-	public DBUser clone()
+	void setID(int id)
 	{
-		return (DBUser) super.clone();
+		theID = id;
 	}
-	*/
+
+	/**
+	 * @return Whether this user is deleted
+	 */
+	public boolean isDeleted()
+	{
+		return isDeleted;
+	}
+
+	void setDeleted(boolean deleted)
+	{
+		isDeleted = deleted;
+	}
+
+	public boolean equals(Object o)
+	{
+		return o instanceof DBUser && ((DBUser) o).theID == theID;
+	}
+
+	public int hashCode()
+	{
+		return theID;
+	}
 }

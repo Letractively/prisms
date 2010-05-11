@@ -42,4 +42,9 @@ public class PlaceholderAppConfig extends prisms.arch.AppConfig
 		throw new IllegalStateException("Unrecognized AppConfig subclass: " + theAppConfigClassName);
 	}
 
+	public boolean equals(Object o)
+	{
+		return o instanceof PlaceholderAppConfig
+			&& ((PlaceholderAppConfig) o).getAppConfigClassName().equals(theAppConfigClassName);
+	}
 }

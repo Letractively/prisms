@@ -22,7 +22,7 @@ public class UserPersister extends prisms.util.persisters.AbstractPersister<User
 		User [] users;
 		try
 		{
-			users = getApp().getDataSource().getAllUsers();
+			users = ((prisms.arch.ds.ManageableUserSource) getApp().getDataSource()).getAllUsers();
 		} catch(prisms.arch.PrismsException e)
 		{
 			log.error("Could not get users", e);
