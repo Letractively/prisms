@@ -1,0 +1,16 @@
+<table><tr>
+	<td dojoAttachPoint="dateCell"><input dojoAttachPoint="dateBox"
+		dojoAttachEvent="onChange:_dateBoxChanged" type="text"
+		class="medium" value="2005-12-30" dojoType="dijit.form.DateTextBox"
+		constraints="{formatLength:'long'}" required="true" trim="true"
+		promptMessage="mm/dd/yyyy" length="12"
+		invalidMessage="Invalid date. Use mm/dd/yyyy format."
+		style="width:140px" /></td>
+	<td dojoAttachPoint="timeCell"><input dojoAttachPoint="timeBox"
+		dojoAttachEvent="onChange:_timeBoxChanged" type="text"
+		class="medium" value="T00:00" dojoType="dijit.form.TimeTextBox"
+		constraints="{timePattern:'HH:mm'}" required="true"
+		invalidMessage="Invalid time. Use HH:mm where HH is 00 - 23 hours."
+		style="width:55px"/></td>
+	<td dojoAttachPoint="zCell">Z</td>
+</tr></table>

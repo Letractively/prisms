@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<client>
+	<monitors>
+	</monitors>
+	<plugins>
+		<plugin>
+			<name>UI</name>
+			<class>prisms.ui.UI</class>
+		</plugin>
+		<plugin>
+			<name>All Users</name>
+			<class>manager.ui.user.AllUsersList</class>
+		</plugin>
+		<plugin>
+			<name>User Editor</name>
+			<class>manager.ui.user.UserEditor</class>
+		</plugin>
+		<plugin>
+			<name>User Applications</name>
+			<class>manager.ui.user.UserApplications</class>
+		</plugin>
+		<plugin>
+			<name>User App Assoc Editor</name>
+			<class>manager.ui.user.UserAppAssocEditor</class>
+		</plugin>
+		<plugin>
+			<name>User Groups</name>
+			<class>manager.ui.user.UserGroups</class>
+		</plugin>
+		<plugin>
+			<name>User Group Permissions</name>
+			<class>manager.ui.user.UserGroupPermissions</class>
+		</plugin>
+		<plugin>
+			<name>User Group Assoc Editor</name>
+			<class>manager.ui.user.UserGroupAssocEditor</class>
+		</plugin>
+		<plugin>
+			<name>User Permission Display</name>
+			<class>manager.ui.user.UserPermissionDisplay</class>
+		</plugin>
+		<plugin>
+			<name>All Applications</name>
+			<class>manager.ui.app.AllApplicationsList</class>
+		</plugin>
+		<plugin>
+			<name>Application Editor</name>
+			<class>manager.ui.app.ApplicationEditor</class>
+		</plugin>
+		<plugin>
+			<name>Application Clients</name>
+			<class>manager.ui.app.AppClients</class>
+		</plugin>
+		<plugin>
+			<name>Application Groups</name>
+			<class>manager.ui.app.AppGroups</class>
+		</plugin>
+		<plugin>
+			<name>Application Permissions</name>
+			<class>manager.ui.app.AppPermissions</class>
+		</plugin>
+		<plugin>
+			<name>Group Editor</name>
+			<class>manager.ui.app.GroupEditor</class>
+		</plugin>
+		<plugin>
+			<name>Permission Editor</name>
+			<class>manager.ui.app.PermissionEditor</class>
+		</plugin>
+	</plugins>
+</client>

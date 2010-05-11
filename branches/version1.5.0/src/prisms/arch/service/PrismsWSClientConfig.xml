@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<client>
+	<monitors>
+	</monitors>
+	<plugins>
+		<plugin>
+			<name>PRISMS Web Service</name>
+			<class>prisms.arch.service.PrismsServicePlugin</class>
+		</plugin>
+	</plugins>
+</client>

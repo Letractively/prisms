@@ -1,0 +1,34 @@
+<div style="width:100%;height:100%;overflow:hidden">
+	<div dojoAttachPoint="buttonPanel" style="position:absolute;background-color:#b0c0d0;z-index:5">
+		<img style="position:absolute" src="../rsrc/icons/map/panLeft.png" dojoAttachPoint="panLeftButton"
+			dojoAttachEvent="onclick:_panLeftClicked" title="Pan West"></img>
+		<img style="position:absolute" src="../rsrc/icons/map/panUp.png" dojoAttachPoint="panUpButton"
+			dojoAttachEvent="onclick:_panUpClicked" title="Pan North"></img>
+		<img style="position:absolute" src="../rsrc/icons/map/panDown.png" dojoAttachPoint="panDownButton"
+			dojoAttachEvent="onclick:_panDownClicked" title="Pan South"></img>
+		<img style="position:absolute" src="../rsrc/icons/map/panRight.png" dojoAttachPoint="panRightButton"
+			dojoAttachEvent="onclick:_panRightClicked" title="Pan East"></img>
+		<img style="position:absolute" src="../rsrc/icons/map/zoomIn.png" dojoAttachPoint="zoomInButton"
+			dojoAttachEvent="onclick:_zoomInClicked" title="Zoom In"></img>
+		<img style="position:absolute" src="../rsrc/icons/map/zoomOut.png" dojoAttachPoint="zoomOutButton"
+			dojoAttachEvent="onclick:_zoomOutClicked" title="Zoom Out"></img>
+
+		<img style="position:absolute;display:none" src="../rsrc/icons/map/areaSelect.png"
+			dojoAttachPoint="areaSelectButton" dojoAttachEvent="onclick:_mouseModeRotate"></img>
+		<img style="position:absolute;display:none" src="../rsrc/icons/map/dragMove.png"
+			dojoAttachPoint="dragMoveButton" dojoAttachEvent="onclick:_mouseModeRotate"></img>
+		<img style="position:absolute" src="../rsrc/icons/map/normalSelect.png"
+			dojoAttachPoint="normalSelectButton" dojoAttachEvent="onclick:_mouseModeRotate"></img>
+		<img style="position:absolute" src="../rsrc/icons/map/layers.png" title="Configure Map Layers"
+			dojoAttachPoint="layersConfigureButton" dojoAttachEvent="onclick:_configureLayers"></img>
+	</div>
+	<img style="position:absolute;z-index:2" dojoAttachPoint="imageTag"
+		dojoAttachEvent="onload:_imageLoaded,onerror:_imageLoaded,onabort:_imageLoaded,onmousedown:_mouseDown, onmouseup:_mouseUp, onmousemove:_mouseMoved, onmouseout:_mouseOut"></img>
+	<div style="position:absolute;z-index:3" dojoAttachPoint="blanketDiv"
+		dojoAttachEvent="onmousedown:_mouseDown, onmouseup:_mouseUp, onmousemove:_mouseMoved, onmouseout:_mouseOut">
+		<div dojoAttachPoint="waitIcon" style="position:absolute">
+			<img src="../rsrc/icons/map/wait.gif"></img>
+		</div>
+	</div>
+	<div dojoType="prisms.widget.LayerConfigurator" dojoAttachPoint="layerConfigurator"></div>
+</div>

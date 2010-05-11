@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="PRISMS" default="jar" basedir=".">
+	<target name="jar">
+		<jar jarfile="prisms.jar">
+			<fileset dir="classes" />
+		</jar>
+	</target>
+	<target name="war">
+		<war warfile="prisms.war" update="no" webxml="WebContent/WEB-INF/web.xml" compress="true">
+			<classes dir="classes"/>			
+			<lib dir="lib" includes="*.jar"/>
+		</war>	
+	</target>
+</project>
