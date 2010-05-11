@@ -70,7 +70,7 @@ public class PreferencesPersister implements
 				String domain = rs.getString(2);
 				String propName = rs.getString(3);
 				Preference.Type type = Preference.Type.valueOf(rs.getString(4));
-				boolean displayed = prisms.util.DBUtils.getBoolean(rs.getString(5));
+				boolean displayed = prisms.util.DBUtils.boolFromSql(rs.getString(5));
 				String valueS = rs.getString(6);
 				Object value;
 				try
@@ -188,8 +188,8 @@ public class PreferencesPersister implements
 						+ DBUtils.toSQL(theApp.getName()) + ", " + DBUtils.toSQL(user.getName())
 						+ ", " + DBUtils.toSQL(pref.getDomain()) + ", "
 						+ DBUtils.toSQL(pref.getName()) + ", "
-						+ DBUtils.toSQL(pref.getType().name()) + ", '"
-						+ prisms.util.DBUtils.getBoolString(pref.isDisplayed()) + "', "
+						+ DBUtils.toSQL(pref.getType().name()) + ", "
+						+ prisms.util.DBUtils.boolToSql(pref.isDisplayed()) + ", "
 						+ DBUtils.toSQL(valueS) + ")");
 			}
 		} catch(SQLException e)

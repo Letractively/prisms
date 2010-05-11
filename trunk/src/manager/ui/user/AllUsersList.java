@@ -35,7 +35,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 				if(user.equals(getSession().getUser()))
 					throw new IllegalArgumentException("User " + user
 						+ " cannot delete him/herself");
-				if(!getSession().getUser().getPermissions().has("deleteUser"))
+				if(!getSession().getPermissions().has("deleteUser"))
 					throw new IllegalArgumentException("User " + getSession().getUser()
 						+ " does not have permission to delete a user");
 				prisms.ui.UI.ConfirmListener cl = new prisms.ui.UI.ConfirmListener()
@@ -68,7 +68,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 		};
 		setSelectionMode(SelectionMode.SINGLE);
 		setListData(session.getProperty(ManagerProperties.users));
-		if(getSession().getUser().getPermissions().has("createUser"))
+		if(getSession().getPermissions().has("createUser"))
 		{
 			prisms.ui.list.ActionListNode action = new prisms.ui.list.ActionListNode(this,
 				"createNewUser");
@@ -118,8 +118,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 			{
 				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
 				{
-					if(getSession().getUser().getPermissions().has("createUser")
-						&& getItemCount() == 0
+					if(getSession().getPermissions().has("createUser") && getItemCount() == 0
 						|| !(getItem(0) instanceof prisms.ui.list.ActionListNode))
 					{
 						prisms.ui.list.ActionListNode action = new prisms.ui.list.ActionListNode(
@@ -128,8 +127,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 						action.setIcon("manager/user");
 						addNode(action, 0);
 					}
-					else if(!getSession().getUser().getPermissions().has("createUser")
-						&& getItemCount() > 0
+					else if(!getSession().getPermissions().has("createUser") && getItemCount() > 0
 						&& getItem(0) instanceof prisms.ui.list.ActionListNode)
 						removeNode(0);
 				}
@@ -138,7 +136,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 		{
 			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
 			{
-				if(!getSession().getUser().getPermissions().has("createUser"))
+				if(!getSession().getPermissions().has("createUser"))
 					throw new IllegalStateException("User " + getSession().getUser()
 						+ " does not have permission to create a user");
 				prisms.arch.ds.ManageableUserSource source;
@@ -214,8 +212,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 	public ItemNode createObjectNode(User a)
 	{
 		ItemNode ret = super.createObjectNode(a);
-		if(getSession().getUser().getPermissions().has("deleteUser")
-			&& !getSession().getUser().equals(a))
+		if(getSession().getPermissions().has("deleteUser") && !getSession().getUser().equals(a))
 			ret.addAction(DELETE_USER_ACTION);
 		return ret;
 	}

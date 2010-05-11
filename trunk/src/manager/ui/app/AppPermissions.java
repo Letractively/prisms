@@ -126,7 +126,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 						{
 							getSession().fireEvent(
 								new prisms.arch.event.PrismsEvent("appPermissionsChanged", "app",
-									theApp, "permissions", mus.getPermissions(theApp)));
+									theApp, "permissions", mus.getAllPermissions(theApp)));
 						} catch(prisms.arch.PrismsException e)
 						{
 							throw new IllegalStateException(
@@ -171,13 +171,13 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 			return;
 		try
 		{
-			setListData(((ManageableUserSource) theApp.getDataSource()).getPermissions(theApp));
+			setListData(((ManageableUserSource) theApp.getDataSource()).getAllPermissions(theApp));
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not get permissions for application " + theApp,
 				e);
 		}
-		if(manager.app.ManagerUtils.canEdit(getSession().getUser(), theApp))
+		if(manager.app.ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(), theApp))
 		{
 			prisms.ui.list.ActionListNode action;
 			action = new prisms.ui.list.ActionListNode(this, "createNewPermission");
@@ -234,7 +234,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	public ItemNode createObjectNode(Permission item)
 	{
 		ItemNode ret = super.createObjectNode(item);
-		if(manager.app.ManagerUtils.canEdit(getSession().getUser(), theApp))
+		if(manager.app.ManagerUtils.canEdit(getSession().getUser(), getSession().getApp(), theApp))
 			ret.addAction(new javax.swing.AbstractAction("Delete")
 			{
 				public void actionPerformed(java.awt.event.ActionEvent evt)
@@ -255,15 +255,9 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 							users = users.clone();
 							for(int u = 0; u < users.length; u++)
 							{
-								try
-								{
-									users[u] = mus.getUser(users[u], node.getObject().getApp());
-								} catch(prisms.arch.PrismsException e)
-								{
-									throw new IllegalStateException("Could not get PRISMS user", e);
-								}
 								if(users[u] == null
-									|| !users[u].getPermissions().has(node.getObject().getName()))
+									|| !users[u].getPermissions(theApp).has(
+										node.getObject().getName()))
 								{
 									users = prisms.util.ArrayUtils.remove(users, u);
 									u--;
@@ -301,9 +295,11 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 										"user", users[u]));
 							try
 							{
-								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("appPermissionsChanged",
-										"app", theApp, "permissions", mus.getPermissions(theApp)));
+								getSession()
+									.fireEvent(
+										new prisms.arch.event.PrismsEvent("appPermissionsChanged",
+											"app", theApp, "permissions", mus
+												.getAllPermissions(theApp)));
 							} catch(prisms.arch.PrismsException e)
 							{
 								throw new IllegalStateException(
@@ -348,7 +344,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	public boolean canDeselect(Permission item)
 	{
 		return theGroup != null && theApp.getDataSource() instanceof ManageableUserSource
-			&& manager.app.ManagerUtils.canEdit(getSession().getUser(), theGroup);
+			&& manager.app.ManagerUtils.canEdit(getSession().getPermissions(), theGroup);
 	}
 
 	/**
@@ -358,7 +354,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	public boolean canSelect(Permission item)
 	{
 		return theGroup != null && theApp.getDataSource() instanceof ManageableUserSource
-			&& manager.app.ManagerUtils.canEdit(getSession().getUser(), theGroup);
+			&& manager.app.ManagerUtils.canEdit(getSession().getPermissions(), theGroup);
 	}
 
 	/**
@@ -367,9 +363,10 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	@Override
 	public void doDeselect(Permission item)
 	{
+		theGroup.getPermissions().removePermission(item.getName());
 		try
 		{
-			((ManageableUserSource) theApp.getDataSource()).removePermission(theGroup, item);
+			((ManageableUserSource) theApp.getDataSource()).putGroup(theGroup);
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not remove permission from group", e);
@@ -391,9 +388,10 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	@Override
 	public void doSelect(Permission item)
 	{
+		theGroup.getPermissions().addPermission(item);
 		try
 		{
-			((ManageableUserSource) theApp.getDataSource()).addPermission(theGroup, item);
+			((ManageableUserSource) theApp.getDataSource()).putGroup(theGroup);
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not add permission to group", e);

@@ -6,6 +6,7 @@ package prisms.util.persisters;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import prisms.arch.PrismsApplication;
 import prisms.arch.ds.User;
 import prisms.util.ArrayUtils;
 
@@ -16,6 +17,8 @@ import prisms.util.ArrayUtils;
 public class UserShareKey implements ShareKey, Cloneable
 {
 	private User theOwner;
+
+	PrismsApplication theApp;
 
 	private String [] theAccessUsers;
 
@@ -33,14 +36,17 @@ public class UserShareKey implements ShareKey, Cloneable
 	 * Creates a userSharedObject
 	 * 
 	 * @param owner The user that will own the new object
+	 * @param app The application whose permissions govern the use of this key's object
 	 * @param viewAllPermission The permission that allows a user to view this object without being
 	 *        the owner or one of this object's access users
 	 * @param editAllPermission The permission that allows a user to edit this object without being
 	 *        the owner or one of this object's access users
 	 */
-	public UserShareKey(User owner, String viewAllPermission, String editAllPermission)
+	public UserShareKey(User owner, PrismsApplication app, String viewAllPermission,
+		String editAllPermission)
 	{
 		theOwner = owner;
+		theApp = app;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
 		theAccessUsers = new String [0];
@@ -54,6 +60,14 @@ public class UserShareKey implements ShareKey, Cloneable
 	public User getOwner()
 	{
 		return theOwner;
+	}
+
+	/**
+	 * @return The application that governs access to this key's object
+	 */
+	public PrismsApplication getApp()
+	{
+		return theApp;
 	}
 
 	/**
@@ -231,26 +245,25 @@ public class UserShareKey implements ShareKey, Cloneable
 		theEditUsers = new boolean [0];
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canView(prisms.arch.ds.User)
-	 */
 	public boolean canView(User user)
 	{
-		if(isViewPublic || user.getName().equals(theOwner.getName())
+		if(isViewPublic
+			|| user.getName().equals(theOwner.getName())
 			|| ArrayUtils.contains(theAccessUsers, user.getName())
-			|| (theViewAllPermission != null && user.getPermissions().has(theViewAllPermission))
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+			|| (theViewAllPermission != null && user.getPermissions(theApp).has(
+				theViewAllPermission))
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		return false;
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canEdit(prisms.arch.ds.User)
-	 */
 	public boolean canEdit(User user)
 	{
-		if(isEditPublic || user.getName().equals(theOwner.getName())
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+		if(isEditPublic
+			|| user.getName().equals(theOwner.getName())
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		int u = ArrayUtils.indexOf(theAccessUsers, user.getName());
 		if(u < 0)
@@ -258,13 +271,11 @@ public class UserShareKey implements ShareKey, Cloneable
 		return theEditUsers[u];
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canAdministrate(prisms.arch.ds.User)
-	 */
 	public boolean canAdministrate(User user)
 	{
 		if(user.getName().equals(theOwner.getName())
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		return false;
 	}

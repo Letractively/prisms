@@ -3,9 +3,8 @@
  */
 package manager.app;
 
-import prisms.arch.ds.Permission;
-import prisms.arch.ds.User;
-import prisms.arch.ds.UserGroup;
+import prisms.arch.PrismsApplication;
+import prisms.arch.ds.*;
 
 /**
  * A utility class for determining a user's permissions to edit manager objects
@@ -19,13 +18,13 @@ public class ManagerUtils
 	/**
 	 * Gets the management level of a user--the lower the number, the more users a user can manage.
 	 * 
-	 * @param user The user to get the management level of
-	 * @return The user's management level
+	 * @param perms The permissions of the user to get the management level for
+	 * @return The management level of the user whose permissions are given
 	 */
-	public static int getManagementLevel(User user)
+	public static int getManagementLevel(Permissions perms)
 	{
 		int level = 0;
-		for(Permission p : user.getPermissions().getAllPermissions())
+		for(Permission p : perms.getAllPermissions())
 		{
 			int levelTemp = getManagementLevel(p);
 			if(levelTemp > level)
@@ -38,12 +37,12 @@ public class ManagerUtils
 	 * Determines whether a user is an "admin" user or not. An admin user can edit almost anything
 	 * in the Manager application without needing specific permission or management levels.
 	 * 
-	 * @param user The user to determine whether he/she is an admin
-	 * @return Whether the user is an admin user or not
+	 * @param perms The permissions of the user to determine admin for
+	 * @return Whether the user whose permissions are given is an admin user or not
 	 */
-	public static boolean isAdmin(User user)
+	public static boolean isAdmin(Permissions perms)
 	{
-		for(Permission p : user.getPermissions().getAllPermissions())
+		for(Permission p : perms.getAllPermissions())
 			if(isAdmin(p))
 				return true;
 		return false;
@@ -111,46 +110,48 @@ public class ManagerUtils
 	/**
 	 * Determines whether a user can edit another user
 	 * 
-	 * @param manager The manager user (the one accessing the application)
-	 * @param toEdit The user to be edited
-	 * @return Whether the first user can modify the second
+	 * @param perms The permissions of the user trying to edit the given user
+	 * @param user2Perms The permissions of the user to be edited
+	 * @return Whether the user with the first given permissions can modify the user with the second
 	 */
-	public static boolean canEdit(User manager, User toEdit)
+	public static boolean canEdit(Permissions perms, Permissions user2Perms)
 	{
-		if(isAdmin(manager))
+		if(isAdmin(perms))
 			return true;
-		if(isAdmin(toEdit))
+		if(isAdmin(user2Perms))
 			return false;
 
-		return getManagementLevel(manager) > getManagementLevel(toEdit);
+		return getManagementLevel(perms) > getManagementLevel(user2Perms);
 	}
 
 	/**
 	 * Determines whether a user can edit a group
 	 * 
-	 * @param manager The manager user (the one accessing the application)
+	 * @param perms The permissions of the user trying to edit the group
 	 * @param toEdit The group to be edited
 	 * @return Whether the user can modify the group
 	 */
-	public static boolean canEdit(User manager, UserGroup toEdit)
+	public static boolean canEdit(Permissions perms, UserGroup toEdit)
 	{
-		if(isAdmin(manager))
+		if(isAdmin(perms))
 			return true;
 		if(isAdmin(toEdit))
 			return false;
-		return getManagementLevel(manager) > getManagementLevel(toEdit);
+		return getManagementLevel(perms) > getManagementLevel(toEdit);
 	}
 
 	/**
 	 * Determines whether a user can edit an application
 	 * 
 	 * @param manager The manager user (the one accessing the application)
+	 * @param mgrApp The manager application to get permissions for
 	 * @param app The application to be edited
 	 * @return Whether the user can modify the application
 	 */
-	public static boolean canEdit(User manager, prisms.arch.PrismsApplication app)
+	public static boolean canEdit(User manager, PrismsApplication mgrApp,
+		prisms.arch.PrismsApplication app)
 	{
-		if(isAdmin(manager))
+		if(isAdmin(manager.getPermissions(mgrApp)))
 			return true;
 		UserGroup [] userGroups = manager.getGroups();
 		UserGroup [] adminGroups = app.getAdminGroups();
@@ -160,16 +161,16 @@ public class ManagerUtils
 	/**
 	 * Determines whether a user can edit a permission
 	 * 
-	 * @param manager The manager user (the one accessing the application)
+	 * @param perms The permissions of the user trying to edit the permission
 	 * @param toEdit The permission to be edited
 	 * @return Whether the user can modify the permission
 	 */
-	public static boolean canEdit(User manager, Permission toEdit)
+	public static boolean canEdit(Permissions perms, Permission toEdit)
 	{
-		if(isAdmin(manager))
+		if(isAdmin(perms))
 			return true;
 		if(isAdmin(toEdit))
 			return false;
-		return getManagementLevel(manager) > getManagementLevel(toEdit);
+		return getManagementLevel(perms) > getManagementLevel(toEdit);
 	}
 }

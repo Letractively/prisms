@@ -65,7 +65,7 @@ public class DBClientConfig implements ClientConfig
 		}
 	}
 
-	private final int theID;
+	private int theID;
 
 	private PrismsApplication theApp;
 
@@ -75,7 +75,17 @@ public class DBClientConfig implements ClientConfig
 
 	private long theTimeout;
 
+	private String theSerializerClass;
+
 	private RemoteEventSerializer theSerializer;
+
+	private boolean isService;
+
+	private boolean allowsAnonymous;
+
+	private String theValidatorClass;
+
+	private Validator theValidator;
 
 	private ArrayList<EventListenerType> theEventTypes;
 
@@ -84,6 +94,8 @@ public class DBClientConfig implements ClientConfig
 	private java.util.HashMap<String, PluginType> thePluginTypes;
 
 	private boolean isConfigured;
+
+	private boolean isDeleted;
 
 	/**
 	 * Stores a URL location to the XML
@@ -114,6 +126,14 @@ public class DBClientConfig implements ClientConfig
 	public int getID()
 	{
 		return theID;
+	}
+
+	/**
+	 * @param id The database ID for this client config
+	 */
+	public void setID(int id)
+	{
+		theID = id;
 	}
 
 	/**
@@ -156,11 +176,6 @@ public class DBClientConfig implements ClientConfig
 		theDescrip = descrip;
 	}
 
-	public RemoteEventSerializer getSerializer()
-	{
-		return theSerializer;
-	}
-
 	public long getSessionTimeout()
 	{
 		return theTimeout;
@@ -174,25 +189,94 @@ public class DBClientConfig implements ClientConfig
 		theTimeout = timeout;
 	}
 
+	public boolean isService()
+	{
+		return isService;
+	}
+
+	/**
+	 * @param service Whether this client serves as a web service in a request-response paradigm
+	 *        rather than an event-driven one.
+	 */
+	public void setService(boolean service)
+	{
+		isService = service;
+	}
+
+	public RemoteEventSerializer getSerializer()
+	{
+		RemoteEventSerializer ret = theSerializer;
+		if(ret != null)
+			return ret;
+		String className = theSerializerClass;
+		if(className == null)
+			return null;
+		else
+		{
+			try
+			{
+				ret = Class.forName(className).asSubclass(RemoteEventSerializer.class)
+					.newInstance();
+			} catch(Throwable e)
+			{
+				ret = new PlaceholderSerializer(className);
+			}
+			theSerializer = ret;
+		}
+		return ret;
+	}
+
 	/**
 	 * @param serializerClass The class name of the serializer that this client shall use
 	 */
 	public void setSerializerClass(String serializerClass)
 	{
-		if(serializerClass == null)
+		theSerializerClass = serializerClass;
+		theSerializer = null;
+	}
+
+	public boolean allowsAnonymous()
+	{
+		return allowsAnonymous;
+	}
+
+	/**
+	 * @param allowed Whether this client should allow users to connect to this client anonymously
+	 *        without authentication
+	 */
+	public void setAllowsAnonymous(boolean allowed)
+	{
+		allowsAnonymous = allowed;
+	}
+
+	public Validator getValidator()
+	{
+		Validator ret = theValidator;
+		if(ret != null)
+			return ret;
+		String config = theValidatorClass;
+		if(config != null)
 		{
-			theSerializer = new prisms.arch.JsonSerializer();
-			return;
+			try
+			{
+				ret = Class.forName(theValidatorClass).asSubclass(Validator.class).newInstance();
+			} catch(Throwable e)
+			{
+				ret = new PlaceholderValidator(theValidatorClass);
+			}
 		}
-		try
-		{
-			theSerializer = Class.forName(serializerClass).asSubclass(RemoteEventSerializer.class)
-				.newInstance();
-		} catch(Throwable e)
-		{
-			theSerializer = new PlaceholderSerializer(serializerClass);
-			return;
-		}
+		theValidator = ret;
+		return ret;
+	}
+
+	/**
+	 * @param validatorClass The class of the validator to allow this client to determine user
+	 *        access in an implementation-specific way
+	 */
+	public void setValidatorClass(String validatorClass)
+	{
+		theValidatorClass = validatorClass;
+		theValidator = null;
 	}
 
 	/**
@@ -310,5 +394,28 @@ public class DBClientConfig implements ClientConfig
 			}
 			session.addPlugin(pt.thePluginName, plugin);
 		}
+	}
+
+	/**
+	 * @return Whether this group is deleted
+	 */
+	public boolean isDeleted()
+	{
+		return isDeleted;
+	}
+
+	void setDeleted(boolean deleted)
+	{
+		isDeleted = deleted;
+	}
+
+	public boolean equals(Object o)
+	{
+		return o instanceof DBClientConfig && ((DBClientConfig) o).theID == theID;
+	}
+
+	public int hashCode()
+	{
+		return theID;
 	}
 }

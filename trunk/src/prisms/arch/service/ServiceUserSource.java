@@ -88,7 +88,7 @@ public class ServiceUserSource implements UserSource
 		}
 		try
 		{
-			return PrismsSerializer.deserializeUser((JSONObject) res.get("user"), this, null);
+			return PrismsSerializer.deserializeUser((JSONObject) res.get("user"), this);
 		} catch(RuntimeException e)
 		{
 			throw new PrismsException("Could not deserialize user from PRISMS service: "
@@ -96,25 +96,18 @@ public class ServiceUserSource implements UserSource
 		}
 	}
 
-	public User getUser(User serverUser, PrismsApplication app) throws PrismsException
+	public boolean canAccess(User serverUser, PrismsApplication app) throws PrismsException
 	{
 		JSONObject res;
 		try
 		{
-			res = theConnector.getResult(thePluginName, "getUser", "userName",
-				serverUser.getName(), "appName", app.getName());
+			res = theConnector.getResult(thePluginName, "canAccess", "userName", serverUser
+				.getName(), "appName", app.getName());
 		} catch(java.io.IOException e)
 		{
 			throw new PrismsException("Could not communicate with PRISMS server", e);
 		}
-		try
-		{
-			return PrismsSerializer.deserializeUser((JSONObject) res.get("user"), this, app);
-		} catch(RuntimeException e)
-		{
-			throw new PrismsException("Could not deserialize user from PRISMS service: "
-				+ res.get("user"), e);
-		}
+		return "true".equalsIgnoreCase((String) res.get("canAccess"));
 	}
 
 	public void lockUser(User user) throws PrismsException
@@ -236,7 +229,7 @@ public class ServiceUserSource implements UserSource
 		return ret;
 	}
 
-	private void configure(PrismsApplication app)
+	private void configure(PrismsApplication app) throws PrismsException
 	{
 		if(!(app instanceof DBApplication))
 			throw new IllegalArgumentException("Application object " + app
@@ -371,8 +364,7 @@ public class ServiceUserSource implements UserSource
 		return configEl;
 	}
 
-	public PrismsSession createSession(ClientConfig client, User user, boolean asService)
-		throws PrismsException
+	public PrismsSession createSession(ClientConfig client, User user) throws PrismsException
 	{
 		if(!(client instanceof DBClientConfig))
 			throw new IllegalArgumentException("Client " + client.getName()
@@ -383,17 +375,12 @@ public class ServiceUserSource implements UserSource
 				+ " not creates with this user source");
 		DBApplication dbApp = (DBApplication) client.getApp();
 
-		if(user.getApp() == null || !user.getApp().getName().equals(client.getApp().getName()))
-		{
-			User appUser = getUser(user, client.getApp());
-			if(appUser == null)
-				throw new PrismsException("User " + user
-					+ " is not permitted to access application " + client.getApp().getName());
-			user = appUser;
-		}
+		if(!canAccess(user, client.getApp()))
+			throw new PrismsException("User " + user + " is not permitted to access application "
+				+ client.getApp().getName());
 		if(!client.getApp().isConfigured())
 			configure(client.getApp());
-		PrismsSession ret = new PrismsSession(client.getApp(), client, user, asService);
+		PrismsSession ret = new PrismsSession(client.getApp(), client, user);
 		try
 		{
 			client.getApp().configureSession(ret);
@@ -438,26 +425,6 @@ public class ServiceUserSource implements UserSource
 		{
 			throw new PrismsException("Could not deserialize user from PRISMS service: "
 				+ res.get("user"), e);
-		}
-	}
-
-	public UserGroup [] getGroups(PrismsApplication app) throws PrismsException
-	{
-		JSONObject res;
-		try
-		{
-			res = theConnector.getResult(thePluginName, "getGroups");
-		} catch(java.io.IOException e)
-		{
-			throw new PrismsException("Could not communicate with PRISMS server", e);
-		}
-		try
-		{
-			return PrismsSerializer.deserializeGroups((JSONArray) res.get("groups"), this, app);
-		} catch(RuntimeException e)
-		{
-			throw new PrismsException("Could not deserialize users from PRISMS service: "
-				+ res.get("users"), e);
 		}
 	}
 

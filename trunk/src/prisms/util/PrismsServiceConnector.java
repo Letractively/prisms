@@ -445,7 +445,7 @@ public class PrismsServiceConnector
 				}
 				else if("startEncryption".equals(json.get("method")))
 				{
-					if(prisms.arch.PrismsServer.ErrorCode.RequestDenied.description.equals(json
+					if(prisms.arch.PrismsServer.ErrorCode.ValidationFailed.description.equals(json
 						.get("code")))
 					{
 						if(tryEncryptionAgain)
@@ -481,6 +481,8 @@ public class PrismsServiceConnector
 						: json.get("error"));
 					serverReturn.addAll(callChangePassword(hashing, constraints, message));
 				}
+				else if("restart".equals(json.get("method")))
+					return callServer(serverMethod, event);
 				else if("init".equals(json.get("method")))
 				{
 					// Do nothing here--connection successful
@@ -537,7 +539,7 @@ public class PrismsServiceConnector
 	{
 		String callURL = theServiceURL;
 		callURL += "?app=" + encode(theAppName);
-		callURL += "&service=" + encode(theServiceName);
+		callURL += "&client=" + encode(theServiceName);
 		callURL += "&method=" + encode(serverMethod.toString());
 		if(theUserName != null)
 			callURL += "&user=" + encode(theUserName);
@@ -710,7 +712,7 @@ public class PrismsServiceConnector
 	{
 		if(thePasswordChanger == null)
 			throw new PrismsServiceException("Password change requested",
-				prisms.arch.PrismsServer.ErrorCode.RequestDenied, message);
+				prisms.arch.PrismsServer.ErrorCode.ValidationFailed, message);
 		String newPwd = null;
 		do
 		{

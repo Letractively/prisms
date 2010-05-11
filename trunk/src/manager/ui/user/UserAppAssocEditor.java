@@ -28,8 +28,6 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 
 	PrismsApplication theApp;
 
-	User theAppUser;
-
 	/**
 	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
 	 */
@@ -88,15 +86,15 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 			&& theApp != null
 			&& !(theApp == theSession.getApp() && theUser.getName().equals(
 				theSession.getUser().getName()))
-			&& manager.app.ManagerUtils.canEdit(theSession.getUser(), theUser)));
+			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
+				.getPermissions(theSession.getApp()))));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setData");
 		evt.put("user", theUser == null ? null : theUser.getName());
 		evt.put("app", theApp == null ? null : theApp.getName());
-		evt.put("accessible", new Boolean(theAppUser != null));
-		evt.put("encrypted", new Boolean(theAppUser != null && theAppUser.isEncryptionRequired()));
+		evt.put("accessible", new Boolean(isAccessible()));
 		theSession.postOutgoingEvent(evt);
 	}
 
@@ -108,49 +106,45 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		if("accessChanged".equals(evt.get("method")))
 		{
 			changeAccess(((Boolean) evt.get("accessible")).booleanValue());
-			if(theAppUser != null)
+			if(isAccessible())
 				log.info("User " + theSession.getUser() + " granted application " + theApp
 					+ " access to user " + theUser);
 			else
 				log.info("User " + theSession.getUser() + " denied application " + theApp
 					+ " access from user " + theUser);
 		}
-		else if("encryptedChanged".equals(evt.get("method")))
-		{
-			changeEncrypted(((Boolean) evt.get("encrypted")).booleanValue());
-			log.info("User " + theSession.getUser() + " set encryption requirement on application "
-				+ theApp + " for user " + theUser + " to " + theAppUser.isEncryptionRequired());
-		}
 		else
 			throw new IllegalArgumentException("Unrecognized " + theName + " event: " + evt);
+	}
+
+	boolean isAccessible()
+	{
+		if(theUser == null || theApp == null)
+			return false;
+		try
+		{
+			return theSession.getApp().getServer().getUserSource().canAccess(theUser, theApp);
+		} catch(prisms.arch.PrismsException e)
+		{
+			throw new IllegalStateException("Could not determine application accessibility", e);
+		}
 	}
 
 	void setUserApp(User user, PrismsApplication app)
 	{
 		theUser = user;
 		theApp = app;
-		if(user == null || app == null)
-			theAppUser = null;
-		else if(user.getApp() != null && user.getApp().equals(app))
-			theAppUser = user;
-		else
-			try
-			{
-				theAppUser = theSession.getApp().getDataSource().getUser(user, app);
-			} catch(prisms.arch.PrismsException e)
-			{
-				throw new IllegalStateException("Could not get application user", e);
-			}
 		initClient();
 	}
 
 	void changeAccess(boolean accessible)
 	{
-		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theUser))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
+			.getPermissions(theSession.getApp())))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " does not have permission to modify user " + theUser
 				+ "'s access to application " + theApp.getName());
-		if(accessible == (theAppUser != null))
+		if(accessible == isAccessible())
 			return;
 		if(theSession.getUser().getName().equals(theUser.getName())
 			&& theApp == theSession.getApp())
@@ -162,46 +156,12 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 				"Cannot modify user access--user source is not manageable");
 		try
 		{
-			if(accessible)
-			{
-				((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
-				theAppUser = us.getUser(theUser, theApp);
-			}
-			else
-			{
-				((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
-				theAppUser = null;
-			}
+			((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
 		} catch(prisms.arch.PrismsException e)
 		{
-			throw new IllegalStateException("Could not get application user", e);
+			throw new IllegalStateException("Could not set user-application accessibility", e);
 		}
 		theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
-		theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
-	}
-
-	void changeEncrypted(boolean encrypted)
-	{
-		if(theAppUser == null)
-			throw new IllegalStateException(
-				"Cannot modify encryption requirements--user cannot access application");
-		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theUser))
-			throw new IllegalArgumentException("User " + theSession.getUser()
-				+ " does not have permission to modify user " + theUser
-				+ "'s encryption requirements for application " + theApp.getName());
-		if(encrypted == theAppUser.isEncryptionRequired())
-			return;
-		prisms.arch.ds.UserSource us = theSession.getApp().getDataSource();
-		if(!(us instanceof ManageableUserSource))
-			throw new IllegalStateException(
-				"Cannot modify user access--user source is not manageable");
-		try
-		{
-			((ManageableUserSource) us).setEncryptionRequired(theUser, theApp, encrypted);
-		} catch(prisms.arch.PrismsException e)
-		{
-			throw new IllegalStateException("Could not set encryption requirement", e);
-		}
 		theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
 	}
 }

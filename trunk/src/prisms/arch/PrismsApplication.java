@@ -10,15 +10,7 @@ import org.dom4j.Element;
 
 import prisms.arch.ds.UserGroup;
 import prisms.arch.ds.UserSource;
-import prisms.arch.event.ConfiguredPEL;
-import prisms.arch.event.ListenerManager;
-import prisms.arch.event.PrismsEvent;
-import prisms.arch.event.PrismsEventListener;
-import prisms.arch.event.PrismsPCE;
-import prisms.arch.event.PrismsPCL;
-import prisms.arch.event.PrismsProperty;
-import prisms.arch.event.PropertyManager;
-import prisms.arch.event.SessionMonitor;
+import prisms.arch.event.*;
 
 /**
  * PluginApplication represents a type of application from which sessions may be instantiated that
@@ -714,7 +706,7 @@ public class PrismsApplication
 		String appLock = theAppLock;
 		if(session.getCreationTime() < theReloadTime)
 		{
-			if(!session.isService() || session.getCreationTime() < theServiceReloadTime)
+			if(!session.getClient().isService() || session.getCreationTime() < theServiceReloadTime)
 				session.postOutgoingEvent(prisms.util.PrismsUtils.rEventProps("method", "restart",
 					"message", theReloadMessage));
 		}
@@ -733,7 +725,7 @@ public class PrismsApplication
 	{
 		if(session.getCreationTime() < theReloadTime)
 		{
-			if(!session.isService() || session.getCreationTime() < theServiceReloadTime)
+			if(!session.getClient().isService() || session.getCreationTime() < theServiceReloadTime)
 				return false;
 		}
 		return true;

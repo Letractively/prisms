@@ -10,11 +10,41 @@ import prisms.arch.AppConfig;
  */
 public class DBApplication extends prisms.arch.PrismsApplication
 {
+	private int theID;
+
 	private String theDescription;
 
 	private AppConfig theAppConfig;
 
 	private String theConfigXML;
+
+	private boolean isUserRestrictive;
+
+	private boolean isDeleted;
+
+	/**
+	 * Creates a DBApplication
+	 */
+	public DBApplication()
+	{
+		theID = -1;
+	}
+
+	/**
+	 * @return This application's database ID
+	 */
+	public int getID()
+	{
+		return theID;
+	}
+
+	/**
+	 * @param id The database ID for this application
+	 */
+	public void setID(int id)
+	{
+		theID = id;
+	}
 
 	/**
 	 * @return A description of this application
@@ -78,8 +108,9 @@ public class DBApplication extends prisms.arch.PrismsApplication
 
 	/**
 	 * @return A URL to this application's configuration XML resource
+	 * @throws prisms.arch.PrismsException If the XML file cannot be found
 	 */
-	public java.net.URL findConfigXML()
+	public java.net.URL findConfigXML() throws prisms.arch.PrismsException
 	{
 		if(theConfigXML == null)
 			return null;
@@ -89,7 +120,7 @@ public class DBApplication extends prisms.arch.PrismsApplication
 			configURL = prisms.arch.ds.UserSource.class.getResource(theConfigXML
 				.substring("classpath:/".length()));
 			if(configURL == null)
-				throw new IllegalArgumentException("Classpath configuration URL " + theConfigXML
+				throw new prisms.arch.PrismsException("Classpath configuration URL " + theConfigXML
 					+ " refers to a non-existent resource");
 		}
 		else
@@ -99,7 +130,7 @@ public class DBApplication extends prisms.arch.PrismsApplication
 				configURL = new java.net.URL(theConfigXML);
 			} catch(java.net.MalformedURLException e)
 			{
-				throw new IllegalArgumentException("Configuration URL " + theConfigXML
+				throw new prisms.arch.PrismsException("Configuration URL " + theConfigXML
 					+ " is malformed", e);
 			}
 		}
@@ -108,12 +139,11 @@ public class DBApplication extends prisms.arch.PrismsApplication
 
 	/**
 	 * @return The root element of this application's XML resource
+	 * @throws prisms.arch.PrismsException If the XML cannot be read and parsed
 	 */
-	public org.dom4j.Element parseConfigXML()
+	public org.dom4j.Element parseConfigXML() throws prisms.arch.PrismsException
 	{
 		java.net.URL configURL = findConfigXML();
-		if(configURL == null)
-			return null;
 
 		org.dom4j.Element configEl;
 		try
@@ -121,10 +151,51 @@ public class DBApplication extends prisms.arch.PrismsApplication
 			configEl = new org.dom4j.io.SAXReader().read(configURL).getRootElement();
 		} catch(Exception e)
 		{
-			throw new IllegalStateException("Could not read application config file "
+			throw new prisms.arch.PrismsException("Could not read application config file "
 				+ theConfigXML, e);
 		}
 		return configEl;
+	}
+
+	/**
+	 * @return Whether this application restricts access on a user-by-user basis or allows users
+	 *         openly
+	 */
+	public boolean isUserRestrictive()
+	{
+		return isUserRestrictive;
+	}
+
+	/**
+	 * @param restrict Whether this application should restrict access on a user-by-user basis or
+	 *        allows users openly
+	 */
+	public void setUserRestrictive(boolean restrict)
+	{
+		isUserRestrictive = restrict;
+	}
+
+	/**
+	 * @return Whether this group is deleted
+	 */
+	public boolean isDeleted()
+	{
+		return isDeleted;
+	}
+
+	void setDeleted(boolean deleted)
+	{
+		isDeleted = deleted;
+	}
+
+	public boolean equals(Object o)
+	{
+		return o instanceof DBApplication && ((DBApplication) o).theID == theID;
+	}
+
+	public int hashCode()
+	{
+		return theID;
 	}
 
 	public String toString()

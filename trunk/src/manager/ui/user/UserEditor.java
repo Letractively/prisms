@@ -121,11 +121,12 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 				+ newName);
 			if(newName == null)
 				throw new IllegalArgumentException("No name to set");
+			theUser.setName(newName);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
 			try
 			{
-				source.rename(theUser, newName);
+				source.putUser(theUser);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not rename user", e);
@@ -197,14 +198,16 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 	{
 		if(theUser == null)
 			return false;
-		return manager.app.ManagerUtils.canEdit(theSession.getUser(), theUser);
+		return manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
+			.getPermissions(theSession.getApp()));
 	}
 
 	void assertEditable()
 	{
 		if(theUser == null)
 			throw new IllegalArgumentException("No user selected to edit");
-		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theUser))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
+			.getPermissions(theSession.getApp())))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " does not have permission to edit user " + theUser);
 	}

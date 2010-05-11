@@ -110,6 +110,7 @@ public class ApplicationEditor implements AppPlugin
 				val.put("configClass", null);
 			String configXML = ((DBApplication) theApp).getConfigXML();
 			val.put("configXML", configXML);
+			val.put("userRestrictive", new Boolean(((DBApplication) theApp).isUserRestrictive()));
 
 			if(configXML != null)
 			{
@@ -158,9 +159,10 @@ public class ApplicationEditor implements AppPlugin
 				+ " to " + newName);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
+			theApp.setName(newName);
 			try
 			{
-				source.rename(theApp, newName);
+				source.putApplication(theApp);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify application", e);
@@ -188,7 +190,7 @@ public class ApplicationEditor implements AppPlugin
 			((DBApplication) theApp).setDescription(newDescrip);
 			try
 			{
-				source.changeProperties((DBApplication) theApp);
+				source.putApplication(theApp);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify application", e);
@@ -216,7 +218,7 @@ public class ApplicationEditor implements AppPlugin
 			((DBApplication) theApp).setConfigClass(configClass);
 			try
 			{
-				source.changeProperties((DBApplication) theApp);
+				source.putApplication(theApp);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify application", e);
@@ -305,7 +307,31 @@ public class ApplicationEditor implements AppPlugin
 			theSession.postOutgoingEvent(evt2);
 			try
 			{
-				source.changeProperties((DBApplication) theApp);
+				source.putApplication(theApp);
+			} catch(prisms.arch.PrismsException e)
+			{
+				throw new IllegalStateException("Could not modify application", e);
+			}
+			theDataLock = true;
+			try
+			{
+				theSession
+					.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
+			} finally
+			{
+				theDataLock = false;
+			}
+		}
+		else if("setUserRestrictive".equals(evt.get("method")))
+		{
+			assertEditable();
+			((DBApplication) theApp).setUserRestrictive(((Boolean) evt.get("restrict"))
+				.booleanValue());
+			prisms.impl.DBUserSource source;
+			source = (prisms.impl.DBUserSource) theSession.getApp().getDataSource();
+			try
+			{
+				source.putApplication(theApp);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify application", e);
@@ -336,14 +362,14 @@ public class ApplicationEditor implements AppPlugin
 	{
 		if(theApp == null)
 			return false;
-		return manager.app.ManagerUtils.canEdit(theSession.getUser(), theApp);
+		return manager.app.ManagerUtils.canEdit(theSession.getUser(), theSession.getApp(), theApp);
 	}
 
 	void assertEditable()
 	{
 		if(theApp == null)
 			throw new IllegalArgumentException("No application selected to edit");
-		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theApp))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theSession.getApp(), theApp))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " does not have permission to edit application " + theApp.getName());
 	}

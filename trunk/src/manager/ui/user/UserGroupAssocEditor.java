@@ -26,8 +26,6 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 
 	User theUser;
 
-	User theAppUser;
-
 	UserGroup theGroup;
 
 	boolean theDataLock;
@@ -105,7 +103,8 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			&& !(theGroup.getApp() == theSession.getApp()
 				&& theUser.getName().equals(theSession.getUser().getName()) && theGroup.getName()
 				.equals("userAdmin"))
-			&& manager.app.ManagerUtils.canEdit(theSession.getUser(), theUser)));
+			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
+				.getPermissions(theSession.getApp()))));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -126,8 +125,7 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 
 	boolean userHasGroup()
 	{
-		return theAppUser != null
-			&& prisms.util.ArrayUtils.contains(theAppUser.getGroups(), theGroup);
+		return prisms.util.ArrayUtils.contains(theUser.getGroups(), theGroup);
 	}
 
 	/**
@@ -153,41 +151,34 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 	{
 		theUser = user;
 		theGroup = group;
-		if(theUser != null && theGroup != null && theUser.getApp() != theGroup.getApp())
-			try
-			{
-				theAppUser = theSession.getApp().getDataSource()
-					.getUser(theUser, theGroup.getApp());
-			} catch(prisms.arch.PrismsException e)
-			{
-				throw new IllegalStateException("Could not get application user", e);
-			}
 		initClient();
 	}
 
 	void membershipChanged(boolean isMember)
 	{
-		if(theAppUser == null || theGroup == null)
+		if(theUser == null || theGroup == null)
 			return;
-		if(isMember == prisms.util.ArrayUtils.contains(theAppUser.getGroups(), theGroup))
+		if(isMember == prisms.util.ArrayUtils.contains(theUser.getGroups(), theGroup))
 			return;
 		prisms.arch.ds.UserSource us = theSession.getApp().getDataSource();
 		if(!(us instanceof ManageableUserSource))
 			throw new IllegalStateException(
 				"Cannot modify user group membership--user source is not manageable");
-		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theUser))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
+			.getPermissions(theSession.getApp())))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " cannot modify user " + theUser.getName() + "'s permissions");
 		if(isMember && theGroup.getApp() == theSession.getApp()
 			&& theUser.getName().equals(theSession.getUser().getName())
 			&& theGroup.getName().equals("userAdmin"))
 			throw new IllegalStateException("A user cannot remove himself from the userAdmin group");
+		if(isMember)
+			theUser.removeFrom(theGroup);
+		else
+			theUser.addTo(theGroup);
 		try
 		{
-			if(isMember)
-				((ManageableUserSource) us).addUserToGroup(theAppUser, theGroup);
-			else
-				((ManageableUserSource) us).removeUserFromGroup(theAppUser, theGroup);
+			((ManageableUserSource) us).putUser(theUser);
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not edit group membership", e);

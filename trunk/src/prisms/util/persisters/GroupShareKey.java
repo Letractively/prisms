@@ -17,6 +17,8 @@ public class GroupShareKey implements ShareKey, Cloneable
 {
 	private User theOwner;
 
+	prisms.arch.PrismsApplication theApp;
+
 	private String [] theAccessGroups;
 
 	private boolean [] theEditGroups;
@@ -33,14 +35,17 @@ public class GroupShareKey implements ShareKey, Cloneable
 	 * Creates a GroupSharedObject
 	 * 
 	 * @param owner The user that will own the new object
+	 * @param app The application whose permissions govern the use of this key's object
 	 * @param viewAllPermission The permission that allows a user to view this object without being
 	 *        the owner or a member of any of this object's access groups
 	 * @param editAllPermission The permission that allows a user to edit this object without being
 	 *        the owner or a member of any of this object's access groups
 	 */
-	public GroupShareKey(User owner, String viewAllPermission, String editAllPermission)
+	public GroupShareKey(User owner, prisms.arch.PrismsApplication app, String viewAllPermission,
+		String editAllPermission)
 	{
 		theOwner = owner;
+		theApp = app;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
 		theAccessGroups = new String [0];
@@ -204,14 +209,14 @@ public class GroupShareKey implements ShareKey, Cloneable
 			isViewPublic = true;
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canView(prisms.arch.ds.User)
-	 */
 	public boolean canView(User user)
 	{
-		if(isViewPublic || user.getName().equals(theOwner.getName())
-			|| (theViewAllPermission != null && user.getPermissions().has(theViewAllPermission))
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+		if(isViewPublic
+			|| user.getName().equals(theOwner.getName())
+			|| (theViewAllPermission != null && user.getPermissions(theApp).has(
+				theViewAllPermission))
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		for(String group : theAccessGroups)
 			for(int g = 0; g < user.getGroups().length; g++)
@@ -220,13 +225,12 @@ public class GroupShareKey implements ShareKey, Cloneable
 		return false;
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canEdit(prisms.arch.ds.User)
-	 */
 	public boolean canEdit(User user)
 	{
-		if(isEditPublic || user.getName().equals(theOwner.getName())
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+		if(isEditPublic
+			|| user.getName().equals(theOwner.getName())
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		for(int g = 0; g < theAccessGroups.length; g++)
 		{
@@ -240,13 +244,11 @@ public class GroupShareKey implements ShareKey, Cloneable
 		return false;
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canAdministrate(prisms.arch.ds.User)
-	 */
 	public boolean canAdministrate(User user)
 	{
 		if(user.getName().equals(theOwner.getName())
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		return false;
 	}

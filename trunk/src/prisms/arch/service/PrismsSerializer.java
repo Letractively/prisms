@@ -8,9 +8,6 @@ import org.json.simple.JSONObject;
 
 import prisms.arch.PrismsApplication;
 import prisms.arch.ds.*;
-import prisms.impl.SimpleGroup;
-import prisms.impl.SimplePermission;
-import prisms.impl.SimpleUser;
 
 /**
  * Serializes PRISMS objects for the web service
@@ -64,21 +61,12 @@ public class PrismsSerializer
 	 * @param user The user to serialize
 	 * @return The JSON-serialized user
 	 */
-	public static JSONObject serializeUser(SimpleUser user)
+	public static JSONObject serializeUser(User user)
 	{
 		if(user == null)
 			return null;
 		JSONObject ret = new JSONObject();
 		ret.put("name", user.getName());
-		if(user.getRootUser() != null)
-			ret.put("root", serializeUser(user.getRootUser()));
-		ret.put("app", user.getApp() == null ? null : user.getApp().getName());
-		if(user.getValidator() instanceof prisms.impl.PlaceholderValidator)
-			ret.put("validator", ((prisms.impl.PlaceholderValidator) user.getValidator())
-				.getValidatorClassName());
-		else if(user.getValidator() != null)
-			ret.put("validator", user.getValidator().getClass().getName());
-		ret.put("encryptionRequired", new Boolean(user.isEncryptionRequired()));
 		ret.put("locked", new Boolean(user.isLocked()));
 		return ret;
 	}
@@ -88,41 +76,13 @@ public class PrismsSerializer
 	 * 
 	 * @param json The JSON-serialized user
 	 * @param source The user source to set for the user
-	 * @param app The application for the user, if configured in the JSON
 	 * @return The deserialized user
 	 */
-	public static SimpleUser deserializeUser(JSONObject json, UserSource source,
-		PrismsApplication app)
+	public static User deserializeUser(JSONObject json, UserSource source)
 	{
 		if(json == null)
 			return null;
-		PrismsApplication userApp;
-		if(app == null)
-			userApp = null;
-		else if(app.getName().equals(json.get("app")))
-			userApp = app;
-		else
-			userApp = null;
-		SimpleUser ret;
-		if(json.get("root") == null)
-			ret = new SimpleUser(source, (String) json.get("name"));
-		else
-			ret = new SimpleUser(deserializeUser((JSONObject) json.get("root"), source, app),
-				userApp);
-		String valClass = (String) json.get("validator");
-		if(valClass != null)
-		{
-			try
-			{
-				prisms.arch.Validator validator = (prisms.arch.Validator) Class.forName(valClass)
-					.newInstance();
-				ret.setValidator(validator);
-			} catch(Throwable e)
-			{
-				ret.setValidator(new prisms.impl.PlaceholderValidator(valClass));
-			}
-		}
-		ret.setEncryptionRequired(((Boolean) json.get("encryptionRequired")).booleanValue());
+		User ret = new User(source, (String) json.get("name"));
 		ret.setLocked(((Boolean) json.get("locked")).booleanValue());
 		return ret;
 	}
@@ -139,7 +99,7 @@ public class PrismsSerializer
 			return null;
 		JSONArray ret = new JSONArray();
 		for(User user : users)
-			ret.add(serializeUser((SimpleUser) user));
+			ret.add(serializeUser(user));
 		return ret;
 	}
 
@@ -156,7 +116,7 @@ public class PrismsSerializer
 			return null;
 		User [] ret = new User [json.size()];
 		for(int u = 0; u < ret.length; u++)
-			ret[u] = deserializeUser((JSONObject) json.get(u), source, null);
+			ret[u] = deserializeUser((JSONObject) json.get(u), source);
 		return ret;
 	}
 
@@ -190,9 +150,9 @@ public class PrismsSerializer
 	{
 		if(json == null)
 			return null;
-		SimpleGroup ret = new SimpleGroup(source, (String) json.get("name"), app);
+		UserGroup ret = new UserGroup(source, (String) json.get("name"), app);
 		ret.setDescription((String) json.get("description"));
-		prisms.impl.SimplePermissions perms = new prisms.impl.SimplePermissions();
+		prisms.arch.ds.SimplePermissions perms = new prisms.arch.ds.SimplePermissions();
 		for(Permission p : deserializePermissions((JSONArray) json.get("permissions"), app))
 			perms.addPermission(p);
 		ret.setPermissions(perms);
@@ -257,8 +217,7 @@ public class PrismsSerializer
 	 */
 	public static Permission deserializePermission(JSONObject json, PrismsApplication app)
 	{
-		return new SimplePermission((String) json.get("name"), (String) json.get("description"),
-			app);
+		return new Permission((String) json.get("name"), (String) json.get("description"), app);
 	}
 
 	/**

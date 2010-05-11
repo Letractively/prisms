@@ -12,6 +12,8 @@ public class PublicShareKey implements ShareKey, Cloneable
 {
 	private User theOwner;
 
+	prisms.arch.PrismsApplication theApp;
+
 	private boolean isPublic;
 
 	private String theViewAllPermission;
@@ -22,14 +24,17 @@ public class PublicShareKey implements ShareKey, Cloneable
 	 * Creates a PublicSharedObject
 	 * 
 	 * @param owner The user that will own the new object
+	 * @param app The application whose permissions govern the use of this key's object
 	 * @param viewAllPermission The permission that allows a user to view this object without being
 	 *        the owner or a member of any of this object's access groups
 	 * @param editAllPermission The permission that allows a user to edit this object without being
 	 *        the owner or a member of any of this object's access groups
 	 */
-	public PublicShareKey(User owner, String viewAllPermission, String editAllPermission)
+	public PublicShareKey(User owner, prisms.arch.PrismsApplication app, String viewAllPermission,
+		String editAllPermission)
 	{
 		theOwner = owner;
+		theApp = app;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
 	}
@@ -59,32 +64,27 @@ public class PublicShareKey implements ShareKey, Cloneable
 		isPublic = p;
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canView(prisms.arch.ds.User)
-	 */
 	public boolean canView(User user)
 	{
-		if(isPublic || user.getName().equals(theOwner.getName())
-			|| (theViewAllPermission != null && user.getPermissions().has(theViewAllPermission))
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+		if(isPublic
+			|| user.getName().equals(theOwner.getName())
+			|| (theViewAllPermission != null && user.getPermissions(theApp).has(
+				theViewAllPermission))
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		return false;
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canEdit(prisms.arch.ds.User)
-	 */
 	public boolean canEdit(User user)
 	{
 		if(user.getName().equals(theOwner.getName())
-			|| (theEditAllPermission != null && user.getPermissions().has(theEditAllPermission)))
+			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
+				theEditAllPermission)))
 			return true;
 		return false;
 	}
 
-	/**
-	 * @see prisms.util.persisters.ShareKey#canAdministrate(prisms.arch.ds.User)
-	 */
 	public boolean canAdministrate(User user)
 	{
 		return canEdit(user);

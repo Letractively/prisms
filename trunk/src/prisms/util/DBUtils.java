@@ -14,7 +14,7 @@ public class DBUtils
 	 * @param b The SQL character representing a boolean
 	 * @return The boolean represented by the character
 	 */
-	public static boolean getBoolean(String b)
+	public static boolean boolFromSql(String b)
 	{
 		return "t".equalsIgnoreCase(b);
 	}
@@ -25,9 +25,9 @@ public class DBUtils
 	 * @param b The boolean to be represented by a character
 	 * @return The SQL character representing the boolean
 	 */
-	public static char getBoolString(boolean b)
+	public static String boolToSql(boolean b)
 	{
-		return b ? 't' : 'f';
+		return b ? "'t'" : "'f'";
 	}
 
 	/**

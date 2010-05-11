@@ -1,13 +1,10 @@
-/**
- * SimplePermissions.java Created Jun 25, 2008 by Andrew Butler, PSL
+/*
+ * SimplePermissions.java Created May 6, 2010 by Andrew Butler, PSL
  */
-package prisms.impl;
-
-import prisms.arch.ds.Permission;
-import prisms.arch.ds.Permissions;
+package prisms.arch.ds;
 
 /**
- * A simple implementation of Permissions
+ * Implements Permissions in a simple way
  */
 public class SimplePermissions implements Permissions
 {
@@ -21,25 +18,16 @@ public class SimplePermissions implements Permissions
 		theMap = new java.util.HashMap<String, Permission>();
 	}
 
-	/**
-	 * @see prisms.arch.ds.Permissions#has(java.lang.String)
-	 */
 	public boolean has(String capability)
 	{
 		return theMap.containsKey(capability);
 	}
 
-	/**
-	 * @see prisms.arch.ds.Permissions#getPermission(java.lang.String)
-	 */
 	public Permission getPermission(String capability)
 	{
 		return theMap.get(capability);
 	}
 
-	/**
-	 * @see prisms.arch.ds.Permissions#getAllPermissions()
-	 */
 	public Permission [] getAllPermissions()
 	{
 		Permission [] ret = theMap.values().toArray(new Permission [theMap.size()]);

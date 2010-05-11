@@ -9,10 +9,7 @@ import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
 import prisms.arch.PrismsSession;
-import prisms.arch.ds.ManageableUserSource;
-import prisms.arch.ds.Permission;
-import prisms.arch.ds.User;
-import prisms.arch.ds.UserGroup;
+import prisms.arch.ds.*;
 
 /**
  * Allows the user to manage the association of a user with a group in an application
@@ -100,13 +97,13 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		evt.put("plugin", theName);
 		evt.put("method", "setEnabled");
 		evt.put("enabled", new Boolean(thePermission != null
-			&& manager.app.ManagerUtils.canEdit(theSession.getUser(), thePermission)));
+			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), thePermission)));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setGroupCheckEnabled");
 		evt.put("enabled", new Boolean(thePermission != null && theGroup != null
-			&& manager.app.ManagerUtils.canEdit(theSession.getUser(), theGroup)));
+			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theGroup)));
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setData");
@@ -138,7 +135,7 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		if("descripChanged".equals(evt.get("method")))
 		{
 			if(thePermission == null
-				|| !manager.app.ManagerUtils.canEdit(theSession.getUser(), thePermission))
+				|| !manager.app.ManagerUtils.canEdit(theSession.getPermissions(), thePermission))
 				throw new IllegalArgumentException(theSession.getUser()
 					+ " does not have permission to change permission " + thePermission.getName());
 			String newDescrip = (String) evt.get("descrip");
@@ -150,9 +147,10 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 					+ newDescrip);
 			prisms.arch.ds.ManageableUserSource source;
 			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
+			thePermission.setDescrip(newDescrip);
 			try
 			{
-				source.setDescription(thePermission, newDescrip);
+				source.putPermission(thePermission);
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify permission", e);
@@ -195,7 +193,7 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		if(!(us instanceof ManageableUserSource))
 			throw new IllegalStateException(
 				"Cannot modify group permission membership--user source is not manageable");
-		if(!manager.app.ManagerUtils.canEdit(theSession.getUser(), theGroup))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theGroup))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " cannot modify group " + theGroup.getName());
 		if(isMember && theGroup.getApp() == theSession.getApp()
@@ -206,14 +204,7 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		users = users.clone();
 		for(int u = 0; u < users.length; u++)
 		{
-			try
-			{
-				users[u] = ((ManageableUserSource) us).getUser(users[u], theGroup.getApp());
-			} catch(prisms.arch.PrismsException e)
-			{
-				throw new IllegalStateException("Could not get application user", e);
-			}
-			if(users[u] == null || !prisms.util.ArrayUtils.contains(users[u].getGroups(), theGroup))
+			if(!prisms.util.ArrayUtils.contains(users[u].getGroups(), theGroup))
 			{
 				users = prisms.util.ArrayUtils.remove(users, u);
 				u--;
@@ -222,9 +213,10 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		try
 		{
 			if(isMember)
-				((ManageableUserSource) us).addPermission(theGroup, thePermission);
+				theGroup.getPermissions().addPermission(thePermission);
 			else
-				((ManageableUserSource) us).removePermission(theGroup, thePermission);
+				theGroup.getPermissions().removePermission(thePermission.getName());
+			((ManageableUserSource) us).putGroup(theGroup);
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not modify group-permission relationship", e);
