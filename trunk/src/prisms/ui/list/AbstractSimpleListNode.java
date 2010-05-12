@@ -78,7 +78,8 @@ public abstract class AbstractSimpleListNode implements JsonListNode
 	{
 		if(!(action.getValue(Action.NAME) instanceof String))
 			throw new IllegalArgumentException("Actions for tree nodes require a string value");
-		theActions = prisms.util.ArrayUtils.add(theActions, action);
+		if(!prisms.util.ArrayUtils.contains(theActions, action))
+			theActions = prisms.util.ArrayUtils.add(theActions, action);
 	}
 
 	/**
