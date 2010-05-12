@@ -610,6 +610,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			if(response.shouldEncrypt && request.encrypted)
 				str = encrypt(request, str);
+			request.theResponse.setContentType("text/prisms-json");
 			java.io.PrintWriter out = request.theResponse.getWriter();
 			out.write(str);
 			out.close();
@@ -1435,6 +1436,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return theSecurities.length == 0 && theSessionHolders.length == 0
 				&& System.currentTimeMillis() - theLastUsed > getSecurityTimeout() * 2;
 		}
+
+		void destroy()
+		{
+			SecuritySession [] securities = theSecurities;
+			theSecurities = new SecuritySession [0];
+			for(SecuritySession security : securities)
+				security.destroy();
+			SessionHolder [] sessions = theSessionHolders;
+			theSessionHolders = new SessionHolder [0];
+			for(SessionHolder session : sessions)
+				session.destroy();
+		}
 	}
 
 	private UserSource theUserSource;
@@ -2075,9 +2088,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	public void destroy()
 	{
 		log.debug("Destroying servlet");
-		SessionHolder [] sessions = theSessions.values().toArray(new SessionHolder [0]);
+		HttpSession [] sessions = theSessions.values().toArray(new HttpSession [0]);
 		theSessions.clear();
-		for(SessionHolder session : sessions)
+		for(HttpSession session : sessions)
 			session.destroy();
 		theUserSource.disconnect();
 		thePersisterFactory.destroy();
