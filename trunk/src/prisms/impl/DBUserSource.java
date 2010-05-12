@@ -923,7 +923,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	public long [] getKey(User user, Hashing hashing)
 	{
 		PasswordData [] password = getPasswordData((DBUser) user, true);
-		if(password == null || password.length == 0)
+		if(password.length == 0)
 			return null;
 		return hashing.generateKey(password[0].thePasswordHash);
 	}
