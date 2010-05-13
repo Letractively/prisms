@@ -1,0 +1,38 @@
+
+<table>
+	<tr>
+		<td>Name:</td>
+		<td><div __dojoType="dijit.form.TextBox" style="width:100px" dojoAttachPoint="nameField"
+			dojoAttachEvent="onChange:_nameChanged"></div></td>
+	</tr><tr>
+		<td dojoAttachPoint="configXmlLabel">Configuration XML:</td>
+		<td><div __dojoType="dijit.form.TextBox" style="width:200px" dojoAttachPoint="configXmlField"
+			dojoAttachEvent="onChange:_configXmlChanged"></div></td>
+	</tr><tr>
+		<td dojoAttachPoint="serializerClassLabel">Event Serializer Class:</td>
+		<td><div __dojoType="dijit.form.TextBox" style="width:200px" dojoAttachPoint="serializerClassField"
+			dojoAttachEvent="onChange:_serializerClassChanged"></div></td>
+	</tr><tr>
+		<td dojoAttachPoint="validatorClassLabel">Validation Class:</td>
+		<td><div __dojoType="dijit.form.TextBox" style="width:200px" dojoAttachPoint="validatorClassField"
+			dojoAttachEvent="onChange:_validatorClassChanged"></div></td>
+	</tr><tr>
+		<td>Service:</td>
+		<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="serviceCheck"
+			dojoAttachEvent="onClick:_serviceChanged"></div></td>
+	</tr><tr>
+		<td>Session Timeout:</td>
+		<td><div __dojoType="prisms.widget.TimeAmountEditor" monthsEnabled="false" secondsEnabled="false"
+			dojoAttachPoint="timeoutEditor" dojoAttachEvent="onChange:_timeoutChanged"></div></td>
+	</tr><tr>
+		<td>Allows Anonymous:</td>
+		<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="allowAnonymousCheck"
+			dojoAttachEvent="onClick:_allowAnonymousChanged"></div></td>
+	</tr><tr>
+		<td dojoAttachPoint="descripLabel">Description:</td>
+		<td>
+			<div __dojoType="dijit.form.TextBox" style="width:100%" dojoAttachPoint="descripField"
+				dojoAttachEvent="onChange:_descripChanged"></div>
+		</td>
+	</tr>
+</table>

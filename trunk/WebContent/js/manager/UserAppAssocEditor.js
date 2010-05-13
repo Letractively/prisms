@@ -48,7 +48,6 @@ dojo.declare("manager.UserAppAssocEditor", [dijit._Widget, dijit._Container, dij
 
 	setEnabled: function(enabled){
 		this.canAccessCheck.setAttribute("disabled", !enabled);
-		this.encryptionCheck.setAttribute("disabled", !enabled);
 	},
 
 	setData: function(data){
@@ -62,7 +61,6 @@ dojo.declare("manager.UserAppAssocEditor", [dijit._Widget, dijit._Container, dij
 		try{
 			this.userAccessText.innerHTML="User '"+data.user+"' access to application '"+data.app+"':";
 			this.canAccessCheck.setAttribute("checked", data.accessible);
-			this.encryptionCheck.setAttribute("checked", data.encrypted);
 		} finally{
 			this.dataLock=false;
 		}
@@ -73,12 +71,5 @@ dojo.declare("manager.UserAppAssocEditor", [dijit._Widget, dijit._Container, dij
 			return;
 		this.prisms.callApp(this.pluginName, "accessChanged",
 			{"accessible": this.canAccessCheck.getValue() ? true : false});
-	},
-
-	_encryptionChanged: function(){
-		if(this.dataLock)
-			return;
-		this.prisms.callApp(this.pluginName, "encryptedChanged",
-				{"encrypted": this.encryptionCheck.getValue() ? true : false});
 	}
 });

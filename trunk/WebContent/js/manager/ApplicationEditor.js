@@ -95,6 +95,7 @@ dojo.declare("manager.ApplicationEditor", [prisms.widget.TabWidget, dijit._Templ
 		this.descripField.setAttribute("disabled", !enabled);
 		this.configClassField.setAttribute("disabled", !enabled);
 		this.configXmlField.setAttribute("disabled", !enabled);
+		this.userRestrictCheck.setAttribute("disabled", !enabled);
 	},
 
 	setValue: function(value){
@@ -146,6 +147,7 @@ dojo.declare("manager.ApplicationEditor", [prisms.widget.TabWidget, dijit._Templ
 				else
 					this.configXmlField.setValue("");
 			}
+			this.userRestrictCheck.setAttribute("checked", value.userRestrictive);
 		} finally{
 			this.dataLock=false;
 		}
@@ -177,5 +179,11 @@ dojo.declare("manager.ApplicationEditor", [prisms.widget.TabWidget, dijit._Templ
 			return;
 		var newXML=this.configXmlField.getValue();
 		this.prisms.callApp(this.pluginName, "configXmlChanged", {configXML: newXML});
+	},
+
+	_userRestrictChanged: function(){
+		if(this.dataLock)
+			return;
+		this.prisms.callApp(this.pluginName, "setUserRestrictive", {restrict: this.userRestrictCheck.checked});
 	}
 });
