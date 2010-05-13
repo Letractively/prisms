@@ -1,16 +1,19 @@
 <div>
-	<div dojoType="prisms.DojoPrisms" dojoAttachPoint="dojoPrisms"></div>
-	<div dojoType="prisms.widget.UI" pluginName="UI"></div>
-	<div dojoType="dijit.layout.LayoutContainer" style="width:100%; height:100%;">
-		<div dojoType="dijit.Toolbar" layoutAlign="top">
-			<div dojoType="dijit.form.Button" dojoAttachPoint="loginButton"
-				dojoAttachEvent="onClick:_loginClicked">Login...</div>
-			<div dojoType="dijit.form.DropDownButton">
+	<div __dojoType="prisms.DojoPrisms" dojoAttachPoint="dojoPrisms"></div>
+	<div __dojoType="prisms.widget.UI" pluginName="UI"></div>
+	<div __dojoType="dijit.layout.BorderContainer" style="width:100%; height:100%;">
+		<div __dojoType="dijit.Toolbar" region="top">
+			<div __dojoType="dijit.form.DropDownButton">
 				<span>Help</span>
 				<div dojoType="dijit.Menu">
 					<div dojoType="dijit.MenuItem" dojoAttachEvent="onClick:refresh">Refresh</div>
 					<div dojoType="dijit.MenuItem" dojoAttachEvent="onClick:showVersion">
 						About The PRISMS Manager</div>
+				</div>
+			</div>
+			<div dojoType="dijit.form.DropDownButton" style="float:right" dojoAttachPoint="loginMenu">
+				<span>Login</span>
+				<div dojoType="dijit.Menu">
 				</div>
 			</div>
 		</div>

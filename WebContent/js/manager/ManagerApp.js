@@ -18,6 +18,7 @@ dojo.require("prisms.widget.UI");
 
 dojo.require("manager.UserEditor");
 dojo.require("manager.ApplicationEditor");
+dojo.require("manager.ClientEditor");
 dojo.require("manager.UserAppAssocEditor");
 dojo.require("manager.UserGroupAssocEditor");
 dojo.require("manager.UserPermissionDisplay");
