@@ -115,7 +115,10 @@ dojo.declare("prisms.PrismsLink", null, {
 			this.appLoaded();
 		}
 		else if(event.method=="callInit")
+		{
+			this.appLoading();
 			this.callServer("init");
+		}
 		else if(event.method=="login")
 		{
 			this.appLoaded();
@@ -128,13 +131,16 @@ dojo.declare("prisms.PrismsLink", null, {
 		{
 //			if(this.started && !this.isActive())
 //				return;
-			this.startEncryption(event.encryption, event.hashing, event.error, event.postAction)
+			this.startEncryption(event.encryption, event.hashing, event.error, event.postAction);
 		}
 		else if(event.method=="validate")
 			this.doValidate(event.hashing, event.validationFailed);
 		else if(event.method=="changePassword")
+		{
+			this.appLoaded();
 			this.doChangePassword(this._login.userName, event.hashing, event.constraints,
 				event.error, event.message);
+		}
 		else if(event.method=="init")
 		{
 			this.loginSucceeded((this._login ? this._login.userName : null));
@@ -272,7 +278,7 @@ dojo.declare("prisms.PrismsLink", null, {
 
 	doValidate: function(hashing, failed){
 		// Default implementation--may be overridden by subclasses
-		alert("ERROR! THIS CLIENT DOES NOT SUPPORT VALIDATION!")
+		alert("ERROR! THIS CLIENT DOES NOT SUPPORT VALIDATION!");
 	},
 
 	doChangePassword: function(user, hashing, constraints, error, message){
@@ -283,7 +289,7 @@ dojo.declare("prisms.PrismsLink", null, {
 
 	doLogin: function(error){
 		// Default implementation--should be overridden by subclasses
-		alert("ERROR! LOGIN DIALOG NOT IMPLEMENTED!")
+		alert("ERROR! LOGIN DIALOG NOT IMPLEMENTED!");
 	},
 
 	loginSucceeded: function(userName){
@@ -339,7 +345,7 @@ dojo.declare("prisms.PrismsLink", null, {
 		if(event.message)
 			alert(message);
 		else
-			alert("This "+this.application+" session has expired--reloading application");
+			alert(this.application+" must be reloaded--reloading application");
 		window.location.reload();
 	},
 
@@ -354,7 +360,7 @@ dojo.declare("prisms.PrismsLink", null, {
 			params.sessionID=this.sessionID;
 		params.app=this.application;
 		params.client=this.client;
-		params.user=this._login.userName
+		params.user=this._login.userName;
 		params.encrypted=this.cipher ? true : false;
 		if(params.encrypted)
 		{
@@ -384,32 +390,7 @@ dojo.declare("prisms.PrismsLink", null, {
 			handleAs: "text",
 			content: params,
 			load: function(data){
-				if(data.charAt(0)!='[' && data.charAt(data.length-1)!=']')
-				{
-					if(!self.cipher)
-					{
-						self.error("Encryption not set!")
-						return;
-					}
-					else
-					{
-						var decrypted=self.cipher.decrypt(data);
-						var len=decrypted.length;
-						while(len>0 && decrypted.charAt(len-1)<' ')
-							len--;
-						decrypted=decrypted.substring(0, len);
-						data=decrypted;
-					}
-				}
-				var originalData = data;
-				try {
-					data=__dojo.eval(data);
-				} catch (err) {
-					console.log("ERROR WITH JAVASCRIPT EVAL! ",err, originalData);
-					throw new Error("Error with js eval: "+err.message);
-				}
-				self.validateJson(data);
-				self.processEvents(data);
+				self._processAjaxInput(data);
 			},
 			error: function(error){
 				self.appLoaded();
@@ -429,6 +410,39 @@ dojo.declare("prisms.PrismsLink", null, {
 		if(xhrArgs)
 			dojo.mixin(args, xhrArgs);
 		dojo.xhrPost(args);
+	},
+
+	_processAjaxInput: function(data){
+		if((data.charAt(0)!='[' || data.charAt(data.length-1)!=']')
+			&& (data.charAt(0)!='{' || data.charAt(data.length-1)!='}'))
+		{
+			if(!this.cipher)
+			{
+				this.error( "Encryption not set!" );
+				return;
+			}
+			else
+			{
+				var decrypted=this.cipher.decrypt(data);
+				var len=decrypted.length;
+				while(len>0 && decrypted.charAt(len-1)<' ')
+					len--;
+				decrypted=decrypted.substring(0, len);
+				data=decrypted;
+			}
+		}
+		var originalData = data;
+		try {
+			data=dojo.eval(data);
+		} catch (err) {
+			console.log("ERROR WITH JAVASCRIPT EVAL! ",err, originalData);
+			throw new Error("Error with js eval: "+err.message);
+		}
+		this.validateJson(data);
+		if(originalData.charAt(0)=='[')
+			this.processEvents(data);
+		else if(originalData.charAt(0)=='{')
+			this.processEvent(data);
 	},
 
 	callServer: function(method, params, xhrArgs){
