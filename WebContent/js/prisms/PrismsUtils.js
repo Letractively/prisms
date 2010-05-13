@@ -64,6 +64,15 @@ window.PrismsUtils =  {
 		return str;
 	},
 
+	setTableVisible: function(table, show){
+		if(__dojo.isIE > 6 && show)
+			table.style.display="block";
+		else if(show)
+			table.style.display="table";
+		else
+			table.style.display="none";
+	},
+
 	setTableRowVisible: function(row, show) {
 		if(dojo.isIE > 6 && show)
 			row.style.display="block";
@@ -156,5 +165,144 @@ window.PrismsUtils =  {
 					+" special character(s) (&, *, _, @, etc.)";
 		}
 		return null;
+	},
+
+	/**
+	 * Ported from prisms.util.ArrayUtils.adjust(T1 [], T2 [], DifferenceListenerE<T1, T2, E>)
+	 */
+	adjust: function(original, modifier, dl)
+	{
+		var oMappings = new Array(original.length);
+		var mMappings = new Array(modifier.length);
+		var o, m, r;
+		for(o=0;o<oMappings.length;o++)
+			oMappings[o]=0;
+		for(m = 0; m < mMappings.length; m++)
+			mMappings[m] = -1;
+		r = original.length + modifier.length;
+		var crossMapping = false;
+		for(o = 0; o < original.length; o++)
+		{
+			oMappings[o] = -1;
+			for(m = 0; m < modifier.length; m++)
+			{
+				if(mMappings[m] >= 0)
+					continue;
+				if(dl.identity(original[o], modifier[m]))
+				{
+					crossMapping = true;
+					oMappings[o] = m;
+					mMappings[m] = o;
+					r--;
+					break;
+				}
+			}
+		}
+		var ret = new Array(r);
+		var incMods = new Array(original.length);
+		for(var i = 0; i < incMods.length; i++)
+			incMods[i] = i;
+		r = 0;
+		o = 0;
+		m = 0;
+		if(crossMapping)
+		{
+			/* If there are items that match, remove the items in the original that occur before
+			 * the first match */
+			for(; o < original.length && oMappings[o] < 0; o++)
+			{
+				ret[r] = dl.removed(original[o], o, incMods[o], r);
+				if(ret[r] != null)
+					r++;
+				else
+				{ // Adjust the incremental modification indexes
+					for(var i = o + 1; i < incMods.length; i++)
+						incMods[i]--;
+				}
+			}
+		}
+		else
+		{
+			/* If there were no matches, we want to remove the original items before the modifiers */
+			for(o = 0; o < original.length; o++)
+			{
+				ret[r] = dl.removed(original[o], o, incMods[o], r);
+				if(ret[r] != null)
+					r++;
+				else
+				{
+					for(var i = o + 1; i < incMods.length; i++)
+						incMods[i]--;
+				}
+			}
+		}
+		for(m = 0; m < modifier.length; m++)
+		{
+			/* Add or set each modifier
+			 */
+			o = mMappings[m];
+			if(o >= 0)
+			{
+				ret[r] = dl.set(original[o], o, incMods[o], modifier[m], m, r);
+				if(ret[r] != null)
+				{
+					// Adjust the incremental modification indexes
+					var incMod = incMods[o];
+					if(r > incMod)
+					{ // Element moved forward--decrement incMods up to the new index
+						for(var i = 0; i < incMods.length; i++)
+							if(incMods[i] >= incMod && incMods[i] <= r)
+								incMods[i]--;
+					}
+					else if(r < incMod)
+					{ // Element moved backward--increment incMods up to the original index
+						for(var i = 0; i < incMods.length; i++)
+							if(incMods[i] >= r && incMods[i] < incMod)
+								incMods[i]++;
+					}
+					r++;
+				}
+				else
+				{
+					for(var i = 0; i < incMods.length; i++)
+						if(incMods[i] >= r)
+							incMods[i]--;
+				}
+			}
+			else
+			{
+				ret[r] = dl.added(modifier[m], m, r);
+				if(ret[r] != null)
+				{
+					r++;
+					// Adjust the incremental modification indexes
+					for(var i = 0; i < incMods.length; i++)
+					{
+						if(incMods[i] >= r)
+							incMods[i]++;
+					}
+				}
+			}
+			if(o >= 0)
+			{
+				/* After each modifier, remove the originals that occur before the next match */
+				for(o++; o < original.length && oMappings[o] < 0; o++)
+				{
+					ret[r] = dl.removed(original[o], o, incMods[o], r);
+					if(ret[r] != null)
+						r++;
+					else
+					{ // Adjust the incremental modification indexes
+						for(var i = o + 1; i < incMods.length; i++)
+							incMods[i]--;
+					}
+				}
+			}
+		}
+
+		var actualRet = new Array(r);
+		for(var i=0;i<r;i++)
+			actualRet[i]=ret[i];
+		return actualRet;
 	}
 }
