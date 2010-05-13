@@ -108,8 +108,8 @@ dojo.declare("prisms.widget.LayerConfigurator", prisms.widget.PrismsDialog, {
 		this.dataLock=true;
 		try{
 			this.setTitle("Configure WMS Layer: "+layer.name);
-			this.wmsConfigTable.style.display="table";
-			this.layerListTable.style.display="none";
+			PrismsUtils.setTableVisible(this.wmsConfigTable, true);
+			PrismsUtils.setTableVisible(this.layerListTable, false);
 			this.clearListeners();
 			var table=this.wmsConfigTable;
 			while(table.rows.length>3)

@@ -107,6 +107,12 @@ dojo.declare("prisms.widget.CenterEditor", [dijit._Widget, dijit._Templated, dij
 		this.center=center;
 		this.dataLock=true;
 		try{
+			if (center.name==null)
+				center.name="";
+			if (center.url==null)
+				center.url="";
+			if (center.serverUserName==null)
+				center.serverUserName="";
 			this.nameField.value=center.name;
 			this.urlField.value=center.url;
 			this.serverUserField.value=center.serverUserName;

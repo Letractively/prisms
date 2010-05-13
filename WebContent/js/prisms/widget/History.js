@@ -70,7 +70,8 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 			this.ageEditor.setDisabled(true);
 		}
 		this.excludeUsers.disabled=!enabled;
-		this.excludeTypes.disabled=!enabled;
+		if (this.excludeTypes != null && typeof this.excludeTypes == "object")
+			this.excludeTypes.disabled=!enabled;
 		this.autoPurgeButton.setAttribute("disabled", !enabled);
 		this.purgeSelected.setAttribute("disabled", !enabled);
 	},
@@ -124,24 +125,28 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 			else
 				this.excludeUsers.add(option, null);
 		}
-
-		while(this.excludeTypes.options.length>0)
-			this.excludeTypes.remove(this.excludeTypes.options.length-1);
-		for(var i=0;i<purge.allTypes.length;i++)
-		{
-			var option=document.createElement("option");
-			option.text=purge.allTypes[i];
-			for(var j=0;j<purge.excludeTypes.length;j++)
-				if(purge.excludeTypes[j]==purge.allTypes[i])
-				{
-					option.selected=true;
-					break;
-				}
-			if(dojo.isIE > 6)
-				this.excludeTypes.add(option);
-			else
-				this.excludeTypes.add(option, null);
-		}
+		
+		if (this.excludeTypes != null && typeof this.excludeTypes == "object") {
+			while(this.excludeTypes.options.length>0)
+					this.excludeTypes.remove(this.excludeTypes.options.length-1);
+			
+			for(var i=0;i<purge.allTypes.length;i++)
+			{
+				var option=document.createElement("option");
+				option.text=purge.allTypes[i];
+				for(var j=0;j<purge.excludeTypes.length;j++)
+					if(purge.excludeTypes[j]==purge.allTypes[i])
+					{
+						option.selected=true;
+						break;
+					}
+				if(dojo.isIE > 6)
+					this.excludeTypes.add(option);
+				else
+					this.excludeTypes.add(option, null);
+			}
+		}	
+		
 		} finally{
 			this.dataLock=false;
 		}
@@ -270,6 +275,10 @@ dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, dijit._Templated
 	_excludeTypesChanged: function(index, selected){
 		if(this.dataLock)
 			return;
+		
+		if (this.excludeTypes == null || typeof this.excludeTypes != "object")
+			 return;	
+		 
 		if(typeof index=="number")
 		{ // The prisms.widget.MultiSelect widget
 			var name=this.excludeTypes.options[index].text;
