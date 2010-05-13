@@ -45,6 +45,10 @@ dojo.declare("prisms.widget.ListModel", null, {
 			this.setVisible(event.visible);
 		else if(event.method=="setSelectionMode")
 			this.selectionMode=event.selectionMode;
+		else if(event.method=="setFilter")
+			this.setFilter(event.filter);
+		else if(event.method=="setFilteredItems")
+			this.setFilteredItems(event.ids);
 		else
 			throw new Error("Unrecognized event: "+this.prisms.toJson(event));
 	},
@@ -92,6 +96,15 @@ dojo.declare("prisms.widget.ListModel", null, {
 	 * Just a callback for the tree
 	 */
 	onChildrenChange: function(parent, newChildrenList){
+	},
+
+	setFilter: function(filter){
+	},
+
+	/**
+	 * Callback for SearchableList
+	 */
+	setFilteredItems: function(ids){
 	},
 
 	setItems: function(items){
