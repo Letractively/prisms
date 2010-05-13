@@ -43,7 +43,7 @@ dojo.declare("prisms.widget.PrismsDialogUnderlay", dijit.DialogUnderlay, {
 		else
 		{
 			parentNode=node;
-			while(parentNode.parentNode!=document.body)
+			while(this.isStatic(parentNode.parentNode))
 				parentNode=parentNode.parentNode;
 			this._layoutParentNode=parentNode;
 		}
@@ -52,6 +52,15 @@ dojo.declare("prisms.widget.PrismsDialogUnderlay", dijit.DialogUnderlay, {
 		ret.l=ret.x-parentCoords.x;
 		ret.t=ret.y-parentCoords.y;
 		return ret;
+	},
+
+	isStatic: function(node){
+		if(node==document.body)
+			return false;
+		var pos=node.style.position;
+		if(!pos || pos=="static" || pos=="inherit")
+			return true;
+		return false;
 	}
 });
 
