@@ -82,8 +82,8 @@ dojo.declare("prisms.widget.LayerConfigurator", prisms.widget.PrismsDialog, {
 	setLayers: function(layers){
 		this.containerNode.style.height="";
 		this.setTitle("Configure Map Layers");
-		this.wmsConfigTable.style.display="none";
-		this.layerListTable.style.display="table";
+		PrismsUtils.setTableVisible(this.wmsConfigTable, false);
+		PrismsUtils.setTableVisible(this.layerListTable, true);
 		this.clearListeners();
 		var table=this.layerListTable;
 		while(table.rows.length>0)
