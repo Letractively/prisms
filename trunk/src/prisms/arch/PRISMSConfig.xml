@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <server>
+	<security>
+		<timeout minutes="15" />
+		<!-- <refresh minutes="15" /> -->
+		<loginOnce>true</loginOnce>
+		<!-- <validation-trusted>true</validation-trusted> -->
+	</security>
 	<serializer>prisms.arch.JsonSerializer</serializer>
+	<encryption>
+		<class>prisms.arch.BlowfishEncryption</class>
+	</encryption>
 	<persisterFactory>
 		<class>prisms.impl.DefaultPersisterFactory</class>
 		<connection>
@@ -15,7 +24,5 @@
 		<class>prisms.impl.DBUserSource</class>
 		<connection name="PRISMS" />
 		<anonymous>anonymous</anonymous>
-		<!-- 30 days -->
-		<passwordReset>2592000000</passwordReset>
 	</datasource>
 </server>
