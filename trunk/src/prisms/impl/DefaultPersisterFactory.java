@@ -201,12 +201,10 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				log.error("Could not close connection", e);
 			}
 		}
-		String name = connEl.attributeValue("name");
-		if(name == null)
-			name = connEl.elementTextTrim("name");
-		if(name != null)
+		String ref = connEl.attributeValue("ref");
+		if(ref != null)
 		{
-			java.sql.Connection ret = theNamedConnections.get(name);
+			java.sql.Connection ret = theNamedConnections.get(ref);
 			if(ret != null)
 			{
 				/* This connection is managed by the persister factory--we'll close it when
@@ -228,6 +226,9 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			log.error("Connection error", e);
 			closed = true;
 		}
+		String name = connEl.attributeValue("name");
+		if(name == null)
+			name = connEl.elementTextTrim("name");
 		if(closed)
 		{
 			log
