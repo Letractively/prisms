@@ -1,10 +1,10 @@
 
-__dojo.require("dijit.form.TextBox");
-__dojo.require("prisms.PrismsUtils");
+dojo.require("dijit.form.TextBox");
+dojo.require("prisms.PrismsUtils");
 
-__dojo.declare("prisms.widget._SearchableListNode", [__dijit._Widget, __dijit._Templated], {
+dojo.declare("prisms.widget._SearchableListNode", [dijit._Widget, dijit._Templated], {
 
-	templatePath: "__webContentRoot/view/prisms/templates/searchableListNode.html",
+	templatePath: "/prisms/view/prisms/templates/searchableListNode.html",
 
 	item: null,
 
@@ -21,10 +21,10 @@ __dojo.declare("prisms.widget._SearchableListNode", [__dijit._Widget, __dijit._T
 		if(typeof item.icon == "string" && item.icon!="")
 		{
 			if(item.icon.charAt(0)=='{')
-				item.icon=__dojo.eval("["+item.icon+"]")[0];
+				item.icon=dojo.eval("["+item.icon+"]")[0];
 		}
 		if(typeof item.icon=="string")
-			this.iconNode.src="__webContentRoot/rsrc/icons/"+item.icon+".png";
+			this.iconNode.src="/prisms/rsrc/icons/"+item.icon+".png";
 		else if(typeof item.icon=="object" && item.icon!=null)
 			this.iconNode.src=this.tree.model.prisms.getDynamicImageSource(item.icon.plugin,
 				item.icon.method, 0, 0, 16, 16, 16, 16);
@@ -48,7 +48,7 @@ __dojo.declare("prisms.widget._SearchableListNode", [__dijit._Widget, __dijit._T
 	}
 });
 
-__dojo.declare("prisms.widget._SearchListMenuItem", __dijit.MenuItem, {
+dojo.declare("prisms.widget._SearchListMenuItem", dijit.MenuItem, {
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
 		if(!this.list)
@@ -66,14 +66,14 @@ __dojo.declare("prisms.widget._SearchListMenuItem", __dijit.MenuItem, {
 	}
 });
 
-__dojo.provide("prisms.widget.SearchableList");
-__dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templated], {
+dojo.provide("prisms.widget.SearchableList");
+dojo.declare("prisms.widget.SearchableList", [dijit._Widget, dijit._Templated], {
 
 	searchPrisms: true,
 
 	model: null,
 
-	templatePath: "__webContentRoot/view/prisms/templates/searchableList.html",
+	templatePath: "/prisms/view/prisms/templates/searchableList.html",
 	
 	widgetsInTemplate: true,
 
@@ -84,24 +84,24 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 		this.items=[];
 		this.filter=null;
 		this.menuItemCache=[];
-		this.prismsMenu=new __dijit.Menu({});
+		this.prismsMenu=new dijit.Menu({});
 		this.prismsMenu.bindDomNode(this.domNode);
-		__dojo.connect(this.domNode, "onclick", this, this.onClick);
+		dojo.connect(this.domNode, "onclick", this, this.onClick);
 		if(this.model.setVisible) {
-			__dojo.connect(this.model, "setVisible", this, this.setVisible);
+			dojo.connect(this.model, "setVisible", this, this.setVisible);
 		}
-		__dojo.connect(this.prismsMenu, "_openMyself", this, this.addMenuItems);
+		dojo.connect(this.prismsMenu, "_openMyself", this, this.addMenuItems);
 		this.actionLead=document.createElement("div");
 		this.actionLead.style.position="absolute";
 		this.actionIcon=document.createElement("div");
 		this.actionLead.appendChild(this.actionIcon);
 		this.actionIcon.style.position="relative";
-		this.actionIcon.style.backgroundImage="url(__webContentRoot/rsrc/icons/prisms/actionIcon.png)";
+		this.actionIcon.style.backgroundImage="url(/prisms/rsrc/icons/prisms/actionIcon.png)";
 		this.actionIcon.style.top="-18px";
 		this.actionIcon.style.left="-4px";
 		this.actionIcon.style.width="10px";
 		this.actionIcon.style.height="6px";
-		__dojo.connect(this.actionIcon, "onmouseover", this, this.showActions);
+		dojo.connect(this.actionIcon, "onmouseover", this, this.showActions);
 
 
 		if(!this.prisms && this.searchPrisms)
@@ -131,21 +131,21 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 				self.setItems(items);
 			});
 		});
-		__dojo.connect(this.model, "onChildrenChange", this, function(parent, newChildren){
+		dojo.connect(this.model, "onChildrenChange", this, function(parent, newChildren){
 			if(parent!=this.titleNode.item)
 				return;
 			this.setItems(newChildren);
 		});
-		__dojo.connect(this.model, "onChange", this, function(item){
+		dojo.connect(this.model, "onChange", this, function(item){
 			if(item==this.titleNode.item)
 				this.rootChanged(item);
 			else
 				this.changed(item);
 		});
-		__dojo.connect(this.model, "setFilter", this, function(filter){
+		dojo.connect(this.model, "setFilter", this, function(filter){
 			this.filterText.setValue(filter);
 		});
-		__dojo.connect(this.model, "setFilteredItems", this, function(ids){
+		dojo.connect(this.model, "setFilteredItems", this, function(ids){
 			this.setFilteredItems(ids);
 		});
 	},
@@ -168,20 +168,37 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 
 			added: function(item, idx2, retIdx){
 				var ret=self.createNode(item);
-				var tr=self.domNode.rows[retIdx+1];
-				if(tr.nextSibling)
-					tr.parentNode.insertBefore(ret.domNode, tr.nextSibling);
-				else
+				var tr;
+				if(self.contentTable.rows.length==0)
+				{
+					tr=self.contentTable.insertRow(0);
 					tr.parentNode.appendChild(ret.domNode);
+					self.contentTable.deleteRow(0);
+				}
+				else
+				{
+					if(self.contentTable.rows.length==retIdx)
+					{
+						tr=self.contentTable.rows[retIdx-1];
+						tr.parentNode.appendChild(ret.domNode);
+					}
+					else
+					{
+						tr=self.contentTable.rows[retIdx];
+						tr.parentNode.insertBefore(ret.domNode, tr);
+					}
+				}
 				return ret;
 			},
 
 			removed: function(node, idx1, incMod, retIdx){
-				node.domNode.parentNode.deleteRow(incMod+2);
+				node.domNode.parentNode.deleteRow(incMod);
 				return null;
 			},
 
 			set: function(node, idx1, item, idx2, incMod, retIdx){
+				if(incMod!=retIdx)
+					node.domNode.parentNode.insertBefore(node.domNode, self.contentTable.rows[retIdx]);
 				return node;
 			}
 		});
@@ -241,7 +258,7 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 	},
 
 	onClick: function(evt){
-		var tn = __dijit.getEnclosingWidget(evt.target);
+		var tn = dijit.getEnclosingWidget(evt.target);
 		if(tn==this.filterText)
 			return;
 		if(tn && tn.isSearchNode)
@@ -275,8 +292,8 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 	addMenuItems: function(e){
 		if(e)
 		{
-			__dojo.stopEvent(e);
-			var tn = __dijit.getEnclosingWidget(e.target);	
+			dojo.stopEvent(e);
+			var tn = dijit.getEnclosingWidget(e.target);	
 			if(tn && tn.isSearchNode){
 				if(this.selection!=tn)
 					this.setSelection(tn);
