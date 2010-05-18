@@ -102,7 +102,7 @@ public class UserGroups extends SelectableList<UserGroup>
 			{
 				UserGroup group = (UserGroup) evt.getProperty("group");
 				for(int i = 0; i < getItemCount(); i++)
-					if(getItem(i) instanceof prisms.ui.list.SelectableList.ItemNode
+					if(getItem(i) instanceof prisms.ui.list.SelectableList<?>.ItemNode
 						&& ((ItemNode) getItem(i)).getObject().equals(group))
 					{
 						((ItemNode) getItem(i)).check();
@@ -157,7 +157,7 @@ public class UserGroups extends SelectableList<UserGroup>
 			UserGroup selected = null;
 			for(int i = 0; i < nodes.length; i++)
 			{
-				if(nodes[i] instanceof prisms.ui.list.SelectableList.ItemNode)
+				if(nodes[i] instanceof prisms.ui.list.SelectableList<?>.ItemNode)
 				{
 					if(selected != null)
 					{

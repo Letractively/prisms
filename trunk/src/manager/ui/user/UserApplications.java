@@ -16,9 +16,6 @@ import prisms.ui.list.SelectableList;
  */
 public class UserApplications extends SelectableList<PrismsApplication>
 {
-	/**
-	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	@Override
 	public void initPlugin(PrismsSession session, Element pluginEl)
 	{
@@ -50,7 +47,7 @@ public class UserApplications extends SelectableList<PrismsApplication>
 			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
 			{
 				for(int i = 0; i < getItemCount(); i++)
-					if(getItem(i) instanceof SelectableList.ItemNode
+					if(getItem(i) instanceof SelectableList<?>.ItemNode
 						&& ((ItemNode) getItem(i)).getObject().equals(evt.getProperty("app")))
 						((ItemNode) getItem(i)).check();
 			}

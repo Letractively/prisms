@@ -54,7 +54,7 @@ public class AllApplicationsList extends prisms.ui.list.SelectableList<PrismsApp
 			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
 			{
 				for(int i = 0; i < getItemCount(); i++)
-					if(getItem(i) instanceof prisms.ui.list.SelectableList.ItemNode
+					if(getItem(i) instanceof prisms.ui.list.SelectableList<?>.ItemNode
 						&& ((ItemNode) getItem(i)).getObject().equals(evt.getProperty("app")))
 						((ItemNode) getItem(i)).check();
 			}

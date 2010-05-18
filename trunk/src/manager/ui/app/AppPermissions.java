@@ -154,7 +154,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 		for(int i = 0; i < getItemCount(); i++)
 		{
 			prisms.ui.list.DataListNode item = getItem(i);
-			if(item instanceof prisms.ui.list.SelectableList.ItemNode
+			if(item instanceof prisms.ui.list.SelectableList<?>.ItemNode
 				&& ((ItemNode) item).getObject().getName().equals(permName))
 				return true;
 		}
@@ -211,7 +211,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 			Permission selected = null;
 			for(int i = 0; i < nodes.length; i++)
 			{
-				if(nodes[i] instanceof prisms.ui.list.SelectableList.ItemNode)
+				if(nodes[i] instanceof prisms.ui.list.SelectableList<?>.ItemNode)
 				{
 					if(selected != null)
 					{
