@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <application>
-	<version>1.0.4</version>
-	<modified>12Nov2009</modified>
+	<version>1.3.0</version>
+	<modified>13May2010</modified>
 	<worker>
 		<type>threadpool</type>
 	</worker>
@@ -75,5 +75,8 @@
 		</event>
 	</events>
 	<monitors>
+		<monitor>
+			<class>manager.app.ManagerMonitor</class>
+		</monitor>
 	</monitors>
 </application>

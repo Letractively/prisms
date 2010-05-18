@@ -85,8 +85,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		final HttpServletResponse theResponse;
 
-		String securityTag;
-
 		String sessionID;
 
 		String serverMethod;
@@ -113,7 +111,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			theRequest = req;
 			theResponse = resp;
-			securityTag = req.getParameter("securityTag");
 			sessionID = req.getParameter("sessionID");
 			serverMethod = req.getParameter("method");
 			userName = req.getParameter("user");
@@ -155,8 +152,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						clientName = (String) data.get("service");
 					if(userName == null)
 						userName = (String) data.get("user");
-					if(securityTag == null)
-						securityTag = (String) data.get("securityTag");
 					if(sessionID == null)
 						sessionID = (String) data.get("sessionID");
 				} catch(Exception e)
@@ -167,8 +162,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			if(clientName == null)
 				clientName = "WMS";
-			if(securityTag == null)
-				securityTag = appName + "/" + clientName + "/" + userName + "/WMS";
 			if(sessionID != null)
 				sessionID = userName + "/" + appName + "/" + clientName + "/" + "WMS";
 			return null;
@@ -272,7 +265,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			long time = System.currentTimeMillis();
 			theLastUsed = time;
-			if(time - userLastChecked < theUserCheckPeriod)
+			if(isTrusted() || time - userLastChecked < theUserCheckPeriod)
 				return;
 			userLastChecked = time;
 			theAnonymousUser = getUserSource().getUser(null);
@@ -329,7 +322,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(theUser.isLocked())
 				return error(req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
 					+ "\" is locked. Contact your admin.", false);
-			if(!ArrayUtils.contains(theAccessApps, req.appName))
+			if(!isTrusted() && !ArrayUtils.contains(theAccessApps, req.appName))
 			{
 				try
 				{
@@ -412,12 +405,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						"Anonymous access forbidden for client " + req.client.getName()
 							+ " of application " + req.app.getName() + ".  Please log in.");
 			}
-			else if(!hasLoggedIn || !isLoginOnce() || req.client.isService()
-				|| !theHttpSession.isSecure())
-			{
-				return sendLogin(req, "Login required for user \"" + theUser.getName() + "\"",
-					"init".equals(req.serverMethod), false);
-			}
+			else if(!isTrusted()
+				&& (!hasLoggedIn || !isLoginOnce() || req.client.isService() || !theHttpSession
+					.isSecure()))
+				return sendLogin(req, null, "init".equals(req.serverMethod), false);
 
 			RemoteEventSerializer serializer = req.client.getSerializer();
 			if(serializer == null)
@@ -547,7 +538,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				return error(req, ErrorCode.ServerError, "Could not get password expiration: "
 					+ e.getMessage(), true);
 			}
-			if(pwdExp > 0 && pwdExp < System.currentTimeMillis())
+			if(!isTrusted() && pwdExp > 0 && pwdExp < System.currentTimeMillis())
 			{
 				if(req.isWMS)
 					return error(req, ErrorCode.ValidationFailed,
@@ -654,10 +645,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		private PrismsResponse sendLogin(PrismsRequest req, String error, boolean postInit,
 			boolean isError)
 		{
+			if(theEncryption == null)
+				return error(req, ErrorCode.ValidationFailed, "User " + req.userName
+					+ " does not have a password set--consult your admin", false);
 			JSONObject evt = new JSONObject();
 			evt.put("method", "startEncryption");
-			if(theEncryption != null)
-				evt.put("encryption", theEncryption.getParams());
+			evt.put("encryption", theEncryption.getParams());
 			JSONObject hashing = theHashing.toJson();
 			hashing.put("user", theUser.getName());
 			evt.put("hashing", hashing);
@@ -1392,11 +1385,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 		}
 
-		boolean isTimedOut()
-		{
-			return System.currentTimeMillis() - theLastUsed > getSecurityTimeout();
-		}
-
 		boolean check()
 		{
 			boolean remove = false;
@@ -1477,6 +1465,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	private long theSecurityRefresh;
 
 	private boolean loginOnce;
+
+	private boolean isTrusted;
 
 	/**
 	 * Creates a PRISMS server with default logging configuration
@@ -1595,6 +1585,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
+	 * @return Whether this server assumes that requests given it have already been authentication
+	 *         through another architecture
+	 */
+	public boolean isTrusted()
+	{
+		return isTrusted;
+	}
+
+	/**
 	 * @return The XML to use to configure this server
 	 */
 	protected org.dom4j.Element getConfigXML()
@@ -1664,9 +1663,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theSecurityRefresh = ((hours * 60L + minutes) * 60 + seconds) * 1000;
 		}
 		if(securityEl != null)
+		{
 			loginOnce = "true".equalsIgnoreCase(securityEl.elementTextTrim("loginOnce"));
+			isTrusted = "true".equalsIgnoreCase(securityEl.elementTextTrim("validation-trusted"));
+		}
 		else
+		{
 			loginOnce = false;
+			isTrusted = false;
+		}
 
 		theEncryptionProperties = new java.util.HashMap<String, String>();
 		org.dom4j.Element encryptionEl = configEl.element("encryption");
@@ -1774,6 +1779,21 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				pReq.send(events);
 				return;
 			}
+		}
+		if(req.getParameterValues("user").length > 1)
+		{
+			/* If multiple user names are sent in the request, it could be an attacker attempting
+			 * to take advantage of the trust relationship this PRISMS server has with the
+			 * application server. It must be caught and rejected. */
+			String [] userNames = req.getParameterValues("user");
+			for(String un : userNames)
+				if(!un.equals(pReq.userName))
+				{
+					events.add(error(ErrorCode.RequestInvalid,
+						"Multiple user names sent in request"));
+					pReq.send(events);
+					return;
+				}
 		}
 
 		// Configure the server if it has not been yet
@@ -1983,12 +2003,31 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return error(ErrorCode.ServerError, "Could not get user \"" + req.userName + "\": "
 				+ e.getMessage());
 		}
+		if(req.user == null && isTrusted())
+		{
+			if(theUserSource instanceof prisms.arch.ds.ManageableUserSource)
+			{
+				try
+				{
+					req.user = ((prisms.arch.ds.ManageableUserSource) theUserSource)
+						.createUser(req.userName);
+				} catch(PrismsException e)
+				{
+					log.error("Could not create new user " + req.userName, e);
+					return toEvent("login", "error", "Cannot create user " + req.userName);
+				}
+				if(req.user == null)
+					return toEvent("login", "error", "Cannot create user " + req.userName);
+			}
+			else
+				return toEvent("login", "error", "Cannot create users");
+		}
 		if(req.user == null)
 		{
 			if(req.userName == null)
-				return error(ErrorCode.ValidationFailed, "No anonymous user configured");
+				return toEvent("login", "error", "No anonymous user configured");
 			else
-				return error(ErrorCode.ValidationFailed, "No such user \"" + req.userName + "\"");
+				return toEvent("login", "error", "No such user \"" + req.userName + "\"");
 		}
 		try
 		{
