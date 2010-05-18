@@ -95,13 +95,13 @@ dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, dijit._Templated, d
 			this.nameField.setValue(value.name);
 			if(value.passwordExpiration)
 			{
-				this.passwordExpirationTable.style.display="table";
+				PrismsUtils.setTableVisible(this.passwordExpirationTable, true);
 				this.passwordExpiration.setValue(value.passwordExpiration);
 				this.passwordExpireCheck.setValue(true);
 			}
 			else
 			{
-				this.passwordExpirationTable.style.display="none";
+				PrismsUtils.setTableVisible(this.passwordExpirationTable, false);
 				this.passwordExpiration.setValue(new Date().getTime());
 				this.passwordExpireCheck.setValue(false);
 			}
