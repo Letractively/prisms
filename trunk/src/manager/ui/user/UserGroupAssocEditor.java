@@ -173,9 +173,9 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			&& theGroup.getName().equals("userAdmin"))
 			throw new IllegalStateException("A user cannot remove himself from the userAdmin group");
 		if(isMember)
-			theUser.removeFrom(theGroup);
-		else
 			theUser.addTo(theGroup);
+		else
+			theUser.removeFrom(theGroup);
 		try
 		{
 			((ManageableUserSource) us).putUser(theUser);
