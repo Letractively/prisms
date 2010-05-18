@@ -302,7 +302,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 
 	public boolean equals(Object o)
 	{
-		if(!(o instanceof Preference))
+		if(!(o instanceof Preference<?>))
 			return false;
 		Preference<?> pref = (Preference<?>) o;
 		return theDomain.equals(pref.theDomain) && theName.equals(pref.theName);

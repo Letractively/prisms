@@ -90,7 +90,7 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 			Integer [] rank = new Integer [items.length];
 			for(int i = 0; i < items.length; i++)
 			{
-				if(items[i] instanceof SelectableList.ItemNode)
+				if(items[i] instanceof SelectableList<?>.ItemNode)
 					rank[i] = new Integer(getFilterDistance(((ItemNode) items[i]).getObject(),
 						filter));
 				else

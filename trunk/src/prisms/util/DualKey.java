@@ -3,7 +3,6 @@
  */
 package prisms.util;
 
-
 /**
  * Implements a map key with two hashable components. Hashing is done using the {@link ArrayUtils}
  * class, so arrays of hashable objects may be used for the component keys.
@@ -47,7 +46,7 @@ public class DualKey<K1, K2>
 
 	public boolean equals(Object o)
 	{
-		if(!(o instanceof DualKey))
+		if(!(o instanceof DualKey<?, ?>))
 			return false;
 		return ArrayUtils.equals(((DualKey<?, ?>) o).theKey1, theKey1)
 			&& ArrayUtils.equals(((DualKey<?, ?>) o).theKey2, theKey2);
