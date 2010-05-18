@@ -105,7 +105,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 				if(getSession().getUser().getName().equals(user.getName()))
 					initClient();// Refresh this tree to take new permissions changes into account
 				for(int i = 0; i < getItemCount(); i++)
-					if(getItem(i) instanceof prisms.ui.list.SelectableList.ItemNode
+					if(getItem(i) instanceof prisms.ui.list.SelectableList<?>.ItemNode
 						&& ((ItemNode) getItem(i)).getObject().equals(user))
 					{
 						((ItemNode) getItem(i)).check();

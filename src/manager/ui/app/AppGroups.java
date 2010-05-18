@@ -103,7 +103,7 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 			{
 				UserGroup group = (UserGroup) evt.getProperty("group");
 				for(int i = 0; i < getItemCount(); i++)
-					if(getItem(i) instanceof prisms.ui.list.SelectableList.ItemNode
+					if(getItem(i) instanceof prisms.ui.list.SelectableList<?>.ItemNode
 						&& ((ItemNode) getItem(i)).getObject().equals(group))
 					{
 						((ItemNode) getItem(i)).check();
@@ -127,7 +127,7 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 		for(int i = 0; i < getItemCount(); i++)
 		{
 			prisms.ui.list.DataListNode item = getItem(i);
-			if(item instanceof prisms.ui.list.SelectableList.ItemNode
+			if(item instanceof prisms.ui.list.SelectableList<?>.ItemNode
 				&& ((ItemNode) item).getObject().getName().equals(groupName))
 				return true;
 		}
