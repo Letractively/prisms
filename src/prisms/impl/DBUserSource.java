@@ -1914,7 +1914,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(update.length() > 0)
 		{
 			update = update.substring(0, update.length() - 2);
-			String sql = "UPDATE " + DBOWNER + "prisms_user SET " + update;
+			String sql = "UPDATE " + DBOWNER + "prisms_user SET " + update + " WHERE id="
+				+ dbUser.getID();
 			try
 			{
 				stmt.executeUpdate(sql);
@@ -2012,7 +2013,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			if(!rs.next())
 				return null;
 			DBGroup ret = new DBGroup(this, rs.getString("groupName"), app, id);
-			ret.setDescription(rs.getString("description"));
+			ret.setDescription(rs.getString("groupDescrip"));
 			ret.setDeleted(boolFromSql(rs.getString("deleted")));
 			rs.close();
 			rs = null;
@@ -2087,7 +2088,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(update.length() > 0)
 		{
 			update = update.substring(0, update.length() - 2);
-			String sql = "UPDATE " + DBOWNER + "prisms_user_group SET " + update;
+			String sql = "UPDATE " + DBOWNER + "prisms_user_group SET " + update + " WHERE id="
+				+ dbGroup.getID();
 			try
 			{
 				stmt.executeUpdate(sql);
@@ -2235,7 +2237,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(sql.length() > 0)
 		{
 			sql = "UPDATE " + DBOWNER + "prisms_permission SET "
-				+ sql.substring(0, sql.length() - 2);
+				+ sql.substring(0, sql.length() - 2) + " WHERE id=" + dbPerm.getID();
 			try
 			{
 				stmt.executeUpdate(sql);
@@ -2398,7 +2400,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(update.length() > 0)
 		{
 			update = update.substring(0, update.length() - 2);
-			String sql = "UPDATE " + DBOWNER + "prisms_application SET " + update;
+			String sql = "UPDATE " + DBOWNER + "prisms_application SET " + update + " WHERE id="
+				+ dbApp.getID();
 			try
 			{
 				stmt.executeUpdate(sql);
@@ -2648,7 +2651,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			log.info(msg.substring(0, msg.length() - 2));
 			update = update.substring(0, update.length() - 2);
-			String sql = "UPDATE " + DBOWNER + "prisms_client_config SET " + update;
+			String sql = "UPDATE " + DBOWNER + "prisms_client_config SET " + update + " WHERE id="
+				+ dbClient.getID();
 			try
 			{
 				stmt.executeUpdate(sql);
