@@ -35,7 +35,7 @@ public class SortChangeListener<T> extends PersistingChangeListener<T []>
 		prisms.arch.event.PropertyManager<?> [] propMgrs = getSession().getApp().getManagers(
 			getProperty());
 		for(int pm = 0; pm < propMgrs.length; pm++)
-			if(propMgrs[pm] instanceof PropertySorter)
+			if(propMgrs[pm] instanceof PropertySorter<?>)
 			{
 				if(!((PropertySorter<T>) propMgrs[pm]).isValueCorrect(getSession(), getSession()
 					.getProperty(getProperty())))

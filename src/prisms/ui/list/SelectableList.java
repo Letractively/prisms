@@ -180,7 +180,7 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 			{
 				public boolean identity(DataListNode o1, T o2)
 				{
-					if(!(o1 instanceof SelectableList.ItemNode))
+					if(!(o1 instanceof SelectableList<?>.ItemNode))
 						return false;
 					return ((ItemNode) o1).getObject() == o2;
 				}
@@ -194,7 +194,7 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 
 				public DataListNode removed(DataListNode o, int index, int incMod, int retIdx)
 				{
-					if(!(o instanceof SelectableList.ItemNode))
+					if(!(o instanceof SelectableList<?>.ItemNode))
 						return o;
 					if(((ItemNode) o).isSelectedOnly())
 						return o;
@@ -228,7 +228,7 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 		newSelected = new java.util.ArrayList<ItemNode>();
 		for(int i = 0; i < getItemCount(); i++)
 		{
-			if(!(getItem(i) instanceof SelectableList.ItemNode))
+			if(!(getItem(i) instanceof SelectableList<?>.ItemNode))
 				continue;
 			boolean selected;
 			if(compareByIdentity)
@@ -251,7 +251,7 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 				continue;
 			int i;
 			for(i = 0; i < getItemCount(); i++)
-				if(getItem(i) instanceof SelectableList.ItemNode)
+				if(getItem(i) instanceof SelectableList<?>.ItemNode)
 				{
 					if(compareByIdentity && ((ItemNode) getItem(i)).getObject() == items[a])
 						break;
@@ -298,7 +298,7 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 		for(int i = 0; i < getItemCount(); i++)
 		{
 			DataListNode node = getItem(i);
-			if(node instanceof SelectableList.ItemNode && ((ItemNode) node).isSelected())
+			if(node instanceof SelectableList<?>.ItemNode && ((ItemNode) node).isSelected())
 				ret.add(((ItemNode) node).getObject());
 		}
 		return ret.toArray(array);
