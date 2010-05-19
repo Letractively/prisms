@@ -1780,7 +1780,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				return;
 			}
 		}
-		if(req.getParameterValues("user").length > 1)
+		if(req.getParameterValues("user") != null && req.getParameterValues("user").length > 1)
 		{
 			/* If multiple user names are sent in the request, it could be an attacker attempting
 			 * to take advantage of the trust relationship this PRISMS server has with the
