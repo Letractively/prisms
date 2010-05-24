@@ -1077,6 +1077,8 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 		if(!(type.subjectType instanceof PrismsChange))
 			throw new IllegalArgumentException("Unrecognized subjectType "
 				+ type.subjectType.getClass().getName());
+		if(type.changeType == null)
+			return null;
 		switch((PrismsChange) type.subjectType)
 		{
 		case center:

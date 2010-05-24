@@ -125,6 +125,8 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 
 	boolean userHasGroup()
 	{
+		if(theUser == null)
+			return false;
 		return prisms.util.ArrayUtils.contains(theUser.getGroups(), theGroup);
 	}
 

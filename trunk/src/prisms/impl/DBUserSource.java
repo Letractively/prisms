@@ -1317,8 +1317,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			rs.close();
 			rs = null;
 
-			sql = "INSERT INTO " + DBOWNER + "prisms_user_app_assoc (assocUser, assocApp) VALUES ("
-				+ ((DBUser) user).getID() + ", " + ((DBApplication) app).getID() + ")";
+			if(accessible)
+				sql = "INSERT INTO " + DBOWNER
+					+ "prisms_user_app_assoc (assocUser, assocApp) VALUES ("
+					+ ((DBUser) user).getID() + ", " + ((DBApplication) app).getID() + ")";
+			else
+				sql = "DELETE FROM " + DBOWNER + "prisms_user_app_assoc WHERE assocUser="
+					+ ((DBUser) user).getID() + " AND assocApp=" + ((DBApplication) app).getID();
 			stmt.execute(sql);
 		} catch(SQLException e)
 		{

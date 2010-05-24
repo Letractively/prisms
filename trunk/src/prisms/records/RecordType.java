@@ -39,7 +39,8 @@ public class RecordType
 		subjectType = st;
 		changeType = ct;
 		additivity = add;
-		if(changeType != null && !subjectType.getChangeTypes().isInstance(changeType))
+		if(changeType != null && subjectType.getChangeTypes() != null
+			&& !subjectType.getChangeTypes().isInstance(changeType))
 			throw new IllegalArgumentException("Change type " + changeType
 				+ " is not valid for subject type " + subjectType);
 	}
