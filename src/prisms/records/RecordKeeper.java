@@ -2284,7 +2284,7 @@ public class RecordKeeper
 		if(record.minorSubject != null && getRecords(record.minorSubject, stmt).length == 0)
 			checkItemForDelete(record.minorSubject, stmt);
 		if(record.previousValue != null && getRecords(record.previousValue, stmt).length == 0)
-			checkItemForDelete(record.minorSubject, stmt);
+			checkItemForDelete(record.previousValue, stmt);
 	}
 
 	/**
@@ -2313,21 +2313,7 @@ public class RecordKeeper
 		long [] ret = new long [0];
 		try
 		{
-			try
-			{
-				stmt = theConn.createStatement();
-			} catch(SQLException e)
-			{
-				throw new PrismsRecordException("Could not create statement", e);
-			}
-			SubjectType [] types = PrismsChange.values();
-			for(SubjectType type : types)
-			{
-				long [] temp = getRecords(type, dbObject, stmt);
-				if(temp.length > 0)
-					ret = (long []) ArrayUtils.concatP(Long.TYPE, ret, temp);
-			}
-			types = getAllDomains();
+			SubjectType [] types = getAllDomains();
 			for(SubjectType type : types)
 			{
 				long [] temp = getRecords(type, dbObject, stmt);
@@ -2394,6 +2380,8 @@ public class RecordKeeper
 					+ toSQL(ct.name()) + " AND preValueID=" + getDataID(dbObject) + ")";
 			}
 		}
+		if(where.length() == 0)
+			return new long [0];
 		return getChangeRecords(stmt, null, where, null);
 	}
 
