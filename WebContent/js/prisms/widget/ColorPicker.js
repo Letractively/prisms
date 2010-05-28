@@ -74,7 +74,6 @@ dojo.declare("prisms.widget.ColorPicker", [dijit._Widget, dijit._Templated], {
 			this.alphaSlider.setValue(value.a);
 			this.alphaBox.value=value.a;
 			var opacity=value.a/255;
-			console.log("about to set opacity");
 			if(dojo.isIE)
 			{
 				var ieOpacity=Math.round(opacity*100);

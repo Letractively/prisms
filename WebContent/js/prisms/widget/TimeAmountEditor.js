@@ -187,8 +187,6 @@ dojo.declare("prisms.widget.TimeAmountEditor", [dijit._Widget, dijit._Templated]
 	_daysSelected: function(){
 		if(!this.enabled)
 			return;
-		console.log("this.daysLink ",this.daysLink);
-		console.log("this.daysBox ",this.daysBox);
 		this.daysLink.style.display="none";
 		this.daysBox.domNode.style.display="block";
 		this.daysBox.focusNode.focus();
