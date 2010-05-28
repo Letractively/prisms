@@ -1312,13 +1312,14 @@ public final class ArrayUtils
 	 * </p>
 	 * 
 	 * <p>
-	 * <b>An Example</b><br /> Suppose there is a list, <b>L</b>, whose data can only be modified
-	 * incrementally by the methods add(value, index), remove(index), and move(fromIndex, toIndex),
-	 * but can be accessed in batch by the getData method, which returns an array of all data in the
-	 * list. Suppose the list needs to be modified to represent a new arbitrary set of data,
-	 * <b>d</b>. <b>d</b> may or may not contain elements represented in <b>L</b>. These elements,
-	 * if present, may be in different order and new items not present in <b>L</b> may be present in
-	 * <b>d</b>. To modify <b>L</b> to represent the data in <b>d</b> in the correct order, the
+	 * <b>An Example</b><br />
+	 * Suppose there is a list, <b>L</b>, whose data can only be modified incrementally by the
+	 * methods add(value, index), remove(index), and move(fromIndex, toIndex), but can be accessed
+	 * in batch by the getData method, which returns an array of all data in the list. Suppose the
+	 * list needs to be modified to represent a new arbitrary set of data, <b>d</b>. <b>d</b> may or
+	 * may not contain elements represented in <b>L</b>. These elements, if present, may be in
+	 * different order and new items not present in <b>L</b> may be present in <b>d</b>. To modify
+	 * <b>L</b> to represent the data in <b>d</b> in the correct order, the
 	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)} method should be called
 	 * with <b>L</b>.getData(), <b>d</b>, and a listener whose methods perform the following
 	 * operations:
@@ -1446,135 +1447,203 @@ public final class ArrayUtils
 	public static <T1, T2, E extends Throwable> T1 [] adjust(T1 [] original, T2 [] modifier,
 		DifferenceListenerE<T1, T2, E> dl) throws E
 	{
-		int [] oMappings = new int [original.length];
-		int [] mMappings = new int [modifier.length];
-		int o, m, r;
-		for(m = 0; m < mMappings.length; m++)
-			mMappings[m] = -1;
-		r = original.length + modifier.length;
-		boolean crossMapping = false;
-		for(o = 0; o < original.length; o++)
+		ArrayAdjuster<T1, T2, E> adjuster = new ArrayAdjuster<T1, T2, E>(original, modifier, dl);
+		adjuster.init();
+		return adjuster.adjust();
+	}
+
+	private static class ArrayAdjuster<T1, T2, E extends Throwable>
+	{
+		private final T1 [] original;
+
+		private final int [] oIdxAdj;
+
+		private final int [] oMappings;
+
+		private final T2 [] modifier;
+
+		private final int [] mMappings;
+
+		private final boolean [] entriesSet;
+
+		private final DifferenceListenerE<T1, T2, E> dl;
+
+		private int maxLength;
+
+		ArrayAdjuster(T1 [] o, T2 [] m, DifferenceListenerE<T1, T2, E> listener)
 		{
-			oMappings[o] = -1;
+			original = o;
+			oIdxAdj = new int [o.length];
+			oMappings = new int [o.length];
+			modifier = m;
+			mMappings = new int [m.length];
+			entriesSet = new boolean [m.length];
+			dl = listener;
+		}
+
+		void init() throws E
+		{
+			int o, m, r = original.length + modifier.length;
 			for(m = 0; m < modifier.length; m++)
-			{
-				if(mMappings[m] >= 0)
-					continue;
-				if(dl.identity(original[o], modifier[m]))
-				{
-					crossMapping = true;
-					oMappings[o] = m;
-					mMappings[m] = o;
-					r--;
-					break;
-				}
-			}
-		}
-		Object [] ret = new Object [r];
-		int [] incMods = new int [original.length];
-		for(int i = 0; i < incMods.length; i++)
-			incMods[i] = i;
-		r = 0;
-		o = 0;
-		m = 0;
-		if(crossMapping)
-		{
-			/* If there are items that match, remove the items in the original that occur before
-			 * the first match */
-			for(; o < original.length && oMappings[o] < 0; o++)
-			{
-				ret[r] = dl.removed(original[o], o, incMods[o], r);
-				if(ret[r] != null)
-					r++;
-				else
-				{ // Adjust the incremental modification indexes
-					for(int i = o + 1; i < incMods.length; i++)
-						incMods[i]--;
-				}
-			}
-		}
-		else
-		{
-			/* If there were no matches, we want to remove the original items before the modifiers */
+				mMappings[m] = -1;
 			for(o = 0; o < original.length; o++)
 			{
-				ret[r] = dl.removed(original[o], o, incMods[o], r);
-				if(ret[r] != null)
-					r++;
-				else
+				oIdxAdj[o] = o;
+				oMappings[o] = -1;
+				for(m = 0; m < modifier.length; m++)
 				{
-					for(int i = o + 1; i < incMods.length; i++)
-						incMods[i]--;
+					if(mMappings[m] >= 0)
+						continue;
+					if(dl.identity(original[o], modifier[m]))
+					{
+						oMappings[o] = m;
+						mMappings[m] = o;
+						r--;
+						break;
+					}
 				}
 			}
+			maxLength = r;
 		}
-		for(m = 0; m < modifier.length; m++)
+
+		T1 [] adjust() throws E
 		{
-			/* Add or set each modifier
-			 */
-			o = mMappings[m];
-			if(o >= 0)
-			{
-				ret[r] = dl.set(original[o], o, incMods[o], modifier[m], m, r);
-				if(ret[r] != null)
-				{
-					// Adjust the incremental modification indexes
-					int incMod = incMods[o];
-					if(r > incMod)
-					{ // Element moved forward--decrement incMods up to the new index
-						for(int i = 0; i < incMods.length; i++)
-							if(incMods[i] >= incMod && incMods[i] <= r)
-								incMods[i]--;
-					}
-					else if(r < incMod)
-					{ // Element moved backward--increment incMods up to the original index
-						for(int i = 0; i < incMods.length; i++)
-							if(incMods[i] >= r && incMods[i] < incMod)
-								incMods[i]++;
-					}
+			int m, o, r = 0;
+			Object [] ret = new Object [maxLength];
+			for(o = 0; o < original.length && oMappings[o] < 0; o++)
+				if(remove(o, -1, ret, r))
 					r++;
+			for(m = 0; m < modifier.length; m++)
+			{
+				// Add or set each modifier
+				o = mMappings[m];
+				if(o >= 0)
+				{
+					if(set(o, m, ret, r))
+						r++;
+					/* Remove the originals that occur before the next match */
+					for(o++; o < original.length && oMappings[o] < 0; o++)
+						if(remove(o, m + 1, ret, r))
+							r++;
 				}
 				else
 				{
-					for(int i = 0; i < incMods.length; i++)
-						if(incMods[i] >= r)
-							incMods[i]--;
+					if(add(m, ret, r))
+						r++;
+				}
+			}
+
+			T1 [] actualRet = (T1 []) Array.newInstance(original.getClass().getComponentType(), r);
+			System.arraycopy(ret, 0, actualRet, 0, r);
+			return actualRet;
+		}
+
+		static void mergeSort(int [] order, int [] distances, int start, int end)
+		{
+			if(end - start <= 1)
+				return;
+			int mid = (start + end + 1) / 2;
+			mergeSort(order, distances, start, mid);
+			mergeSort(order, distances, mid, end);
+			while(start < mid && mid < end)
+			{
+				if(distances[start] < distances[mid]) // Reverse order
+				{
+					int temp = distances[mid];
+					int temp2 = order[mid];
+					for(int i = mid; i > start; i--)
+					{
+						distances[i] = distances[i - 1];
+						order[i] = order[i - 1];
+					}
+					distances[start] = temp;
+					order[start] = temp2;
+					mid++;
+				}
+				start++;
+			}
+		}
+
+		private boolean add(int m, Object [] ret, int r) throws E
+		{
+			entriesSet[m] = true;
+			T1 item = dl.added(modifier[m], m, r);
+			// Adjust the incremental modification indexes
+			if(item != null)
+			{
+				ret[r] = item;
+				for(int i = 0; i < oIdxAdj.length; i++)
+					if(oIdxAdj[i] >= r)
+						oIdxAdj[i]++;
+			}
+			else
+			{
+				for(; r < ret.length - 1; r++)
+					ret[r] = ret[r + 1];
+			}
+			return item != null;
+		}
+
+		private boolean remove(int o, int m, Object [] ret, int r) throws E
+		{
+			T1 item = dl.removed(original[o], o, oIdxAdj[o], r);
+			// Adjust the incremental modification indexes
+			if(item == null)
+			{
+				oIdxAdj[o] = -1;
+				for(; o < oIdxAdj.length; o++)
+					oIdxAdj[o]--;
+			}
+			else
+				ret[r] = item;
+			return item != null;
+		}
+
+		private boolean set(int o, int m, Object [] ret, int r) throws E
+		{
+			if(entriesSet[m])
+				return true;
+			if(oIdxAdj[o] > r && oIdxAdj[o] - r <= 10)
+			{
+				/* If a few elements have been moved forward several indices, we want to fire a
+				 * few move events on those elements rather than many move events for a few
+				 * index differences. */
+				int o2;
+				for(o2 = o - 1; o2 >= 0; o2--)
+					if(oMappings[o2] > m)
+						set(o2, oMappings[o2], ret, r + oMappings[o2] - m);
+			}
+			entriesSet[m] = true;
+			T1 item = dl.set(original[o], o, oIdxAdj[o], modifier[m], m, r);
+			// Adjust the incremental modification indexes
+			if(item != null)
+			{
+				ret[r] = item;
+				int oAdj = oIdxAdj[o];
+				if(r > oAdj)
+				{ // Element moved forward--decrement incMods up to the new index
+					for(int i = 0; i < oIdxAdj.length; i++)
+						if(oIdxAdj[i] >= oAdj && oIdxAdj[i] <= r)
+							oIdxAdj[i]--;
+				}
+				else if(r < oAdj)
+				{ // Element moved backward--increment incMods up to the original index
+					for(int i = 0; i < oIdxAdj.length; i++)
+						if(oIdxAdj[i] >= r && oIdxAdj[i] < oAdj)
+							oIdxAdj[i]++;
 				}
 			}
 			else
 			{
-				ret[r] = dl.added(modifier[m], m, r);
-				if(ret[r] != null)
-				{
-					r++;
-					// Adjust the incremental modification indexes
-					for(int i = 0; i < incMods.length; i++)
-					{
-						if(incMods[i] >= r)
-							incMods[i]++;
-					}
-				}
+				oIdxAdj[o] = -1;
+				for(int i = 0; i < oIdxAdj.length; i++)
+					if(oIdxAdj[i] > r)
+						oIdxAdj[i]--;
+				for(; r < ret.length - 1; r++)
+					ret[r] = ret[r + 1];
 			}
-			if(o >= 0)
-			{
-				/* After each modifier, remove the originals that occur before the next match */
-				for(o++; o < original.length && oMappings[o] < 0; o++)
-				{
-					ret[r] = dl.removed(original[o], o, incMods[o], r);
-					if(ret[r] != null)
-						r++;
-					else
-					{ // Adjust the incremental modification indexes
-						for(int i = o + 1; i < incMods.length; i++)
-							incMods[i]--;
-					}
-				}
-			}
+			return item != null;
 		}
-
-		T1 [] actualRet = (T1 []) Array.newInstance(original.getClass().getComponentType(), r);
-		System.arraycopy(ret, 0, actualRet, 0, r);
-		return actualRet;
 	}
 
 	/**
@@ -1794,5 +1863,80 @@ public final class ArrayUtils
 		for(float f : (float []) array)
 			stats.inputValue(f);
 		return stats;
+	}
+
+	/**
+	 * A testing method
+	 * 
+	 * @param args The command-line arguments. The first argument is used to determine what test to
+	 *        run.
+	 */
+	public static void main(String [] args)
+	{
+		String test;
+		if(args.length == 0)
+			test = "intSort";
+		else
+			test = args[0];
+		if(test.equals("intSort"))
+		{
+			int [] random = new int [10000];
+			int [] random2 = new int [random.length];
+			for(int i = 0; i < random.length; i++)
+				random[i] = (int) (Math.random() * Integer.MAX_VALUE);
+			ArrayAdjuster.mergeSort(random2, random, 0, random.length);
+			boolean sorted = true;
+			for(int i = 0; i < random.length - 1; i++)
+				if(random[i] < random[i + 1])
+				{
+					sorted = false;
+					break;
+				}
+			System.out.println("Sort " + (sorted ? "succeeded" : "failed"));
+		}
+		else if(test.equals("adjust"))
+		{
+			final Integer [] start = new Integer [25];
+			for(int i = 0; i < start.length; i++)
+				start[i] = new Integer(i);
+			Integer [] modifier = new Integer [start.length];
+			for(int i = 0; i < modifier.length; i++)
+			{
+				if(i % 5 != 0)
+					modifier[i] = new Integer(i);
+				else
+					modifier[i] = new Integer(i / 5 * start.length);
+			}
+			Integer [] result = adjust(start, modifier, new DifferenceListener<Integer, Integer>()
+			{
+				public boolean identity(Integer o1, Integer o2)
+				{
+					return o1.equals(o2);
+				}
+
+				public Integer added(Integer o, int mIdx, int retIdx)
+				{
+					return o;
+				}
+
+				public Integer removed(Integer o, int oIdx, int oIdxAdj, int retIdx)
+				{
+					return o;
+				}
+
+				public Integer set(Integer o1, int idx1, int oIdxAdj, Integer o2, int idx2,
+					int retIdx)
+				{
+					if(o1.intValue() % 5 == 2)
+						return null;
+					return o1;
+				}
+			});
+			System.out.println("Original array=" + toString(start));
+			System.out.println("Modifier array=" + toString(modifier));
+			System.out.println("Adjusted array=" + toString(result));
+		}
+		else
+			throw new IllegalArgumentException("Unrecognized test: " + test);
 	}
 }
