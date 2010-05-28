@@ -977,12 +977,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 
 	void showAllImportHistory()
 	{
-		theSession.fireEvent("showCenterHistory", "center", theCenter, "isImport", Boolean.TRUE);
+		theSession.fireEvent("showCenterHistory", "center", theCenter, "import", Boolean.TRUE);
 	}
 
 	void showAllExportHistory()
 	{
-		theSession.fireEvent("showCenterHistory", "center", theCenter, "isImport", Boolean.FALSE);
+		theSession.fireEvent("showCenterHistory", "center", theCenter, "import", Boolean.FALSE);
 	}
 
 	enum SyncRecordField implements HistorySorter.Field
