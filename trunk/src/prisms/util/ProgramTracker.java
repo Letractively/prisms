@@ -19,6 +19,15 @@ public class ProgramTracker
 	private static final int INDENT_INCREMENT = 3;
 
 	/**
+	 * This static variable is to be used for <b>temporary</b> debugging purposes only. It allows
+	 * for easier profiling of applications without extensive code changes to access the correct
+	 * tracker. However, if this variable is used in more than one place, it may lead to
+	 * unpredictable results and thrown exceptions. A different mechanism MUST be developed to
+	 * access a tracker if profiling is to be integrated into the application permanently.
+	 */
+	public static ProgramTracker instance;
+
+	/**
 	 * A node representing a single execution or an aggregate of executions of a routine
 	 */
 	public class TrackNode
