@@ -107,6 +107,7 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 
 	_doSwitchUser: function(){
 		this.isSwitching=true;
+		this._switchedFrom=this.prisms._login;
 		this.doLogin();
 	},
 
@@ -224,6 +225,11 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 
 	serverError: function(message){
 		this.prisms.processEvents([{plugin: "UI", method: "error", message: message}]);
+		if(this.isSwitching)
+		{
+			this.isSwitching=false;
+			this.prisms._login=this._switchedFrom;
+		}
 	},
 
 	doRestart: function(event){
@@ -377,6 +383,7 @@ dojo.declare("prisms.DojoPrisms", [dijit._Widget, dijit._Templated], {
 	},
 
 	_loginCanceled: function(){
+		this.isSwitching=false
 		if(this._cancelLock)
 			return;
 		this._cancelLock=true;

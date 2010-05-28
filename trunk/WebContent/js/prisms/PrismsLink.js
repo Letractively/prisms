@@ -16,17 +16,17 @@ dojo.declare("prisms.PrismsLink", null, {
 
 	cipher: null,
 
-	constructor: function(arguments){
-		if(arguments.application)
-			this.application=arguments.application;
-		if(arguments.client)
-			this.client=arguments.client;
-		if(arguments.servletURL)
-			this.servletURL=arguments.servletURL;
-		if(arguments.imageURL)
-			this.imageURL=arguments.imageURL;
-		if(arguments.connectImmediately)
-			this.connectImmediately=arguments.connectImmediately;
+	constructor: function(args){
+		if(args.application)
+			this.application=args.application;
+		if(args.client)
+			this.client=args.client;
+		if(args.servletURL)
+			this.servletURL=args.servletURL;
+		if(args.imageURL)
+			this.imageURL=args.imageURL;
+		if(args.connectImmediately)
+			this.connectImmediately=args.connectImmediately;
 
 		this.theMaxKeyLength = 448 / 8;
 
