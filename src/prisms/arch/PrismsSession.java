@@ -352,13 +352,14 @@ public class PrismsSession
 		{
 			synchronized(theOutgoingQueue)
 			{
-				for(int i = 0; i < theOutgoingQueue.size(); i++)
+				java.util.Iterator<JSONObject> evtIter = theOutgoingQueue.iterator();
+				while(evtIter.hasNext())
 				{
-					JSONObject evt = theOutgoingQueue.get(i);
+					JSONObject evt = evtIter.next();
 					if(invocationID.equals(evt.get("invocationID")))
 					{
 						events.add(evt);
-						theOutgoingQueue.remove(i);
+						evtIter.remove();
 					}
 				}
 			}
