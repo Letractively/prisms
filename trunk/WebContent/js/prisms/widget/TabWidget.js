@@ -97,7 +97,8 @@ dojo.declare("prisms.widget.TabWidget", [dijit._Widget, dijit._Contained], {
 	setSelected: function(selected, recursive){
 		if(selected)
 		{
-			this.parentTabContainer.selectChild(this.parentTab);
+			if(!dojo.isIE) //Had an issue with this in IE
+				this.parentTabContainer.selectChild(this.parentTab);
 			if(recursive)
 				PrismsUtils.displayTab(PrismsUtils.getParent(this.parentTabContainer));
 		}
