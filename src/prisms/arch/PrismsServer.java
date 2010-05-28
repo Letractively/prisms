@@ -113,11 +113,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theResponse = resp;
 			sessionID = req.getParameter("sessionID");
 			serverMethod = req.getParameter("method");
-			userName = req.getParameter("user");
+			// The CN and AKOID server variables may store the name from the user's CAC card
+			userName = req.getHeader("CN");
+			if(userName == null)
+				userName = req.getHeader("AKOID");
+			if(userName == null)
+				userName = req.getParameter("user");
 			if("null".equals(userName))
 				userName = null;
 			appName = req.getParameter("app");
 			clientName = req.getParameter("client");
+			if(clientName == null)
+				clientName = req.getParameter("service");
 			dataString = req.getParameter("data");
 			encrypted = "true".equalsIgnoreCase(req.getParameter("encrypted"));
 			isWMS = PrismsWmsRequest.isWMS(req);
