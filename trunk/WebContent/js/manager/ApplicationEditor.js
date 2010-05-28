@@ -41,7 +41,6 @@ dojo.declare("manager.ApplicationEditor", [prisms.widget.TabWidget, dijit._Templ
 			this.setValue(event.value);
 		else if(event.method=="setConfigClassValid")
 		{
-			console.log("valid="+event.valid);
 			if(event.valid)
 				this.configClassField.domNode.style.backgroundColor="#ffffff";
 			else
