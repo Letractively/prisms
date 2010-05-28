@@ -41,10 +41,7 @@ dojo.declare("manager.PermissionEditor", [dijit._Widget, dijit._Container, dijit
 	},
 
 	setVisible: function(visible){
-		if(visible)
-			this.visibilityNode.style.display="table";
-		else
-			this.visibilityNode.style.display="none";
+		PrismsUtils.setTableVisible(this.domNode, visible);
 	},
 
 	setEnabled: function(enabled){
@@ -65,13 +62,13 @@ dojo.declare("manager.PermissionEditor", [dijit._Widget, dijit._Container, dijit
 			this.descripField.value=value.description;
 			if(value.group)
 			{
-				this.groupHasPermissionsRow.style.display="table-row";
+				PrismsUtils.setTableRowVisible(this.groupHasPermissionsRow, true);
 				this.groupHasPermissionText.innerHTML="Group "+value.group.name+" has permission "
 					+value.name;
 				this.groupHasPermissionCheck.setAttribute("checked", value.group.selected);
 			}
 			else
-				this.groupHasPermissionsRow.style.display="none";
+				PrismsUtils.setTableRowVisible(this.groupHasPermissionsRow, false);
 		} finally{
 			this.dataLock=false;
 		}

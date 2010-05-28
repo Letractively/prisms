@@ -46,9 +46,6 @@ dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, dijit._Templated, d
 			throw new Error("event "+event.plugin+"."+event.method+" not recognized");
 	},
 
-	/**
-	 * Overrides the setVisible method in TabWidget
-	 */
 	setVisible: function(visible){
 		this.domNode.style.display=(visible ? "block" : "none");
 	},
