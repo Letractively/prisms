@@ -245,6 +245,8 @@ dojo.declare("prisms.widget.ImageMap", [dijit.layout._LayoutWidget, dijit._Templ
 		if(this.rightClickable)
 		{
 			this.popupMenu=new dijit.Menu({});
+			//In IE, events go to the image tag.  In firefox, they go to the blanketDiv
+			this.popupMenu.bindDomNode(this.imageTag);
 			this.popupMenu.bindDomNode(this.blanketDiv);
 			dojo.connect(this.popupMenu, "_openMyself", this, this.addMenuItems);
 		}
