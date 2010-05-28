@@ -1,12 +1,12 @@
 
-__dojo.require("dijit.form.TextBox");
-__dojo.require("dijit.form.CheckBox");
-__dojo.require("prisms.widget.TimeAmountEditor");
+dojo.require("dijit.form.TextBox");
+dojo.require("dijit.form.CheckBox");
+dojo.require("prisms.widget.TimeAmountEditor");
 
-__dojo.provide("manager.ClientEditor");
-__dojo.declare("manager.ClientEditor", [dijit._Widget, __dijit._Templated, __dijit._Container],
+dojo.provide("manager.ClientEditor");
+dojo.declare("manager.ClientEditor", [dijit._Widget, dijit._Templated, dijit._Container],
 {
-	templatePath: "__webContentRoot/view/manager/templates/clientEditor.html",
+	templatePath: "/prisms/view/manager/templates/clientEditor.html",
 
 	widgetsInTemplate: true,
 
@@ -50,7 +50,7 @@ __dojo.declare("manager.ClientEditor", [dijit._Widget, __dijit._Templated, __dij
 	},
 
 	setVisible: function(visible){
-		this.domNode.style.display=(visible ? "block" : "none");
+		PrismsUtils.setTableVisible(this.domNode, visible);
 	},
 
 	setEnabled: function(enabled){

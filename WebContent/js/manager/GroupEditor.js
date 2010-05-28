@@ -41,11 +41,8 @@ dojo.declare("manager.GroupEditor", [dijit._Widget, dijit._Contained, dijit._Tem
 			throw new Error("event "+event.plugin+"."+event.method+" not recognized");
 	},
 
-	/**
-	 * Overrides the setVisible method in TabWidget
-	 */
 	setVisible: function(visible){
-		this.domNode.style.display=(visible ? "table" : "none");
+		PrismsUtils.setTableVisible(this.domNode, visible);
 	},
 
 	setEnabled: function(enabled){

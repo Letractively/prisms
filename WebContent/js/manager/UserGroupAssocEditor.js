@@ -40,10 +40,7 @@ dojo.declare("manager.UserGroupAssocEditor", [dijit._Widget, dijit._Container, d
 	},
 
 	setVisible: function(visible){
-		if(visible)
-			this.visibilityNode.style.display="table";
-		else
-			this.visibilityNode.style.display="none";
+		PrismsUtils.setTableVisible(this.domNode, visible);
 	},
 
 	setEnabled: function(enabled){
