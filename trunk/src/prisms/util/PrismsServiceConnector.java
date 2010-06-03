@@ -469,8 +469,7 @@ public class PrismsServiceConnector
 				else if("login".equals(json.get("method")) && json.get("error") != null)
 				{
 					log.error("service error: " + json);
-					throw new IOException("Error calling serverMethod " + serverMethod
-						+ " for event " + event + ":\n" + json.get("error"));
+					throw new AuthenticationFailedException((String) json.get("error"));
 				}
 				else if("changePassword".equals(json.get("method")))
 				{
