@@ -10,6 +10,7 @@ import org.json.simple.JSONObject;
 import prisms.arch.PrismsSession;
 import prisms.arch.event.PrismsEvent;
 import prisms.records.RecordKeeper.ChangeField;
+import prisms.records.RecordKeeper.ErrorSubjectType;
 import prisms.ui.SortTableStructure.TableCell;
 import prisms.util.ArrayUtils;
 import prisms.util.PrismsUtils;
@@ -368,18 +369,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				mods = theRecordKeeper.getChanges(fs);
 			} catch(PrismsRecordException e)
 			{
-				log.error("Could not get history in batch", e);
-				mods = new ChangeRecord [fs.length];
-				for(int m = 0; m < mods.length; m++)
-				{
-					try
-					{
-						mods[m] = theRecordKeeper.getChangeError(fs[m]);
-					} catch(PrismsRecordException e2)
-					{
-						log.error("Could not get history item for ID " + fs[m], e2);
-					}
-				}
+				throw new IllegalStateException("Could not get history", e);
 			}
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -839,7 +829,8 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 	 */
 	protected boolean shouldSaveForSync(ChangeRecord mod)
 	{
-		return !(mod.type.subjectType instanceof PrismsChange);
+		return !(mod.type.subjectType instanceof PrismsChange)
+			&& !(mod.type.subjectType instanceof ErrorSubjectType);
 	}
 
 	void setAutoPurge(JSONObject ap)
@@ -970,6 +961,8 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 
 	String getPurgeWarn(ChangeRecord mod)
 	{
+		if(mod.type.subjectType instanceof ErrorSubjectType)
+			return null;
 		if(mod.type.additivity >= 0 || mod.type.changeType != null)
 			return null;
 		String ret = "This will cause " + display(mod.majorSubject)

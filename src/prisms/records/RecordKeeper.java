@@ -169,6 +169,11 @@ public class RecordKeeper
 		{
 			return null;
 		}
+
+		public String toString()
+		{
+			return theName;
+		}
 	}
 
 	static final Logger log = Logger.getLogger(RecordKeeper.class);
@@ -1206,7 +1211,7 @@ public class RecordKeeper
 		String sql = "SELECT id FROM " + DBOWNER + "prisms_change_record";
 		if(join != null)
 			sql += " " + join;
-		sql += " WHERE recordNS=" + toSQL(theNamespace);
+		sql += " WHERE " + DBOWNER + "prisms_change_record.recordNS=" + toSQL(theNamespace);
 		if(where != null && where.length() > 0)
 			sql += " AND (" + where + ")";
 		if(order != null)
@@ -1431,16 +1436,25 @@ public class RecordKeeper
 	 */
 	public ChangeRecord getChangeError(long id) throws PrismsRecordException
 	{
+		return getChangeError(null, id);
+	}
+
+	ChangeRecord getChangeError(Statement stmt, long id) throws PrismsRecordException
+	{
 		String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
 			+ toSQL(theNamespace) + " AND id=" + id;
-		Statement stmt;
-		checkConnection();
-		try
+		boolean closeStmt = false;
+		if(stmt == null)
 		{
-			stmt = theConn.createStatement();
-		} catch(SQLException e)
-		{
-			throw new PrismsRecordException("Could not create statement", e);
+			closeStmt = true;
+			checkConnection();
+			try
+			{
+				stmt = theConn.createStatement();
+			} catch(SQLException e)
+			{
+				throw new PrismsRecordException("Could not create statement", e);
+			}
 		}
 		ResultSet rs = null;
 		try
@@ -1525,7 +1539,7 @@ public class RecordKeeper
 			}
 			try
 			{
-				if(stmt != null)
+				if(closeStmt && stmt != null)
 					stmt.close();
 			} catch(SQLException e)
 			{
@@ -1562,6 +1576,11 @@ public class RecordKeeper
 
 		ChangeTemplate()
 		{
+		}
+
+		public String toString()
+		{
+			return "(" + id + ") " + subjectType + "/" + changeType + "/" + add;
 		}
 	}
 
@@ -1620,19 +1639,27 @@ public class RecordKeeper
 			for(int i = 0; i < ret.length; i++)
 			{
 				ChangeTemplate template = changeList.get(i);
-				SubjectType subjectType = getType(template.subjectType);
-				ChangeType changeType = getChangeType(subjectType, template.changeType);
-				int add = template.add == '+' ? 1 : (template.add == '-' ? -1 : 0);
-				ChangeData changeData = getChangeData(subjectType, changeType,
-					template.majorSubjectID, template.minorSubjectID, template.data1,
-					template.data2, template.preValueID);
-				if(changeData.preValue == null && template.previousValue != null)
-					changeData.preValue = deserialize(changeType.getObjectType(),
-						template.previousValue);
-				ret[i] = new ChangeRecord(template.id, template.time, thePersister
-					.getUser(template.userID), subjectType, changeType, add,
-					changeData.majorSubject, changeData.minorSubject, changeData.preValue,
-					changeData.data1, changeData.data2);
+				try
+				{
+					SubjectType subjectType = getType(template.subjectType);
+					ChangeType changeType = getChangeType(subjectType, template.changeType);
+					int add = template.add == '+' ? 1 : (template.add == '-' ? -1 : 0);
+					ChangeData changeData = getChangeData(subjectType, changeType,
+						template.majorSubjectID, template.minorSubjectID, template.data1,
+						template.data2, template.preValueID);
+					if(changeData.preValue == null && changeType != null
+						&& template.previousValue != null)
+						changeData.preValue = deserialize(changeType.getObjectType(),
+							template.previousValue);
+					ret[i] = new ChangeRecord(template.id, template.time, thePersister
+						.getUser(template.userID), subjectType, changeType, add,
+						changeData.majorSubject, changeData.minorSubject, changeData.preValue,
+						changeData.data1, changeData.data2);
+				} catch(PrismsRecordException e)
+				{
+					log.error("Could not get record " + template, e);
+					ret[i] = getChangeError(stmt, template.id);
+				}
 			}
 			Long [] idObjs = new Long [ids.length];
 			for(int i = 0; i < ids.length; i++)
@@ -1647,7 +1674,7 @@ public class RecordKeeper
 
 					public ChangeRecord added(Long o, int idx, int retIdx)
 					{
-						return null;
+						return ArrayUtils.nullElement(this);
 					}
 
 					public ChangeRecord removed(ChangeRecord o, int idx, int incMod, int retIdx)
@@ -1797,7 +1824,7 @@ public class RecordKeeper
 
 	Object deserialize(Class<?> type, String serialized) throws PrismsRecordException
 	{
-		if(serialized == null)
+		if(type == null || serialized == null)
 			return null;
 		else if(type == String.class)
 			return serialized;
