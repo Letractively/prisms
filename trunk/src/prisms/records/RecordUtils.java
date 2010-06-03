@@ -47,11 +47,12 @@ public class RecordUtils
 		java.io.Reader reader = new java.io.InputStreamReader(zis);
 		zis.getNextEntry();
 		StringBuilder ret = new StringBuilder();
-		int read = reader.read();
-		while(read >= 0)
+		char [] read = new char [1024];
+		int count = reader.read(read);
+		while(count > 0)
 		{
-			ret.append((char) read);
-			read = reader.read();
+			ret.append(read, 0, count);
+			count = reader.read(read);
 		}
 		return ret.toString();
 	}

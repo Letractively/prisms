@@ -707,6 +707,8 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		JSONArray ret = new JSONArray();
 		for(ChangeRecord mod : mods)
 		{
+			if(mod.type.subjectType instanceof prisms.records.RecordKeeper.ErrorSubjectType)
+				continue;
 			if(mod.type.subjectType instanceof PrismsChange)
 				continue;
 			JSONObject json = new JSONObject();
@@ -794,6 +796,8 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 
 	boolean shouldSend(ChangeRecord record)
 	{
+		if(record.type.subjectType instanceof prisms.records.RecordKeeper.ErrorSubjectType)
+			return false;
 		if(record.type.subjectType instanceof PrismsChange)
 			return false;
 		return true;
