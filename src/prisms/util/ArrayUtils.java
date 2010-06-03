@@ -1452,6 +1452,27 @@ public final class ArrayUtils
 		return adjuster.adjust();
 	}
 
+	static final Object NULL = new Object();
+
+	/**
+	 * Returns an element that {@link #adjust(Object[], Object[], DifferenceListenerE)} will
+	 * interpret as a null value. If an actual null were returned, adjust would interpret this as
+	 * meaning the element should be removed from the array, with subsequent indices being affected.
+	 * If the return value of this method is returned from {@link DifferenceListenerE}.add, remove,
+	 * or set, the element's place will be saved and that element in the returned array will be
+	 * null.
+	 * 
+	 * @param <T1> The type of the original array
+	 * @param <T2> The type of the modifying array
+	 * @param <E> The type of exception that may be thrown
+	 * @param dl The listener to return the null element from
+	 * @return An object that represents a null array element placeholder
+	 */
+	public static <T1, T2, E extends Throwable> T1 nullElement(DifferenceListenerE<T1, T2, E> dl)
+	{
+		return (T1) NULL;
+	};
+
 	private static class ArrayAdjuster<T1, T2, E extends Throwable>
 	{
 		private final T1 [] original;
@@ -1533,6 +1554,9 @@ public final class ArrayUtils
 				}
 			}
 
+			for(int i = 0; i < r; i++)
+				if(ret[i] == NULL)
+					ret[i] = null;
 			T1 [] actualRet = (T1 []) Array.newInstance(original.getClass().getComponentType(), r);
 			System.arraycopy(ret, 0, actualRet, 0, r);
 			return actualRet;
@@ -1602,7 +1626,7 @@ public final class ArrayUtils
 		private boolean set(int o, int m, Object [] ret, int r) throws E
 		{
 			if(entriesSet[m])
-				return true;
+				return ret[r] != null;
 			if(oIdxAdj[o] > r && oIdxAdj[o] - r <= 10)
 			{
 				/* If a few elements have been moved forward several indices, we want to fire a
