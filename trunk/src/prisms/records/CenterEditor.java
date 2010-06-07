@@ -958,7 +958,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 		try
 		{
 			int items = getSynchronizer().sync(theCenter, theSession.getApp(),
-				SyncRecord.Type.MANUAL_REMOTE, pi);
+				SyncRecord.Type.MANUAL_REMOTE, pi, theSession, true);
 			if(items > 0)
 				((UI) theSession.getPlugin("UI")).info("Synchronization successful--" + items
 					+ " items synchronized");
