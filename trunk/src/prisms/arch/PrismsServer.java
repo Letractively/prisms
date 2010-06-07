@@ -113,8 +113,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theResponse = resp;
 			sessionID = req.getParameter("sessionID");
 			serverMethod = req.getParameter("method");
+			// Check for external certificate authentication
+			java.security.cert.X509Certificate[] cert = (java.security.cert.X509Certificate[]) req
+				.getAttribute("javax.servlet.request.X509Certificate");
+			if(cert != null && cert.length > 0)
+				userName = cert[0].getSubjectX500Principal().getName();
 			// The CN and AKOID server variables may store the name from the user's CAC card
-			userName = req.getHeader("CN");
+			if(userName == null)
+				userName = req.getHeader("CN");
 			if(userName == null)
 				userName = req.getHeader("AKOID");
 			if(userName == null)
@@ -132,7 +138,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		/**
 		 * Some WMS clients don't support multiple non-WMS parameters, so we have to account for
-		 * that as best we can. The client and method names can be assumed to be "WMS" and the
+		 * that as best we can. The client and serverMethod names can be assumed to be "WMS" and the
 		 * application name can be stored within the unencrypted data parameter.
 		 * 
 		 * @return An error event if this method did not complete successfully
@@ -923,6 +929,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		 */
 		public PrismsResponse processEvent(PrismsRequest req, JSONObject event) throws IOException
 		{
+			if(theSession != null)
+			{
+				if(!theApp.isOpen(theSession))
+					return singleMessage(req, true, "restart", "message", theApp.getReloadMessage());
+				String appLock = theApp.isLocked(theSession);
+				if(appLock != null)
+					return singleMessage(req, true, "appLocked", "message", appLock);
+			}
 			// Do prisms methods
 			if("init".equals(req.serverMethod))
 				return init(req);
@@ -1033,7 +1047,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private PrismsResponse process(JSONObject event)
 		{
-			theSession.getApp().putApplicationEvents(theSession);
 			int busyness = theSession.getBusyCount();
 			String invocationID = null;
 			try
