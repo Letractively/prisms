@@ -655,6 +655,19 @@ public class PrismsApplication
 	}
 
 	/**
+	 * @param session The session to determine whether it is locked from the application temporarily
+	 * @return The lock message to give to the client if the session is locked out, or null if the
+	 *         session is not locked out
+	 */
+	public String isLocked(PrismsSession session)
+	{
+		if(theAppLock == null)
+			return null;
+		else
+			return theLocker != session ? theAppLock : null;
+	}
+
+	/**
 	 * Causes all sessions of this application to expire. The user will be given a message on what
 	 * caused the need to reload.
 	 * 
@@ -667,6 +680,30 @@ public class PrismsApplication
 		if(includeServices)
 			theServiceReloadTime = theReloadTime;
 		theReloadMessage = message;
+	}
+
+	/**
+	 * Checks to see whether a session is still active in the application
+	 * 
+	 * @param session The session to check
+	 * @return Whether the session should still be accessible
+	 */
+	public boolean isOpen(PrismsSession session)
+	{
+		if(session.getCreationTime() < theReloadTime)
+		{
+			if(!session.getClient().isService() || session.getCreationTime() < theServiceReloadTime)
+				return false;
+		}
+		return true;
+	}
+
+	/**
+	 * @return The message to show clients if the application is reloaded
+	 */
+	public String getReloadMessage()
+	{
+		return theReloadMessage;
 	}
 
 	/**
@@ -694,41 +731,6 @@ public class PrismsApplication
 				}, false);
 			}
 		}
-	}
-
-	/**
-	 * Allows the application to fire events directly to the session
-	 * 
-	 * @param session The session to fire events to
-	 */
-	public void putApplicationEvents(PrismsSession session)
-	{
-		String appLock = theAppLock;
-		if(session.getCreationTime() < theReloadTime)
-		{
-			if(!session.getClient().isService() || session.getCreationTime() < theServiceReloadTime)
-				session.postOutgoingEvent(prisms.util.PrismsUtils.rEventProps("method", "restart",
-					"message", theReloadMessage));
-		}
-		else if(session != theLocker && appLock != null)
-			session.postOutgoingEvent(prisms.util.PrismsUtils.rEventProps("method", "appLocked",
-				"message", appLock));
-	}
-
-	/**
-	 * Checks to see whether a session is still active in the application
-	 * 
-	 * @param session The session to check
-	 * @return Whether the session should still be accessible
-	 */
-	public boolean isOpen(PrismsSession session)
-	{
-		if(session.getCreationTime() < theReloadTime)
-		{
-			if(!session.getClient().isService() || session.getCreationTime() < theServiceReloadTime)
-				return false;
-		}
-		return true;
 	}
 
 	/**
