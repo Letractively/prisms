@@ -1376,14 +1376,8 @@ public class RecordKeeper
 	{
 		if(ids.length <= 1 || sorter.getSortCount() == 0)
 			return ids;
-		String where = "id IN (";
-		for(int i = 0; i < ids.length; i++)
-		{
-			if(i > 0)
-				where += ", ";
-			where += ids[i];
-		}
-		where += ")";
+		prisms.util.DBUtils.KeyExpression expr = prisms.util.DBUtils.simplifyKeySet(ids, 200);
+		String where = expr.toSQL("id");
 		String order;
 		if(sorter.getSortCount() > 0)
 		{
@@ -1600,41 +1594,45 @@ public class RecordKeeper
 				throw new PrismsRecordException("Could not create statement", e);
 			}
 		}
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
-			+ toSQL(theNamespace) + " AND id IN (";
-		for(int i = 0; i < ids.length; i++)
-		{
-			sql += ids[i];
-			if(i < ids.length - 1)
-				sql += ", ";
-		}
-		sql += ")";
+		prisms.util.DBUtils.KeyExpression expr = prisms.util.DBUtils.simplifyKeySet(ids, 200);
+		prisms.util.DBUtils.KeyExpression[] exprs;
+		if(expr instanceof prisms.util.DBUtils.OrExpression && expr.getComplexity() > 200)
+			exprs = ((prisms.util.DBUtils.OrExpression) expr).exprs;
+		else
+			exprs = new prisms.util.DBUtils.KeyExpression [] {expr};
+
 		try
 		{
-			ResultSet rs = null;
 			ArrayList<ChangeTemplate> changeList = new ArrayList<ChangeTemplate>();
-			try
+			for(int i = 0; i < exprs.length; i++)
 			{
-				rs = stmt.executeQuery(sql);
-				while(rs.next())
-				{
-					ChangeTemplate template = getChangeTemplate(rs);
-					changeList.add(template);
-				}
-			} catch(SQLException e)
-			{
-				throw new PrismsRecordException("Could not get modifications: SQL=" + sql, e);
-			} finally
-			{
+				String sql = "SELECT * FROM " + DBOWNER + "prisms_change_record WHERE recordNS="
+					+ toSQL(theNamespace) + " AND " + exprs[i].toSQL("id");
+				ResultSet rs = null;
 				try
 				{
-					if(rs != null)
-						rs.close();
+					rs = stmt.executeQuery(sql);
+					while(rs.next())
+					{
+						ChangeTemplate template = getChangeTemplate(rs);
+						changeList.add(template);
+					}
 				} catch(SQLException e)
 				{
-					log.error("Connection error", e);
+					throw new PrismsRecordException("Could not get modifications: SQL=" + sql, e);
+				} finally
+				{
+					try
+					{
+						if(rs != null)
+							rs.close();
+					} catch(SQLException e)
+					{
+						log.error("Connection error", e);
+					}
 				}
 			}
+
 			ChangeRecord [] ret = new ChangeRecord [changeList.size()];
 			for(int i = 0; i < ret.length; i++)
 			{

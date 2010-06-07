@@ -128,6 +128,11 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 			log.error("Cannot auto-sync without a Jme3 data source");
 			return;
 		}
+		if(app.getApplicationLock() != null)
+		{
+			log.info("Suspending auto-synchronization until application is unlocked");
+			return;
+		}
 		if(pi != null)
 			pi.setProgressText("Checking centers for synchronization requirement");
 		long time = System.currentTimeMillis();
@@ -157,7 +162,7 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		{
 			try
 			{
-				sync(rc, app, SyncRecord.Type.AUTOMATIC, pi);
+				sync(rc, app, SyncRecord.Type.AUTOMATIC, pi, null, true);
 			} catch(PrismsRecordException e)
 			{
 				log.error("Could not synchronize with center " + rc, e);
@@ -231,11 +236,14 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 * @param app The application to synchronize data into
 	 * @param syncType The type of synchronization to be performed
 	 * @param pi The progress informer to notify of synchronization progress
+	 * @param session The session that is causing this synchronization--may be null
+	 * @param lockApp Whether to lock the entire application while the synchronization is occurring
 	 * @return The number of items synchronized
 	 * @throws PrismsRecordException If an error occurs during synchronization
 	 */
 	public int sync(PrismsCenter center, PrismsApplication app, SyncRecord.Type syncType,
-		DefaultProgressInformer pi) throws PrismsRecordException
+		DefaultProgressInformer pi, prisms.arch.PrismsSession session, boolean lockApp)
+		throws PrismsRecordException
 	{
 		if(pi != null)
 			pi.setCancelable(true);
@@ -316,7 +324,7 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 					"The center contacted is different than the one stored.\n"
 						+ "Please create a new center to synchronize to a different location.");
 			}
-			return synchronize(center, app, record, pi, res);
+			return synchronize(center, app, record, pi, res, session, lockApp);
 		} catch(PrismsRecordException e)
 		{
 			error = e.getMessage();
@@ -378,11 +386,15 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 	 * @param record The synchronization records to write the modifications with
 	 * @param pi The progress informer to notify the user with
 	 * @param json The JSON synchronization service response
+	 * @param session The session that is causing this synchronization--may be null
+	 * @param lockApp Whether to lock the entire application while the synchronization is occurring
 	 * @return The number of items synchronized
 	 * @throws PrismsRecordException If an error occurs during synchronization
 	 */
-	public int synchronize(PrismsCenter center, PrismsApplication app, SyncRecord record,
-		prisms.ui.UI.DefaultProgressInformer pi, JSONObject json) throws PrismsRecordException
+	public int synchronize(PrismsCenter center, final PrismsApplication app, SyncRecord record,
+		final prisms.ui.UI.DefaultProgressInformer pi, JSONObject json,
+		final prisms.arch.PrismsSession session, final boolean lockApp)
+		throws PrismsRecordException
 	{
 		ChangeRecord [] mods;
 		if(json.get("mods") != null)
@@ -417,10 +429,53 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 		}
 		else
 			items = new Object [0];
-		Object syncObj = theKeeper != null ? theKeeper : this;
-		synchronized(syncObj)
+		if(mods.length == 0 && items.length == 0)
+			return 0;
+		final String lockText;
+		if(session != null)
+			lockText = session.getUser() + " is synchronizing with " + center.getName()
+				+ ".  Please wait.";
+		else
+			lockText = "Automatically synchronizing with " + center.getName() + ".  Please wait.";
+		prisms.ui.UI.DefaultProgressInformer lockPI = new prisms.ui.UI.DefaultProgressInformer()
 		{
-			SyncDataType data = theImpl.genSyncData(this, center, app, pi, items, mods);
+			@Override
+			public void setProgressText(String text)
+			{
+				super.setProgressText(text);
+				pi.setProgressText(text);
+				if(lockApp)
+				{
+					String percent;
+					if(getTaskScale() > 0)
+						percent = (getTaskProgress() * 100.0f / getTaskScale()) + "%  ";
+					else
+						percent = "";
+					app.setApplicationLock(lockText + "\n" + percent + text, session);
+				}
+			}
+
+			@Override
+			public void setProgressScale(int scale)
+			{
+				super.setProgressScale(scale);
+				pi.setProgressScale(scale);
+				setProgressText(getTaskText());
+			}
+
+			@Override
+			public void setProgress(int progress)
+			{
+				super.setProgress(progress);
+				pi.setProgress(progress);
+			}
+		};
+		if(lockApp)
+			app.setApplicationLock(lockText, session);
+		try
+		{
+
+			SyncDataType data = theImpl.genSyncData(this, center, app, lockPI, items, mods);
 			if(theKeeper != null)
 				theKeeper.setSyncRecord(record);
 			try
@@ -439,6 +494,10 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 			{
 				data.dispose();
 			}
+		} finally
+		{
+			if(lockApp)
+				app.setApplicationLock(null, null);
 		}
 		return mods.length + items.length;
 	}
