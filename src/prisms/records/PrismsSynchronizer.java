@@ -443,7 +443,8 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 			public void setProgressText(String text)
 			{
 				super.setProgressText(text);
-				pi.setProgressText(text);
+				if(pi != null)
+					pi.setProgressText(text);
 				if(lockApp)
 				{
 					String percent;
@@ -459,7 +460,8 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 			public void setProgressScale(int scale)
 			{
 				super.setProgressScale(scale);
-				pi.setProgressScale(scale);
+				if(pi != null)
+					pi.setProgressScale(scale);
 				setProgressText(getTaskText());
 			}
 
@@ -467,7 +469,8 @@ public class PrismsSynchronizer<SyncDataType extends SynchronizeImpl.SyncData>
 			public void setProgress(int progress)
 			{
 				super.setProgress(progress);
-				pi.setProgress(progress);
+				if(pi != null)
+					pi.setProgress(progress);
 			}
 		};
 		if(lockApp)
