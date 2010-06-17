@@ -568,11 +568,21 @@ public class PrismsServiceConnector
 				java.net.URL url = new java.net.URL(callURL);
 				java.net.URLConnection conn = url.openConnection();
 				conn.setDoOutput(true);
-				java.io.OutputStreamWriter wr = new java.io.OutputStreamWriter(conn
-					.getOutputStream());
+				java.io.OutputStreamWriter wr;
+				if(conn instanceof java.net.HttpURLConnection)
+					((java.net.HttpURLConnection) conn).setRequestProperty("Accept-Encoding",
+						"gzip");
+				wr = new java.io.OutputStreamWriter(conn.getOutputStream());
 				wr.write("data=" + dataStr);
 				wr.close();
 				is = conn.getInputStream();
+				if(conn instanceof java.net.HttpURLConnection)
+				{
+					java.net.HttpURLConnection huc = (java.net.HttpURLConnection) conn;
+					String encoding = huc.getHeaderField("content-encoding");
+					if(encoding != null && encoding.equalsIgnoreCase("gzip"))
+						is = new java.util.zip.GZIPInputStream(is);
+				}
 			}
 			else
 			{
