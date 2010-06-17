@@ -175,8 +175,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			if(clientName == null)
 				clientName = "WMS";
-			if(sessionID != null)
-				sessionID = userName + "/" + appName + "/" + clientName + "/" + "WMS";
 			return null;
 		}
 
@@ -615,9 +613,22 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(response.shouldEncrypt && request.encrypted)
 				str = encrypt(request, str);
 			request.theResponse.setContentType("text/prisms-json");
-			java.io.PrintWriter out = request.theResponse.getWriter();
-			out.write(str);
-			out.close();
+			String acceptEncoding = request.theRequest.getHeader("accept-encoding");
+			if(acceptEncoding != null && acceptEncoding.toLowerCase().contains("gzip"))
+			{
+				request.theResponse.setHeader("Content-Encoding", "gzip");
+				java.io.OutputStream os = request.theResponse.getOutputStream();
+				java.util.zip.GZIPOutputStream gzos = new java.util.zip.GZIPOutputStream(os);
+				java.io.PrintWriter out = new java.io.PrintWriter(gzos);
+				out.write(str);
+				out.close();
+			}
+			else
+			{
+				java.io.PrintWriter out = request.theResponse.getWriter();
+				out.write(str);
+				out.close();
+			}
 		}
 
 		private String encrypt(PrismsRequest request, String text) throws IOException
@@ -1266,6 +1277,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						} catch(java.io.IOException e)
 						{
 							log.error("Upload " + fileName + " failed", e);
+						} finally
+						{
+							item.delete();
 						}
 					}
 				});
