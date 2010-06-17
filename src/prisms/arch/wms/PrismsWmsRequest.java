@@ -422,6 +422,14 @@ public class PrismsWmsRequest
 	}
 
 	/**
+	 * @return The SRS projection of the WMS request
+	 */
+	public String getSRS()
+	{
+		return theSRS;
+	}
+
+	/**
 	 * @return The x-pixel to return feature info for
 	 */
 	public int getX()
@@ -532,8 +540,8 @@ public class PrismsWmsRequest
 		ret.theBounds = new BoundingBox(MinLat, MaxLat, MinLon, MaxLon);
 
 		ret.theSRS = ret.getParameter("SRS");
-		if(ret.theSRS != null && !ret.theSRS.equalsIgnoreCase("EPSG:4326"))
-			throw new IllegalArgumentException("Illegal SRS: Only EPSG:4326 is currently supported");
+		// if(ret.theSRS != null && !ret.theSRS.equalsIgnoreCase("EPSG:4326"))
+		// throw new IllegalArgumentException("Illegal SRS: Only EPSG:4326 is currently supported");
 
 		ret.isTransparent = "false".equalsIgnoreCase(ret.getParameter("transparent"));
 		Color bgColor = BG;
