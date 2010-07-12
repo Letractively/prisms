@@ -73,25 +73,25 @@ public class WmsUtils
 	public synchronized WmsLayer [] getWMSLayers(String wmsURL,
 		prisms.ui.UI.DefaultProgressInformer pi) throws prisms.arch.PrismsException
 	{
-		for(int i = 0; i < theCachedWmsUrls.length; i++)
-		{
-			if(wmsURL.equals(theCachedWmsUrls[i]))
-			{
-				WmsLayer [] layers = theCachedWmsLayers[i];
-				for(; i > 0; i--)
-				{
-					theCachedWmsUrls[i] = theCachedWmsUrls[i - 1];
-					theCachedWmsLayers[i] = theCachedWmsLayers[i - 1];
-				}
-				theCachedWmsUrls[0] = wmsURL;
-				theCachedWmsLayers[0] = layers;
-				return layers;
-			}
-		}
-		if(pi != null)
-			pi.setProgressText("Connecting to " + wmsURL);
 		try
 		{
+			for(int i = 0; i < theCachedWmsUrls.length; i++)
+			{
+				if(wmsURL.equals(theCachedWmsUrls[i]))
+				{
+					WmsLayer [] layers = theCachedWmsLayers[i];
+					for(; i > 0; i--)
+					{
+						theCachedWmsUrls[i] = theCachedWmsUrls[i - 1];
+						theCachedWmsLayers[i] = theCachedWmsLayers[i - 1];
+					}
+					theCachedWmsUrls[0] = wmsURL;
+					theCachedWmsLayers[0] = layers;
+					return layers;
+				}
+			}
+			if(pi != null)
+				pi.setProgressText("Connecting to " + wmsURL);
 			String connect = wmsURL;
 			if(connect.contains("?"))
 				connect += "&";
