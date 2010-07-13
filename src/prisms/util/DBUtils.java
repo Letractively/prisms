@@ -233,6 +233,11 @@ public class DBUtils
 	public static KeyExpression simplifyKeySet(long [] ids, int maxComplexity)
 	{
 		// First we need to sort the list and remove duplicates
+		{
+			long [] temp = new long [ids.length];
+			System.arraycopy(ids, 0, temp, 0, ids.length);
+			ids = temp;
+		}
 		java.util.Arrays.sort(ids);
 		java.util.ArrayList<Integer> duplicates = new java.util.ArrayList<Integer>();
 		for(int i = 1; i < ids.length; i++)
