@@ -385,16 +385,27 @@ public class PrismsSession
 			long time = System.currentTimeMillis();
 			for(java.util.Map.Entry<String, AppPlugin> p : plugins)
 			{
-				p.getValue().initClient();
-				long newTime = System.currentTimeMillis();
-				if(log.isDebugEnabled())
+				try
 				{
-					StringBuilder toPrint = new StringBuilder();
-					toPrint.append("Initialized plugin ");
-					toPrint.append(p.getKey());
-					toPrint.append(" in ");
-					toPrint.append(prisms.util.PrismsUtils.printTimeLength(newTime - time));
-					log.debug(toPrint);
+					p.getValue().initClient();
+					long newTime = System.currentTimeMillis();
+					if(log.isDebugEnabled())
+					{
+						StringBuilder toPrint = new StringBuilder();
+						toPrint.append("Initialized plugin ");
+						toPrint.append(p.getKey());
+						toPrint.append(" in ");
+						toPrint.append(prisms.util.PrismsUtils.printTimeLength(newTime - time));
+						log.debug(toPrint);
+					}
+				} catch(Throwable e)
+				{
+					log.error("Could not client-initialize plugin " + p.getKey(), e);
+					JSONObject event = new JSONObject();
+					event.put("method", "error");
+					event.put("message", "Could not initialize plugin " + p.getKey() + ": "
+						+ e.getMessage());
+					postOutgoingEvent(event);
 				}
 			}
 		} finally
