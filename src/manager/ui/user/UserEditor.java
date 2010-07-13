@@ -113,6 +113,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 	 */
 	public void processEvent(JSONObject evt)
 	{
+		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		if("nameChanged".equals(evt.get("method")))
 		{
 			assertEditable();
@@ -129,7 +130,9 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 				source.putUser(theUser);
 			} catch(prisms.arch.PrismsException e)
 			{
-				throw new IllegalStateException("Could not rename user", e);
+				log.error("Could not rename user", e);
+				ui.error("Could not rename user: " + e.getMessage());
+				return;
 			}
 			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
 		}
@@ -149,7 +152,9 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 					source.setPasswordExpiration(theUser, newExpire.longValue());
 			} catch(prisms.arch.PrismsException e)
 			{
-				throw new IllegalStateException("Could not set password expiration", e);
+				log.error("Could not set password expiration", e);
+				ui.error("Could not set password expiration: " + e.getMessage());
+				return;
 			}
 			log.info("User " + theSession.getUser() + " changing expiration of user " + theUser
 				+ " to " + newExpire);
@@ -253,13 +258,15 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			changePassword();
 			return;
 		}
+		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		try
 		{
 			theSession.getApp().getDataSource().setPassword(theUser, hash,
 				!theUser.getName().equals(theSession.getUser().getName()));
 		} catch(prisms.arch.PrismsException e)
 		{
-			throw new IllegalStateException("Could not set user password", e);
+			log.error("Could not set user password", e);
+			ui.error("Could not set user password: " + e.getMessage());
 		}
 	}
 }
