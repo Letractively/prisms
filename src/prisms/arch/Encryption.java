@@ -27,19 +27,21 @@ public interface Encryption
 	 * Encrypts a data string
 	 * 
 	 * @param text The data to encrypt
+	 * @param charSet The character set to use to encode the data
 	 * @return The encrypted data
 	 * @throws IOException If an error occurs encrypting the data
 	 */
-	public String encrypt(String text) throws IOException;
+	public String encrypt(String text, java.nio.charset.Charset charSet) throws IOException;
 
 	/**
 	 * Decrypts an encrypted data string
 	 * 
 	 * @param encrypted The data to decrypt
+	 * @param charSet The character set to use to decode the data
 	 * @return The decrypted data
 	 * @throws java.io.IOException If the data cannot be interpreted
 	 */
-	public String decrypt(String encrypted) throws IOException;
+	public String decrypt(String encrypted, java.nio.charset.Charset charSet) throws IOException;
 
 	/**
 	 * Disposes of the encryption object

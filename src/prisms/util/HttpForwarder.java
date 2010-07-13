@@ -3,11 +3,7 @@
  */
 package prisms.util;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 
 import javax.servlet.http.HttpServletRequest;
@@ -226,6 +222,7 @@ public class HttpForwarder
 			((HttpURLConnection) con).setInstanceFollowRedirects(true);
 		con.connect();
 
+		boolean zipped = false;
 		if(con instanceof HttpURLConnection)
 		{
 			forwardResponseCookies((HttpURLConnection) con, response);
@@ -234,7 +231,9 @@ public class HttpForwarder
 			{
 				if(entry.getKey() == null || entry.getValue().size() == 0)
 					continue;
-				if(entry.getKey().equalsIgnoreCase("content-length")
+				if(entry.getKey().toLowerCase().equals("content-encoding"))
+					zipped = entry.getValue().get(0).equalsIgnoreCase("gzip");
+				else if(entry.getKey().toLowerCase().equals("content-length")
 					|| entry.getKey().contains("Cookie"))
 					continue;
 				String value = "";
@@ -258,12 +257,26 @@ public class HttpForwarder
 
 		BufferedInputStream bis = new BufferedInputStream(in, BUFFER_LENGTH);
 		bos = new BufferedOutputStream(out, BUFFER_LENGTH);
+		OutputStream os;
+		InputStream is;
+		if(zipped)
+		{
+			java.util.zip.GZIPInputStream gzis = new java.util.zip.GZIPInputStream(bis);
+			java.util.zip.GZIPOutputStream gzos = new java.util.zip.GZIPOutputStream(bos);
+			is = gzis;
+			os = gzos;
+		}
+		else
+		{
+			is = bis;
+			os = bos;
+		}
 		try
 		{
-			theInterceptor.interceptOutput(response, bis, bos, fromInput);
+			theInterceptor.interceptOutput(response, is, os, fromInput);
 		} finally
 		{
-			bos.flush();
+			os.flush();
 			out.close();
 			in.close();
 		}

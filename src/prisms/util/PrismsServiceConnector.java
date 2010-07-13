@@ -151,6 +151,19 @@ public class PrismsServiceConnector
 		void doError(IOException e);
 	}
 
+	private static class ResponseStream
+	{
+		final java.io.InputStream input;
+
+		final java.nio.charset.Charset charSet;
+
+		ResponseStream(java.io.InputStream in, java.nio.charset.Charset chars)
+		{
+			input = in;
+			charSet = chars;
+		}
+	}
+
 	private boolean isPost;
 
 	private final String theServiceURL;
@@ -499,11 +512,11 @@ public class PrismsServiceConnector
 
 	private JSONArray getResult(ServerMethod serverMethod, JSONObject request) throws IOException
 	{
-		java.io.InputStream is = getResultStream(serverMethod, request);
+		ResponseStream response = getResultStream(serverMethod, request);
+		java.io.InputStreamReader reader = new java.io.InputStreamReader(response.input);
 		try
 		{
 			StringBuilder ret = new StringBuilder();
-			java.io.InputStreamReader reader = new java.io.InputStreamReader(is);
 			int read = reader.read();
 			while(read >= 0)
 			{
@@ -511,10 +524,10 @@ public class PrismsServiceConnector
 				read = reader.read();
 			}
 			String retStr = ret.toString();
+			if(theEncryption != null && isEncrypted(retStr))
+				retStr = theEncryption.decrypt(retStr, response.charSet);
 			if(logRequestsResponses)
 				log.info(retStr);
-			if(theEncryption != null && isEncrypted(retStr))
-				retStr = theEncryption.decrypt(retStr);
 			return (JSONArray) org.json.simple.JSONValue.parse(retStr);
 		} catch(Throwable e)
 		{
@@ -524,7 +537,7 @@ public class PrismsServiceConnector
 			throw toThrow;
 		} finally
 		{
-			is.close();
+			reader.close();
 		}
 	}
 
@@ -533,7 +546,7 @@ public class PrismsServiceConnector
 		return !str.startsWith("[") || !str.endsWith("]");
 	}
 
-	private java.io.InputStream getResultStream(ServerMethod serverMethod, JSONObject request)
+	private ResponseStream getResultStream(ServerMethod serverMethod, JSONObject request)
 		throws IOException
 	{
 		String callURL = theServiceURL;
@@ -554,7 +567,7 @@ public class PrismsServiceConnector
 			callURL += "&encrypted=true";
 			if(logRequestsResponses)
 				log.info("Calling URL " + callURL + " with data " + dataStr);
-			dataStr = theEncryption.encrypt(dataStr);
+			dataStr = theEncryption.encrypt(dataStr, java.nio.charset.Charset.defaultCharset());
 		}
 		else if(logRequestsResponses)
 			log.info("Calling URL " + callURL + " with data " + dataStr);
@@ -562,35 +575,29 @@ public class PrismsServiceConnector
 			dataStr = encode(dataStr);
 		try
 		{
+			java.net.URL url;
+			if(!isPost || dataStr == null)
+				callURL += "&data=" + dataStr;
+			url = new java.net.URL(callURL);
+			java.net.URLConnection conn = url.openConnection();
+			conn.setRequestProperty("Accept-Encoding", "gzip");
+			conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset()
+				.name());
 			java.io.InputStream is;
 			if(isPost && dataStr != null)
 			{
-				java.net.URL url = new java.net.URL(callURL);
-				java.net.URLConnection conn = url.openConnection();
 				conn.setDoOutput(true);
 				java.io.OutputStreamWriter wr;
-				if(conn instanceof java.net.HttpURLConnection)
-					((java.net.HttpURLConnection) conn).setRequestProperty("Accept-Encoding",
-						"gzip");
 				wr = new java.io.OutputStreamWriter(conn.getOutputStream());
 				wr.write("data=" + dataStr);
 				wr.close();
-				is = conn.getInputStream();
-				if(conn instanceof java.net.HttpURLConnection)
-				{
-					java.net.HttpURLConnection huc = (java.net.HttpURLConnection) conn;
-					String encoding = huc.getHeaderField("content-encoding");
-					if(encoding != null && encoding.equalsIgnoreCase("gzip"))
-						is = new java.util.zip.GZIPInputStream(is);
-				}
 			}
-			else
-			{
-				if(dataStr != null)
-					callURL += "&data=" + dataStr;
-				is = new java.net.URL(callURL).openStream();
-			}
-			return is;
+			is = conn.getInputStream();
+			String encoding = conn.getContentEncoding();
+			if(encoding != null && encoding.equalsIgnoreCase("gzip"))
+				is = new java.util.zip.GZIPInputStream(is);
+			java.nio.charset.Charset charSet = getCharset(conn);
+			return new ResponseStream(is, charSet);
 		} catch(ClassCastException e)
 		{
 			IOException toThrow = new IOException("PRISMS Service return value was not an array: "
@@ -604,6 +611,19 @@ public class PrismsServiceConnector
 			toThrow.setStackTrace(e.getStackTrace());
 			throw toThrow;
 		}
+	}
+
+	private static java.nio.charset.Charset getCharset(java.net.URLConnection conn)
+	{
+		String contentType = conn.getContentType().toLowerCase();
+		int idx = contentType.indexOf("charset=");
+		if(idx < 0)
+			return java.nio.charset.Charset.forName("Cp1252");
+		contentType = contentType.substring(idx + "charset=".length());
+		idx = contentType.indexOf(";");
+		if(idx >= 0)
+			contentType = contentType.substring(0, idx);
+		return java.nio.charset.Charset.forName(contentType);
 	}
 
 	private static String encode(String toEncode) throws IOException
@@ -637,7 +657,7 @@ public class PrismsServiceConnector
 		params.put("plugin", plugin);
 		params.put("method", method);
 		params.put("format", format);
-		return getResultStream(ServerMethod.generateImage, params);
+		return getResultStream(ServerMethod.generateImage, params).input;
 	}
 
 	private JSONArray callInit(JSONObject postRequest) throws IOException

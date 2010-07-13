@@ -86,20 +86,20 @@ public class BlowfishEncryption implements Encryption
 		return ret;
 	}
 
-	public String encrypt(String text) throws IOException
+	public String encrypt(String text, java.nio.charset.Charset charSet) throws IOException
 	{
 		int size = text.length();
 		int blockSize = blowfishj.BlowfishECB.BLOCKSIZE;
 		if(size % blockSize > 0)
 			size += (blockSize - size % blockSize);
 		byte [] input = new byte [size];
-		System.arraycopy(text.getBytes(), 0, input, 0, text.length());
+		System.arraycopy(text.getBytes(charSet.name()), 0, input, 0, text.length());
 		byte [] ret = new byte [size];
 		theCipher.encrypt(input, 0, ret, 0, size);
 		return new sun.misc.BASE64Encoder().encode(ret);
 	}
 
-	public String decrypt(String encrypted) throws IOException
+	public String decrypt(String encrypted, java.nio.charset.Charset charSet) throws IOException
 	{
 		byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
 		byte [] ret = new byte [data.length];
@@ -113,7 +113,7 @@ public class BlowfishEncryption implements Encryption
 			System.arraycopy(ret, 0, realRet, 0, retSize);
 			ret = realRet;
 		}
-		return new String(ret);
+		return new String(ret, charSet.name());
 	}
 
 	public void dispose()

@@ -65,12 +65,12 @@ public class AESEncryption implements Encryption
 		}
 	}
 
-	public String encrypt(String text) throws IOException
+	public String encrypt(String text, java.nio.charset.Charset charSet) throws IOException
 	{
 		byte [] encrypted;
 		try
 		{
-			encrypted = theEncryptCipher.doFinal(text.getBytes());
+			encrypted = theEncryptCipher.doFinal(text.getBytes(charSet.name()));
 		} catch(java.security.GeneralSecurityException e)
 		{
 			throw new IllegalStateException("Could not perform AES encryption", e);
@@ -78,7 +78,7 @@ public class AESEncryption implements Encryption
 		return new sun.misc.BASE64Encoder().encode(encrypted);
 	}
 
-	public String decrypt(String encrypted) throws IOException
+	public String decrypt(String encrypted, java.nio.charset.Charset charSet) throws IOException
 	{
 		byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
 		byte [] decrypted;
@@ -89,7 +89,7 @@ public class AESEncryption implements Encryption
 		{
 			throw new IllegalStateException("Could not perform AES decryption", e);
 		}
-		return new String(decrypted);
+		return new String(decrypted, charSet.name());
 	}
 
 	public void dispose()
