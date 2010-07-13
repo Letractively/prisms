@@ -359,7 +359,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				String encryptedText = dataStr;
 				try
 				{
-					dataStr = decrypt(dataStr);
+					dataStr = decrypt(req, dataStr);
 					if(dataStr == null || dataStr.length() < 2 || dataStr.charAt(0) != '{'
 						|| dataStr.charAt(dataStr.length() - 1) != '}')
 					{
@@ -637,15 +637,35 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			 * correctly by the javascript dojo blowfish implementation on the HTML client. Pending
 			 * more extensive investigation, we'll just send information unencrypted. */
 			if(request.client.isService())
-				return theEncryption.encrypt(text);
+			{
+				java.nio.charset.Charset charSet = null;
+				String acceptChs = request.theRequest.getHeader("Accept-Charset");
+				if(acceptChs == null)
+					charSet = java.nio.charset.Charset.defaultCharset();
+				else
+				{
+					String [] chs = acceptChs.split("[;,]");
+					for(int c = 0; c < chs.length && charSet == null; c++)
+						charSet = java.nio.charset.Charset.forName(chs[c].trim());
+					if(charSet == null)
+						charSet = java.nio.charset.Charset.defaultCharset();
+				}
+				return theEncryption.encrypt(text, charSet);
+			}
 			return text;
 		}
 
-		private String decrypt(String encrypted) throws IOException
+		private String decrypt(PrismsRequest request, String encrypted) throws IOException
 		{
 			if(theEncryption == null)
 				return encrypted;
-			return theEncryption.decrypt(encrypted);
+			java.nio.charset.Charset charSet;
+			if(request.theRequest.getCharacterEncoding() == null)
+				charSet = java.nio.charset.Charset.defaultCharset();
+			else
+				charSet = java.nio.charset.Charset.forName(request.theRequest
+					.getCharacterEncoding());
+			return theEncryption.decrypt(encrypted, charSet);
 		}
 
 		private void loginFailed() throws PrismsException
@@ -1975,7 +1995,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if(session == null)
 		{
 			if("init".equals(pReq.serverMethod) || pReq.client.isService())
+			{
+				Runtime runtime = Runtime.getRuntime();
+				long maxMem = runtime.maxMemory();
+				if(runtime.freeMemory() + (maxMem - runtime.totalMemory()) < maxMem * 0.15f)
+				{
+					events.add(error(ErrorCode.ServerError,
+						"Request cannot be processed due to high load"));
+					pReq.send(events);
+					return;
+				}
 				session = httpSession.createSession(pReq.user, pReq.client);
+			}
 			else
 			{
 				/* The session has timed out or has been logged out.  We'll assume the former. */
