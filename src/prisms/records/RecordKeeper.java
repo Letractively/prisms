@@ -1506,9 +1506,11 @@ public class RecordKeeper
 				} catch(PrismsRecordException e)
 				{
 					ErrorSubjectType est = new ErrorSubjectType(subjectType, changeType);
+					Object minor = null;
+					if(est.theChangeType != null && est.theChangeType.getMinorType() != null)
+						minor = new Object();
 					return new ChangeRecord(template.id, template.time, user, est,
-						est.theChangeType, add, new Object(), est.theChangeType == null ? null
-							: new Object(), null, null, null);
+						est.theChangeType, add, new Object(), minor, null, null, null);
 				}
 			} catch(PrismsRecordException e)
 			{
