@@ -7,6 +7,7 @@ import manager.app.ManagerProperties;
 
 import org.apache.log4j.Logger;
 
+import prisms.arch.PrismsException;
 import prisms.arch.ds.User;
 
 /**
@@ -14,9 +15,11 @@ import prisms.arch.ds.User;
  */
 public class AllUsersList extends prisms.ui.list.SelectableList<User>
 {
-	private static final Logger log = Logger.getLogger(AllUsersList.class);
+	static final Logger log = Logger.getLogger(AllUsersList.class);
 
 	private javax.swing.Action DELETE_USER_ACTION;
+
+	private javax.swing.Action CLONE_USER_ACTION;
 
 	/**
 	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession,
@@ -64,6 +67,53 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 					cl.confirmed(true);
 				else
 					ui.confirm("Are you sure you want to delete user " + user.getName(), cl);
+			}
+		};
+		CLONE_USER_ACTION = new javax.swing.AbstractAction("Clone")
+		{
+			public void actionPerformed(java.awt.event.ActionEvent evt)
+			{
+				if(!getSession().getPermissions().has("createUser"))
+					throw new IllegalStateException("User " + getSession().getUser()
+						+ " does not have permission to create a user");
+				prisms.arch.ds.ManageableUserSource source;
+				source = (prisms.arch.ds.ManageableUserSource) getSession().getApp()
+					.getDataSource();
+				User user = ((ItemNode) evt.getSource()).getObject();
+				final User [] users = getSession().getProperty(ManagerProperties.users);
+				User newUser;
+				try
+				{
+					newUser = source.createUser(manager.app.ManagerUtils.getCopyName(
+						user.getName(), new manager.app.ManagerUtils.NameChecker()
+						{
+							public boolean nameExists(String name)
+							{
+								return userExists(name, users);
+							}
+						}));
+				} catch(prisms.arch.PrismsException e)
+				{
+					throw new IllegalStateException("Could not create user", e);
+				}
+				for(prisms.arch.PrismsApplication app : getSession().getProperty(
+					ManagerProperties.applications))
+				{
+					try
+					{
+						if(source.canAccess(user, app))
+							source.setUserAccess(newUser, app, true);
+					} catch(PrismsException e)
+					{
+						log.error("Could not give new user \"" + newUser.getName()
+							+ "\" access to application " + app.getName(), e);
+					}
+				}
+				for(prisms.arch.ds.UserGroup group : user.getGroups())
+					newUser.addTo(group);
+				getSession().setProperty(ManagerProperties.users,
+					prisms.util.ArrayUtils.add(users, newUser));
+				doSelect(newUser);
 			}
 		};
 		setSelectionMode(SelectionMode.SINGLE);
@@ -142,11 +192,18 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 				prisms.arch.ds.ManageableUserSource source;
 				source = (prisms.arch.ds.ManageableUserSource) getSession().getApp()
 					.getDataSource();
-				User [] users = getSession().getProperty(ManagerProperties.users);
+				final User [] users = getSession().getProperty(ManagerProperties.users);
 				User newUser;
 				try
 				{
-					newUser = source.createUser(newUserName(users));
+					newUser = source.createUser(manager.app.ManagerUtils.newName("New User",
+						new manager.app.ManagerUtils.NameChecker()
+						{
+							public boolean nameExists(String name)
+							{
+								return userExists(name, users);
+							}
+						}));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user", e);
@@ -186,18 +243,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 			super.processEvent(evt);
 	}
 
-	String newUserName(User [] users)
-	{
-		String ret = "New User";
-		if(!userExists(ret, users))
-			return ret;
-		int count = 1;
-		while(userExists(ret + "(" + count + ")", users))
-			count++;
-		return ret + "(" + count + ")";
-	}
-
-	private boolean userExists(String name, User [] users)
+	boolean userExists(String name, User [] users)
 	{
 		for(int u = 0; u < users.length; u++)
 			if(users[u].getName().equals(name))
@@ -214,6 +260,9 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 		ItemNode ret = super.createObjectNode(a);
 		if(getSession().getPermissions().has("deleteUser") && !getSession().getUser().equals(a))
 			ret.addAction(DELETE_USER_ACTION);
+		if(manager.app.ManagerUtils.canEdit(getSession().getPermissions(),
+			a.getPermissions(getSession().getApp())))
+			ret.addAction(CLONE_USER_ACTION);
 		return ret;
 	}
 
