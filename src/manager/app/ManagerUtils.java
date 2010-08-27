@@ -16,6 +16,76 @@ public class ManagerUtils
 	}
 
 	/**
+	 * Checks for the existence of a name in a custom data set
+	 */
+	public static interface NameChecker
+	{
+		/**
+		 * @param name The name to check
+		 * @return Whether the name exists in the data set
+		 */
+		boolean nameExists(String name);
+	}
+
+	/**
+	 * Creates a new, unique name for a new item to be inserted into a set of items
+	 * 
+	 * @param startName The starting name for the item (will be used if no other item with this name
+	 *        exists)
+	 * @param checker The checker to determine what names already exist in the set of items
+	 * @return The new name for the new item
+	 */
+	public static String newName(String startName, NameChecker checker)
+	{
+		String ret = "New User";
+		if(!checker.nameExists(ret))
+			return ret;
+		int count = 1;
+		while(checker.nameExists(ret + "(" + count + ")"))
+			count++;
+		return ret + "(" + count + ")";
+	}
+
+	/**
+	 * Generates a new, unique name for an item that is a copy of an existing named item
+	 * 
+	 * @param nameToCopy The name of the item that is being copied
+	 * @param checker The checker to determine what names already exist in the set of items
+	 * @return The new name for the copied item
+	 */
+	public static String getCopyName(String nameToCopy, NameChecker checker)
+	{
+		String startName = nameToCopy;
+		int copyNum = 0;
+		if(nameToCopy.endsWith(" (copy)"))
+		{
+			startName = nameToCopy.substring(0, nameToCopy.length() - " (copy)".length());
+			copyNum = 1;
+		}
+		else
+		{
+			java.util.regex.Pattern pattern = java.util.regex.Pattern
+				.compile("(.*) \\(copy (\\d*)\\)");
+			java.util.regex.Matcher match = pattern.matcher(nameToCopy);
+			if(match.find())
+			{
+				startName = match.group(1);
+				copyNum = Integer.parseInt(match.group(2));
+			}
+		}
+		String name;
+		if(copyNum == 0)
+		{
+			name = startName + " (copy)";
+			if(!checker.nameExists(name))
+				return name;
+			copyNum++;
+		}
+		for(copyNum++; checker.nameExists(startName + " (copy " + copyNum + ")"); copyNum++);
+		return startName + " (copy " + copyNum + ")";
+	}
+
+	/**
 	 * Gets the management level of a user--the lower the number, the more users a user can manage.
 	 * 
 	 * @param perms The permissions of the user to get the management level for
