@@ -36,6 +36,11 @@ public interface ShareKey extends Cloneable
 	boolean canAdministrate(User user);
 
 	/**
+	 * @return Whether this key's object should be persisted
+	 */
+	boolean isPersistent();
+
+	/**
 	 * @return A copy of this object
 	 */
 	ShareKey clone();

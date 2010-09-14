@@ -27,6 +27,8 @@ public class GroupShareKey implements ShareKey, Cloneable
 
 	private boolean isEditPublic;
 
+	private boolean isPersistent;
+
 	private String theViewAllPermission;
 
 	private String theEditAllPermission;
@@ -40,12 +42,14 @@ public class GroupShareKey implements ShareKey, Cloneable
 	 *        the owner or a member of any of this object's access groups
 	 * @param editAllPermission The permission that allows a user to edit this object without being
 	 *        the owner or a member of any of this object's access groups
+	 * @param persist Whether this key's object should be persisted as part of the data set
 	 */
 	public GroupShareKey(User owner, prisms.arch.PrismsApplication app, String viewAllPermission,
-		String editAllPermission)
+		String editAllPermission, boolean persist)
 	{
 		theOwner = owner;
 		theApp = app;
+		isPersistent = persist;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
 		theAccessGroups = new String [0];
@@ -251,6 +255,11 @@ public class GroupShareKey implements ShareKey, Cloneable
 				theEditAllPermission)))
 			return true;
 		return false;
+	}
+
+	public boolean isPersistent()
+	{
+		return isPersistent;
 	}
 
 	public GroupShareKey clone()
