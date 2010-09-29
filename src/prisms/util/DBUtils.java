@@ -3,6 +3,8 @@
  */
 package prisms.util;
 
+import java.sql.Types;
+
 /**
  * Contains database utility methods for general use
  */
@@ -41,6 +43,36 @@ public class DBUtils
 		if(str == null)
 			return "NULL";
 		return "'" + str.replaceAll("'", "''") + "'";
+	}
+
+	/**
+	 * @param time the java time to format
+	 * @param oracle Whether the connection is to an oracle database
+	 * @return the sql expression of the java time
+	 */
+	public static String formatDate(long time, boolean oracle)
+	{
+		if(time <= 0)
+			return "NULL";
+
+		String ret = new java.sql.Timestamp(time).toString();
+
+		if(oracle)
+			ret = "TO_TIMESTAMP('" + ret + "', 'YYYY-MM-DD HH24:MI:SS.FF3')";
+		// ret = "TO_DATE('" + ret.substring(0, ret.length()-4) + "', 'YYYY-MM-DD HH24:MI:SS')";
+		else
+			ret = "'" + ret + "'";
+
+		return ret;
+	}
+
+	/**
+	 * @param conn The connection to test
+	 * @return Whether the connection is to an oracle database
+	 */
+	public static boolean isOracle(java.sql.Connection conn)
+	{
+		return conn.getClass().getName().toLowerCase().contains("ora");
 	}
 
 	/** An expression to evaluate against an integer field in a database. */
@@ -352,6 +384,182 @@ public class DBUtils
 		}
 		else
 			return expr;
+	}
+
+	/**
+	 * Copies data from one database to another
+	 * 
+	 * @param srcConn The connection to copy data from
+	 * @param destConn The connection to copy data to
+	 * @param schema The database schema to copy
+	 * @param tables The list of tables to copy data between the connections. These tables must
+	 *        exist and have identical schema in both databases
+	 * @param clearFirst Whether to clear all data from the destination tables before inserting the
+	 *        source's data
+	 * @throws java.sql.SQLException If an error occurs copying the data
+	 */
+	public static void copyDB(java.sql.Connection srcConn, java.sql.Connection destConn,
+		String schema, String [] tables, boolean clearFirst) throws java.sql.SQLException
+	{
+		java.sql.ResultSet rs;
+		java.util.ArrayList<String> columns = new java.util.ArrayList<String>();
+		IntList types = new IntList();
+		java.sql.Statement srcStmt = srcConn.createStatement();
+		java.sql.Statement destStmt = null;
+		if(clearFirst)
+			destStmt = destConn.createStatement();
+		schema = schema.toUpperCase();
+		for(String table : tables)
+		{
+			table = table.toUpperCase();
+			rs = srcConn.getMetaData().getColumns(null, schema, table, null);
+			while(rs.next())
+			{
+				columns.add(rs.getString("COLUMN_NAME"));
+				String typeName = rs.getString("TYPE_NAME").toLowerCase();
+				if(typeName.startsWith("varchar"))
+					types.add(Types.VARCHAR);
+				else if(typeName.startsWith("numeric") || typeName.startsWith("number"))
+					types.add(Types.NUMERIC);
+				else if(typeName.startsWith("int"))
+					types.add(Types.INTEGER);
+				else if(typeName.equals("longvarchar"))
+					types.add(Types.LONGVARCHAR);
+				else if(typeName.equals("longvarbinary"))
+					types.add(Types.LONGVARBINARY);
+				else if(typeName.startsWith("char"))
+					types.add(Types.CHAR);
+				else if(typeName.equals("clob"))
+					types.add(Types.CLOB);
+				else if(typeName.equals("blob"))
+					types.add(Types.BLOB);
+				else if(typeName.startsWith("timestamp") || typeName.startsWith("datetime"))
+					types.add(Types.TIMESTAMP);
+				else if(typeName.equals("smallint"))
+					types.add(Types.SMALLINT);
+				else if(typeName.startsWith("date"))
+					types.add(Types.DATE);
+				else if(typeName.equals("float"))
+					types.add(Types.FLOAT);
+				else if(typeName.equals("double"))
+					types.add(Types.DOUBLE);
+				else if(typeName.equals("boolean"))
+					types.add(Types.BOOLEAN);
+				else
+					throw new IllegalStateException("Unrecognized type " + typeName);
+			}
+			rs.close();
+			String sql = "INSERT INTO " + table + " (";
+			for(int i = 0; i < columns.size(); i++)
+			{
+				sql += columns.get(i);
+				if(i < columns.size() - 1)
+					sql += ", ";
+			}
+			sql += ") VALUES (";
+			for(int i = 0; i < columns.size(); i++)
+			{
+				sql += "?";
+				if(i < columns.size() - 1)
+					sql += ", ";
+			}
+			sql += ")";
+			java.sql.PreparedStatement pStmt = destConn.prepareStatement(sql);
+			rs = srcStmt.executeQuery("SELECT * FROM " + table);
+			if(clearFirst)
+				destStmt.execute("DELETE FROM " + table);
+			/* If an entry refers to another in the same table, it may fail to insert because the
+			 * other entry is not present yet. For this reason, we try up to 5 times to insert the
+			 * entries, hoping that if it fails once for this reason, it will succeed the next time
+			 * because its parent entry has been inserted. This may still fail if there are too many
+			 * recursive references.*/
+			java.util.ArrayList<java.util.HashMap<String, Object>> entries;
+			entries = new java.util.ArrayList<java.util.HashMap<String, Object>>();
+			java.util.HashMap<String, Object> entry = new java.util.HashMap<String, Object>();
+			while(rs.next())
+			{
+				pStmt.clearParameters();
+				for(int i = 0; i < columns.size(); i++)
+				{
+					Object value;
+					if(types.get(i) == Types.TIMESTAMP)
+						value = rs.getTimestamp(columns.get(i));
+					else
+						value = rs.getObject(columns.get(i));
+					entry.put(columns.get(i), value);
+					if(value == null)
+						pStmt.setNull(i + 1, types.get(i));
+					else
+						pStmt.setObject(i + 1, value);
+				}
+				try
+				{
+					pStmt.execute();
+					entry.clear();
+				} catch(java.sql.SQLException e)
+				{
+					entries.add(entry);
+					entry = new java.util.HashMap<String, Object>();
+				}
+			}
+			rs.close();
+			for(int tries = 0; !entries.isEmpty() && tries < 3; tries++)
+			{
+				java.util.Iterator<java.util.HashMap<String, Object>> entryIter;
+				entryIter = entries.iterator();
+				while(entryIter.hasNext())
+				{
+					entry = entryIter.next();
+					pStmt.clearParameters();
+					for(int i = 0; i < columns.size(); i++)
+					{
+						Object value = entry.get(columns.get(i));
+						if(value == null)
+							pStmt.setNull(i + 1, types.get(i));
+						else
+							pStmt.setObject(i + 1, value);
+					}
+					try
+					{
+						pStmt.execute();
+						entryIter.remove();
+					} catch(java.sql.SQLException e)
+					{}
+				}
+			}
+			if(!entries.isEmpty())
+			{
+				java.util.Iterator<java.util.HashMap<String, Object>> entryIter;
+				entryIter = entries.iterator();
+				while(entryIter.hasNext())
+				{
+					entry = entryIter.next();
+					pStmt.clearParameters();
+					for(int i = 0; i < columns.size(); i++)
+					{
+						Object value = entry.get(columns.get(i));
+						if(value == null)
+							pStmt.setNull(i + 1, types.get(i));
+						else
+							pStmt.setObject(i + 1, value);
+					}
+					pStmt.execute();
+					entryIter.remove();
+				}
+			}
+			try
+			{
+				pStmt.close();
+			} catch(Error e)
+			{
+				// HSQL gives us a bad error here. Keep going.
+			}
+			columns.clear();
+			types.clear();
+		}
+		srcStmt.close();
+		if(destStmt != null)
+			destStmt.close();
 	}
 
 	/**
