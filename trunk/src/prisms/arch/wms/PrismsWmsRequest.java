@@ -8,15 +8,11 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.apache.log4j.Logger;
-
 /**
  * Represents a WMS request. This class makes it easy to modularize WMS implementations.
  */
 public class PrismsWmsRequest
 {
-	private static final Logger log = Logger.getLogger(PrismsWmsRequest.class);
-
 	private static final Color BG = new Color(.5f, .5f, .5f, .5f);
 
 	/**
@@ -206,7 +202,7 @@ public class PrismsWmsRequest
 	 * @param request The HTTP request to inspect
 	 * @return Wheither the given request was intended to be a WMS request
 	 */
-	public static boolean isWMS(HttpServletRequest request)
+	public static boolean isWMS(javax.servlet.http.HttpServletRequest request)
 	{
 		Map<String, String []> paramMap = request.getParameterMap();
 		String version = getParameter(paramMap, "version");
@@ -224,22 +220,13 @@ public class PrismsWmsRequest
 	}
 
 	/**
-	 * Parses a WMS request from an HTTP request
+	 * Parses a WMS request from a set of parameters
 	 * 
-	 * @param request The HTTP request to parse
-	 * @return The WMS request represented by the HTTP request
+	 * @param paramMap The parameters from the HTTP request
+	 * @return The WMS request represented by the HTTP request with the given parameters
 	 */
-	public static PrismsWmsRequest parseWMS(HttpServletRequest request)
+	public static PrismsWmsRequest parseWMS(Map<String, String []> paramMap)
 	{
-		StringBuffer sb = request.getRequestURL();
-
-		if(sb != null)
-			log.debug("From[" + request.getRemoteAddr() + "]     " + sb.toString() + "?"
-				+ request.getQueryString());
-		else
-			log.debug("request.getQueryString() was null for this request!!!");
-
-		Map<String, String []> paramMap = request.getParameterMap();
 		String version = getParameter(paramMap, "version");
 		if(version == null)
 			version = getParameter(paramMap, "wmtver"); // Version 1.0
@@ -256,12 +243,6 @@ public class PrismsWmsRequest
 			throw new IllegalArgumentException("Unrecognized request type: " + requestType);
 
 		PrismsWmsRequest ret = new PrismsWmsRequest();
-		ret.theRemoteAddress = request.getRemoteAddr();
-		ret.theContextPath = request.getContextPath();
-		ret.theServletPath = request.getServletPath();
-		ret.theScheme = request.getScheme();
-		ret.theServerName = request.getServerName();
-		ret.thePort = request.getServerPort();
 		ret.theRequestParams = new java.util.HashMap<String, String>();
 		for(java.util.Map.Entry<String, String []> entry : paramMap.entrySet())
 		{
@@ -284,16 +265,16 @@ public class PrismsWmsRequest
 		switch(rType)
 		{
 		case GetCapabilities:
-			fillCapabilities(ret, request);
+			fillCapabilities(ret);
 			break;
 		case GetFeatureInfo:
-			fillFeatureInfo(ret, request);
+			fillFeatureInfo(ret);
 			break;
 		case Map:
-			fillMap(ret, request);
+			fillMap(ret);
 			break;
 		case GetList:
-			fillList(ret, request);
+			fillList(ret);
 			break;
 		case Other:
 			break;
@@ -481,27 +462,27 @@ public class PrismsWmsRequest
 		return false;
 	}
 
-	private static void fillCapabilities(PrismsWmsRequest ret, HttpServletRequest req)
+	private static void fillCapabilities(PrismsWmsRequest ret)
 	{
 	}
 
-	private static void fillFeatureInfo(PrismsWmsRequest ret, HttpServletRequest req)
+	private static void fillFeatureInfo(PrismsWmsRequest ret)
 	{
-		fillMapInfo(ret, req);
+		fillMapInfo(ret);
 		ret.theSelectedX = Integer.parseInt(ret.getParameter("x"));
 		ret.theSelectedY = Integer.parseInt(ret.getParameter("y"));
 	}
 
-	private static void fillMap(PrismsWmsRequest ret, HttpServletRequest req)
+	private static void fillMap(PrismsWmsRequest ret)
 	{
-		fillMapInfo(ret, req);
+		fillMapInfo(ret);
 	}
 
-	private static void fillList(PrismsWmsRequest ret, HttpServletRequest req)
+	private static void fillList(PrismsWmsRequest ret)
 	{
 	}
 
-	private static void fillMapInfo(PrismsWmsRequest ret, HttpServletRequest req)
+	private static void fillMapInfo(PrismsWmsRequest ret)
 	{
 		ret.theWidth = Integer.parseInt(ret.getParameter("width"));
 		if(ret.theWidth < MIN_WIDTH || ret.theWidth > MAX_WIDTH)
