@@ -95,26 +95,20 @@ public class PrismsServiceConnector
 	 */
 	static enum ServerMethod
 	{
-		/**
-		 * Requests server validation
-		 */
+		/** Requests server validation */
 		validate,
-		/**
-		 * Requests a password change
-		 */
+		/** Requests a password change */
 		changePassword,
-		/**
-		 * Initializes the session on the server
-		 */
+		/** Initializes the session on the server */
 		init,
-		/**
-		 * Processes a client-generated event
-		 */
+		/** Processes a client-generated event */
 		processEvent,
-		/**
-		 * Returns an image
-		 */
-		generateImage
+		/** Returns an image */
+		generateImage,
+		/** Returns a stream of data */
+		getDownload,
+		/** Uploads data to the service */
+		doUpload
 	}
 
 	/**
@@ -471,9 +465,12 @@ public class PrismsServiceConnector
 								+ "encryption failed with encryption:" + theEncryption
 								+ " for request " + event);
 					}
-					serverReturn.addAll(i + 1, startEncryption(prisms.arch.ds.Hashing
-						.fromJson((JSONObject) json.get("hashing")), (JSONObject) json
-						.get("encryption"), (String) json.get("postAction"), serverMethod, event));
+					serverReturn.addAll(
+						i + 1,
+						startEncryption(
+							prisms.arch.ds.Hashing.fromJson((JSONObject) json.get("hashing")),
+							(JSONObject) json.get("encryption"), (String) json.get("postAction"),
+							serverMethod, event));
 				}
 				else if("validate".equals(json.get("method")))
 				{
@@ -549,50 +546,25 @@ public class PrismsServiceConnector
 	private ResponseStream getResultStream(ServerMethod serverMethod, JSONObject request)
 		throws IOException
 	{
-		String callURL = theServiceURL;
-		callURL += "?app=" + encode(theAppName);
-		callURL += "&client=" + encode(theServiceName);
-		callURL += "&method=" + encode(serverMethod.toString());
-		if(theUserName != null)
-			callURL += "&user=" + encode(theUserName);
-		String dataStr;
-		if(request == null)
-			dataStr = null;
-		else
-			dataStr = request.toString();
-		if(dataStr != null && theEncryption != null)
-		{
-			if(dataStr.length() <= 20)
-				dataStr += "-XXSERVERPADDING";
-			callURL += "&encrypted=true";
-			if(logRequestsResponses)
-				log.info("Calling URL " + callURL + " with data " + dataStr);
-			dataStr = theEncryption.encrypt(dataStr, java.nio.charset.Charset.defaultCharset());
-		}
-		else if(logRequestsResponses)
-			log.info("Calling URL " + callURL + " with data " + dataStr);
-		if(dataStr != null)
-			dataStr = encode(dataStr);
+		String dataStr = getEncodedDataString(request);
 		try
 		{
-			java.net.URL url;
-			if(!isPost || dataStr == null)
-				callURL += "&data=" + dataStr;
-			url = new java.net.URL(callURL);
-			java.net.URLConnection conn = url.openConnection();
+			java.net.HttpURLConnection conn = getURL(serverMethod, dataStr);
 			conn.setRequestProperty("Accept-Encoding", "gzip");
 			conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset()
 				.name());
-			java.io.InputStream is;
 			if(isPost && dataStr != null)
 			{
 				conn.setDoOutput(true);
+				conn.connect();
 				java.io.OutputStreamWriter wr;
 				wr = new java.io.OutputStreamWriter(conn.getOutputStream());
 				wr.write("data=" + dataStr);
 				wr.close();
 			}
-			is = conn.getInputStream();
+			else
+				conn.connect();
+			java.io.InputStream is = conn.getInputStream();
 			String encoding = conn.getContentEncoding();
 			if(encoding != null && encoding.equalsIgnoreCase("gzip"))
 				is = new java.util.zip.GZIPInputStream(is);
@@ -611,6 +583,48 @@ public class PrismsServiceConnector
 			toThrow.setStackTrace(e.getStackTrace());
 			throw toThrow;
 		}
+	}
+
+	private java.net.HttpURLConnection getURL(ServerMethod serverMethod, String dataStr)
+		throws IOException
+	{
+		String callURL = theServiceURL;
+		callURL += "?app=" + encode(theAppName);
+		callURL += "&client=" + encode(theServiceName);
+		callURL += "&method=" + encode(serverMethod.toString());
+		if(theUserName != null)
+			callURL += "&user=" + encode(theUserName);
+		if(theEncryption != null)
+			callURL += "&encrypted=true";
+		if(dataStr != null && !isPost)
+			callURL += "&data=" + dataStr;
+		java.net.URL url = new java.net.URL(callURL);
+		java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+		conn.setRequestProperty("Accept-Encoding", "gzip");
+		conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset().name());
+		return conn;
+	}
+
+	private String getEncodedDataString(JSONObject params) throws IOException
+	{
+		String dataStr = null;
+		if(params != null)
+		{
+			dataStr = params.toString();
+			if(theEncryption != null)
+			{
+				if(dataStr.length() <= 20)
+					dataStr += "-XXSERVERPADDING";
+				if(logRequestsResponses)
+					log.info("Calling service with data " + dataStr);
+			}
+			else if(logRequestsResponses)
+				log.info("Calling service with data " + dataStr);
+			if(theEncryption != null)
+				dataStr = theEncryption.encrypt(dataStr, java.nio.charset.Charset.defaultCharset());
+			dataStr = encode(dataStr);
+		}
+		return dataStr;
 	}
 
 	private static java.nio.charset.Charset getCharset(java.net.URLConnection conn)
@@ -658,6 +672,139 @@ public class PrismsServiceConnector
 		params.put("method", method);
 		params.put("format", format);
 		return getResultStream(ServerMethod.generateImage, params).input;
+	}
+
+	/**
+	 * Gets binary data from the service
+	 * 
+	 * @param plugin The name of the download plugin to request data from
+	 * @param method The method to send to the plugin
+	 * @param params The data parameters to send to the plugin
+	 * @return An input stream containing the data
+	 * @throws IOException If the data cannot be retrieved
+	 */
+	public java.io.InputStream getDownload(String plugin, String method, JSONObject params)
+		throws IOException
+	{
+		if(params == null)
+			params = new JSONObject();
+		params.put("plugin", plugin);
+		params.put("method", method);
+		return getResultStream(ServerMethod.getDownload, params).input;
+	}
+
+	static String BOUNDARY = Long.toHexString((long) (Math.random() * Long.MAX_VALUE));
+
+	/**
+	 * Uploads data to the service
+	 * TODO This does not currently work
+	 * 
+	 * @param fileName The name of the file to send to the servlet
+	 * @param mimeType The content type to send to the servlet
+	 * @param plugin The name of the upload plugin to send the data to
+	 * @param method The method to send to the plugin
+	 * @param params The data parameters to send to the plugin
+	 * @return The output stream to write the upload data to
+	 * @throws IOException If an error occurs doing the upload
+	 */
+	public java.io.OutputStream uploadData(String fileName, String mimeType, String plugin,
+		String method, Object... params) throws IOException
+	{
+		if(params == null)
+			params = new Object [0];
+		JSONObject jsonParams = PrismsUtils.rEventProps(params);
+		jsonParams.put("plugin", plugin);
+		jsonParams.put("method", method);
+		jsonParams.put("uploadFile", fileName);
+		String dataStr = getEncodedDataString(jsonParams);
+		final java.net.HttpURLConnection conn = getURL(ServerMethod.doUpload, dataStr);
+		conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset().name());
+		conn.setDoOutput(true);
+		conn.setDoInput(true);
+		conn.setUseCaches(false);
+		conn.setDefaultUseCaches(false);
+		conn.setRequestMethod("POST");
+		conn.setRequestProperty("Connection", "Keep-Alive");
+		// c.setRequestProperty("HTTP_REFERER", codebase);
+		conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + BOUNDARY);
+		final java.io.OutputStream os = conn.getOutputStream();
+		final java.io.Writer out = new java.io.OutputStreamWriter(os,
+			java.nio.charset.Charset.defaultCharset());
+		if(isPost && dataStr != null)
+		{
+			out.write("--");
+			out.write(BOUNDARY);
+			out.write("\r\n");
+			// write content header
+			out.write("Content-Disposition: form-data; name=\"data\";");
+			out.write("\r\n");
+			out.write("Content-Type: text/plain\r\nContent-Transfer-Encoding: 8bit");
+			out.write("\r\n");
+			out.write("\r\n");
+			out.write(dataStr);
+		}
+
+		out.write("\r\n");
+		out.write("--");
+		out.write(BOUNDARY);
+		out.write("\r\n");
+		// write content header
+		out.flush();
+		out.write("Content-Disposition: file; name=\"Upload Data\"; filename=\"" + fileName + "\"");
+		out.write("\r\n");
+		if(mimeType != null)
+		{
+			out.write("Content-Type: " + mimeType);
+			out.write("\r\n");
+		}
+		out.write("\r\n");
+		out.flush();
+		return new java.io.OutputStream()
+		{
+			@Override
+			public void write(int b) throws IOException
+			{
+				os.write(b);
+			}
+
+			@Override
+			public void write(byte [] b) throws IOException
+			{
+				os.write(b);
+			}
+
+			@Override
+			public void write(byte [] b, int off, int len) throws IOException
+			{
+				os.write(b, off, len);
+			}
+
+			@Override
+			public void flush() throws IOException
+			{
+				os.flush();
+			}
+
+			@Override
+			public void close() throws IOException
+			{
+				os.flush();
+				out.write("\r\n");
+				out.write("--");
+				out.write(BOUNDARY);
+				out.write("--");
+				out.write("\r\n");
+				out.write("\r\n");
+				out.flush();
+				out.close();
+				java.io.InputStream in = conn.getInputStream();
+				int read = in.read();
+				while(read >= 0)
+					read = in.read();
+				in.close();
+				conn.disconnect();
+			}
+		};
 	}
 
 	private JSONArray callInit(JSONObject postRequest) throws IOException
