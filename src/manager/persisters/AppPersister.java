@@ -36,19 +36,15 @@ public class AppPersister extends prisms.util.persisters.AbstractPersister<Prism
 			}
 	}
 
-	/**
-	 * @see prisms.arch.Persister#setValue(java.lang.Object)
-	 */
-	public void setValue(PrismsApplication [] o)
+	public synchronized void setValue(PrismsApplication [] value,
+		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		// Changes should not be made directly to an application, but rather through the manager,
 		// so persistence is not handled here
 	}
 
-	/**
-	 * @see prisms.arch.Persister#valueChanged(java.lang.Object, java.lang.Object)
-	 */
-	public void valueChanged(PrismsApplication [] fullValue, Object o)
+	public void valueChanged(PrismsApplication [] fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt)
 	{
 		// Changes should not be made directly to an application, but rather through the manager,
 		// so persistence is not handled here

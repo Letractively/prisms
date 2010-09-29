@@ -21,9 +21,7 @@ public class PrismsApplication
 {
 	private static Logger log = Logger.getLogger(PrismsApplication.class);
 
-	/**
-	 * A task to be run on a session
-	 */
+	/** A task to be run on a session */
 	public static interface SessionTask
 	{
 		/**
@@ -32,6 +30,78 @@ public class PrismsApplication
 		 * @param session The session to run the task on
 		 */
 		void run(PrismsSession session);
+	}
+
+	/**
+	 * Represents a lock on an application. No sessions or services may access an application while
+	 * it is locked.
+	 * 
+	 * @see PrismsApplication#getApplicationLock()
+	 */
+	public static class ApplicationLock
+	{
+		private String theMessage;
+
+		private int theScale;
+
+		private int theProgress;
+
+		private PrismsSession theSession;
+
+		ApplicationLock(String message, int scale, int progress, PrismsSession session)
+		{
+			theMessage = message;
+			theScale = scale;
+			theProgress = progress;
+			theSession = session;
+		}
+
+		/**
+		 * @return The message that is displayed to the user when a session attempts to access the
+		 *         application while it is locked
+		 */
+		public String getMessage()
+		{
+			return theMessage;
+		}
+
+		/**
+		 * @return The scale of the task that is blocking the application. If 0, the task's length
+		 *         is undetermined; otherwise the user may reasonably expect the application to be
+		 *         unlocked shortly after {@link #getProgress()} reaches this value unless told
+		 *         otherwise by {@link #getMessage()}.
+		 */
+		public int getScale()
+		{
+			return theScale;
+		}
+
+		/**
+		 * @return The progress of the task that is blocking the application. If the task's scale is
+		 *         non-zero, the user may reasonably expect the application to be unlocked shortly
+		 *         after {@link #getProgress()} reaches this value unless told otherwise by
+		 *         {@link #getMessage()}.
+		 */
+		public int getProgress()
+		{
+			return theProgress;
+		}
+
+		/**
+		 * @return The session that is responsible for locking the application (may be null)
+		 */
+		public PrismsSession getLockingSession()
+		{
+			return theSession;
+		}
+
+		void set(String message, int scale, int progress, PrismsSession session)
+		{
+			theMessage = message;
+			theScale = scale;
+			theProgress = progress;
+			theSession = session;
+		}
 	}
 
 	private static class EventListenerType
@@ -66,7 +136,7 @@ public class PrismsApplication
 
 	private PrismsServer theServer;
 
-	private UserSource theDataSource;
+	private final UserSource theDataSource;
 
 	private String theName;
 
@@ -78,7 +148,7 @@ public class PrismsApplication
 
 	private ArrayList<UserGroup> theAdminGroups;
 
-	private ArrayList<PrismsSession> theSessions;
+	private java.util.concurrent.ConcurrentLinkedQueue<PrismsSession> theSessions;
 
 	private java.util.Collection<PropertyManager<?>> theManagers;
 
@@ -94,31 +164,24 @@ public class PrismsApplication
 
 	private java.util.HashSet<PrismsProperty<?>> thePropertyStack;
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("rawtypes")
 	private ListenerManager<PrismsPCL> thePCLs;
-
-	private java.util.concurrent.locks.ReentrantLock thePropLock;
 
 	private Worker theWorker;
 
-	private String theAppLock;
-
-	private PrismsSession theLocker;
-
-	private long theReloadTime;
-
-	private long theServiceReloadTime;
-
-	private String theReloadMessage;
+	private ApplicationLock theAppLock;
 
 	/**
 	 * Creates a PluginApplication
+	 * 
+	 * @param userSource The user source that this application is from
 	 */
-	@SuppressWarnings("unchecked")
-	public PrismsApplication()
+	@SuppressWarnings("rawtypes")
+	public PrismsApplication(UserSource userSource)
 	{
+		theDataSource = userSource;
 		theAdminGroups = new ArrayList<UserGroup>();
-		theSessions = new ArrayList<PrismsSession>();
+		theSessions = new java.util.concurrent.ConcurrentLinkedQueue<PrismsSession>();
 		theManagers = new ArrayList<PropertyManager<?>>();
 		theELTypes = new java.util.ArrayList<EventListenerType>();
 		theMonitorTypes = new java.util.ArrayList<MonitorType>();
@@ -126,7 +189,6 @@ public class PrismsApplication
 		theRecurringTasks = new ArrayList<ScheduledTask>();
 		theDestroyTasks = new ArrayList<Runnable>();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
-		thePropLock = new java.util.concurrent.locks.ReentrantLock();
 		thePropertyStack = new java.util.HashSet<PrismsProperty<?>>();
 	}
 
@@ -236,14 +298,6 @@ public class PrismsApplication
 	public UserSource getDataSource()
 	{
 		return theDataSource;
-	}
-
-	/**
-	 * @param ds The data source that created this application
-	 */
-	public void setDataSource(UserSource ds)
-	{
-		theDataSource = ds;
 	}
 
 	/**
@@ -402,14 +456,33 @@ public class PrismsApplication
 	 * @param <T> The type of the property to set
 	 * @param prop The property to set the value of
 	 * @param value The value of the property to set
+	 * @param eventProps Event properties for the property change event that is fired. Must be in
+	 *        the form of name, value, name, value, where name is a string.
 	 */
-	public <T> void setGlobalProperty(PrismsProperty<T> prop, T value)
+	public <T> void setGlobalProperty(PrismsProperty<T> prop, T value, Object... eventProps)
 	{
+		// Generics *can* be defeated--check the type here
+		if(value != null && !prop.getType().isInstance(value))
+			throw new IllegalArgumentException("Cannot set an instance of "
+				+ value.getClass().getName() + " for property " + prop + ", type "
+				+ prop.getType().getName());
+		if(eventProps.length % 2 != 0)
+			throw new IllegalArgumentException("Event properties for property change event must be"
+				+ " in the form of name, value, name, value, etc.--" + eventProps.length
+				+ " arguments illegal");
 		PrismsPCE<T> propEvt = new PrismsPCE<T>(this, prop, null, value);
+		for(int i = 0; i < eventProps.length; i += 2)
+		{
+			if(!(eventProps[i] instanceof String))
+				throw new IllegalArgumentException(
+					"Event properties for property change event must"
+						+ " be in the form of name, value, name, value, etc.--eventProps[" + i
+						+ "] is not a string");
+			propEvt.set((String) eventProps[i], eventProps[i + 1]);
+		}
 		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
-		thePropLock.lock();
 		PropertyManager<T> manager = null;
-		try
+		synchronized(getPropertyLock(prop))
 		{
 			for(PropertyManager<?> mgr : theManagers)
 			{
@@ -438,18 +511,15 @@ public class PrismsApplication
 				{
 					T sessionValue = session.getProperty(prop);
 					if(manager == null && !prisms.util.ArrayUtils.equals(sessionValue, value))
-						session.setProperty(prop, sessionValue);
+						session.setProperty(prop, sessionValue, eventProps);
 					else if(manager != null
 						&& !manager.isValueCorrect(session, session.getProperty(prop)))
-						session.setProperty(prop, manager.getCorrectValue(session));
+						session.setProperty(prop, manager.getCorrectValue(session), eventProps);
 				}
 			} finally
 			{
 				thePropertyStack.remove(prop);
 			}
-		} finally
-		{
-			thePropLock.unlock();
 		}
 	}
 
@@ -469,8 +539,7 @@ public class PrismsApplication
 	{
 		PrismsPCE<T> propEvt = new PrismsPCE<T>(manager != null ? manager : this, prop, null, value);
 		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
-		thePropLock.lock();
-		try
+		synchronized(getPropertyLock(prop))
 		{
 			thePropertyStack.add(prop);
 			for(PrismsPCL<T> l : listeners)
@@ -483,10 +552,22 @@ public class PrismsApplication
 					break;
 			}
 			thePropertyStack.remove(prop);
-		} finally
-		{
-			thePropLock.unlock();
 		}
+	}
+
+	private java.util.HashMap<PrismsProperty<?>, Object> thePropertyLocks;
+
+	private synchronized Object getPropertyLock(PrismsProperty<?> property)
+	{
+		if(thePropertyLocks == null)
+			thePropertyLocks = new java.util.HashMap<PrismsProperty<?>, Object>();
+		Object ret = thePropertyLocks.get(property);
+		if(ret == null)
+		{
+			ret = new Object();
+			thePropertyLocks.put(property, ret);
+		}
+		return ret;
 	}
 
 	/**
@@ -537,8 +618,6 @@ public class PrismsApplication
 	{
 		for(PrismsSession session_i : getSessions())
 		{
-			if(!isOpen(session_i))
-				continue;
 			if(session_i == session)
 			{
 				if(!excludeSession)
@@ -557,8 +636,8 @@ public class PrismsApplication
 							task.run(s);
 						} catch(RuntimeException e2)
 						{
-							e2.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e2
-								.getStackTrace(), e.getStackTrace(), getClass().getName(), "run"));
+							e2.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(
+								e2.getStackTrace(), e.getStackTrace(), getClass().getName(), "run"));
 							throw e2;
 						}
 					}
@@ -595,10 +674,7 @@ public class PrismsApplication
 		addPropertyManagers(session);
 		addEventListeners(session);
 		addSessionMonitors(session);
-		synchronized(theSessions)
-		{
-			theSessions.add(session);
-		}
+		theSessions.add(session);
 	}
 
 	/**
@@ -636,80 +712,51 @@ public class PrismsApplication
 	 * 
 	 * @param message The message that should be displayed to users who try to access the
 	 *        application, or null if the application is to be unlocked
+	 * @param scale The scale of the task that is blocking the application. (see
+	 *        {@link ApplicationLock#getScale()})
+	 * @param progress The progress of the task that is blocking the application. (see
+	 *        {@link ApplicationLock#getScale()})
 	 * @param locker The session that locked the application--the application will not be locked
 	 *        against this session
 	 */
-	public void setApplicationLock(String message, PrismsSession locker)
+	public void setApplicationLock(String message, int scale, int progress, PrismsSession locker)
 	{
-		theLocker = locker;
-		theAppLock = message;
+		if(message == null)
+			theAppLock = null;
+		else if(theAppLock == null)
+			theAppLock = new ApplicationLock(message, scale, progress, locker);
+		else
+			theAppLock.set(message, scale, progress, locker);
 	}
 
 	/**
-	 * @return The message that should be displayed to users who try to access the application if it
-	 *         is locked, or null if the application is not locked
+	 * @return The application lock detailing the information to be displayed to users who try to
+	 *         access the application if it is locked, or null if the application is not locked
 	 */
-	public String getApplicationLock()
+	public ApplicationLock getApplicationLock()
 	{
 		return theAppLock;
 	}
 
 	/**
-	 * @param session The session to determine whether it is locked from the application temporarily
-	 * @return The lock message to give to the client if the session is locked out, or null if the
-	 *         session is not locked out
+	 * Causes all sessions of this application to reload themselves
 	 */
-	public String isLocked(PrismsSession session)
+	public void reloadAll()
 	{
-		if(theAppLock == null)
-			return null;
-		else
-			return theLocker != session ? theAppLock : null;
-	}
-
-	/**
-	 * Causes all sessions of this application to expire. The user will be given a message on what
-	 * caused the need to reload.
-	 * 
-	 * @param message The message to display to the user
-	 * @param includeServices Whether services should be reloaded also
-	 */
-	public void reloadAll(String message, boolean includeServices)
-	{
-		theReloadTime = System.currentTimeMillis();
-		if(includeServices)
-			theServiceReloadTime = theReloadTime;
-		theReloadMessage = message;
-	}
-
-	/**
-	 * Checks to see whether a session is still active in the application
-	 * 
-	 * @param session The session to check
-	 * @return Whether the session should still be accessible
-	 */
-	public boolean isOpen(PrismsSession session)
-	{
-		if(session.getCreationTime() < theReloadTime)
+		PrismsSession [] sessions = getSessions();
+		for(PrismsSession session : sessions)
 		{
-			if(!session.getClient().isService() || session.getCreationTime() < theServiceReloadTime)
-				return false;
+			if(session.getClient().isService())
+				continue;
+			session.clearOutgoingQueue();
+			session.init();
 		}
-		return true;
-	}
-
-	/**
-	 * @return The message to show clients if the application is reloaded
-	 */
-	public String getReloadMessage()
-	{
-		return theReloadMessage;
 	}
 
 	/**
 	 * Reloads the persistent properties in this application from their respective data sources
 	 */
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("rawtypes")
 	public void reloadProperties()
 	{
 		for(PropertyManager manager : theManagers)
@@ -764,7 +811,7 @@ public class PrismsApplication
 	 * 
 	 * @param session The session to add the property managers to
 	 */
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("rawtypes")
 	protected void addPropertyManagers(PrismsSession session)
 	{
 		PropertyManager [] mgrs;
@@ -781,8 +828,9 @@ public class PrismsApplication
 				session.addPropertyChangeListener(mgr.getProperty(), mgr);
 			} catch(RuntimeException e)
 			{
-				log.error("Could not add property manager " + mgr + " for property "
-					+ mgr.getProperty() + " to session", e);
+				log.error(
+					"Could not add property manager " + mgr + " for property " + mgr.getProperty()
+						+ " to session", e);
 				throw e;
 			}
 		}
@@ -855,10 +903,7 @@ public class PrismsApplication
 	 */
 	void removeSession(PrismsSession session)
 	{
-		synchronized(theSessions)
-		{
-			theSessions.remove(session);
-		}
+		theSessions.remove(session);
 	}
 
 	/**
@@ -866,10 +911,7 @@ public class PrismsApplication
 	 */
 	private PrismsSession [] getSessions()
 	{
-		synchronized(theSessions)
-		{
-			return theSessions.toArray(new PrismsSession [theSessions.size()]);
-		}
+		return theSessions.toArray(new PrismsSession [theSessions.size()]);
 	}
 
 	/**
@@ -890,12 +932,12 @@ public class PrismsApplication
 	 */
 	public void destroy()
 	{
-		synchronized(theSessions)
+		java.util.Iterator<PrismsSession> iter = theSessions.iterator();
+		while(iter.hasNext())
 		{
-			PrismsSession [] sessions = theSessions.toArray(new PrismsSession [theSessions.size()]);
-			sessions = new PrismsSession [0];
-			for(PrismsSession s : sessions)
-				s.destroy();
+			PrismsSession session = iter.next();
+			iter.remove();
+			session.destroy();
 		}
 		synchronized(theDestroyTasks)
 		{

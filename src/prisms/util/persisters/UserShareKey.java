@@ -14,7 +14,7 @@ import prisms.util.ArrayUtils;
  * A key to an object that is shared between users. A user's access to the object is determined by
  * the key's users.
  */
-public class UserShareKey implements ShareKey, Cloneable
+public class UserShareKey implements ShareKey
 {
 	private User theOwner;
 
@@ -28,7 +28,7 @@ public class UserShareKey implements ShareKey, Cloneable
 
 	private boolean isEditPublic;
 
-	private boolean isPersistent;
+	private boolean isShared;
 
 	private String theViewAllPermission;
 
@@ -43,18 +43,23 @@ public class UserShareKey implements ShareKey, Cloneable
 	 *        the owner or one of this object's access users
 	 * @param editAllPermission The permission that allows a user to edit this object without being
 	 *        the owner or one of this object's access users
-	 * @param persist Whether this key's object should be persisted as part of the data set
+	 * @param shared Whether this key's object should be shared between sessions
 	 */
 	public UserShareKey(User owner, PrismsApplication app, String viewAllPermission,
-		String editAllPermission, boolean persist)
+		String editAllPermission, boolean shared)
 	{
 		theOwner = owner;
 		theApp = app;
-		isPersistent = persist;
+		isShared = shared;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
 		theAccessUsers = new String [0];
 		theEditUsers = new boolean [0];
+	}
+
+	public boolean isShared()
+	{
+		return isShared;
 	}
 
 	/**
@@ -284,11 +289,6 @@ public class UserShareKey implements ShareKey, Cloneable
 		return false;
 	}
 
-	public boolean isPersistent()
-	{
-		return isPersistent;
-	}
-
 	public UserShareKey clone()
 	{
 		UserShareKey ret;
@@ -387,8 +387,8 @@ public class UserShareKey implements ShareKey, Cloneable
 	public void fromGroupJSON(JSONArray json, final User user)
 	{
 		final boolean [] adminChecked = new boolean [] {user == null};
-		ArrayUtils.adjust(theAccessUsers, (JSONObject []) json
-			.toArray(new JSONObject [json.size()]),
+		ArrayUtils.adjust(theAccessUsers,
+			(JSONObject []) json.toArray(new JSONObject [json.size()]),
 			new ArrayUtils.DifferenceListener<String, JSONObject>()
 			{
 				public boolean identity(String o1, JSONObject o2)

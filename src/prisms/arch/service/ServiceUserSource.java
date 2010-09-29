@@ -206,8 +206,7 @@ public class ServiceUserSource implements UserSource
 			String descrip = (String) appConfig.get("description");
 			String configClassStr = (String) appConfig.get("configClass");
 			String configXML = (String) appConfig.get("configXML");
-			ret = new DBApplication();
-			ret.setDataSource(this);
+			ret = new DBApplication(this);
 			ret.setName(name);
 			ret.setDescription(descrip);
 			ret.setConfigXML(configXML);

@@ -24,9 +24,12 @@ public class DBApplication extends prisms.arch.PrismsApplication
 
 	/**
 	 * Creates a DBApplication
+	 * 
+	 * @param userSource The user source that this application is from
 	 */
-	public DBApplication()
+	public DBApplication(prisms.arch.ds.UserSource userSource)
 	{
+		super(userSource);
 		theID = -1;
 	}
 

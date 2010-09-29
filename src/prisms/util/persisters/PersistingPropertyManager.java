@@ -26,8 +26,8 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 		Persister<T> persister;
 		org.dom4j.Element persisterEl = configEl.element("persister");
 		if(persisterEl != null)
-			persister = app.getServer().getPersisterFactory().create(persisterEl, app,
-				getProperty());
+			persister = app.getServer().getPersisterFactory()
+				.create(persisterEl, app, getProperty());
 		else
 			persister = null;
 		setPersister(persister);
@@ -58,14 +58,11 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 			setValue(thePersister.link(getApplicationValue()));
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#changeValues(prisms.arch.PrismsSession)
-	 */
 	@Override
-	public void changeValues(prisms.arch.PrismsSession session)
+	public void changeValues(prisms.arch.PrismsSession session, prisms.arch.event.PrismsPCE<T> evt)
 	{
-		super.changeValues(session);
-		saveData(session);
+		super.changeValues(session, evt);
+		saveData(session, evt);
 	}
 
 	/**
@@ -74,8 +71,10 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 	 * @param session The session that caused the change
 	 * @param fullValue The full persisted value
 	 * @param o The piece of the value that changed
+	 * @param evt The event that represents the change
 	 */
-	public synchronized void changeValue(PrismsSession session, T fullValue, Object o)
+	public synchronized void changeValue(PrismsSession session, T fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt)
 	{
 		if(thePersister != null)
 		{
@@ -84,11 +83,11 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 				synchronized(thePersister)
 				{
 					((RequiresSession) thePersister).setSession(session);
-					thePersister.valueChanged(fullValue, o);
+					thePersister.valueChanged(fullValue, o, evt);
 				}
 			}
 			else
-				thePersister.valueChanged(fullValue, o);
+				thePersister.valueChanged(fullValue, o, evt);
 		}
 	}
 
@@ -126,8 +125,9 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 	 * Called to save the current set of data
 	 * 
 	 * @param session The session that caused the change
+	 * @param evt The event that represents the change
 	 */
-	public void saveData(PrismsSession session)
+	public void saveData(PrismsSession session, prisms.arch.event.PrismsPCE<T> evt)
 	{
 		if(thePersister == null)
 			return;
@@ -137,10 +137,10 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 				synchronized(thePersister)
 				{
 					((RequiresSession) thePersister).setSession(session);
-					thePersister.setValue(getApplicationValue());
+					thePersister.setValue(getApplicationValue(), evt);
 				}
 		}
 		else
-			thePersister.setValue(getApplicationValue());
+			thePersister.setValue(getApplicationValue(), evt);
 	}
 }

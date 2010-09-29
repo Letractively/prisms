@@ -488,9 +488,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			rs = stmt.executeQuery(sql);
 			while(rs.next())
 			{
-				DBApplication app = new DBApplication();
+				DBApplication app = new DBApplication(this);
 				appList.add(app);
-				app.setDataSource(this);
 				app.setID(rs.getInt("id"));
 				app.setName(rs.getString("appName"));
 				app.setDescription(rs.getString("appDescrip"));
@@ -563,8 +562,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				DBApplication app = getApplication(rs.getInt("configApp"), stmt);
 				if(app == null || app.isDeleted())
 					continue;
-				DBClientConfig client = new DBClientConfig(rs.getInt("id"), app, rs
-					.getString("configName"));
+				DBClientConfig client = new DBClientConfig(rs.getInt("id"), app,
+					rs.getString("configName"));
 				client.setDescription(rs.getString("configDescrip"));
 				client.setSerializerClass(rs.getString("configSerializer"));
 				client.setConfigXML(rs.getString("configXML"));
@@ -639,8 +638,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				DBApplication app = getApplication(rs.getInt("pApp"), stmt);
 				if(app == null || app.isDeleted())
 					continue;
-				DBPermission perm = new DBPermission(rs.getString("pName"), rs
-					.getString("pDescrip"), app, rs.getInt("id"));
+				DBPermission perm = new DBPermission(rs.getString("pName"),
+					rs.getString("pDescrip"), app, rs.getInt("id"));
 				permList.add(perm);
 			}
 			rs.close();
@@ -1093,8 +1092,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			appConfig.configureSession(ret, configEl);
 		} catch(Throwable e)
 		{
-			throw new PrismsException("Could not configure session of application "
-				+ client.getApp().getName(), e);
+			throw new PrismsException(e.getMessage(), e);
 		}
 		try
 		{
@@ -1607,7 +1605,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			throw new PrismsException("Cannot create an application without a name");
 		if(getApp(name) != null)
 			throw new PrismsException("Application " + name + " already exists");
-		DBApplication app = new DBApplication();
+		DBApplication app = new DBApplication(this);
 		app.setName(name);
 		putApplication(app);
 		return app;
@@ -2285,8 +2283,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
 				return null;
-			DBApplication ret = new DBApplication();
-			ret.setDataSource(this);
+			DBApplication ret = new DBApplication(this);
 			ret.setID(id);
 			ret.setName(rs.getString("appName"));
 			ret.setDescription(rs.getString("appDescrip"));
@@ -2356,8 +2353,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			+ " configClass, configXML, userRestrictive, deleted) VALUES (" + app.getID() + ", "
 			+ toSQL(app.getName()) + ", " + toSQL(app.getDescription()) + ", ";
 		sql += toSQL((app.getConfig() == null || app.getConfig().getClass().equals(AppConfig.class))
-			? null : app.getConfig().getClass().getName())
-			+ ", ";
+			? null : app.getConfig().getClass().getName()) + ", ";
 		sql += toSQL(app.getConfigXML()) + ", ";
 		sql += boolToSql(app.isUserRestrictive()) + ", ";
 		sql += boolToSql(app.isDeleted()) + ")";
@@ -2808,8 +2804,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			if(theConn == null || theConn.isClosed())
 			{
 				theConn = thePersisterFactory.getConnection(theConfigEl, null);
-				DBOWNER = thePersisterFactory.getTablePrefix(theConn, theConfigEl
-					.element("connection"), null);
+				DBOWNER = thePersisterFactory.getTablePrefix(theConn,
+					theConfigEl.element("connection"), null);
 			}
 		} catch(SQLException e)
 		{

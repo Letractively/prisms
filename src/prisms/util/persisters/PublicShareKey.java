@@ -8,7 +8,7 @@ import prisms.arch.ds.User;
 /**
  * A key for an object that is owned by a user and can be made public or private so that other
  */
-public class PublicShareKey implements ShareKey, Cloneable
+public class PublicShareKey implements ShareKey
 {
 	private User theOwner;
 
@@ -16,7 +16,7 @@ public class PublicShareKey implements ShareKey, Cloneable
 
 	private boolean isPublic;
 
-	private boolean isPersistent;
+	private boolean isShared;
 
 	private String theViewAllPermission;
 
@@ -31,16 +31,21 @@ public class PublicShareKey implements ShareKey, Cloneable
 	 *        the owner or a member of any of this object's access groups
 	 * @param editAllPermission The permission that allows a user to edit this object without being
 	 *        the owner or a member of any of this object's access groups
-	 * @param persist Whether this key's object should be persisted as part of the data set
+	 * @param shared Whether this key's object should be shared between sessions
 	 */
 	public PublicShareKey(User owner, prisms.arch.PrismsApplication app, String viewAllPermission,
-		String editAllPermission, boolean persist)
+		String editAllPermission, boolean shared)
 	{
 		theOwner = owner;
 		theApp = app;
-		isPersistent = persist;
+		isShared = shared;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
+	}
+
+	public boolean isShared()
+	{
+		return isShared;
 	}
 
 	/**
@@ -92,11 +97,6 @@ public class PublicShareKey implements ShareKey, Cloneable
 	public boolean canAdministrate(User user)
 	{
 		return canEdit(user);
-	}
-
-	public boolean isPersistent()
-	{
-		return isPersistent;
 	}
 
 	public PublicShareKey clone()

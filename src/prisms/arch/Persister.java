@@ -47,16 +47,20 @@ public interface Persister<T>
 	 * 
 	 * @param <V> The type of value to set
 	 * @param o The values to persist
+	 * @param evt The event that represents the change. This is a raw value due to conflicts with
+	 *        generics.
 	 */
-	<V extends T> void setValue(V o);
+	@SuppressWarnings("rawtypes")
+	<V extends T> void setValue(V o, prisms.arch.event.PrismsPCE evt);
 
 	/**
 	 * Called when a single element of the persister's value changes
 	 * 
 	 * @param fullValue The whole persisted value
 	 * @param o The value that changed
+	 * @param evt The event that represents the change
 	 */
-	void valueChanged(T fullValue, Object o);
+	void valueChanged(T fullValue, Object o, prisms.arch.event.PrismsEvent evt);
 
 	/**
 	 * Reloads this persister's value from the data source, clearing any cached resources that may

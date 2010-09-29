@@ -29,6 +29,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	static final Logger log = Logger.getLogger(PrismsServer.class);
 
 	/**
+	 * The threshold before a session expires at which the client will receive a warning that its
+	 * session is about to expire
+	 */
+	public static final long WARN_EXPIRE_THRESHOLD = 120000L;
+
+	/**
 	 * An error code that will be sent back with events of type method="error"
 	 */
 	public static enum ErrorCode
@@ -79,11 +85,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
-	class PrismsRequest
+	static class PrismsRequest
 	{
 		final HttpServletRequest theRequest;
 
 		final HttpServletResponse theResponse;
+
+		final RemoteEventSerializer theSerializer;
 
 		String sessionID;
 
@@ -107,10 +115,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		ClientConfig client;
 
-		PrismsRequest(HttpServletRequest req, HttpServletResponse resp)
+		PrismsRequest(HttpServletRequest req, HttpServletResponse resp,
+			RemoteEventSerializer serializer)
 		{
 			theRequest = req;
 			theResponse = resp;
+			theSerializer = serializer;
 			sessionID = req.getParameter("sessionID");
 			serverMethod = req.getParameter("method");
 			// Check for external certificate authentication
@@ -158,7 +168,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				JSONObject data;
 				try
 				{
-					data = getSerializer().deserialize(dataString);
+					data = theSerializer.deserialize(dataString);
 					if(appName == null)
 						appName = (String) data.get("app");
 					if(clientName == null)
@@ -182,12 +192,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			theResponse.setContentType("text/prisms-json");
 			java.io.PrintWriter out = theResponse.getWriter();
-			out.print(getSerializer().serialize(events));
+			out.print(theSerializer.serialize(events));
 			out.close();
 		}
 	}
 
-	class PrismsResponse
+	static class PrismsResponse
 	{
 		ErrorCode code;
 
@@ -338,22 +348,28 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				try
 				{
 					if(!getUserSource().canAccess(theUser, req.app))
-						return error(req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
-							+ "\" does not have permission to access application \""
-							+ req.app.getName() + "\"", false);
+						return error(
+							req,
+							ErrorCode.ValidationFailed,
+							"User \"" + theUser.getName()
+								+ "\" does not have permission to access application \""
+								+ req.app.getName() + "\"", false);
 				} catch(PrismsException e)
 				{
 					log.error("Could not determine user " + theUser + "'s access to application "
 						+ req.app.getName(), e);
-					return error(req, ErrorCode.ServerError, "Could not determine user "
-						+ theUser.getName() + "'s access to application " + req.app.getName(),
-						false);
+					return error(req, ErrorCode.ServerError,
+						"Could not determine user " + theUser.getName()
+							+ "'s access to application " + req.app.getName(), false);
 				}
 				theAccessApps = ArrayUtils.add(theAccessApps, req.appName);
 			}
 			String dataStr = req.dataString;
 			if(req.encrypted)
 			{
+				if(dataStr == null)
+					return error(req, ErrorCode.RequestInvalid, "No data parameter in request",
+						false);
 				// For some reason, "+" gets mis-translated at a space
 				dataStr = dataStr.replaceAll(" ", "+");
 				String encryptedText = dataStr;
@@ -380,20 +396,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					} catch(PrismsException e2)
 					{
 						log.error("Error processing request", e2);
-						return error(req, ErrorCode.ServerError, "Error processing request: "
-							+ e2.getMessage(), false);
+						return error(req, ErrorCode.ServerError,
+							"Error processing request: " + e2.getMessage(), false);
 					}
 					if(req.isWMS)
 						return error(req, ErrorCode.ValidationFailed,
 							"WMS does not support encryption.", false);
 					if(theUser.isLocked())
 						return sendLogin(req, "Too many incorrect password attempts.\nUser "
-							+ theUser.getName() + " is locked. Contact your admin", "init"
-							.equals(req.serverMethod), true);
+							+ theUser.getName() + " is locked. Contact your admin",
+							"init".equals(req.serverMethod), true);
 					else if(authChanged)
 						return sendLogin(req, theUser + "'s password has been changed."
-							+ " Use the new password or contact your admin.", "init"
-							.equals(req.serverMethod), true);
+							+ " Use the new password or contact your admin.",
+							"init".equals(req.serverMethod), true);
 					else
 						return sendLogin(req, "Incorrect password for user " + theUser.getName(),
 							"init".equals(req.serverMethod), true);
@@ -458,8 +474,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					return error(req, ErrorCode.ValidationFailed, e.getMessage(), true);
 				} catch(IOException e)
 				{
-					return error(req, ErrorCode.ServerError, "Could not read validation data: "
-						+ e.getMessage(), true);
+					return error(req, ErrorCode.ServerError,
+						"Could not read validation data: " + e.getMessage(), true);
 				}
 				if(!valid)
 				{
@@ -546,8 +562,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(PrismsException e)
 			{
 				log.error("Could not get password expiration", e);
-				return error(req, ErrorCode.ServerError, "Could not get password expiration: "
-					+ e.getMessage(), true);
+				return error(req, ErrorCode.ServerError,
+					"Could not get password expiration: " + e.getMessage(), true);
 			}
 			if(!isTrusted() && pwdExp > 0 && pwdExp < System.currentTimeMillis())
 			{
@@ -555,8 +571,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					return error(req, ErrorCode.ValidationFailed,
 						"Password change required for user \"" + theUser.getName() + "\"", false);
 				else
-					return sendChangePassword(req, "Password change required for user \""
-						+ theUser.getName() + "\"", false);
+					return sendChangePassword(req,
+						"Password change required for user \"" + theUser.getName() + "\"", false);
 			}
 
 			if("tryChangePassword".equals(req.serverMethod))
@@ -854,9 +870,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					}
 				}
 			}
-			return singleMessage(req, true, "changePassword", (error ? "error" : "message"), msg
-				.toString(), "constraints", prisms.arch.service.PrismsSerializer
-				.serializeConstraints(pc), "hashing", theHashing.toJson());
+			return singleMessage(req, true, "changePassword", (error ? "error" : "message"),
+				msg.toString(), "constraints",
+				prisms.arch.service.PrismsSerializer.serializeConstraints(pc), "hashing",
+				theHashing.toJson());
 		}
 
 		private void loginSucceeded()
@@ -869,6 +886,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		private PrismsResponse error(PrismsRequest req, ErrorCode code, String message,
 			boolean encrypted)
 		{
+			if("doUpload".equals(req.serverMethod))
+				throw new IllegalStateException(code + ": " + message);
 			JSONObject evt = new JSONObject();
 			evt.put("code", code);
 			evt.put("message", message);
@@ -892,15 +911,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return new PrismsResponse(arr, encrypted);
 		}
 
-		boolean isExpired()
+		long untilExpires()
 		{
+			long now = System.currentTimeMillis();
+			long ret = Long.MAX_VALUE;
 			long timeout = getSecurityTimeout();
-			if(timeout > 0 && System.currentTimeMillis() - theLastUsed > timeout)
-				return true;
+			if(timeout > 0)
+				ret = timeout - now + theLastUsed;
 			long refresh = getSecurityRefresh();
-			if(refresh > 0 && System.currentTimeMillis() - theCreationTime > refresh)
-				return true;
-			return false;
+			if(refresh > 0 && ret > refresh - now + theCreationTime)
+				ret = refresh - now + theCreationTime;
+			return ret;
 		}
 
 		void destroy()
@@ -910,7 +931,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
-	private class SessionHolder
+	private class PrismsSessionHolder
 	{
 		private final HttpSession theHttpSession;
 
@@ -931,7 +952,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		 * @param user The user that this session is for
 		 * @param client The client configuration that this session is for
 		 */
-		public SessionHolder(HttpSession httpSession, User user, ClientConfig client)
+		public PrismsSessionHolder(HttpSession httpSession, User user, ClientConfig client)
 		{
 			theHttpSession = httpSession;
 			theUser = user;
@@ -962,11 +983,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			if(theSession != null)
 			{
-				if(!theApp.isOpen(theSession))
-					return singleMessage(req, true, "restart", "message", theApp.getReloadMessage());
-				String appLock = theApp.isLocked(theSession);
-				if(appLock != null)
-					return singleMessage(req, true, "appLocked", "message", appLock);
+				prisms.arch.PrismsApplication.ApplicationLock lock = theApp.getApplicationLock();
+				if(lock != null && lock.getLockingSession() != theSession)
+					return singleMessage(req, true, "appLocked", "message", lock.getMessage(),
+						"scale", new Integer(lock.getScale()), "progress",
+						new Integer(lock.getProgress()));
 			}
 			// Do prisms methods
 			if("init".equals(req.serverMethod))
@@ -995,7 +1016,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				return process(event);
 			if(req.isWMS)
 			{
-				PrismsWmsRequest wmsReq = PrismsWmsRequest.parseWMS(req.theRequest);
+				PrismsWmsRequest wmsReq = PrismsWmsRequest.parseWMS(req.theRequest
+					.getParameterMap());
 				return processWMS(req, event, wmsReq);
 			}
 			if("generateImage".equals(req.serverMethod))
@@ -1078,53 +1100,66 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private PrismsResponse process(JSONObject event)
 		{
-			int busyness = theSession.getBusyCount();
-			String invocationID = null;
-			try
-			{
-				if(theSession.getClient().isService())
-				{
-					invocationID = Integer.toHexString((int) (Math.random() * Integer.MAX_VALUE));
-					theSession.process(event, invocationID);
-				}
-				else
-					theSession.process(event);
-			} catch(Throwable e)
-			{
-				log.error("Session error processing events", e);
-			}
-			try
-			{
-				Thread.sleep(100);
-			} catch(InterruptedException e)
-			{}
-			/*
-			 * This code checks every quarter second to see if the event has been processed. If
-			 * the processing isn't finished after 1/2 second, this method returns, leaving the
-			 * final results of the event on the queue to be retrieved at the next client poll
-			 * or user action. This allows progress bars to be shown to the user quickly while a
-			 * long operation progresses.
-			 */
-			int waitCount = 0;
-			while(theSession.getBusyCount() > busyness && waitCount < 2)
+			JSONArray ret = null;
+			if(theSession.getClient().isService()
+				|| Boolean.TRUE.equals(event.get("prisms-synchronous")))
 			{
 				try
 				{
-					Thread.sleep(250);
+					ret = theSession.processSync(event);
+				} catch(Throwable e)
+				{
+					log.error("Session error processing events", e);
+				}
+			}
+			else
+			{
+				boolean [] finished = new boolean [] {false};
+				try
+				{
+					theSession.processAsync(event, finished);
+				} catch(Throwable e)
+				{
+					log.error("Session error processing events", e);
+				}
+				try
+				{
+					Thread.sleep(100);
 				} catch(InterruptedException e)
 				{}
-				waitCount++;
-			}
-			JSONArray ret;
-			if(invocationID != null)
-				ret = theSession.getEvents(invocationID);
-			else
+				/*
+				 * This code checks every quarter second to see if the event has been processed. If
+				 * the processing isn't finished after 1/2 second, this method returns, leaving the
+				 * final results of the event on the queue to be retrieved at the next client poll
+				 * or user action. This allows progress bars to be shown to the user quickly while a
+				 * long operation progresses.
+				 */
+				int waitCount = 0;
+				while(!finished[0])
+				{
+					try
+					{
+						Thread.sleep(250);
+					} catch(InterruptedException e)
+					{}
+					waitCount++;
+				}
+				boolean fin = finished[0];
 				ret = theSession.getEvents();
-			if(invocationID == null && theSession.getBusyCount() > busyness)
+				if(!fin)
+				{
+					JSONObject getEventsEvent = new JSONObject();
+					getEventsEvent.put("method", "getEvents");
+					ret.add(getEventsEvent);
+				}
+			}
+			long exp = untilExpires();
+			if(exp <= WARN_EXPIRE_THRESHOLD)
 			{
-				JSONObject getEventsEvent = new JSONObject();
-				getEventsEvent.put("method", "getEvents");
-				ret.add(getEventsEvent);
+				JSONObject warnExpireEvent = new JSONObject();
+				warnExpireEvent.put("method", "warnExpire");
+				warnExpireEvent.put("expireTime", new Long(exp));
+				ret.add(warnExpireEvent);
 			}
 			return new PrismsResponse(ret, true);
 		}
@@ -1186,8 +1221,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(e instanceof java.io.IOException)
 					throw (java.io.IOException) e;
 				log.error("Could not fulfill " + wms.getRequest() + " typed WMS request", e);
-				return error(req, ErrorCode.ApplicationError, e.getClass().getName() + ": "
-					+ e.getMessage());
+				return error(req, ErrorCode.ApplicationError,
+					e.getClass().getName() + ": " + e.getMessage());
 			}
 			return new PrismsResponse(null);
 		}
@@ -1231,9 +1266,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(contentType == null)
 				contentType = "application/octet-stream";
 			response.setContentType(contentType);
-			response.setHeader("Content-Disposition", "attachment; filename=\""
-				+ plugin.getFileName(event) + "\"");
-			plugin.doDownload(event, response.getOutputStream());
+			response.setHeader("Content-Disposition",
+				"attachment; filename=\"" + plugin.getFileName(event) + "\"");
+			try
+			{
+				plugin.doDownload(event, response.getOutputStream());
+			} catch(RuntimeException e)
+			{
+				log.error("Download failed", e);
+			} catch(Error e)
+			{
+				log.error("Download failed", e);
+			}
 		}
 
 		private void doUpload(HttpServletRequest request, final JSONObject event)
@@ -1292,11 +1336,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						try
 						{
-							plugin.doUpload(event, fileName, item.getContentType(), item
-								.getInputStream(), item.getSize());
+							plugin.doUpload(event, fileName, item.getContentType(),
+								item.getInputStream(), item.getSize());
 						} catch(java.io.IOException e)
 						{
 							log.error("Upload " + fileName + " failed", e);
+						} catch(RuntimeException e)
+						{
+							log.error("Upload failed", e);
+						} catch(Error e)
+						{
+							log.error("Upload failed", e);
 						} finally
 						{
 							item.delete();
@@ -1334,19 +1384,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return new PrismsResponse(arr, encrypted);
 		}
 
-		boolean isExpired()
+		long untilExpires()
 		{
+			long ret = Long.MAX_VALUE;
 			long timeout = theClient.getSessionTimeout();
 			if(theSession != null)
-			{
-				if(!theApp.isOpen(theSession))
-					return true;
-				if(theSession.isExpired())
-					return true;
-			}
-			else if(timeout > 0 && System.currentTimeMillis() - theCreationTime > timeout)
-				return true;
-			return false;
+				ret = theSession.untilExpires();
+			else if(timeout > 0 && timeout - System.currentTimeMillis() + theCreationTime < ret)
+				ret = timeout - System.currentTimeMillis() + theCreationTime;
+			return ret;
 		}
 
 		void destroy()
@@ -1364,7 +1410,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private SecuritySession [] theSecurities;
 
-		private SessionHolder [] theSessionHolders;
+		private PrismsSessionHolder [] theSessionHolders;
 
 		private long theLastUsed;
 
@@ -1373,7 +1419,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theID = id;
 			isSecure = secure;
 			theSecurities = new SecuritySession [0];
-			theSessionHolders = new SessionHolder [0];
+			theSessionHolders = new PrismsSessionHolder [0];
 			theLastUsed = System.currentTimeMillis();
 		}
 
@@ -1411,25 +1457,25 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return newSec;
 		}
 
-		SessionHolder getSession(User user, ClientConfig client)
+		PrismsSessionHolder getSession(User user, ClientConfig client)
 		{
-			for(SessionHolder session : theSessionHolders)
+			for(PrismsSessionHolder session : theSessionHolders)
 				if(session.getUser().equals(user) && session.getClient().equals(client))
 					return session;
 			return null;
 		}
 
-		synchronized SessionHolder createSession(User user, ClientConfig client)
+		synchronized PrismsSessionHolder createSession(User user, ClientConfig client)
 		{
-			for(SessionHolder session : theSessionHolders)
+			for(PrismsSessionHolder session : theSessionHolders)
 				if(session.getUser().equals(user) && session.getClient().equals(client))
 					return session;
-			SessionHolder newSession = new SessionHolder(this, user, client);
+			PrismsSessionHolder newSession = new PrismsSessionHolder(this, user, client);
 			theSessionHolders = ArrayUtils.add(theSessionHolders, newSession);
 			return newSession;
 		}
 
-		synchronized void removeSession(SessionHolder session)
+		synchronized void removeSession(PrismsSessionHolder session)
 		{
 			for(int s = 0; s < theSessionHolders.length; s++)
 				if(theSessionHolders[s] == session)
@@ -1443,14 +1489,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			boolean remove = false;
 			for(SecuritySession sec : theSecurities)
-				if(sec.isExpired())
+			{
+				if(sec.untilExpires() <= 0)
 				{
 					remove = true;
 					break;
 				}
+			}
 			if(!remove)
-				for(SessionHolder session : theSessionHolders)
-					if(session.isExpired())
+				for(PrismsSessionHolder session : theSessionHolders)
+					if(session.untilExpires() <= 0)
 					{
 						remove = true;
 						break;
@@ -1460,15 +1508,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				synchronized(this)
 				{
 					for(int s = 0; s < theSecurities.length; s++)
-						if(theSecurities[s].isExpired())
+						if(theSecurities[s].untilExpires() <= 0)
 						{
 							theSecurities = ArrayUtils.remove(theSecurities, s);
 							s--;
 						}
 					for(int s = 0; s < theSessionHolders.length; s++)
-						if(theSessionHolders[s].isExpired())
+						if(theSessionHolders[s].untilExpires() <= 0)
 						{
-							SessionHolder session = theSessionHolders[s];
+							PrismsSessionHolder session = theSessionHolders[s];
 							theSessionHolders = ArrayUtils.remove(theSessionHolders, s);
 							session.destroy();
 							s--;
@@ -1485,9 +1533,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theSecurities = new SecuritySession [0];
 			for(SecuritySession security : securities)
 				security.destroy();
-			SessionHolder [] sessions = theSessionHolders;
-			theSessionHolders = new SessionHolder [0];
-			for(SessionHolder session : sessions)
+			PrismsSessionHolder [] sessions = theSessionHolders;
+			theSessionHolders = new PrismsSessionHolder [0];
+			for(PrismsSessionHolder session : sessions)
 				session.destroy();
 		}
 	}
@@ -1823,7 +1871,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	{
 		JSONArray events = new JSONArray();
 		JSONObject temp;
-		PrismsRequest pReq = new PrismsRequest(req, resp);
+		PrismsRequest pReq = new PrismsRequest(req, resp, getSerializer());
 		if(pReq.isWMS)
 		{
 			temp = pReq.adjustWMS();
@@ -1861,8 +1909,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(Throwable e)
 			{
 				log.error("PRISMS configuration failed", e);
-				events.add(error(ErrorCode.ServerError, "PRISMS configuration failed: "
-					+ e.getMessage()));
+				events.add(error(ErrorCode.ServerError,
+					"PRISMS configuration failed: " + e.getMessage()));
 				pReq.send(events);
 				return;
 			}
@@ -1974,8 +2022,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(PrismsException e)
 			{
 				log.error("Could not retrieve validation info", e);
-				events.add(error(ErrorCode.ServerError, "Could not retrieve validation info: "
-					+ e.getMessage()));
+				events.add(error(ErrorCode.ServerError,
+					"Could not retrieve validation info: " + e.getMessage()));
 				pReq.send(events);
 				return;
 			}
@@ -1991,7 +2039,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 
 		// The request is valid and authenticated. Now we get or create the session.
-		SessionHolder session = httpSession.getSession(pReq.user, pReq.client);
+		PrismsSessionHolder session = httpSession.getSession(pReq.user, pReq.client);
 		if(session == null)
 		{
 			if("init".equals(pReq.serverMethod) || pReq.client.isService())
@@ -2065,8 +2113,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		} catch(PrismsException e)
 		{
 			log.error("Could not get user " + req.userName, e);
-			return error(ErrorCode.ServerError, "Could not get user \"" + req.userName + "\": "
-				+ e.getMessage());
+			return error(ErrorCode.ServerError,
+				"Could not get user \"" + req.userName + "\": " + e.getMessage());
 		}
 		if(req.user == null && isTrusted())
 		{
@@ -2162,7 +2210,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	public void clean()
 	{
 		long time = System.currentTimeMillis();
-		if(time - theCleanTimer > theCleanInterval)
+		if(time - theCleanTimer < theCleanInterval)
 			return;
 		theCleanTimer = Long.MAX_VALUE;
 		java.util.Iterator<HttpSession> sessionIter = theSessions.values().iterator();

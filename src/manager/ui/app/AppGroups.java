@@ -142,7 +142,7 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 		theApp = app;
 		if(app == null)
 		{
-			app = new PrismsApplication();
+			app = new PrismsApplication(getSession().getApp().getDataSource());
 			app.setName("No application");
 		}
 		else
