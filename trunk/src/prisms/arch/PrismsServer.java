@@ -1135,7 +1135,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				 * long operation progresses.
 				 */
 				int waitCount = 0;
-				while(!finished[0])
+				while(!finished[0] && waitCount < 2)
 				{
 					try
 					{
@@ -1901,20 +1901,26 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		// Configure the server if it has not been yet
 		if(!isConfigured)
 		{
-			log.info("Not yet configured! Configuring...");
-			try
+			synchronized(this)
 			{
-				configurePRISMS();
-				isConfigured = true;
-			} catch(Throwable e)
-			{
-				log.error("PRISMS configuration failed", e);
-				events.add(error(ErrorCode.ServerError,
-					"PRISMS configuration failed: " + e.getMessage()));
-				pReq.send(events);
-				return;
+				if(!isConfigured)
+				{
+					log.info("Not yet configured! Configuring...");
+					try
+					{
+						configurePRISMS();
+						isConfigured = true;
+					} catch(Throwable e)
+					{
+						log.error("PRISMS configuration failed", e);
+						events.add(error(ErrorCode.ServerError,
+							"PRISMS configuration failed: " + e.getMessage()));
+						pReq.send(events);
+						return;
+					}
+					log.info("... Done Configuring.");
+				}
 			}
-			log.info("... Done Configuring.");
 		}
 
 		// Fill in the request with user, app, client, etc.
