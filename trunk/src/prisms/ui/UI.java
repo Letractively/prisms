@@ -237,8 +237,8 @@ public class UI implements prisms.arch.AppPlugin
 	public void startTimedTask(ProgressInformer informer)
 	{
 		addEvent(new EventObject("progress", informer.getTaskText(), informer, "length",
-			new Integer(informer.getTaskScale()), "progress", new Integer(informer
-				.getTaskProgress()), "cancelable", new Boolean(informer.isCancelable())));
+			new Integer(informer.getTaskScale()), "progress", new Integer(
+				informer.getTaskProgress()), "cancelable", new Boolean(informer.isCancelable())));
 	}
 
 	String createMessageID()
@@ -519,6 +519,68 @@ public class UI implements prisms.arch.AppPlugin
 		public void setDone()
 		{
 			isDone = true;
+		}
+	}
+
+	/**
+	 * A progress informer implementation that locks an application, informing the user of the
+	 * progress of the operation and unlocking the app when the task is complete.
+	 */
+	public static class AppLockProgress extends DefaultProgressInformer
+	{
+		private final prisms.arch.PrismsApplication theApp;
+
+		private boolean postReload;
+
+		/** @param app The application to lock for this progress */
+		public AppLockProgress(prisms.arch.PrismsApplication app)
+		{
+			theApp = app;
+		}
+
+		/**
+		 * @param reload Whether the application's sessions should be reloaded after this progress
+		 *        completes
+		 */
+		public void setPostReload(boolean reload)
+		{
+			postReload = reload;
+		}
+
+		@Override
+		public void setProgressText(String text)
+		{
+			super.setProgressText(text);
+			setAppLock();
+		}
+
+		@Override
+		public void setProgressScale(int scale)
+		{
+			super.setProgressScale(scale);
+			setAppLock();
+		}
+
+		@Override
+		public void setProgress(int progress)
+		{
+			super.setProgress(progress);
+			setAppLock();
+		}
+
+		@Override
+		public void setDone()
+		{
+			super.setDone();
+			if(postReload)
+				theApp.reloadAll();
+			theApp.setApplicationLock(null, 0, 0, null);
+		}
+
+		private void setAppLock()
+		{
+			if(!isTaskDone())
+				theApp.setApplicationLock(getTaskText(), getTaskScale(), getTaskProgress(), null);
 		}
 	}
 }

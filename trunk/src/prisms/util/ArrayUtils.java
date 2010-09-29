@@ -407,6 +407,8 @@ public final class ArrayUtils
 	 */
 	public static int indexOf(Object anArray, Object anElement)
 	{
+		if(anArray == null)
+			return -1;
 		if(anArray instanceof Object [])
 		{
 			Object [] array2 = (Object []) anArray;
@@ -546,8 +548,8 @@ public final class ArrayUtils
 				}
 			}
 		}
-		Object ret = Array.newInstance(array1.getClass().getComponentType(), len1
-			- remove.cardinality());
+		Object ret = Array.newInstance(array1.getClass().getComponentType(),
+			len1 - remove.cardinality());
 		// This copying section might be replaced by a more efficient version
 		// using System.arraycopy()--this would be much faster than reflection,
 		// especially for large arrays needing only a few elements removed
@@ -594,8 +596,8 @@ public final class ArrayUtils
 				}
 			}
 		}
-		T [] ret = (T []) Array.newInstance(array1.getClass().getComponentType(), len1
-			- remove.cardinality());
+		T [] ret = (T []) Array.newInstance(array1.getClass().getComponentType(),
+			len1 - remove.cardinality());
 		// This copying section might be replaced by a more efficient version
 		// using System.arraycopy()--this would be much faster than reflection,
 		// especially for large arrays needing only a few elements removed
@@ -651,6 +653,8 @@ public final class ArrayUtils
 	 */
 	public static <T, E extends T> boolean contains(T [] anArray, E anElement)
 	{
+		if(anArray == null)
+			return false;
 		for(int i = 0; i < anArray.length; i++)
 		{
 			if(equals(anArray[i], anElement))
@@ -706,6 +710,8 @@ public final class ArrayUtils
 	 */
 	public static <T, E extends T> boolean containsID(T [] anArray, E anElement)
 	{
+		if(anArray == null)
+			return false;
 		for(int i = 0; i < anArray.length; i++)
 		{
 			if(anArray[i] == anElement)
@@ -979,6 +985,8 @@ public final class ArrayUtils
 	 */
 	public static int replaceOnce(Object array, Object toReplace, Object replacement)
 	{
+		if(array == null)
+			return -1;
 		if(array instanceof Object [])
 		{
 			Object [] array2 = (Object []) array;
@@ -1020,6 +1028,8 @@ public final class ArrayUtils
 	public static int replaceAll(Object array, Object toReplace, Object replacement)
 	{
 		int count = 0;
+		if(array == null)
+			return count;
 		if(array instanceof Object [])
 		{
 			Object [] array2 = (Object []) array;
@@ -1225,6 +1235,8 @@ public final class ArrayUtils
 	 */
 	public static <T> T [] reverse(T [] array)
 	{
+		if(array == null)
+			return array;
 		T temp;
 		final int aLen = array.length - 1;
 		for(int i = 0; i < array.length / 2; i++)
@@ -1245,6 +1257,8 @@ public final class ArrayUtils
 	 */
 	public static Object reverseP(Object array)
 	{
+		if(array == null)
+			return array;
 		if(array instanceof Object [])
 			return reverse((Object []) array);
 		Object temp;
@@ -1448,32 +1462,20 @@ public final class ArrayUtils
 		DifferenceListenerE<T1, T2, E> dl) throws E
 	{
 		ArrayAdjuster<T1, T2, E> adjuster = new ArrayAdjuster<T1, T2, E>(original, modifier, dl);
-		adjuster.init();
 		return adjuster.adjust();
 	}
 
 	static final Object NULL = new Object();
 
 	/**
-	 * Returns an element that {@link #adjust(Object[], Object[], DifferenceListenerE)} will
-	 * interpret as a null value. If an actual null were returned, adjust would interpret this as
-	 * meaning the element should be removed from the array, with subsequent indices being affected.
-	 * If the return value of this method is returned from {@link DifferenceListenerE}.add, remove,
-	 * or set, the element's place will be saved and that element in the returned array will be
-	 * null.
+	 * Adjusts arrays. This is the more complicated and capable structure used by
+	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)}
 	 * 
 	 * @param <T1> The type of the original array
 	 * @param <T2> The type of the modifying array
 	 * @param <E> The type of exception that may be thrown
-	 * @param dl The listener to return the null element from
-	 * @return An object that represents a null array element placeholder
 	 */
-	public static <T1, T2, E extends Throwable> T1 nullElement(DifferenceListenerE<T1, T2, E> dl)
-	{
-		return (T1) NULL;
-	};
-
-	private static class ArrayAdjuster<T1, T2, E extends Throwable>
+	public static class ArrayAdjuster<T1, T2, E extends Throwable>
 	{
 		private final T1 [] original;
 
@@ -1491,7 +1493,18 @@ public final class ArrayUtils
 
 		private int maxLength;
 
-		ArrayAdjuster(T1 [] o, T2 [] m, DifferenceListenerE<T1, T2, E> listener)
+		private boolean isNullElement;
+
+		/**
+		 * Creates an adjuster that can adjust one array by another
+		 * 
+		 * @param o The original array
+		 * @param m The modified array
+		 * @param listener The listener to determine how to deal with differences between the two
+		 *        arrays
+		 * @see ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)
+		 */
+		public ArrayAdjuster(T1 [] o, T2 [] m, DifferenceListenerE<T1, T2, E> listener)
 		{
 			original = o;
 			oIdxAdj = new int [o.length];
@@ -1502,7 +1515,7 @@ public final class ArrayUtils
 			dl = listener;
 		}
 
-		void init() throws E
+		private void init() throws E
 		{
 			int o, m, r = original.length + modifier.length;
 			for(m = 0; m < modifier.length; m++)
@@ -1527,8 +1540,16 @@ public final class ArrayUtils
 			maxLength = r;
 		}
 
-		T1 [] adjust() throws E
+		/**
+		 * Adjusts the arrays set from the constructor
+		 * 
+		 * @return The adjusted array
+		 * @throws E If an error occurs in one of the listener's methods
+		 * @see ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)
+		 */
+		public T1 [] adjust() throws E
 		{
+			init();
 			int m, o, r = 0;
 			Object [] ret = new Object [maxLength];
 			for(o = 0; o < original.length && oMappings[o] < 0; o++)
@@ -1562,6 +1583,18 @@ public final class ArrayUtils
 			return actualRet;
 		}
 
+		/**
+		 * Marks the current value as a null value. If an actual null were returned, adjust would
+		 * interpret this as meaning the element should be removed from the array, with subsequent
+		 * indices being affected. If this method is called from {@link DifferenceListenerE}.add,
+		 * remove, or set, the element's place will be saved and that element in the returned array
+		 * will be null.
+		 */
+		public void nullElement()
+		{
+			isNullElement = true;
+		}
+
 		static void mergeSort(int [] order, int [] distances, int start, int end)
 		{
 			if(end - start <= 1)
@@ -1592,6 +1625,11 @@ public final class ArrayUtils
 		{
 			entriesSet[m] = true;
 			T1 item = dl.added(modifier[m], m, r);
+			if(isNullElement)
+			{
+				item = (T1) NULL;
+				isNullElement = false;
+			}
 			// Adjust the incremental modification indexes
 			if(item != null)
 			{
@@ -1611,6 +1649,11 @@ public final class ArrayUtils
 		private boolean remove(int o, int m, Object [] ret, int r) throws E
 		{
 			T1 item = dl.removed(original[o], o, oIdxAdj[o], r);
+			if(isNullElement)
+			{
+				item = (T1) NULL;
+				isNullElement = false;
+			}
 			// Adjust the incremental modification indexes
 			if(item == null)
 			{
@@ -1639,6 +1682,11 @@ public final class ArrayUtils
 			}
 			entriesSet[m] = true;
 			T1 item = dl.set(original[o], o, oIdxAdj[o], modifier[m], m, r);
+			if(isNullElement)
+			{
+				item = (T1) NULL;
+				isNullElement = false;
+			}
 			// Adjust the incremental modification indexes
 			if(item != null)
 			{
