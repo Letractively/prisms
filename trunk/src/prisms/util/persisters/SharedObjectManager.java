@@ -22,64 +22,94 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 
 	private ShareKey [] theKeys;
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#getApplicationValue()
-	 */
 	@Override
 	public T getApplicationValue()
 	{
 		return (T) theGlobalValue;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession,
-	 *      java.lang.Object)
-	 */
 	@Override
 	public <V extends T> boolean isValueCorrect(PrismsSession session, V val)
 	{
 		if(val == null)
 			return false;
 		final prisms.arch.ds.User user = session.getUser();
-		SharedObject [] gv = theGlobalValue;
-		boolean [] used = new boolean [gv.length];
-		SharedObject [] soVal = (SharedObject []) val;
-		for(int v = 0; v < soVal.length; v++)
-		{
-			int gvIdx;
-			for(gvIdx = 0; gvIdx < gv.length && gv[gvIdx] != soVal[v]; gvIdx++);
-			if(gvIdx == gv.length)
-				return false; // The session has a value that is not in the global value
-			if(used[gvIdx])
-				return false; // The session has the same value twice
-			used[gvIdx] = true;
-			if(!soVal[v].getShareKey().canView(user))
-				return false; // The session has a value that the user shouldn't be able to see
-		}
-		for(int v = 0; v < gv.length; v++)
-			if(!used[v] && gv[v].getShareKey().canView(user))
-				return false; // The session is missing a value that the user should be able to see
-		return true;
+		final boolean [] ret = new boolean [] {true};
+		ArrayUtils.adjust(theGlobalValue, (SharedObject []) val,
+			new ArrayUtils.DifferenceListener<SharedObject, SharedObject>()
+			{
+				public boolean identity(SharedObject o1, SharedObject o2)
+				{
+					return o1.equals(o2);
+				}
+
+				public SharedObject added(SharedObject o, int mIdx, int retIdx)
+				{
+					if(o.getShareKey().isShared())
+						ret[0] = false;// The session has a value that is not in the global value
+					return null;
+				}
+
+				public SharedObject removed(SharedObject o, int oIdx, int incMod, int retIdx)
+				{
+					if(o.getShareKey().canView(user))
+						ret[0] = false; // The session is missing a value that the user should be
+										// able to see
+					return null;
+				}
+
+				public SharedObject set(SharedObject o1, int idx1, int incMod, SharedObject o2,
+					int idx2, int retIdx)
+				{
+					if(o1.getShareKey().isShared() && !o1.getShareKey().canView(user))
+						ret[0] = false;// The session has a value that the user shouldn't be able to
+										// see
+					return null;
+				}
+			});
+		return ret[0];
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#getCorrectValue(prisms.arch.PrismsSession)
-	 */
 	@Override
 	public T getCorrectValue(PrismsSession session)
 	{
 		final prisms.arch.ds.User user = session.getUser();
-		java.util.ArrayList<SharedObject> ret = new java.util.ArrayList<SharedObject>();
-		for(SharedObject o : theGlobalValue)
-			if(o.getShareKey().canView(user))
-				ret.add(o);
-		return (T) ret.toArray((SharedObject []) java.lang.reflect.Array.newInstance(theGlobalValue
-			.getClass().getComponentType(), ret.size()));
+		SharedObject [] sv = (SharedObject []) session.getProperty(getProperty());
+		if(sv == null)
+			sv = (SharedObject []) java.lang.reflect.Array.newInstance(theGlobalValue.getClass()
+				.getComponentType(), 0);
+		return (T) ArrayUtils.adjust(sv, theGlobalValue,
+			new ArrayUtils.DifferenceListener<SharedObject, SharedObject>()
+			{
+				public boolean identity(SharedObject o1, SharedObject o2)
+				{
+					return o1.equals(o2);
+				}
+
+				public SharedObject added(SharedObject o, int mIdx, int retIdx)
+				{
+					if(o.getShareKey().isShared() && o.getShareKey().canView(user))
+						return o;
+					return null;
+				}
+
+				public SharedObject removed(SharedObject o, int oIdx, int incMod, int retIdx)
+				{
+					if(!o.getShareKey().isShared())
+						return o;
+					return null;
+				}
+
+				public SharedObject set(SharedObject o1, int idx1, int incMod, SharedObject o2,
+					int idx2, int retIdx)
+				{
+					if(o1.getShareKey().isShared() && !o2.getShareKey().canView(user))
+						return null;
+					return o1;
+				}
+			});
 	}
 
-	/**
-	 * @see prisms.util.persisters.PersistingPropertyManager#setValue(java.lang.Object)
-	 */
 	@Override
 	public <V extends T> void setValue(V value)
 	{
@@ -91,19 +121,16 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 			theKeys[i] = theGlobalValue[i].getShareKey().clone();
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#changeValues(prisms.arch.PrismsSession)
-	 */
 	@Override
-	public void changeValues(PrismsSession session)
+	public void changeValues(PrismsSession session, prisms.arch.event.PrismsPCE<T> evt)
 	{
 		updateKeys();
 		if(session != null)
 		{
 			final prisms.arch.ds.User user = session.getUser();
 			final ShareKey [][] keys = new ShareKey [] [] {theKeys};
-			theGlobalValue = ArrayUtils.adjust(theGlobalValue, (SharedObject []) session
-				.getProperty(getProperty()),
+			theGlobalValue = ArrayUtils.adjust(theGlobalValue,
+				(SharedObject []) session.getProperty(getProperty()),
 				new ArrayUtils.DifferenceListener<SharedObject, SharedObject>()
 				{
 					public boolean identity(SharedObject o1, SharedObject o2)
@@ -119,7 +146,7 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 
 					public SharedObject removed(SharedObject o, int idx, int incMod, int retIdx)
 					{
-						if(!o.getShareKey().canView(user))
+						if(!o.getShareKey().isShared() || !o.getShareKey().canView(user))
 							return o; // User can't view it so of course it's not in their session
 						else if(o.getShareKey().canEdit(user))
 						{
@@ -142,7 +169,8 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 				});
 			theKeys = keys[0];
 		}
-		super.changeValues(session);
+		if(evt != null)
+			super.changeValues(session, evt);
 	}
 
 	private boolean updateKeys()
@@ -157,12 +185,9 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 		return ret;
 	}
 
-	/**
-	 * @see prisms.util.persisters.PersistingPropertyManager#changeValue(PrismsSession,
-	 *      java.lang.Object, java.lang.Object)
-	 */
 	@Override
-	public void changeValue(PrismsSession session, T fullValue, Object o)
+	public void changeValue(PrismsSession session, T fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt)
 	{
 		SharedObject so = (SharedObject) o;
 		int idx = ArrayUtils.indexOf(theGlobalValue, o);
@@ -171,11 +196,11 @@ public class SharedObjectManager<T> extends PersistingPropertyManager<T>
 			log.warn("Element " + o + " not found in global value");
 			return;
 		}
-		super.changeValue(session, fullValue, o);
+		super.changeValue(session, fullValue, o, evt);
 		if(!so.getShareKey().equals(theKeys[idx]))
 		{
 			theKeys[idx] = so.getShareKey().clone();
-			super.changeValues(null);
+			changeValues(null, null);
 		}
 	}
 }

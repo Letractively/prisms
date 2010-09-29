@@ -31,19 +31,13 @@ public class UserPersister extends prisms.util.persisters.AbstractPersister<User
 		return users;
 	}
 
-	/**
-	 * @see prisms.arch.Persister#setValue(java.lang.Object)
-	 */
-	public void setValue(User [] o)
+	public void setValue(User [] o, @SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		// Changes should not be made directly to a user, but rather through the manager,
 		// so persistence is not handled here
 	}
 
-	/**
-	 * @see prisms.arch.Persister#valueChanged(java.lang.Object, java.lang.Object)
-	 */
-	public void valueChanged(User [] fullValue, Object o)
+	public void valueChanged(User [] fullValue, Object o, prisms.arch.event.PrismsEvent evt)
 	{
 		// Changes should not be made directly to a user, but rather through the manager,
 		// so persistence is not handled here

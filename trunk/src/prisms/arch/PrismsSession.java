@@ -4,6 +4,7 @@
 package prisms.arch;
 
 import org.apache.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import prisms.arch.ds.User;
@@ -38,28 +39,24 @@ public class PrismsSession
 
 	private final long theCreationTime;
 
-	private final java.util.ArrayList<JSONObject> theOutgoingQueue;
+	private final java.util.concurrent.ConcurrentLinkedQueue<JSONObject> theOutgoingQueue;
 
 	private long theLastCheckedTime;
 
-	int theBusyCount;
-
 	private final java.util.LinkedHashMap<String, AppPlugin> thePlugins;
 
-	private final java.util.HashMap<PrismsProperty<?>, Object> theProperties;
-
-	private final java.util.concurrent.locks.ReentrantReadWriteLock thePropLock;
+	private final java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object> theProperties;
 
 	private final java.util.Set<PrismsProperty<?>> thePropertyStack;
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("rawtypes")
 	private final ListenerManager<PrismsPCL> thePCLs;
 
 	private final ListenerManager<PrismsEventListener> theELs;
 
 	private final java.util.ArrayList<Runnable> theTaskList;
 
-	private final java.util.Map<Thread, String> theInvocations;
+	private final java.util.concurrent.ConcurrentHashMap<Thread, JSONArray> theInvocations;
 
 	private EventListener theListener;
 
@@ -70,24 +67,23 @@ public class PrismsSession
 	 * @param client The client that this session was created for
 	 * @param user The user to create the session for
 	 */
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("rawtypes")
 	public PrismsSession(PrismsApplication app, ClientConfig client, User user)
 	{
 		theApp = app;
 		theClient = client;
 		theUser = user;
 		theCreationTime = System.currentTimeMillis();
-		theOutgoingQueue = new java.util.ArrayList<JSONObject>();
+		theOutgoingQueue = new java.util.concurrent.ConcurrentLinkedQueue<JSONObject>();
 		theLastCheckedTime = System.currentTimeMillis();
 		thePlugins = new java.util.LinkedHashMap<String, AppPlugin>();
-		theProperties = new java.util.HashMap<PrismsProperty<?>, Object>();
-		thePropLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
+		theProperties = new java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object>();
 		thePropertyStack = java.util.Collections
 			.synchronizedSet(new java.util.HashSet<PrismsProperty<?>>());
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
 		theELs = new ListenerManager<PrismsEventListener>(PrismsEventListener.class);
 		theTaskList = new java.util.ArrayList<Runnable>();
-		theInvocations = new java.util.concurrent.ConcurrentHashMap<Thread, String>();
+		theInvocations = new java.util.concurrent.ConcurrentHashMap<Thread, JSONArray>();
 	}
 
 	/**
@@ -161,24 +157,13 @@ public class PrismsSession
 	 */
 	public void removeOutgoingEvents(String pluginName)
 	{
-		synchronized(theOutgoingQueue)
+		java.util.Iterator<JSONObject> queueIter = theOutgoingQueue.iterator();
+		while(queueIter.hasNext())
 		{
-			java.util.Iterator<JSONObject> queueIter = theOutgoingQueue.iterator();
-			while(queueIter.hasNext())
-			{
-				JSONObject evt = queueIter.next();
-				if(pluginName.equals(evt.get("plugin")))
-					queueIter.remove();
-			}
+			JSONObject evt = queueIter.next();
+			if(pluginName.equals(evt.get("plugin")))
+				queueIter.remove();
 		}
-	}
-
-	/**
-	 * @return The number of processing threads operating on this session
-	 */
-	public int getBusyCount()
-	{
-		return theBusyCount;
 	}
 
 	/**
@@ -190,17 +175,17 @@ public class PrismsSession
 	}
 
 	/**
-	 * Processes an event from a service client
+	 * Processes an event synchronously. If this method is used instead of
+	 * {@link #processAsync(JSONObject, boolean [])}, events posted from this thread will go into
+	 * the return array instead of the outgoing list.
 	 * 
 	 * @param event The event to process
-	 * @param invocationID An invocation ID with which to tag all events that are posted for output
-	 *        as a result of this invocation. When this same ID is passed to
-	 *        {@link #getEvents(String)}, only those events that are a direct result of this
-	 *        invocation will be returned.
+	 * @return All events posted to this session as a result of the service call
 	 */
-	public void process(JSONObject event, String invocationID)
+	public JSONArray processSync(JSONObject event)
 	{
-		theInvocations.put(Thread.currentThread(), invocationID);
+		JSONArray ret = new JSONArray();
+		theInvocations.put(Thread.currentThread(), ret);
 		try
 		{
 			process(event);
@@ -208,55 +193,63 @@ public class PrismsSession
 		{
 			theInvocations.remove(Thread.currentThread());
 		}
+		return ret;
 	}
 
 	/**
-	 * Processes events from the remote client
+	 * Processes events from the remote client asynchronously
 	 * 
 	 * @param event The event to process
+	 * @param finished A boolean array whose first element will be set to true when the event has
+	 *        been processed
 	 */
-	public void process(final JSONObject event)
+	public void processAsync(final JSONObject event, final boolean [] finished)
 	{
-		theBusyCount++;
 		Runnable toRun = new Runnable()
 		{
 			public void run()
 			{
 				try
 				{
-					_process(event);
-				} catch(prisms.util.CancelException e)
-				{
-					log.info(e.getMessage(), e);
-				} catch(Error e)
-				{
-					log.error("Session event error", e);
-					postOutgoingEvent(wrapError("Session event error", e));
-				} catch(RuntimeException e)
-				{
-					log.error("Session event runtime exception", e);
-					postOutgoingEvent(wrapError("Session event runtime exception", e));
+					process(event);
 				} finally
 				{
-					theBusyCount--;
+					if(finished != null && finished.length > 0)
+						finished[0] = true;
 				}
 			}
 		};
-		if(theClient.isService())
-			toRun.run();
-		else
-			theApp.getWorker().run(toRun, new Worker.ErrorListener()
+		theApp.getWorker().run(toRun, new Worker.ErrorListener()
+		{
+			public void error(Error e)
 			{
-				public void error(Error e)
-				{
-					postOutgoingEvent(wrapError("Background task error", e));
-				}
+				postOutgoingEvent(wrapError("Background task error", e));
+			}
 
-				public void runtime(RuntimeException e)
-				{
-					postOutgoingEvent(wrapError("Background task runtime exception", e));
-				}
-			});
+			public void runtime(RuntimeException e)
+			{
+				postOutgoingEvent(wrapError("Background task runtime exception", e));
+			}
+		});
+	}
+
+	void process(JSONObject event)
+	{
+		try
+		{
+			_process(event);
+		} catch(prisms.util.CancelException e)
+		{
+			log.info(e.getMessage(), e);
+		} catch(Error e)
+		{
+			log.error("Session event error", e);
+			postOutgoingEvent(wrapError("Session event error", e));
+		} catch(RuntimeException e)
+		{
+			log.error("Session event runtime exception", e);
+			postOutgoingEvent(wrapError("Session event runtime exception", e));
+		}
 	}
 
 	void _process(JSONObject evt)
@@ -304,8 +297,8 @@ public class PrismsSession
 				task.run();
 			} catch(Throwable e)
 			{
-				e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e.getStackTrace(), outerE
-					.getStackTrace(), getClass().getName(), "_process"));
+				e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e.getStackTrace(),
+					outerE.getStackTrace(), getClass().getName(), "_process"));
 				log.error("Error Processing Task " + task, e);
 				postOutgoingEvent(wrapError("Error Processing Task " + task, e));
 			}
@@ -329,40 +322,11 @@ public class PrismsSession
 	public org.json.simple.JSONArray getEvents()
 	{
 		org.json.simple.JSONArray events = new org.json.simple.JSONArray();
-		if(!theOutgoingQueue.isEmpty())
+		java.util.Iterator<JSONObject> iter = theOutgoingQueue.iterator();
+		while(iter.hasNext())
 		{
-			synchronized(theOutgoingQueue)
-			{
-				events.addAll(theOutgoingQueue);
-				theOutgoingQueue.clear();
-			}
-		}
-		return events;
-	}
-
-	/**
-	 * @param invocationID The ID that was passed to {@link #process(JSONObject, String)}
-	 * @return The set of events posted to this session as a result of the invocation with the given
-	 *         ID
-	 */
-	public org.json.simple.JSONArray getEvents(String invocationID)
-	{
-		org.json.simple.JSONArray events = new org.json.simple.JSONArray();
-		if(!theOutgoingQueue.isEmpty())
-		{
-			synchronized(theOutgoingQueue)
-			{
-				java.util.Iterator<JSONObject> evtIter = theOutgoingQueue.iterator();
-				while(evtIter.hasNext())
-				{
-					JSONObject evt = evtIter.next();
-					if(invocationID.equals(evt.get("invocationID")))
-					{
-						events.add(evt);
-						evtIter.remove();
-					}
-				}
-			}
+			events.add(iter.next());
+			iter.remove();
 		}
 		return events;
 	}
@@ -403,8 +367,8 @@ public class PrismsSession
 					log.error("Could not client-initialize plugin " + p.getKey(), e);
 					JSONObject event = new JSONObject();
 					event.put("method", "error");
-					event.put("message", "Could not initialize plugin " + p.getKey() + ": "
-						+ e.getMessage());
+					event.put("message",
+						"Could not initialize plugin " + p.getKey() + ": " + e.getMessage());
 					postOutgoingEvent(event);
 				}
 			}
@@ -436,6 +400,8 @@ public class PrismsSession
 		}
 		else if("getEvents".equals(evt.get("method")))
 			return;
+		else if("renew".equals(evt.get("method")))
+			renew();
 		else
 			throw new IllegalArgumentException("Each event must specify a plugin: " + evt);
 	}
@@ -447,24 +413,24 @@ public class PrismsSession
 	 */
 	public void postOutgoingEvent(JSONObject evt)
 	{
-		String invocationID = theInvocations.get(Thread.currentThread());
-		if(invocationID != null)
-			evt.put("invocationID", invocationID);
-		else if(theClient.isService())
-			return; // Events must be tied to an invocation if this session is for a web service
 		try
 		{
 			prisms.arch.JsonSerializer.validate(evt);
-			synchronized(theOutgoingQueue)
-			{
-				theOutgoingQueue.add(evt);
-			}
-			if(theListener != null)
-				theListener.eventPosted(evt);
 		} catch(java.io.NotSerializableException e)
 		{
-			log.error("Could not serialize event", e);
+			throw new IllegalArgumentException("Could not serialize event", e);
 		}
+		JSONArray serviceOut = theInvocations.get(Thread.currentThread());
+		if(serviceOut != null)
+		{
+			serviceOut.add(evt);
+			return;
+		}
+		else if(theClient.isService())
+			return; // Events must be tied to an invocation if this session is for a web service
+		theOutgoingQueue.add(evt);
+		if(theListener != null)
+			theListener.eventPosted(evt);
 	}
 
 	/**
@@ -534,17 +500,7 @@ public class PrismsSession
 	 */
 	public <T> T getProperty(PrismsProperty<T> property)
 	{
-		java.util.concurrent.locks.Lock lock = thePropLock.readLock();
-		lock.lock();
-		T value;
-		try
-		{
-			value = (T) theProperties.get(property);
-		} finally
-		{
-			lock.unlock();
-		}
-		return value;
+		return (T) theProperties.get(property);
 	}
 
 	/**
@@ -553,42 +509,46 @@ public class PrismsSession
 	 * @param <T> The type of property to set
 	 * @param propName The name of the property to change
 	 * @param propValue The new value for the property
+	 * @param eventProps Event properties for the property change event that is fired. Must be in
+	 *        the form of name, value, name, value, where name is a string.
 	 */
-	public <T> void setProperty(PrismsProperty<T> propName, T propValue)
+	public <T> void setProperty(PrismsProperty<T> propName, T propValue, Object... eventProps)
 	{
 		// Generics *can* be defeated--check the type here
 		if(propValue != null && !propName.getType().isInstance(propValue))
 			throw new IllegalArgumentException("Cannot set an instance of "
 				+ propValue.getClass().getName() + " for property " + propName + ", type "
 				+ propName.getType().getName());
-		/*
-		 * Many property sets can be going on at once, but only one for each property in a session
+		if(eventProps.length % 2 != 0)
+			throw new IllegalArgumentException("Event properties for property change event must be"
+				+ " in the form of name, value, name, value, etc.--" + eventProps.length
+				+ " arguments illegal");
+		/* Many property sets can be going on at once, but only one for each property in a session
 		 */
 		synchronized(getPropertyLock(propName))
 		{
 			PrismsPCL<T> [] listeners;
 			thePropertyStack.add(propName);
-			java.util.concurrent.locks.Lock lock = thePropLock.writeLock();
-			lock.lock();
-			try
-			{
-				if(propValue == null)
-					theProperties.remove(propName);
-				else
-					theProperties.put(propName, propValue);
-				listeners = getPropertyChangeListeners(propName);
-			} finally
-			{
-				lock.unlock();
-			}
+			if(propValue == null)
+				theProperties.remove(propName);
+			else
+				theProperties.put(propName, propValue);
+			listeners = getPropertyChangeListeners(propName);
 
 			PrismsPCE<T> propEvt = new PrismsPCE<T>(this, propName,
 				(T) theProperties.get(propName), propValue);
+			for(int i = 0; i < eventProps.length; i += 2)
+			{
+				if(!(eventProps[i] instanceof String))
+					throw new IllegalArgumentException("Event properties for property change event"
+						+ " must be in the form of name, value, name, value, etc.--eventProps[" + i
+						+ "] is not a string");
+				propEvt.set((String) eventProps[i], eventProps[i + 1]);
+			}
 			for(PrismsPCL<T> l : listeners)
 			{
 				l.propertyChange(propEvt);
-				/*
-				 * If this property is changed as a result of the above PCL, stop this notification
+				/* If this property is changed as a result of the above PCL, stop this notification
 				 */
 				if(!thePropertyStack.contains(propName))
 					break;
@@ -753,11 +713,12 @@ public class PrismsSession
 	/**
 	 * Expires on a simple timeout. This can always be overridden to be more complex.
 	 * 
-	 * @return Whether this session is expired and should be destroyed
+	 * @return The amount of time until this session expires and should be destroyed. If < 0, then
+	 *         the session is already expired
 	 */
-	public boolean isExpired()
+	public long untilExpires()
 	{
-		return System.currentTimeMillis() - theLastCheckedTime > theClient.getSessionTimeout();
+		return theClient.getSessionTimeout() - System.currentTimeMillis() + theLastCheckedTime;
 	}
 
 	/**

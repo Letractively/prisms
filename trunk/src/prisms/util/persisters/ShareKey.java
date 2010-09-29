@@ -10,6 +10,9 @@ import prisms.arch.ds.User;
  */
 public interface ShareKey extends Cloneable
 {
+	/** @return Whether this item should be shared between sessions */
+	boolean isShared();
+
 	/**
 	 * Determines whether a user has permission to view this key's object
 	 * 
@@ -35,13 +38,6 @@ public interface ShareKey extends Cloneable
 	 */
 	boolean canAdministrate(User user);
 
-	/**
-	 * @return Whether this key's object should be persisted
-	 */
-	boolean isPersistent();
-
-	/**
-	 * @return A copy of this object
-	 */
+	/** @return A copy of this object */
 	ShareKey clone();
 }

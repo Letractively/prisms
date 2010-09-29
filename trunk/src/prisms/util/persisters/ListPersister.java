@@ -117,30 +117,23 @@ public abstract class ListPersister<T> implements Persister<T []>
 		return value;
 	}
 
-	/**
-	 * @see prisms.arch.Persister#setValue(java.lang.Object)
-	 */
-	public synchronized void setValue(Object [] value)
+	public synchronized void setValue(Object [] value,
+		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
+		final prisms.arch.event.PrismsPCE<T []> fEvt = evt;
 		ListElementContainer [] dbEls = theElements
 			.toArray(new ListPersister.ListElementContainer [theElements.size()]);
 		ArrayUtils.adjust(dbEls, (T []) value,
 			new ArrayUtils.DifferenceListener<ListElementContainer, T>()
 			{
-				/**
-				 * @see ArrayUtils.DifferenceListener#identity(java.lang.Object, java.lang.Object)
-				 */
 				public boolean identity(ListElementContainer o1, T o2)
 				{
 					return equivalent(o1.theDBValue, o2);
 				}
 
-				/**
-				 * @see ArrayUtils.DifferenceListener#added(java.lang.Object, int, int)
-				 */
 				public ListElementContainer added(T o, int index, int retIdx)
 				{
-					T dbArea = add(o);
+					T dbArea = add(o, fEvt);
 					if(dbArea != null)
 					{
 						ListElementContainer ret = new ListElementContainer(dbArea, o);
@@ -159,7 +152,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 				{
 					synchronized(o.theDBValue)
 					{
-						remove(o.theDBValue);
+						remove(o.theDBValue, fEvt);
 					}
 					synchronized(theElements)
 					{
@@ -185,10 +178,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 			});
 	}
 
-	/**
-	 * @see prisms.arch.Persister#valueChanged(java.lang.Object, java.lang.Object)
-	 */
-	public synchronized void valueChanged(T [] fullValue, Object o)
+	public synchronized void valueChanged(T [] fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt)
 	{
 		for(ListElementContainer el : theElements)
 			if(equivalent(el.theDBValue, (T) o))
@@ -208,7 +199,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 						el.isLocked = true;
 						try
 						{
-							update(el.theDBValue, (T) o);
+							update(el.theDBValue, (T) o, evt);
 						} finally
 						{
 							el.isLocked = preLocked;
@@ -229,7 +220,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 			}
 		}
 		if(toUpdate != null)
-			valueChanged(fullValue, toUpdate);
+			valueChanged(fullValue, toUpdate, evt);
 	}
 
 	/**
@@ -256,7 +247,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 	 * implementation does not require keeping a cached version, then this method may simply return
 	 * its argument. The return value to this method will never be returned from the
 	 * {@link #getValue()} method. It will be passed as the first argument to the
-	 * {@link #equivalent(Object, Object)} and {@link #update(Object, Object)} methods.
+	 * {@link #equivalent(Object, Object)} and
+	 * {@link #update(Object, Object, prisms.arch.event.PrismsEvent)} methods.
 	 * 
 	 * @param toClone The available object to clone for this persister's cache
 	 * @return An object independent of but identical to <code>toClone</code> for internal use.
@@ -274,17 +266,19 @@ public abstract class ListPersister<T> implements Persister<T []>
 	 * Adds a new value to the set of persisted data
 	 * 
 	 * @param newValue The value to persist
+	 * @param evt The event that represents the change
 	 * @return An independent but identical representation of <code>newValue</code> for this
 	 *         persister's cache
 	 */
-	protected abstract T add(T newValue);
+	protected abstract T add(T newValue, prisms.arch.event.PrismsPCE<T []> evt);
 
 	/**
 	 * Removes a value from persistent storage
 	 * 
 	 * @param removed The databased object that should be removed
+	 * @param evt The event that represents the change
 	 */
-	protected abstract void remove(T removed);
+	protected abstract void remove(T removed, prisms.arch.event.PrismsPCE<T []> evt);
 
 	/**
 	 * Updates any possible changes to an object into persistent storage
@@ -292,6 +286,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 	 * @param dbValue The cloned, cached value representing the value currently in persistence
 	 * @param availableValue The value with the same identity as <code>dbValue</code> that may have
 	 *        been modified and may need to be updated in persistent storage
+	 * @param evt The event that represents the change
 	 */
-	protected abstract void update(T dbValue, T availableValue);
+	protected abstract void update(T dbValue, T availableValue, prisms.arch.event.PrismsEvent evt);
 }

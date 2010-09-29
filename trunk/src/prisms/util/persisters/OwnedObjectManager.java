@@ -166,11 +166,8 @@ public class OwnedObjectManager<T> extends PersistingPropertyManager<T>
 		}
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#changeValues(prisms.arch.PrismsSession)
-	 */
 	@Override
-	public void changeValues(PrismsSession session)
+	public void changeValues(PrismsSession session, prisms.arch.event.PrismsPCE<T> evt)
 	{
 		int i;
 		updatePublicPrivate();
@@ -210,22 +207,21 @@ public class OwnedObjectManager<T> extends PersistingPropertyManager<T>
 				}
 			}
 		}
-		super.changeValues(session);
-		saveData(session);
+		if(evt != null)
+		{
+			super.changeValues(session, evt);
+			saveData(session, evt);
+		}
 	}
 
-	/**
-	 * @see prisms.util.persisters.PersistingPropertyManager#changeValue(PrismsSession,
-	 *      java.lang.Object, java.lang.Object)
-	 */
 	@Override
-	public void changeValue(PrismsSession session, T fullValue, Object o)
+	public void changeValue(PrismsSession session, T fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt)
 	{
 		if((((OwnedObject) o).isPublic() && ArrayUtils.contains(thePrivateList, (OwnedObject) o))
 			|| (!((OwnedObject) o).isPublic() && ArrayUtils
 				.contains(thePublicList, (OwnedObject) o)))
-			changeValues(null);
-		else
-			super.changeValue(session, fullValue, o);
+			changeValues(null, null);
+		super.changeValue(session, fullValue, o, evt);
 	}
 }

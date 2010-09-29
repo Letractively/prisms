@@ -44,7 +44,7 @@ public class PreferencesPersister implements
 	/**
 	 * @see prisms.arch.Persister#getValue()
 	 */
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings("rawtypes")
 	public Map<String, Preferences> getValue()
 	{
 		checkConnection();
@@ -146,18 +146,18 @@ public class PreferencesPersister implements
 		return value;
 	}
 
-	/**
-	 * @see prisms.arch.Persister#setValue(java.lang.Object)
-	 */
-	public <V extends Map<String, Preferences>> void setValue(V o)
+	public <V extends Map<String, Preferences>> void setValue(V o,
+		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		// Don't commit the world--this persister persists with each change
 	}
 
 	/**
-	 * @see prisms.arch.Persister#valueChanged(java.lang.Object, java.lang.Object)
+	 * @see prisms.arch.Persister#valueChanged(java.lang.Object, java.lang.Object,
+	 *      prisms.arch.event.PrismsEvent)
 	 */
-	public void valueChanged(Map<String, Preferences> fullValue, Object o)
+	public void valueChanged(Map<String, Preferences> fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt)
 	{
 	}
 
@@ -224,8 +224,8 @@ public class PreferencesPersister implements
 				+ " AND pApp=" + DBUtils.toSQL(theApp.getName()));
 		} catch(SQLException e)
 		{
-			log.error("Could not remove preference domain " + domain + " for user "
-				+ user.getName(), e);
+			log.error(
+				"Could not remove preference domain " + domain + " for user " + user.getName(), e);
 		} finally
 		{
 			if(stmt != null)
@@ -254,10 +254,10 @@ public class PreferencesPersister implements
 			return;
 		try
 		{
-			theConnection = theApp.getServer().getPersisterFactory().getConnection(theConnEl,
-				theApp.getDataSource());
-			DBOWNER = theApp.getServer().getPersisterFactory().getTablePrefix(theConnection,
-				theConnEl, theApp.getDataSource());
+			theConnection = theApp.getServer().getPersisterFactory()
+				.getConnection(theConnEl, theApp.getDataSource());
+			DBOWNER = theApp.getServer().getPersisterFactory()
+				.getTablePrefix(theConnection, theConnEl, theApp.getDataSource());
 		} catch(Exception e)
 		{
 			throw new IllegalStateException("Could not get connection!", e);

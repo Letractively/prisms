@@ -102,9 +102,9 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 		if(theDataLock)
 			return;
 		if(evt.getSource() instanceof PrismsSession)
-			changeValues((PrismsSession) evt.getSource());
+			changeValues((PrismsSession) evt.getSource(), evt);
 		else
-			changeValues(null);
+			changeValues(null, evt);
 	}
 
 	/**
@@ -112,8 +112,9 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 * ensure that all sessions keep the proper value
 	 * 
 	 * @param session The session where the property has been changed
+	 * @param evt The event that represents the change
 	 */
-	public synchronized void changeValues(PrismsSession session)
+	public void changeValues(PrismsSession session, PrismsPCE<T> evt)
 	{
 		theApp.runSessionTask(session, new PrismsApplication.SessionTask()
 		{

@@ -123,7 +123,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 			return false;
 		try
 		{
-			return theSession.getApp().getServer().getUserSource().canAccess(theUser, theApp);
+			return theSession.getApp().getDataSource().canAccess(theUser, theApp);
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not determine application accessibility", e);

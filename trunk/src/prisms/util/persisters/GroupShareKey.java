@@ -13,7 +13,7 @@ import prisms.util.ArrayUtils;
  * A key to an object that is shared between users. A user's access to the object is determined by
  * the key's groups.
  */
-public class GroupShareKey implements ShareKey, Cloneable
+public class GroupShareKey implements ShareKey
 {
 	private User theOwner;
 
@@ -27,7 +27,7 @@ public class GroupShareKey implements ShareKey, Cloneable
 
 	private boolean isEditPublic;
 
-	private boolean isPersistent;
+	private boolean isShared;
 
 	private String theViewAllPermission;
 
@@ -42,18 +42,23 @@ public class GroupShareKey implements ShareKey, Cloneable
 	 *        the owner or a member of any of this object's access groups
 	 * @param editAllPermission The permission that allows a user to edit this object without being
 	 *        the owner or a member of any of this object's access groups
-	 * @param persist Whether this key's object should be persisted as part of the data set
+	 * @param shared Whether this key's object should be shared between sessions
 	 */
 	public GroupShareKey(User owner, prisms.arch.PrismsApplication app, String viewAllPermission,
-		String editAllPermission, boolean persist)
+		String editAllPermission, boolean shared)
 	{
 		theOwner = owner;
 		theApp = app;
-		isPersistent = persist;
+		isShared = shared;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
 		theAccessGroups = new String [0];
 		theEditGroups = new boolean [0];
+	}
+
+	public boolean isShared()
+	{
+		return isShared;
 	}
 
 	/**
@@ -255,11 +260,6 @@ public class GroupShareKey implements ShareKey, Cloneable
 				theEditAllPermission)))
 			return true;
 		return false;
-	}
-
-	public boolean isPersistent()
-	{
-		return isPersistent;
 	}
 
 	public GroupShareKey clone()

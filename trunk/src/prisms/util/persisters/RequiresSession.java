@@ -11,8 +11,9 @@ public interface RequiresSession
 {
 	/**
 	 * This method will be called with a non-null session immediately before invocations to the
-	 * {@link prisms.arch.Persister#setValue(Object)} or
-	 * {@link prisms.arch.Persister#valueChanged(Object, Object)} methods.
+	 * {@link prisms.arch.Persister#setValue(Object, prisms.arch.event.PrismsPCE)} or
+	 * {@link prisms.arch.Persister#valueChanged(Object, Object, prisms.arch.event.PrismsEvent)}
+	 * methods.
 	 * 
 	 * @param session The session that is about to affect a change
 	 */

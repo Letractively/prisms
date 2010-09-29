@@ -23,7 +23,7 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 	{
 		theSession = session;
 		theName = pluginEl.elementText("name");
-		theSource = theSession.getApp().getServer().getUserSource();
+		theSource = theSession.getApp().getDataSource();
 	}
 
 	public void initClient()

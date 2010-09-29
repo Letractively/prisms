@@ -62,18 +62,13 @@ public class SerialPersister<T> extends AbstractPersister<T>
 		return theSerializer.link(value, getApp());
 	}
 
-	/**
-	 * @see prisms.arch.Persister#setValue(java.lang.Object)
-	 */
-	public <V extends T> void setValue(V o)
+	public <V extends T> void setValue(V o,
+		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		thePDS.saveData(theProperty.getName(), theSerializer.serialize(o));
 	}
 
-	/**
-	 * @see prisms.arch.Persister#valueChanged(java.lang.Object, java.lang.Object)
-	 */
-	public void valueChanged(T fullValue, Object o)
+	public void valueChanged(T fullValue, Object o, prisms.arch.event.PrismsEvent evt)
 	{
 		thePDS.saveData(theProperty.getName(), theSerializer.serialize(fullValue));
 	}
