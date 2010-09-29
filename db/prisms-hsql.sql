@@ -136,12 +136,13 @@ CREATE TABLE prisms_preference (
 
 CREATE TABLE prisms_change_record(
 	id NUMERIC(20) NOT NULL,
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	changeTime TIMESTAMP NOT NULL,
 	changeUser NUMERIC(20) NOT NULL,
 	subjectType VARCHAR(32) NOT NULL,
 	changeType VARCHAR(32) NULL,
 	additivity CHAR(1) NOT NULL,
+	subjectCenter INT NOT NULL,
 	majorSubject NUMERIC(20) NOT NULL,
 	minorSubject NUMERIC(20) NULL,
 	preValueID NUMERIC(20) NULL,
@@ -154,7 +155,7 @@ CREATE TABLE prisms_change_record(
 );
 
 CREATE TABLE prisms_installation(
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	installDate TIMESTAMP NOT NULL
 );
 
@@ -164,13 +165,14 @@ CREATE TABLE prisms_center(
 
 CREATE TABLE prisms_center_view(
 	id INT NOT NULL PRIMARY KEY,
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	centerID INT NULL,
 	name VARCHAR(64) NOT NULL,
 	url VARCHAR(512) NULL,
 	serverUserName VARCHAR(64) NULL,
 	serverPassword VARCHAR(64) NULL,
 	syncFrequency NUMERIC(14) NULL,
+	syncPriority INT NOT NULL,
 	clientUser NUMERIC(20) NULL,
 	changeSaveTime NUMERIC(14) NULL,
 	lastImportSync TIMESTAMP NULL,
@@ -182,7 +184,7 @@ CREATE TABLE prisms_center_view(
 
 CREATE TABLE prisms_sync_record(
 	id INT NOT NULL PRIMARY KEY,
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	syncCenter INT NOT NULL,
 	parallelID INT NULL,
 	syncTime TIMESTAMP NOT NULL,
@@ -194,34 +196,42 @@ CREATE TABLE prisms_sync_record(
 );
 
 CREATE TABLE prisms_sync_assoc(
-	recordNS VARCHAR(64),
+	recordNS VARCHAR(32),
 	syncRecord INT NOT NULL,
 	changeRecord NUMERIC(20) NOT NULL,
+	error CHAR(1) NOT NULL,
 
 	FOREIGN KEY(syncRecord) REFERENCES prisms_sync_record(id) ON DELETE CASCADE,
 	FOREIGN KEY(changeRecord, recordNS) REFERENCES prisms_change_record(id, recordNS) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_auto_purge(
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	entryCount INT NULL,
 	age NUMERIC(14) NULL
 );
 
 CREATE TABLE prisms_purge_excl_user(
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	exclUser NUMERIC(20) NOT NULL
 );
 
 CREATE TABLE prisms_purge_excl_type(
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	exclSubjectType VARCHAR(32) NOT NULL,
 	exclChangeType VARCHAR(32) NULL,
 	exclAdditivity CHAR(1) NOT NULL
 );
 
 CREATE TABLE prisms_auto_increment(
-	recordNS VARCHAR(64) NOT NULL,
+	recordNS VARCHAR(32) NOT NULL,
 	tableName VARCHAR(32) NOT NULL,
 	nextID	  NUMERIC(20) NOT NULL
+);
+
+CREATE TABLE prisms_purge_record(
+	recordNS VARCHAR(32) NOT NULL,
+	centerID INT NOT NULL,
+	subjectCenter INT NOT NULL,
+	latestChange TIMESTAMP NOT NULL
 );
