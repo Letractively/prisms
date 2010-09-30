@@ -146,26 +146,28 @@ public class PrismsApplication
 
 	private boolean isConfigured;
 
-	private ArrayList<UserGroup> theAdminGroups;
+	private final ArrayList<UserGroup> theAdminGroups;
 
-	private java.util.concurrent.ConcurrentLinkedQueue<PrismsSession> theSessions;
+	private final java.util.concurrent.ConcurrentLinkedQueue<PrismsSession> theSessions;
 
-	private java.util.Collection<PropertyManager<?>> theManagers;
+	private final ArrayList<PropertyManager<?>> theManagers;
 
-	private java.util.Collection<EventListenerType> theELTypes;
+	private final ArrayList<EventListenerType> theELTypes;
 
-	private java.util.Collection<MonitorType> theMonitorTypes;
+	private final ArrayList<MonitorType> theMonitorTypes;
 
-	private ArrayList<ScheduledTask> theOneTimeTasks;
+	private final ArrayList<ScheduledTask> theOneTimeTasks;
 
-	private ArrayList<ScheduledTask> theRecurringTasks;
+	private final ArrayList<ScheduledTask> theRecurringTasks;
 
-	private ArrayList<Runnable> theDestroyTasks;
+	private final ArrayList<Runnable> theDestroyTasks;
 
-	private java.util.HashSet<PrismsProperty<?>> thePropertyStack;
+	private final java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object> thePropertyLocks;
+
+	private final java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, PrismsApplication> thePropertyStack;
 
 	@SuppressWarnings("rawtypes")
-	private ListenerManager<PrismsPCL> thePCLs;
+	private final ListenerManager<PrismsPCL> thePCLs;
 
 	private Worker theWorker;
 
@@ -189,7 +191,8 @@ public class PrismsApplication
 		theRecurringTasks = new ArrayList<ScheduledTask>();
 		theDestroyTasks = new ArrayList<Runnable>();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
-		thePropertyStack = new java.util.HashSet<PrismsProperty<?>>();
+		thePropertyLocks = new java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object>();
+		thePropertyStack = new java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, PrismsApplication>();
 	}
 
 	/**
@@ -474,10 +477,9 @@ public class PrismsApplication
 		for(int i = 0; i < eventProps.length; i += 2)
 		{
 			if(!(eventProps[i] instanceof String))
-				throw new IllegalArgumentException(
-					"Event properties for property change event must"
-						+ " be in the form of name, value, name, value, etc.--eventProps[" + i
-						+ "] is not a string");
+				throw new IllegalArgumentException("Event properties for property change event"
+					+ " must be in the form of name, value, name, value, etc.--eventProps[" + i
+					+ "] is not a string");
 			propEvt.set((String) eventProps[i], eventProps[i + 1]);
 		}
 		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
@@ -495,16 +497,14 @@ public class PrismsApplication
 				}
 			}
 			value = getGlobalProperty(prop);
-			thePropertyStack.add(prop);
+			thePropertyStack.put(prop, this);
 			try
 			{
 				for(PrismsPCL<T> l : listeners)
 				{
 					l.propertyChange(propEvt);
-					/*
-					 * If this property is changed as a result of the above PCL, stop this notification
-					 */
-					if(!thePropertyStack.contains(prop))
+					/* If this property is changed as a result of the above PCL, stop this notification */
+					if(!thePropertyStack.containsKey(prop))
 						break;
 				}
 				for(PrismsSession session : getSessions())
@@ -541,31 +541,32 @@ public class PrismsApplication
 		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
 		synchronized(getPropertyLock(prop))
 		{
-			thePropertyStack.add(prop);
+			thePropertyStack.put(prop, this);
 			for(PrismsPCL<T> l : listeners)
 			{
 				l.propertyChange(propEvt);
-				/*
-				 * If this property is changed as a result of the above PCL, stop this notification
-				 */
-				if(!thePropertyStack.contains(prop))
+				/* If this property is changed as a result of the above PCL, stop this notification */
+				if(!thePropertyStack.containsKey(prop))
 					break;
 			}
 			thePropertyStack.remove(prop);
 		}
 	}
 
-	private java.util.HashMap<PrismsProperty<?>, Object> thePropertyLocks;
-
-	private synchronized Object getPropertyLock(PrismsProperty<?> property)
+	private Object getPropertyLock(PrismsProperty<?> property)
 	{
-		if(thePropertyLocks == null)
-			thePropertyLocks = new java.util.HashMap<PrismsProperty<?>, Object>();
 		Object ret = thePropertyLocks.get(property);
 		if(ret == null)
 		{
-			ret = new Object();
-			thePropertyLocks.put(property, ret);
+			synchronized(thePropertyLocks)
+			{
+				ret = thePropertyLocks.get(property);
+				if(ret == null)
+				{
+					ret = new Object();
+					thePropertyLocks.put(property, ret);
+				}
+			}
 		}
 		return ret;
 	}
