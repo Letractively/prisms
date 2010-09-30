@@ -3,6 +3,8 @@
  */
 package prisms.arch;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -18,14 +20,10 @@ import prisms.arch.event.*;
  */
 public class PrismsSession
 {
-	/**
-	 * Listens for events posted for the client
-	 */
+	/** Listens for events posted for the client */
 	public static interface EventListener
 	{
-		/**
-		 * @param event The event that was posted
-		 */
+		/** @param event The event that was posted */
 		void eventPosted(JSONObject event);
 	}
 
@@ -45,18 +43,20 @@ public class PrismsSession
 
 	private final java.util.LinkedHashMap<String, AppPlugin> thePlugins;
 
-	private final java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object> theProperties;
+	private final ConcurrentHashMap<PrismsProperty<?>, Object> theProperties;
 
-	private final java.util.Set<PrismsProperty<?>> thePropertyStack;
+	private final ConcurrentHashMap<PrismsProperty<?>, Object> thePropertyLocks;
+
+	private final ConcurrentHashMap<PrismsProperty<?>, PrismsSession> thePropertyStack;
 
 	@SuppressWarnings("rawtypes")
 	private final ListenerManager<PrismsPCL> thePCLs;
 
 	private final ListenerManager<PrismsEventListener> theELs;
 
-	private final java.util.ArrayList<Runnable> theTaskList;
+	private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> theTaskList;
 
-	private final java.util.concurrent.ConcurrentHashMap<Thread, JSONArray> theInvocations;
+	private final ConcurrentHashMap<Thread, JSONArray> theInvocations;
 
 	private EventListener theListener;
 
@@ -77,13 +77,13 @@ public class PrismsSession
 		theOutgoingQueue = new java.util.concurrent.ConcurrentLinkedQueue<JSONObject>();
 		theLastCheckedTime = System.currentTimeMillis();
 		thePlugins = new java.util.LinkedHashMap<String, AppPlugin>();
-		theProperties = new java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object>();
-		thePropertyStack = java.util.Collections
-			.synchronizedSet(new java.util.HashSet<PrismsProperty<?>>());
+		theProperties = new ConcurrentHashMap<PrismsProperty<?>, Object>();
+		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, Object>();
+		thePropertyStack = new ConcurrentHashMap<PrismsProperty<?>, PrismsSession>();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
 		theELs = new ListenerManager<PrismsEventListener>(PrismsEventListener.class);
-		theTaskList = new java.util.ArrayList<Runnable>();
-		theInvocations = new java.util.concurrent.ConcurrentHashMap<Thread, JSONArray>();
+		theTaskList = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
+		theInvocations = new ConcurrentHashMap<Thread, JSONArray>();
 	}
 
 	/**
@@ -255,8 +255,7 @@ public class PrismsSession
 	void _process(JSONObject evt)
 	{
 		theApp.runScheduledTasks();
-		if(!theTaskList.isEmpty())
-			runTasks();
+		runTasks();
 		if(evt == null)
 			return;
 		Object pName = evt.get("plugin");
@@ -273,8 +272,7 @@ public class PrismsSession
 			renew();
 		}
 
-		if(!theTaskList.isEmpty())
-			runTasks();
+		runTasks();
 		theApp.runScheduledTasks();
 	}
 
@@ -283,24 +281,35 @@ public class PrismsSession
 	 */
 	public void runTasks()
 	{
-		Runnable [] tasks;
-		synchronized(theTaskList)
+		if(theTaskList.isEmpty())
+			return;
+		Runnable [] tasks = new Runnable [theTaskList.size()];
+		java.util.Iterator<Runnable> iter = theTaskList.iterator();
+		for(int i = 0; i < tasks.length && iter.hasNext(); i++)
 		{
-			tasks = theTaskList.toArray(new Runnable [theTaskList.size()]);
-			theTaskList.clear();
+			tasks[i] = iter.next();
+			iter.remove();
 		}
-		Exception outerE = new Exception();
-		for(Runnable task : tasks)
+		if(tasks.length > 0 && tasks[0] != null)
 		{
-			try
+			Exception outerE = new Exception();
+			for(Runnable task : tasks)
 			{
-				task.run();
-			} catch(Throwable e)
-			{
-				e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e.getStackTrace(),
-					outerE.getStackTrace(), getClass().getName(), "_process"));
-				log.error("Error Processing Task " + task, e);
-				postOutgoingEvent(wrapError("Error Processing Task " + task, e));
+				/* If a task was removed between the time when the tasks array was created and when
+				 * the item would have been reached in the iteration, the tasks array may not be
+				 * full. */
+				if(task == null)
+					break;
+				try
+				{
+					task.run();
+				} catch(Throwable e)
+				{
+					e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e.getStackTrace(),
+						outerE.getStackTrace(), getClass().getName(), "_process"));
+					log.error("Error Processing Task " + task, e);
+					postOutgoingEvent(wrapError("Error Processing Task " + task, e));
+				}
 			}
 		}
 	}
@@ -311,7 +320,12 @@ public class PrismsSession
 		ret.put("method", "error");
 		ret.put("code", PrismsServer.ErrorCode.ApplicationError.description);
 		ret.put("title", title);
-		ret.put("message", e.getMessage() != null ? e.getMessage() : e.getClass().getName());
+		String message = e.getMessage();
+		if(message == null || message.length() == 0)
+			message = e.getClass().getName();
+		else if(message.length() <= 5)
+			message = e.getClass().getName() + ": " + message;
+		ret.put("message", message);
 		return ret;
 	}
 
@@ -440,10 +454,7 @@ public class PrismsSession
 	 */
 	public void runEventually(Runnable task)
 	{
-		synchronized(theTaskList)
-		{
-			theTaskList.add(task);
-		}
+		theTaskList.add(task);
 	}
 
 	/**
@@ -486,10 +497,8 @@ public class PrismsSession
 		{
 			java.util.Iterator<AppPlugin> plugins = thePlugins.values().iterator();
 			while(plugins.hasNext())
-			{
 				if(p.equals(plugins.next()))
 					plugins.remove();
-			}
 		}
 	}
 
@@ -523,12 +532,11 @@ public class PrismsSession
 			throw new IllegalArgumentException("Event properties for property change event must be"
 				+ " in the form of name, value, name, value, etc.--" + eventProps.length
 				+ " arguments illegal");
-		/* Many property sets can be going on at once, but only one for each property in a session
-		 */
+		/* Many property sets can be going on at once, but only one for each property in a session */
 		synchronized(getPropertyLock(propName))
 		{
 			PrismsPCL<T> [] listeners;
-			thePropertyStack.add(propName);
+			thePropertyStack.put(propName, this);
 			if(propValue == null)
 				theProperties.remove(propName);
 			else
@@ -548,26 +556,28 @@ public class PrismsSession
 			for(PrismsPCL<T> l : listeners)
 			{
 				l.propertyChange(propEvt);
-				/* If this property is changed as a result of the above PCL, stop this notification
-				 */
-				if(!thePropertyStack.contains(propName))
+				/* If this property is changed as a result of the above PCL, stop this notification */
+				if(!thePropertyStack.containsKey(propName))
 					break;
 			}
 			thePropertyStack.remove(propName);
 		}
 	}
 
-	private java.util.HashMap<PrismsProperty<?>, Object> thePropertyLocks;
-
-	private synchronized Object getPropertyLock(PrismsProperty<?> property)
+	private Object getPropertyLock(PrismsProperty<?> property)
 	{
-		if(thePropertyLocks == null)
-			thePropertyLocks = new java.util.HashMap<PrismsProperty<?>, Object>();
 		Object ret = thePropertyLocks.get(property);
 		if(ret == null)
 		{
-			ret = new Object();
-			thePropertyLocks.put(property, ret);
+			synchronized(thePropertyLocks)
+			{
+				ret = thePropertyLocks.get(property);
+				if(ret == null)
+				{
+					ret = new Object();
+					thePropertyLocks.put(property, ret);
+				}
+			}
 		}
 		return ret;
 	}
