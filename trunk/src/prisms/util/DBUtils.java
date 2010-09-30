@@ -10,6 +10,8 @@ import java.sql.Types;
  */
 public class DBUtils
 {
+	private static final String HEX = "0123456789ABCDEF";
+
 	/**
 	 * Translates betwen an SQL character type and a boolean
 	 * 
@@ -73,6 +75,117 @@ public class DBUtils
 	public static boolean isOracle(java.sql.Connection conn)
 	{
 		return conn.getClass().getName().toLowerCase().contains("ora");
+	}
+
+	private static final String XOR_KEY = "PrIsMs_sYnC_xOr_EnCrYpT_kEy_769465";
+
+	/**
+	 * Protects a password so that it is not stored in clear text. The return value will be twice as
+	 * long as the input to ensure that only ASCII characters are stored.
+	 * 
+	 * @param password The password to protect
+	 * @return The protected password to store in the database
+	 */
+	public static String protect(String password)
+	{
+		if(password == null)
+			return null;
+		return toHex(xorEncStr(password, XOR_KEY));
+	}
+
+	/**
+	 * Recovers a password from its protected form
+	 * 
+	 * @param protectedPassword The protected password to recover the password from
+	 * @return The plain password
+	 */
+	public static String unprotect(String protectedPassword)
+	{
+		if(protectedPassword == null)
+			return null;
+		return xorEncStr(fromHex(protectedPassword), XOR_KEY);
+	}
+
+	/**
+	 * Created by Matthew Shaffer (matt-shaffer.com)
+	 * 
+	 * This method uses simple xor encryption to encrypt a password with a key so that it is at
+	 * least not stored in clear text.
+	 * 
+	 * @param toEnc The string to encrypt
+	 * @param encKey The encryption key
+	 * @return The encrypted string
+	 */
+	private static String xorEncStr(String toEnc, String encKey)
+	{
+		if(toEnc == null)
+			return null;
+		int t = 0;
+		int encKeyI = 0;
+
+		while(t < encKey.length())
+		{
+			encKeyI += encKey.charAt(t);
+			t += 1;
+		}
+		return xorEnc(toEnc, encKeyI);
+	}
+
+	/**
+	 * Created by Matthew Shaffer (matt-shaffer.com), modified by Andrew Butler
+	 * 
+	 * This method uses simple xor encryption to encrypt a password with a key so that it is at
+	 * least not stored in clear text.
+	 * 
+	 * @param toEnc The string to encrypt
+	 * @param encKey The encryption key
+	 * @return The encrypted string
+	 */
+	private static String xorEnc(String toEnc, int encKey)
+	{
+		int t = 0;
+		String tog = "";
+		if(encKey > 0)
+		{
+			while(t < toEnc.length())
+			{
+				int a = toEnc.charAt(t);
+				int c = (a ^ encKey) % 256;
+				char d = (char) c;
+				tog = tog + d;
+				t++;
+			}
+		}
+		return tog;
+	}
+
+	private static String toHex(String str)
+	{
+		StringBuilder ret = new StringBuilder();
+		for(int i = 0; i < str.length(); i++)
+		{
+			char c = str.charAt(i);
+			ret.append(HEX.charAt(c / 16));
+			ret.append(HEX.charAt(c % 16));
+		}
+		return ret.toString();
+	}
+
+	private static String fromHex(String str)
+	{
+		if(str.length() % 2 != 0)
+			return null;
+		StringBuilder ret = new StringBuilder();
+		for(int i = 0; i < str.length(); i += 2)
+		{
+			int c = HEX.indexOf(str.charAt(i));
+			if(c < 0)
+				return null;
+			c *= HEX.length();
+			c += HEX.indexOf(str.charAt(i + 1));
+			ret.append((char) c);
+		}
+		return ret.toString();
 	}
 
 	/** An expression to evaluate against an integer field in a database. */

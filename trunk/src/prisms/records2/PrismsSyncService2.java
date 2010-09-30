@@ -308,6 +308,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 				return super.isTaskDone() || (!isDownloadStarted && isCanceled());
 			}
 		};
+		thePI.setCancelable(true);
 		thePI.setProgressText("Generating synchronization data file");
 		ui.startTimedTask(thePI);
 		if(!isDownloadCanceled)
