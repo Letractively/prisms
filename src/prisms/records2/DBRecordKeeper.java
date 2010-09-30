@@ -475,7 +475,7 @@ public class DBRecordKeeper implements RecordKeeper2
 				pc.setName(rs.getString("name"));
 				pc.setServerURL(rs.getString("url"));
 				pc.setServerUserName(rs.getString("serverUserName"));
-				pc.setServerPassword(unprotect(rs.getString("serverPassword")));
+				pc.setServerPassword(DBUtils.unprotect(rs.getString("serverPassword")));
 				Number syncFreq = (Number) rs.getObject("syncFrequency");
 				if(syncFreq != null)
 					pc.setServerSyncFrequency(syncFreq.longValue());
@@ -562,7 +562,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			pc.setName(rs.getString("name"));
 			pc.setServerURL(rs.getString("url"));
 			pc.setServerUserName(rs.getString("serverUserName"));
-			pc.setServerPassword(unprotect(rs.getString("serverPassword")));
+			pc.setServerPassword(DBUtils.unprotect(rs.getString("serverPassword")));
 			Number syncFreq = (Number) rs.getObject("syncFrequency");
 			if(syncFreq != null)
 				pc.setServerSyncFrequency(syncFreq.longValue());
@@ -688,7 +688,7 @@ public class DBRecordKeeper implements RecordKeeper2
 				sql += (center.getCenterID() >= 0 ? "" + center.getCenterID() : "NULL");
 				sql += ", " + toSQL(theNamespace) + ", " + toSQL(center.getName()) + ", "
 					+ toSQL(center.getServerURL()) + ", " + toSQL(center.getServerUserName())
-					+ ", " + toSQL(protect(center.getServerPassword())) + ", ";
+					+ ", " + toSQL(DBUtils.protect(center.getServerPassword())) + ", ";
 				sql += (center.getServerSyncFrequency() > 0 ? "" + center.getServerSyncFrequency()
 					: "NULL") + ", ";
 				sql += (center.getClientUser() != null ? "" + center.getClientUser().getID()
@@ -917,7 +917,7 @@ public class DBRecordKeeper implements RecordKeeper2
 						+ ", name=" + toSQL(dbCenter.getName()) + ", url="
 						+ toSQL(dbCenter.getServerURL()) + ", serverUserName="
 						+ toSQL(dbCenter.getServerUserName()) + ", serverPassword="
-						+ toSQL(protect(dbCenter.getServerPassword()));
+						+ toSQL(DBUtils.protect(dbCenter.getServerPassword()));
 					sql += ", syncFrequency="
 						+ (dbCenter.getServerSyncFrequency() > 0 ? ""
 							+ dbCenter.getServerSyncFrequency() : "NULL");
@@ -3430,83 +3430,6 @@ public class DBRecordKeeper implements RecordKeeper2
 	public boolean boolFromSQL(String dbBool)
 	{
 		return "t".equalsIgnoreCase(dbBool);
-	}
-
-	private static final String XOR_KEY = "PrIsMs_sYnC_xOr_EnCrYpT_kEy_769465";
-
-	/**
-	 * Protects a password so that it is not stored in clear text
-	 * 
-	 * @param password The password to protect
-	 * @return The protected password to store in the database
-	 */
-	public static String protect(String password)
-	{
-		return xorEncStr(password, XOR_KEY);
-	}
-
-	/**
-	 * Recovers a password from its protected form
-	 * 
-	 * @param protectedPassword The protected password to recover the password from
-	 * @return The plain password
-	 */
-	public static String unprotect(String protectedPassword)
-	{
-		return xorEncStr(protectedPassword, XOR_KEY);
-	}
-
-	/**
-	 * Created by Matthew Shaffer (matt-shaffer.com)
-	 * 
-	 * This method uses simple xor encryption to encrypt a password with a key so that it is at
-	 * least not stored in clear text.
-	 * 
-	 * @param toEnc The string to encrypt
-	 * @param encKey The encryption key
-	 * @return The encrypted string
-	 */
-	private static String xorEncStr(String toEnc, String encKey)
-	{
-		if(toEnc == null)
-			return null;
-		int t = 0;
-		int encKeyI = 0;
-
-		while(t < encKey.length())
-		{
-			encKeyI += encKey.charAt(t);
-			t += 1;
-		}
-		return xorEnc(toEnc, encKeyI);
-	}
-
-	/**
-	 * Created by Matthew Shaffer (matt-shaffer.com)
-	 * 
-	 * This method uses simple xor encryption to encrypt a password with a key so that it is at
-	 * least not stored in clear text.
-	 * 
-	 * @param toEnc The string to encrypt
-	 * @param encKey The encryption key
-	 * @return The encrypted string
-	 */
-	private static String xorEnc(String toEnc, int encKey)
-	{
-		int t = 0;
-		String tog = "";
-		if(encKey > 0)
-		{
-			while(t < toEnc.length())
-			{
-				int a = toEnc.charAt(t);
-				int c = (a ^ encKey) % 256;
-				char d = (char) c;
-				tog = tog + d;
-				t++;
-			}
-		}
-		return tog;
 	}
 
 	static boolean equal(Object o1, Object o2)

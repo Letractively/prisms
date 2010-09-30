@@ -1037,6 +1037,8 @@ public class PrismsSynchronizer2
 
 		private int [] theCurrentStage;
 
+		private java.util.ArrayList<LatestCenterChange> theLatestChanges;
+
 		SyncInputHandler(Reader reader, SyncRecord record, prisms.ui.UI.DefaultProgressInformer pi,
 			boolean storeSR)
 		{
@@ -1046,6 +1048,7 @@ public class PrismsSynchronizer2
 			theItemReader = new PS2ItemReader(this, record, thePI);
 			theTotalChangeCount = -1;
 			storeSyncRecord = storeSR;
+			theLatestChanges = new java.util.ArrayList<LatestCenterChange>();
 		}
 
 		@Override
@@ -1091,6 +1094,7 @@ public class PrismsSynchronizer2
 							"Can't import changes before center ID is sent", state);
 					super.valueNull(state);
 					state.spoofValue();
+					// First, read in the changes from the remote center
 					try
 					{
 						new ChangeReader(theReader, theSyncRecord, theItemReader,
@@ -1100,6 +1104,7 @@ public class PrismsSynchronizer2
 					if(theTotalChangeCount > 0)
 						theCurrentStage[0]++;
 					thePI.setCancelable(false);
+					// Next, synchronize this center's item set with the remote center's items
 					try
 					{
 						theItemReader.syncItems(theStageCount, theCurrentStage[0]);
@@ -1107,8 +1112,24 @@ public class PrismsSynchronizer2
 					{
 						throw new RuntimeWrapper("Could not sync item set", e);
 					}
+					// Next, since that was successful, store the latest change times from the
+					// remote center
+					for(LatestCenterChange lcc : theLatestChanges)
+					{
+						try
+						{
+							getKeeper().setLatestChange(lcc.getCenterID(), lcc.getSubjectCenter(),
+								lcc.getLatestChange());
+						} catch(PrismsRecordException e)
+						{
+							log.error("Could not set latest change time", e);
+						}
+					}
+					theLatestChanges.clear();
 					if(theNewChanges != null && theNewChanges.length > 0)
 					{
+						/* After a destructive sync, we need to re-apply changes that have occurred
+						 * since the last time the remote center synchronized with the local center. */
 						String baseText;
 						if(theStageCount == 0)
 							baseText = "Recovering local changes";
@@ -1119,8 +1140,6 @@ public class PrismsSynchronizer2
 						thePI.setProgress(0);
 						thePI.setProgressScale(0);
 						theCreations = null;
-						/* After a destructive sync, we need to re-apply changes that have occurred
-						 * since the last time the remote center synchronized with the local center. */
 						long [] batch = new long [theNewChanges.length < 100 ? theNewChanges.length
 							: 100];
 						for(int i = 0; i < theNewChanges.length; i += batch.length)
@@ -1177,26 +1196,19 @@ public class PrismsSynchronizer2
 							"Can't import changes before center ID is sent", state);
 					super.valueNull(state);
 					state.spoofValue();
+					thePI.setCancelable(false);
 					prisms.util.json.SAJParser.DefaultHandler handler = new prisms.util.json.SAJParser.DefaultHandler();
 					new prisms.util.json.SAJParser().parse(theReader, handler);
 					org.json.simple.JSONArray changes = (org.json.simple.JSONArray) handler
 						.finalValue();
-					java.util.ArrayList<LatestCenterChange> remoteChanges = new java.util.ArrayList<LatestCenterChange>();
 					for(JSONObject change : (JSONObject []) changes.toArray(new JSONObject [changes
 						.size()]))
 					{
 						int centerID = ((Number) change.get("centerID")).intValue();
 						int subjectCenter = ((Number) change.get("subjectCenter")).intValue();
 						long remoteTime = ((Number) change.get("latestChange")).longValue();
-						remoteChanges.add(new LatestCenterChange(centerID, subjectCenter,
+						theLatestChanges.add(new LatestCenterChange(centerID, subjectCenter,
 							remoteTime));
-						try
-						{
-							getKeeper().setLatestChange(centerID, subjectCenter, remoteTime);
-						} catch(PrismsRecordException e)
-						{
-							log.error("Could not set latest change time", e);
-						}
 					}
 					/* If all items are sent from the remote center, then the synchronization
 					 * is a destructive sync. We need to get all changes that we have since the
@@ -1212,8 +1224,8 @@ public class PrismsSynchronizer2
 						if(thePI.isCanceled())
 							throw new prisms.util.CancelException();
 						SyncOutput sync = getSyncOutput(theSyncRecord.getCenter(),
-							remoteChanges.toArray(new LatestCenterChange [remoteChanges.size()]),
-							true, true);
+							theLatestChanges.toArray(new LatestCenterChange [theLatestChanges
+								.size()]), true, true);
 						theNewChanges = sync.theChangeIDs;
 						theCreations = new long [theNewChanges.length];
 						java.util.Arrays.fill(theCreations, -1);
@@ -1834,6 +1846,13 @@ public class PrismsSynchronizer2
 		jsw.startProperty("sync-data");
 		jsw.startArray();
 
+		int stages = 0;
+		if(!sync.theLateIDs.isEmpty())
+			stages++;
+		if(sync.theChangeIDs.length > 0)
+			stages++;
+
+		int stage = 1;
 		try
 		{
 			PS2ItemWriter itemWriter = new PS2ItemWriter(writer, syncRecord, changes,
@@ -1883,6 +1902,12 @@ public class PrismsSynchronizer2
 				allItems = null;
 				jsw.startProperty("itemCount");
 				jsw.writeNumber(new Integer(itemCount));
+				String baseText = "Writing local values to stream";
+				if(stages > 1)
+					baseText += " (stage " + stage + " of " + stages + ")";
+				pi.setProgressText(baseText);
+				pi.setProgress(0);
+				pi.setProgressScale(itemCount);
 				jsw.startProperty("changeCount");
 				jsw.writeNumber(new Integer(sync.theChangeIDs.length));
 				jsw.startProperty(ALL_ITEMS);
@@ -1923,13 +1948,14 @@ public class PrismsSynchronizer2
 						throw new prisms.records2.PrismsRecordException(
 							"Could not retrieve item for synchronization", e);
 					}
-					pi.setProgressText("Writing " + getType(next) + " "
+					pi.setProgressText(baseText + "\nWriting " + getType(next) + " "
 						+ prisms.util.PrismsUtils.encodeUnicode("" + next));
 					itemWriter.writeItem(next);
 				}
 				allItems = null;
 				itemWriter.end();
 				pi.setProgressText("Finished writing local values");
+				stage++;
 
 				jsw.startProperty("latestChanges");
 				jsw.startArray();
@@ -1960,6 +1986,9 @@ public class PrismsSynchronizer2
 					}
 				return syncRecord;
 			}
+			String baseText = "Writing changes to stream";
+			if(stages > 1)
+				baseText += " (stage " + stage + " of " + stages + ")";
 			long [] ids = sync.theChangeIDs;
 			pi.setProgressScale(ids.length);
 			theKeeper.sortChangeIDs(ids, true);
@@ -2024,7 +2053,7 @@ public class PrismsSynchronizer2
 						itemWriter.writeSkippedChange();
 					else
 					{
-						pi.setProgressText("Exported "
+						pi.setProgressText(baseText + "\nExported "
 							+ prisms.util.PrismsUtils.encodeUnicode("" + record));
 						itemWriter.writeChange(record);
 					}

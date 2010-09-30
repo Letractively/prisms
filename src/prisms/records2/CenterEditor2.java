@@ -1046,20 +1046,24 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		pi.setProgressText("Initializing synchronization");
 		pi.setCancelable(true);
 
+		String error = null;
 		try
 		{
 			new SyncServiceClient(getSynchronizer(), theAppName, theClientName,
 				theServicePluginName).synchronize(theCenter, SyncRecord.Type.MANUAL_REMOTE, pi,
 				requiresRecords(), true);
-			((UI) theSession.getPlugin("UI")).info(pi.getTaskText());
 		} catch(prisms.records2.PrismsRecordException e)
 		{
 			log.error("Manual synchronization failed", e);
-			((UI) theSession.getPlugin("UI")).error(e.getMessage());
+			error = e.getMessage();
 		} finally
 		{
 			pi.setDone();
 		}
+		if(error == null)
+			((UI) theSession.getPlugin("UI")).info(pi.getTaskText());
+		else
+			((UI) theSession.getPlugin("UI")).error(error);
 	}
 
 	void showAllImportHistory()
