@@ -8,8 +8,6 @@ package prisms.impl;
  */
 public class DBUser extends prisms.arch.ds.User
 {
-	private int theID;
-
 	private boolean isDeleted;
 
 	/**
@@ -21,21 +19,7 @@ public class DBUser extends prisms.arch.ds.User
 	 */
 	public DBUser(prisms.arch.ds.UserSource source, String name, int id)
 	{
-		super(source, name);
-		theID = id;
-	}
-
-	/**
-	 * @return This user's database ID
-	 */
-	public int getID()
-	{
-		return theID;
-	}
-
-	void setID(int id)
-	{
-		theID = id;
+		super(source, name, id);
 	}
 
 	/**
@@ -49,15 +33,5 @@ public class DBUser extends prisms.arch.ds.User
 	void setDeleted(boolean deleted)
 	{
 		isDeleted = deleted;
-	}
-
-	public boolean equals(Object o)
-	{
-		return o instanceof DBUser && ((DBUser) o).theID == theID;
-	}
-
-	public int hashCode()
-	{
-		return theID;
 	}
 }

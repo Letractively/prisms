@@ -136,6 +136,8 @@ public class PrismsSynchronizer2
 
 		private final java.util.HashSet<ObjectID> theBag;
 
+		private boolean optimizesForOldItems;
+
 		private java.util.HashSet<ObjectID> theNewItems;
 
 		private java.util.HashSet<ObjectID> theOldItems;
@@ -188,7 +190,7 @@ public class PrismsSynchronizer2
 					theWriter.writeBoolean(true);
 					theWriter.endObject();
 				}
-				else if(!isNewItem(item, oid))
+				else if(optimizesForOldItems && !isNewItem(item, oid))
 				{
 					theBag.add(oid);
 					theWriter.startObject();
@@ -250,8 +252,16 @@ public class PrismsSynchronizer2
 				changeTime = record.time;
 				if(lcTime != null && lcTime.longValue() >= record.time)
 					continue;
-				if(record.type.changeType != null || record.type.additivity <= 0)
-					continue;
+				if(record.majorSubject.equals(item))
+				{
+					if(record.type.changeType != null || record.type.additivity <= 0)
+						continue;
+				}
+				else if(record.minorSubject.equals(item))
+				{
+					if(record.type.additivity <= 0)
+						continue;
+				}
 				ret = true;
 				break;
 			}
@@ -309,155 +319,165 @@ public class PrismsSynchronizer2
 			}
 		}
 
-		void writeChange(prisms.records2.ChangeRecord change) throws IOException
+		void writeChange(prisms.records2.ChangeRecord change, boolean preError) throws IOException
 		{
-			theWriter.startObject();
-			theWriter.startProperty("id");
-			theWriter.writeNumber(new Long(change.id));
-			theWriter.startProperty("time");
-			theWriter.writeNumber(new Long(change.time));
-			boolean error = false;
-			if(change instanceof ChangeRecordError)
+			optimizesForOldItems = !preError;
+			try
 			{
-				theWriter.startProperty("user");
-				theWriter.writeNumber(new Long(change.user.getID()));
-				theWriter.startProperty("error");
-				theWriter.writeBoolean(true);
-				ChangeRecordError err = (ChangeRecordError) change;
-				theWriter.startProperty("subjectType");
-				theWriter.writeString(err.getSubjectType());
-				if(err.getChangeType() != null)
+				theWriter.startObject();
+				theWriter.startProperty("id");
+				theWriter.writeNumber(new Long(change.id));
+				theWriter.startProperty("time");
+				theWriter.writeNumber(new Long(change.time));
+				boolean error = false;
+				if(change instanceof ChangeRecordError)
 				{
-					theWriter.startProperty("changeType");
-					theWriter.writeString(err.getChangeType());
-				}
-				theWriter.startProperty("additivity");
-				theWriter.writeString(err.getAdditivity() > 0 ? "+" : (err.getAdditivity() < 0
-					? "-" : "0"));
-				theWriter.startProperty("majorSubject");
-				theWriter.writeNumber(new Long(err.getMajorSubjectID()));
-				if(err.getMinorSubjectID() >= 0)
-				{
-					theWriter.startProperty("minorSubject");
-					theWriter.writeNumber(new Long(err.getMinorSubjectID()));
-				}
-				if(err.getData1ID() >= 0)
-				{
-					theWriter.startProperty("data1");
-					theWriter.writeNumber(new Long(err.getData1ID()));
-				}
-				if(err.getData2ID() >= 0)
-				{
-					theWriter.startProperty("data2");
-					theWriter.writeNumber(new Long(err.getData2ID()));
-				}
-				if(err.getSerializedPreValue() != null)
-				{
-					theWriter.startProperty("preValue");
-					if(err.getSerializedPreValue() instanceof Number)
-						theWriter.writeNumber((Number) err.getSerializedPreValue());
-					else
-						theWriter.writeString((String) err.getSerializedPreValue());
-				}
-			}
-			else
-			{
-				theWriter.startProperty("subjectType");
-				theWriter.writeString(change.type.subjectType.name());
-				if(change.type.changeType != null)
-				{
-					theWriter.startProperty("changeType");
-					theWriter.writeString(change.type.changeType.name());
-				}
-				theWriter.startProperty("additivity");
-				theWriter.writeString(change.type.additivity > 0 ? "+"
-					: (change.type.additivity < 0 ? "-" : "0"));
-				try
-				{
-					theWriter.startProperty("majorSubject");
-					long id = getID(change.majorSubject);
-					ObjectID oid = new ObjectID(getType(change.majorSubject), id);
-					if(theBag.contains(oid) || !isNewItem(change.majorSubject, oid))
-						theWriter.writeNumber(new Long(id));
-					else
-						writeItem(change.majorSubject);
-
 					theWriter.startProperty("user");
 					theWriter.writeNumber(new Long(change.user.getID()));
-
-					if(change.data1 != null)
+					theWriter.startProperty("error");
+					theWriter.writeBoolean(true);
+					ChangeRecordError err = (ChangeRecordError) change;
+					theWriter.startProperty("subjectType");
+					theWriter.writeString(err.getSubjectType());
+					if(err.getChangeType() != null)
 					{
-						theWriter.startProperty("data1");
-						id = getID(change.data1);
-						oid = new ObjectID(getType(change.data1), id);
-						if(theBag.contains(oid) || !isNewItem(change.data1, oid))
-							theWriter.writeNumber(new Long(id));
-						else
-							writeItem(change.data1);
+						theWriter.startProperty("changeType");
+						theWriter.writeString(err.getChangeType());
 					}
-
-					if(change.data2 != null)
-					{
-						theWriter.startProperty("data2");
-						id = getID(change.data2);
-						oid = new ObjectID(getType(change.data2), id);
-						if(theBag.contains(oid) || !isNewItem(change.data2, oid))
-							theWriter.writeNumber(new Long(id));
-						else
-							writeItem(change.data2);
-					}
-
-					if(change.minorSubject != null)
+					theWriter.startProperty("additivity");
+					theWriter.writeString(err.getAdditivity() > 0 ? "+" : (err.getAdditivity() < 0
+						? "-" : "0"));
+					theWriter.startProperty("majorSubject");
+					theWriter.writeNumber(new Long(err.getMajorSubjectID()));
+					if(err.getMinorSubjectID() >= 0)
 					{
 						theWriter.startProperty("minorSubject");
-						id = getID(change.minorSubject);
-						oid = new ObjectID(getType(change.minorSubject), id);
-						if(theBag.contains(oid) || !isNewItem(change.minorSubject, oid))
-							theWriter.writeNumber(new Long(id));
-						else
-							writeItem(change.minorSubject);
+						theWriter.writeNumber(new Long(err.getMinorSubjectID()));
 					}
-
-					if(change.previousValue != null)
+					if(err.getData1ID() >= 0)
+					{
+						theWriter.startProperty("data1");
+						theWriter.writeNumber(new Long(err.getData1ID()));
+					}
+					if(err.getData2ID() >= 0)
+					{
+						theWriter.startProperty("data2");
+						theWriter.writeNumber(new Long(err.getData2ID()));
+					}
+					if(err.getSerializedPreValue() != null)
 					{
 						theWriter.startProperty("preValue");
-						if(change.type.changeType.isObjectIdentifiable())
+						if(err.getSerializedPreValue() instanceof Number)
+							theWriter.writeNumber((Number) err.getSerializedPreValue());
+						else
+							theWriter.writeString((String) err.getSerializedPreValue());
+					}
+				}
+				else
+				{
+					theWriter.startProperty("subjectType");
+					theWriter.writeString(change.type.subjectType.name());
+					if(change.type.changeType != null)
+					{
+						theWriter.startProperty("changeType");
+						theWriter.writeString(change.type.changeType.name());
+					}
+					theWriter.startProperty("additivity");
+					theWriter.writeString(change.type.additivity > 0 ? "+"
+						: (change.type.additivity < 0 ? "-" : "0"));
+					try
+					{
+						theWriter.startProperty("majorSubject");
+						long id = getID(change.majorSubject);
+						ObjectID oid = new ObjectID(getType(change.majorSubject), id);
+						if(theBag.contains(oid)
+							|| (!preError && !isNewItem(change.majorSubject, oid)))
+							theWriter.writeNumber(new Long(id));
+						else
+							writeItem(change.majorSubject);
+
+						theWriter.startProperty("user");
+						theWriter.writeNumber(new Long(change.user.getID()));
+
+						if(change.data1 != null)
 						{
-							id = getID(change.previousValue);
-							oid = new ObjectID(getType(change.previousValue), id);
-							if(theBag.contains(oid) || !isNewItem(change.previousValue, oid))
+							theWriter.startProperty("data1");
+							id = getID(change.data1);
+							oid = new ObjectID(getType(change.data1), id);
+							if(theBag.contains(oid) || (!preError && !isNewItem(change.data1, oid)))
 								theWriter.writeNumber(new Long(id));
+							else
+								writeItem(change.data1);
+						}
+
+						if(change.data2 != null)
+						{
+							theWriter.startProperty("data2");
+							id = getID(change.data2);
+							oid = new ObjectID(getType(change.data2), id);
+							if(theBag.contains(oid) || (!preError && !isNewItem(change.data2, oid)))
+								theWriter.writeNumber(new Long(id));
+							else
+								writeItem(change.data2);
+						}
+
+						if(change.minorSubject != null)
+						{
+							theWriter.startProperty("minorSubject");
+							id = getID(change.minorSubject);
+							oid = new ObjectID(getType(change.minorSubject), id);
+							if(theBag.contains(oid)
+								|| (!preError && !isNewItem(change.minorSubject, oid)))
+								theWriter.writeNumber(new Long(id));
+							else
+								writeItem(change.minorSubject);
+						}
+
+						if(change.previousValue != null)
+						{
+							theWriter.startProperty("preValue");
+							if(change.type.changeType.isObjectIdentifiable())
+							{
+								id = getID(change.previousValue);
+								oid = new ObjectID(getType(change.previousValue), id);
+								if(theBag.contains(oid)
+									|| (!preError && !isNewItem(change.previousValue, oid)))
+									theWriter.writeNumber(new Long(id));
+								else
+									writeItem(change.previousValue);
+							}
 							else
 								writeItem(change.previousValue);
 						}
-						else
-							writeItem(change.previousValue);
-					}
-					Object currentValue = null;
-					if(change.type.changeType != null)
-						currentValue = getCurrentValue(change);
-					if(currentValue != null)
-					{
-						theWriter.startProperty("currentValue");
-						writeItem(currentValue);
-					}
-				} catch(PrismsRecordException e)
-				{
-					log.error("Could not write item for change " + change + "(" + change.id + ")",
-						e);
-					error = true;
-				}
-				if(storeSyncRecord)
-					try
-					{
-						getKeeper().associate(change, theSyncRecord, error);
+						Object currentValue = null;
+						if(change.type.changeType != null)
+							currentValue = getCurrentValue(change);
+						if(currentValue != null)
+						{
+							theWriter.startProperty("currentValue");
+							writeItem(currentValue);
+						}
 					} catch(PrismsRecordException e)
 					{
-						log.error("Could not associate change " + change.id + " with sync record "
-							+ theSyncRecord, e);
+						log.error("Could not write item for change " + change + "(" + change.id
+							+ ")", e);
+						error = true;
 					}
+					if(storeSyncRecord)
+						try
+						{
+							getKeeper().associate(change, theSyncRecord, error);
+						} catch(PrismsRecordException e)
+						{
+							log.error("Could not associate change " + change.id
+								+ " with sync record " + theSyncRecord, e);
+						}
+				}
+				theWriter.endObject();
+			} finally
+			{
+				optimizesForOldItems = true;
 			}
-			theWriter.endObject();
 		}
 
 		void writeSkippedChange() throws IOException
@@ -587,7 +607,10 @@ public class PrismsSynchronizer2
 				if(value != null)
 				{}
 				else if(Boolean.TRUE.equals(json.get("-syncstore-")))
+				{
 					value = getItem(type, id);
+					parseEmptyContent();
+				}
 				else if(Boolean.TRUE.equals(json.get("-localstore-")))
 				{
 					theNewItem[0] = false;
@@ -617,6 +640,44 @@ public class PrismsSynchronizer2
 				theDepth--;
 			}
 			return value;
+		}
+
+		/**
+		 * Parses the identity of an item
+		 * 
+		 * @param json The JSON to parse the item from
+		 * @return Whether the item was created new as a result of this call
+		 * @throws PrismsRecordException If an error occurs parsing the item
+		 */
+		boolean parseID(JSONObject json) throws PrismsRecordException
+		{
+			if(Boolean.TRUE.equals(json.get("-syncstore-")))
+				return false;
+			String type = (String) json.get("type");
+			long id = ((Number) json.get("id")).longValue();
+			if(theBag.get(type, id) != null)
+				return false;
+			theNewItem[0] = false;
+			Object val = PrismsSynchronizer2.this.parseID(json, this, theNewItem);
+			theBag.add(type, id, val);
+			return theNewItem[0];
+		}
+
+		/**
+		 * Parses the content of a newly created item
+		 * 
+		 * @param json The JSON to parse the item from
+		 * @throws PrismsRecordException If an error occurs parsing the item or if the item's
+		 *         identity has not been parsed previously
+		 */
+		void parseContent(JSONObject json) throws PrismsRecordException
+		{
+			String type = (String) json.get("type");
+			long id = ((Number) json.get("id")).longValue();
+			Object val = theBag.get(type, id);
+			if(val == null)
+				throw new PrismsRecordException("No parsed item " + type + "/" + id);
+			PrismsSynchronizer2.this.parseContent(val, json, true, this);
 		}
 
 		private void parseContent(Object value, ObjectID id, JSONObject json, boolean newItem)
@@ -757,7 +818,7 @@ public class PrismsSynchronizer2
 			Integer pos = theObjectPositions.get(key);
 			if(pos == null)
 				throw new PrismsRecordException("No such object " + type + "/" + id
-					+ " in full item list");
+					+ " in full item list or local data set");
 			/* Since this item is about to be sync'ed right now, we don't need to sync it when
 			 * syncItems is called */
 			theObjectPositions.remove(key);
@@ -815,7 +876,7 @@ public class PrismsSynchronizer2
 					theDepth++;
 					try
 					{
-						item = parseID(json, this, theNewItem);
+						item = PrismsSynchronizer2.this.parseID(json, this, theNewItem);
 						theBag.add(id.type, id.id, item);
 						parseEmptyContent();
 						if(!json.containsKey("-localstore-"))
@@ -934,6 +995,8 @@ public class PrismsSynchronizer2
 
 		private boolean storeSyncRecord;
 
+		private java.util.HashSet<ObjectID> theItemsNeedParsing;
+
 		ChangeReader(Reader reader, SyncRecord record, PS2ItemReader getter, int totalChangeCount,
 			prisms.ui.UI.DefaultProgressInformer pi, boolean storeSR)
 		{
@@ -944,6 +1007,7 @@ public class PrismsSynchronizer2
 			thePI = pi;
 			thePI.setProgressScale(totalChangeCount);
 			storeSyncRecord = storeSR;
+			theItemsNeedParsing = new java.util.HashSet<ObjectID>();
 		}
 
 		int parse() throws java.io.IOException, prisms.util.json.SAJParser.ParseException
@@ -965,11 +1029,16 @@ public class PrismsSynchronizer2
 					thePI.setProgress(theChangeCount);
 				if(Boolean.TRUE.equals(json.get("skipped")))
 					return;
+				boolean store = true;
 				ChangeRecord change = parseChange(json, theGetter);
 				try
 				{
 					if(getKeeper().hasChange(change.id))
-						return;
+					{
+						store = false;
+						if(getKeeper().hasSuccessfulChange(change.id))
+							return;
+					}
 				} catch(PrismsRecordException e)
 				{
 					log.error("Could not check existence of change", e);
@@ -996,12 +1065,40 @@ public class PrismsSynchronizer2
 				}
 				try
 				{
-					getKeeper().persist(change);
+					if(store)
+						getKeeper().persist(change);
 					if(storeSyncRecord)
 						getKeeper().associate(change, theSyncRecord, error);
 				} catch(PrismsRecordException e2)
 				{
 					log.error("Could not persist change " + change.id, e2);
+				}
+			}
+			else if(json.containsKey("type") && json.containsKey("id")
+				&& !Boolean.TRUE.equals(json.get("-syncstore-")))
+			{
+				try
+				{
+					for(int d = getDepth() - 1; d >= 0; d--)
+					{
+						Object val = fromTop(d);
+						if(!(val instanceof JSONObject))
+							continue;
+						JSONObject jsonVal = (JSONObject) val;
+						if(jsonVal.containsKey("type") && jsonVal.containsKey("id")
+							&& !Boolean.TRUE.equals(jsonVal.get("-syncstore-")))
+						{
+							if(theGetter.parseID(jsonVal))
+								theItemsNeedParsing.add(new ObjectID((String) jsonVal.get("type"),
+									((Number) jsonVal.get("id")).longValue()));
+						}
+					}
+					if(theItemsNeedParsing.remove(new ObjectID((String) json.get("type"),
+						((Number) json.get("id")).longValue())) || theGetter.parseID(json))
+						theGetter.parseContent(json);
+				} catch(Exception e)
+				{
+					log.error("Could not read item", e);
 				}
 			}
 		}
@@ -1144,17 +1241,17 @@ public class PrismsSynchronizer2
 							: 100];
 						for(int i = 0; i < theNewChanges.length; i += batch.length)
 						{
-							int count = theNewChanges.length - i < batch.length
-								? theNewChanges.length - i : batch.length;
-							System.arraycopy(theNewChanges, i, batch, 0, count);
+							if(theNewChanges.length - i < batch.length)
+								batch = new long [theNewChanges.length - i];
+							System.arraycopy(theNewChanges, i, batch, 0, batch.length);
 							ChangeRecord [] records;
 							try
 							{
 								records = getKeeper().getChanges(batch);
 							} catch(PrismsRecordException e)
 							{
-								log.error("Could not get changes " + i + " through " + (i + count),
-									e);
+								log.error("Could not get changes " + i + " through "
+									+ (i + batch.length - 1), e);
 								continue;
 							}
 							thePI.setProgressScale(theNewChanges.length);
@@ -1636,12 +1733,15 @@ public class PrismsSynchronizer2
 
 		final long [] theChangeIDs;
 
+		final prisms.util.LongList theErrorChanges;
+
 		SyncOutput(prisms.util.IntList lateIDs, LatestCenterChange [] localChanges,
-			long [] changeIDs)
+			long [] changeIDs, prisms.util.LongList errorChanges)
 		{
 			theLateIDs = lateIDs;
 			theLocalChanges = localChanges;
 			theChangeIDs = changeIDs;
+			theErrorChanges = errorChanges;
 		}
 	}
 
@@ -1658,7 +1758,7 @@ public class PrismsSynchronizer2
 	 * @return The synchronization output to send to the remote center
 	 * @throws PrismsRecordException If an error occurs generating the data
 	 */
-	SyncOutput getSyncOutput(PrismsCenter center, LatestCenterChange [] changes,
+	SyncOutput getSyncOutput(final PrismsCenter center, LatestCenterChange [] changes,
 		boolean withRecords, boolean exclusiveForSubjects) throws PrismsRecordException
 	{
 		final int [] centerIDs = theKeeper.getAllCenterIDs();
@@ -1688,6 +1788,7 @@ public class PrismsSynchronizer2
 		}
 
 		final prisms.util.IntList lateIDs = new prisms.util.IntList();
+		final prisms.util.LongList errorChanges = new prisms.util.LongList();
 		final java.util.ArrayList<LatestCenterChange> updateChanges = new java.util.ArrayList<LatestCenterChange>();
 		ArrayUtils
 			.adjust(
@@ -1709,7 +1810,8 @@ public class PrismsSynchronizer2
 					public LatestCenterChange removed(LatestCenterChange o, int oIdx, int incMod,
 						int retIdx) throws PrismsRecordException
 					{
-						updateChanges.add(o);
+						updateChanges.add(new LatestCenterChange(o.getCenterID(), o
+							.getSubjectCenter(), -1));
 						if(getKeeper().getLatestPurgedChange(o.getCenterID(), o.getSubjectCenter()) > 0)
 						{
 							if(!lateIDs.contains(o.getSubjectCenter()))
@@ -1727,6 +1829,8 @@ public class PrismsSynchronizer2
 							if(!lateIDs.contains(o1.getSubjectCenter()))
 								lateIDs.add(o1.getSubjectCenter());
 						}
+						errorChanges.addAll(Record2Utils.getSyncErrorChanges(getKeeper(), center,
+							o1.getCenterID(), o1.getSubjectCenter()));
 						if(o1.getLatestChange() > o2.getLatestChange())
 							updateChanges.add(o2);
 						return o1;
@@ -1743,18 +1847,32 @@ public class PrismsSynchronizer2
 			{
 				ids = Record2Utils.getSyncChanges(theKeeper, center, updateChange.getCenterID(),
 					updateChange.getSubjectCenter(), updateChange.getLatestChange() + 1);
+				changeIDs.addAll(ids);
 			} catch(PrismsRecordException e)
 			{
-				throw new prisms.records2.PrismsRecordException(
-					"Could not get change records for synchronization", e);
+				throw new PrismsRecordException("Could not get change records for synchronization",
+					e);
 			}
-			changeIDs.addAll(ids);
 		}
+		if(changeIDs.size() <= 100)
+		{ // Possibly some or all of these don't require being sent (e.g. changes to centers)
+			try
+			{
+				ChangeRecord [] records = theKeeper.getChanges(changeIDs.toArray());
+				for(ChangeRecord record : records)
+					if(record != null && !shouldSend(record))
+						changeIDs.remove(record.id);
+			} catch(PrismsRecordException e)
+			{
+				throw new PrismsRecordException("Could not trim modifications", e);
+			}
+		}
+		changeIDs.addAll(errorChanges);
 		long [] ids = changeIDs.toArray();
 		changeIDs.clear();
 		changeIDs = null;
-		theKeeper.sortChangeIDs(ids, true);
-		return new SyncOutput(lateIDs, localChanges, ids);
+		ids = theKeeper.sortChangeIDs(ids, true);
+		return new SyncOutput(lateIDs, localChanges, ids, errorChanges);
 	}
 
 	/**
@@ -2055,7 +2173,7 @@ public class PrismsSynchronizer2
 					{
 						pi.setProgressText(baseText + "\nExported "
 							+ prisms.util.PrismsUtils.encodeUnicode("" + record));
-						itemWriter.writeChange(record);
+						itemWriter.writeChange(record, sync.theErrorChanges.contains(record.id));
 					}
 				}
 				j += length;
@@ -2707,6 +2825,10 @@ public class PrismsSynchronizer2
 		else if(data2 != null)
 			ret.setData2(null, ((Number) ((JSONObject) data2).get("id")).longValue());
 
+		if(preValue instanceof Boolean)
+			preValue = preValue.toString();
+		else if(preValue instanceof JSONObject)
+			preValue = ((JSONObject) preValue).get("id");
 		ret.setPreValue(null, preValue);
 		return ret;
 	}

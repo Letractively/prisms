@@ -11,6 +11,8 @@ import prisms.arch.PrismsApplication;
  */
 public class User
 {
+	private int theID;
+
 	private boolean isAdmin;
 
 	private final UserSource theSource;
@@ -28,11 +30,13 @@ public class User
 	 * 
 	 * @param src The UserSource that this user is from
 	 * @param name The name of the user
+	 * @param id The storage ID for the user
 	 */
-	public User(UserSource src, String name)
+	public User(UserSource src, String name, int id)
 	{
 		theSource = src;
 		theName = name;
+		theID = id;
 		thePermissions = new UserPermissions(this);
 		theGroups = new java.util.ArrayList<UserGroup>();
 	}
@@ -43,6 +47,26 @@ public class User
 	public UserSource getSource()
 	{
 		return theSource;
+	}
+
+	/**
+	 * @return This user's storage ID
+	 */
+	public int getID()
+	{
+		return theID;
+	}
+
+	/**
+	 * Sets the storage ID for this user. This method is left public for custom {@link UserSource}
+	 * implementations, but this method should never be used except within such an implementation.
+	 * In particular, this should never be modified within an application.
+	 * 
+	 * @param id The storage ID for this user
+	 */
+	public void setID(int id)
+	{
+		theID = id;
 	}
 
 	/**
@@ -140,14 +164,18 @@ public class User
 
 	public boolean equals(Object o)
 	{
-		return o instanceof User && ((User) o).getName().equals(theName);
+		if(!(o instanceof User))
+			return false;
+		User u = (User) o;
+		if(u.theID < 0 || theID < 0)
+			return theName.equals(u.theName);
+		else
+			return theID == u.theID;
 	}
 
 	public int hashCode()
 	{
-		int ret = 0;
-		ret += theName.hashCode();
-		return ret;
+		return theID;
 	}
 
 	private static class UserPermissions implements Permissions

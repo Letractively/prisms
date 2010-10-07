@@ -293,6 +293,8 @@ public class ChangeRecordError extends ChangeRecord
 	public void setPreValue(Object value, Object serialized)
 	{
 		thePreValue = value;
+		if(serialized != null && !(serialized instanceof String) && !(serialized instanceof Number))
+			throw new IllegalArgumentException("Serialized pre-value must be string or number");
 		theSerializePreValue = serialized;
 	}
 }
