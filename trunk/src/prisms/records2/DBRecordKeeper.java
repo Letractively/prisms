@@ -1592,6 +1592,49 @@ public class DBRecordKeeper implements RecordKeeper2
 		return getChangeRecords(null, null, "id=" + changeID, null).length > 0;
 	}
 
+	public boolean hasSuccessfulChange(long changeID) throws PrismsRecordException
+	{
+		if(Record2Utils.getCenterID(changeID) == theCenterID)
+			return true;
+		Statement stmt = null;
+		ResultSet rs = null;
+		checkConnection();
+		String sql = null;
+		try
+		{
+			stmt = theConn.createStatement();
+			sql = "SELECT count(*) FROM " + DBOWNER + "prisms_sync_assoc WHERE recordNS="
+				+ toSQL(theNamespace) + " AND changeRecord=" + changeID + " AND error="
+				+ boolToSQL(false);
+			rs = stmt.executeQuery(sql);
+			if(!rs.next())
+				return false;
+			int count = rs.getInt(1);
+			return count > 0;
+		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not check success of change", e);
+		} finally
+		{
+			try
+			{
+				if(rs != null)
+					rs.close();
+			} catch(SQLException e)
+			{
+				log.error("Connection error", e);
+			}
+			try
+			{
+				if(stmt != null)
+					stmt.close();
+			} catch(SQLException e)
+			{
+				log.error("Connection error", e);
+			}
+		}
+	}
+
 	public long [] getSuccessors(ChangeRecord change) throws PrismsRecordException
 	{
 		String where = "majorSubject=" + getDataID(change.majorSubject);

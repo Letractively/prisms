@@ -67,6 +67,7 @@ public class PrismsSerializer
 			return null;
 		JSONObject ret = new JSONObject();
 		ret.put("name", user.getName());
+		ret.put("id", new Integer(user.getID()));
 		ret.put("locked", new Boolean(user.isLocked()));
 		return ret;
 	}
@@ -82,7 +83,7 @@ public class PrismsSerializer
 	{
 		if(json == null)
 			return null;
-		User ret = new User(source, (String) json.get("name"));
+		User ret = new User(source, (String) json.get("name"), ((Number) json.get("id")).intValue());
 		ret.setLocked(((Boolean) json.get("locked")).booleanValue());
 		return ret;
 	}

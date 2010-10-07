@@ -67,7 +67,7 @@ public interface RecordKeeper2
 	 * @param center The center to get synchronization records for
 	 * @param isImport true if this method should only get import records, false if it should only
 	 *        get export records, null if it should get both types
-	 * @return The requested synchronization records
+	 * @return The requested synchronization records, sorted by time, most recent first
 	 * @throws PrismsRecordException If an error occurs retrieving the data
 	 */
 	SyncRecord [] getSyncRecords(PrismsCenter center, Boolean isImport)
@@ -160,6 +160,14 @@ public interface RecordKeeper2
 	 * @throws PrismsRecordException If an error occurs checking the existence of the change
 	 */
 	boolean hasChange(long changeID) throws PrismsRecordException;
+
+	/**
+	 * @param changeID The ID of the change to check
+	 * @return Whether the given change has been successfully made in this record keeper
+	 * @throws PrismsRecordException If an error occurs checking the existence or success of the
+	 *         change
+	 */
+	boolean hasSuccessfulChange(long changeID) throws PrismsRecordException;
 
 	/**
 	 * Gets all changes that are to the same subject and field as the given change but occur after

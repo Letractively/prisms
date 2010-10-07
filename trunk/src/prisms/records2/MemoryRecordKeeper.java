@@ -451,6 +451,17 @@ public class MemoryRecordKeeper implements RecordKeeper2
 		return false;
 	}
 
+	public boolean hasSuccessfulChange(long changeID)
+	{
+		if(Record2Utils.getCenterID(changeID) == theCenterID)
+			return true;
+		for(SyncRecordHolder sync : theSyncRecords)
+			for(ChangeRecord change : sync.theSuccessChanges)
+				if(change.id == changeID)
+					return true;
+		return false;
+	}
+
 	public long [] getSuccessors(ChangeRecord change)
 	{
 		if(change instanceof ChangeRecordError)

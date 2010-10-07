@@ -110,27 +110,49 @@ public class Record2Utils
 	public static long [] getSyncChanges(RecordKeeper2 keeper, PrismsCenter center, int centerID,
 		int subjectCenter, long lastChange) throws PrismsRecordException
 	{
-		LongList ret = new LongList();
-		prisms.records2.SyncRecord[] records = keeper.getSyncRecords(center, Boolean.FALSE);
+		return keeper.getChangeIDs(centerID, subjectCenter, lastChange);
+	}
 
-		for(prisms.records2.SyncRecord record : records)
+	/**
+	 * Gets changes that need to be sent to the given center for synchronization because they were
+	 * incorrectly received earlier
+	 * 
+	 * @param keeper The record keeper being used for synchronization
+	 * @param center The center synchronizing with this center
+	 * @param centerID The ID of the center to get changes by
+	 * @param subjectCenter The ID of the data set to get changes to
+	 * @return The IDs of all changes that should be sent to the remote center to be completely
+	 *         synchronized with this center
+	 * @throws prisms.records2.PrismsRecordException If an error occurs retrieving the data
+	 */
+	public static long [] getSyncErrorChanges(RecordKeeper2 keeper, PrismsCenter center,
+		int centerID, int subjectCenter) throws PrismsRecordException
+	{
+		LongList ret = new LongList();
+		SyncRecord [] records = keeper.getSyncRecords(center, Boolean.FALSE);
+
+		for(int r = records.length - 1; r >= 0; r--)
 		{
+			SyncRecord record = records[r];
 			if(record.getSyncError() != null)
 				continue;
-			long [] successChanges = keeper.getSuccessChanges(record);
-			for(int i = 0; i < ret.size(); i++)
+			if(!ret.isEmpty())
 			{
-				boolean contained = false;
-				for(int j = 0; j < successChanges.length; j++)
-					if(successChanges[j] == ret.get(i))
-					{
-						contained = true;
-						break;
-					}
-				if(contained)
+				long [] successChanges = keeper.getSuccessChanges(record);
+				for(int i = 0; i < ret.size(); i++)
 				{
-					ret.remove(i);
-					i--;
+					boolean contained = false;
+					for(int j = 0; j < successChanges.length; j++)
+						if(successChanges[j] == ret.get(i))
+						{
+							contained = true;
+							break;
+						}
+					if(contained)
+					{
+						ret.remove(i);
+						i--;
+					}
 				}
 			}
 			long [] errorChanges = keeper.getErrorChanges(record);
@@ -142,8 +164,6 @@ public class Record2Utils
 		}
 		records = null;
 
-		for(long ch : keeper.getChangeIDs(centerID, subjectCenter, lastChange))
-			ret.add(ch);
 		return ret.toArray();
 	}
 

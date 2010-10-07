@@ -139,6 +139,8 @@ public class SAJParser
 	 */
 	public static class DefaultHandler implements ParseHandler
 	{
+		private ParseState theState;
+
 		private Object theValue;
 
 		private java.util.ArrayList<Object> thePath;
@@ -149,18 +151,26 @@ public class SAJParser
 			thePath = new java.util.ArrayList<Object>();
 		}
 
+		/** @return The current state of parsing */
+		public ParseState getState()
+		{
+			return theState;
+		}
+
 		/**
 		 * Resets this handler's state. This is only useful in order to reuse the handler after a
 		 * parsing error.
 		 */
 		public void reset()
 		{
+			theState = null;
 			theValue = null;
 			thePath.clear();
 		}
 
 		public void startObject(ParseState state)
 		{
+			theState = state;
 			org.json.simple.JSONObject value = new org.json.simple.JSONObject();
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
@@ -169,24 +179,29 @@ public class SAJParser
 
 		public void startProperty(ParseState state, String name)
 		{
+			theState = state;
 		}
 
 		public void separator(ParseState state)
 		{
+			theState = state;
 		}
 
 		public void endProperty(ParseState state, String propName)
 		{
+			theState = state;
 			((org.json.simple.JSONObject) top()).put(propName, theValue);
 		}
 
 		public void endObject(ParseState state)
 		{
+			theState = state;
 			pop();
 		}
 
 		public void startArray(ParseState state)
 		{
+			theState = state;
 			org.json.simple.JSONArray value = new org.json.simple.JSONArray();
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
@@ -195,11 +210,13 @@ public class SAJParser
 
 		public void endArray(ParseState state)
 		{
+			theState = state;
 			pop();
 		}
 
 		public void valueString(ParseState state, String value)
 		{
+			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
 			else
@@ -208,6 +225,7 @@ public class SAJParser
 
 		public void valueNumber(ParseState state, Number value)
 		{
+			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
 			else
@@ -216,6 +234,7 @@ public class SAJParser
 
 		public void valueBoolean(ParseState state, boolean value)
 		{
+			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(new Boolean(value));
 			else
@@ -224,6 +243,7 @@ public class SAJParser
 
 		public void valueNull(ParseState state)
 		{
+			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(null);
 			else
@@ -232,10 +252,12 @@ public class SAJParser
 
 		public void whiteSpace(ParseState state, String ws)
 		{
+			theState = state;
 		}
 
 		public void comment(ParseState state, String fullComment, String content)
 		{
+			theState = state;
 		}
 
 		public Object finalValue()
@@ -245,6 +267,7 @@ public class SAJParser
 
 		public void error(ParseState state, String error)
 		{
+			theState = state;
 		}
 
 		/**

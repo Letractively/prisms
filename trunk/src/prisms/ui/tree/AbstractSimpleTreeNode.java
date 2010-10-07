@@ -31,6 +31,8 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 
 	private boolean isSelected;
 
+	private boolean selectionChangesNode;
+
 	/**
 	 * Creates a tree node
 	 * 
@@ -48,6 +50,22 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 	public final String getID()
 	{
 		return Integer.toHexString(hashCode());
+	}
+
+	/**
+	 * @return Whether selecting this node changes its appearance
+	 */
+	public boolean selectionChangesNode()
+	{
+		return selectionChangesNode;
+	}
+
+	/**
+	 * @param change Whether selection changes this node's appearance
+	 */
+	public void setSelectionChangesNode(boolean change)
+	{
+		selectionChangesNode = change;
 	}
 
 	/**
@@ -158,7 +176,10 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 	 */
 	public void userSetSelected(boolean selected)
 	{
+		boolean changed = isSelected != selected;
 		isSelected = selected;
+		if(changed && selectionChangesNode)
+			changed(false);
 	}
 
 	/**
@@ -210,8 +231,8 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 				multi = ((Boolean) theActions[a].getValue("multiple")).booleanValue();
 			else
 				multi = false;
-			ret = prisms.util.ArrayUtils.add(ret, new NodeAction((String) theActions[a]
-				.getValue(Action.NAME), multi));
+			ret = prisms.util.ArrayUtils.add(ret,
+				new NodeAction((String) theActions[a].getValue(Action.NAME), multi));
 		}
 		return ret;
 	}
