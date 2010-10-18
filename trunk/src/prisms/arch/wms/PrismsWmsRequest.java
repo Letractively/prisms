@@ -35,6 +35,12 @@ public class PrismsWmsRequest
 	 */
 	public static final int MAX_HEIGHT = 2048;
 
+	/** The SRS string corresponding to a plain lat/lon projection */
+	public static final String EPSG_LATLON = "EPSG:4326";
+
+	/** The SRS string corresponding to google's mercator projection */
+	public static final String EPSG_GOOGLE = "EPSG:900913";
+
 	/**
 	 * The type for a WMS request. The request parameter must fit one of these types or it is not a
 	 * WMS request.
@@ -287,6 +293,27 @@ public class PrismsWmsRequest
 	}
 
 	/**
+	 * Creates a WMS request from code
+	 * 
+	 * @param srs The SRS string corresponding to the projection represented in this request
+	 * @param minLat The minimum latitude of the viewing window
+	 * @param minLon The minimum longitude of the viewing window
+	 * @param maxLat The maximum latitude of the viewing window
+	 * @param maxLon The maximum longitude of the viewing window
+	 * @param width The width of the viewing window
+	 * @param height The height of the viewing window
+	 */
+	public PrismsWmsRequest(String srs, float minLat, float minLon, float maxLat, float maxLon,
+		int width, int height)
+	{
+		this();
+		theSRS = srs;
+		theBounds = new BoundingBox(minLat, maxLat, minLon, maxLon);
+		theWidth = width;
+		theHeight = height;
+	}
+
+	/**
 	 * @return The address from which this request was made
 	 * @see HttpServletRequest#getRemoteAddr()
 	 */
@@ -521,8 +548,9 @@ public class PrismsWmsRequest
 		ret.theBounds = new BoundingBox(MinLat, MaxLat, MinLon, MaxLon);
 
 		ret.theSRS = ret.getParameter("SRS");
-		// if(ret.theSRS != null && !ret.theSRS.equalsIgnoreCase("EPSG:4326"))
-		// throw new IllegalArgumentException("Illegal SRS: Only EPSG:4326 is currently supported");
+		// if(ret.theSRS != null && !ret.theSRS.equalsIgnoreCase(EPSG_LATLON))
+		// throw new IllegalArgumentException("Illegal SRS: Only " + EPSG_LATLON
+		// + " is currently supported");
 
 		ret.isTransparent = "false".equalsIgnoreCase(ret.getParameter("transparent"));
 		Color bgColor = BG;
