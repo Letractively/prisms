@@ -101,7 +101,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 		 */
 		ENUM(Enum.class) {
 			@Override
-			@SuppressWarnings("unchecked")
+			@SuppressWarnings("rawtypes")
 			public Object deserialize(String serialized)
 			{
 				try
