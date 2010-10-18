@@ -3,21 +3,17 @@
  */
 package prisms.ui;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-
 import org.apache.log4j.Logger;
-import org.geotools.ows.ServiceException;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+
+import prisms.arch.PrismsSession;
+import prisms.util.ArrayUtils;
 
 import com.bbn.openmap.Layer;
 import com.bbn.openmap.plugin.PlugIn;
 import com.bbn.openmap.plugin.PlugInLayer;
 import com.bbn.openmap.plugin.wms.WMSPlugIn;
-
-import prisms.arch.PrismsSession;
-import prisms.util.ArrayUtils;
 
 /**
  * Allows the user to edit and add layers to the PRISMS map
@@ -30,9 +26,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 
 	private String theName;
 
-	private String theSelectedWMS;
-
-	private java.util.Set<org.geotools.data.ows.Layer> theWMSLayers;
+	private prisms.arch.wms.WmsUtils theWmsUtils;
 
 	private prisms.util.preferences.Preference<Object> theLayersPref;
 
@@ -40,6 +34,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 	{
 		theSession = session;
 		theName = pluginEl.elementText("name");
+		theWmsUtils = new prisms.arch.wms.WmsUtils(5);
 		if(theLayersPref == null)
 			theLayersPref = new prisms.util.preferences.Preference<Object>(theName, "layers",
 				prisms.util.preferences.Preference.Type.ARBITRARY, Object.class, false);
@@ -137,8 +132,6 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 
 	void sendLayers()
 	{
-		theSelectedWMS = null;
-		theWMSLayers = null;
 		JSONArray jsonLayers = null;
 		PrismsOpenMapPlugin map = getMap();
 		if(map != null)
@@ -239,90 +232,29 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 		final com.bbn.openmap.plugin.wms.WMSPlugIn plugin)
 	{
 		String url = plugin.getQueryHeader();
-		java.util.Set<org.geotools.data.ows.Layer> qLayers = null;
-		if(theSelectedWMS != null && theSelectedWMS.equals(url))
-			qLayers = theWMSLayers;
-		else if(url != null && url.length() > 0)
+		prisms.ui.UI.DefaultProgressInformer pi = new prisms.ui.UI.DefaultProgressInformer();
+		pi.setCancelable(true);
+		prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
+		ui.startTimedTask(pi);
+		prisms.arch.wms.WmsUtils.WmsLayer[] layers;
+		try
 		{
-			theSelectedWMS = null;
-			theWMSLayers = null;
-			if(url.contains("?"))
-				url += "&VERSION=1.1.0&REQUEST=GetCapabilities";
-			else
-				url += "?VERSION=1.1.0&REQUEST=GetCapabilities";
-			prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
-			final boolean [] finished = new boolean [] {false};
-			if(ui != null)
-				ui.startTimedTask(new prisms.ui.UI.ProgressInformer()
-				{
-					public String getTaskText()
-					{
-						return "Retrieving WMS Layers for " + plugin.getQueryHeader();
-					}
-
-					public int getTaskScale()
-					{
-						return 0;
-					}
-
-					public int getTaskProgress()
-					{
-						return 0;
-					}
-
-					public boolean isTaskDone()
-					{
-						return finished[0];
-					}
-
-					public boolean isCancelable()
-					{
-						return false;
-					}
-
-					public void cancel() throws IllegalStateException
-					{
-					}
-				});
-			try
-			{
-				org.geotools.data.wms.WebMapServer wms;
-				try
-				{
-					wms = new org.geotools.data.wms.WebMapServer(new java.net.URL(url));
-				} catch(ServiceException e)
-				{
-					throw new IllegalStateException("Could not get WMS information for "
-						+ plugin.getQueryHeader(), e);
-				} catch(MalformedURLException e)
-				{
-					throw new IllegalStateException("Could not get WMS information for "
-						+ plugin.getQueryHeader(), e);
-				} catch(IOException e)
-				{
-					throw new IllegalStateException("Could not get WMS information for "
-						+ plugin.getQueryHeader(), e);
-				}
-				qLayers = org.geotools.data.wms.WMSUtils.getQueryableLayers(wms.getCapabilities());
-				theSelectedWMS = plugin.getQueryHeader();
-				theWMSLayers = qLayers;
-			} finally
-			{
-				finished[0] = true;
-			}
+			layers = theWmsUtils.getWMSLayers(url, pi);
+		} catch(prisms.arch.PrismsException e)
+		{
+			ui.error(e.getMessage()
+				+ (e.getCause() != null ? ": " + e.getCause().getMessage() : ""));
+			return;
 		}
 		JSONArray jsonLayers = new JSONArray();
-		if(qLayers != null)
+		for(prisms.arch.wms.WmsUtils.WmsLayer wmsLayer : layers)
 		{
-			for(org.geotools.data.ows.Layer qLayer : qLayers)
-			{
-				JSONObject jsonLayer = new JSONObject();
-				jsonLayers.add(jsonLayer);
-				jsonLayer.put("name", qLayer.getName());
-				jsonLayer.put("title", qLayer.getTitle());
-				jsonLayer.put("enabled", new Boolean(ArrayUtils.contains(plugin.getLayers().split(
-					","), qLayer.getName())));
-			}
+			JSONObject jsonLayer = new JSONObject();
+			jsonLayers.add(jsonLayer);
+			jsonLayer.put("name", wmsLayer.name);
+			jsonLayer.put("title", wmsLayer.title);
+			jsonLayer.put("enabled",
+				new Boolean(ArrayUtils.contains(plugin.getLayers().split(","), wmsLayer.name)));
 		}
 		JSONObject jsonWMS = new JSONObject();
 		jsonWMS.put("name", layer.getName());
@@ -481,20 +413,18 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 				+ "--not configurable");
 		if(hasName(map.getImageServer().getLayers(), name))
 		{
-			configureWMS((PlugInLayer) selectedLayer, (WMSPlugIn) ((PlugInLayer) selectedLayer)
-				.getPlugIn());
+			configureWMS((PlugInLayer) selectedLayer,
+				(WMSPlugIn) ((PlugInLayer) selectedLayer).getPlugIn());
 			throw new IllegalArgumentException("A layer named " + name + " already exists");
 		}
 		selectedLayer.setName(name);
-		configureWMS((PlugInLayer) selectedLayer, (WMSPlugIn) ((PlugInLayer) selectedLayer)
-			.getPlugIn());
+		configureWMS((PlugInLayer) selectedLayer,
+			(WMSPlugIn) ((PlugInLayer) selectedLayer).getPlugIn());
 		storePrefs();
 	}
 
 	void setLayerURL(String layerName, String url)
 	{
-		theSelectedWMS = null;
-		theWMSLayers = null;
 		PrismsOpenMapPlugin map = getMap();
 		if(map == null)
 			throw new IllegalStateException("No Image Server Map to configure");
@@ -640,8 +570,8 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 			return;
 		}
 		map.getImageServer().setLayers(
-			ArrayUtils.adjust(map.getImageServer().getLayers(), (JSONObject []) prefLayers
-				.toArray(new JSONObject [0]),
+			ArrayUtils.adjust(map.getImageServer().getLayers(),
+				(JSONObject []) prefLayers.toArray(new JSONObject [0]),
 				new ArrayUtils.DifferenceListener<Layer, JSONObject>()
 				{
 					public boolean identity(Layer o1, JSONObject o2)
@@ -650,8 +580,8 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 						{
 							if(o1 instanceof PlugInLayer
 								&& ((PlugInLayer) o1).getPlugIn() instanceof WMSPlugIn)
-								return equal(o2.get("url"), ((WMSPlugIn) ((PlugInLayer) o1)
-									.getPlugIn()).getQueryHeader());
+								return equal(o2.get("url"),
+									((WMSPlugIn) ((PlugInLayer) o1).getPlugIn()).getQueryHeader());
 							else if(o1.getName().equals(o2.get("name")))
 							{
 								// Change preferences layer name to avoid clash
