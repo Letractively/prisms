@@ -257,7 +257,7 @@ public class PrismsSynchronizer2
 					if(record.type.changeType != null || record.type.additivity <= 0)
 						continue;
 				}
-				else if(record.minorSubject.equals(item))
+				else if(item.equals(record.minorSubject))
 				{
 					if(record.type.additivity <= 0)
 						continue;
@@ -560,6 +560,8 @@ public class PrismsSynchronizer2
 
 		private final ObjectBag theBag;
 
+		private final java.util.HashMap<ObjectID, JSONObject> thePreRegisters;
+
 		private prisms.util.RandomAccessTextFile theFile;
 
 		private int thePosition;
@@ -582,6 +584,7 @@ public class PrismsSynchronizer2
 			thePI = pi;
 			theObjectPositions = new java.util.HashMap<ObjectID, Integer>();
 			theExportedObjects = new java.util.LinkedHashSet<ObjectID>();
+			thePreRegisters = new java.util.HashMap<ObjectID, JSONObject>();
 			theBag = new ObjectBag();
 			theCenterIDs = new int [0];
 			theReferences = new java.util.HashMap<Integer, Reference []>();
@@ -643,41 +646,24 @@ public class PrismsSynchronizer2
 		}
 
 		/**
-		 * Parses the identity of an item
+		 * Preregisters a JSONObject for parsing, possibly before it has been loaded completely. The
+		 * item will only be parsed when it is requested by a separate parsing request.
 		 * 
-		 * @param json The JSON to parse the item from
-		 * @return Whether the item was created new as a result of this call
-		 * @throws PrismsRecordException If an error occurs parsing the item
+		 * @param json The JSONObject representing the item to pre-register
 		 */
-		boolean parseID(JSONObject json) throws PrismsRecordException
+		void preRegister(JSONObject json)
 		{
 			if(Boolean.TRUE.equals(json.get("-syncstore-")))
-				return false;
+				return;
 			String type = (String) json.get("type");
+			if(type == null)
+				return;
 			long id = ((Number) json.get("id")).longValue();
 			if(theBag.get(type, id) != null)
-				return false;
-			theNewItem[0] = false;
-			Object val = PrismsSynchronizer2.this.parseID(json, this, theNewItem);
-			theBag.add(type, id, val);
-			return theNewItem[0];
-		}
-
-		/**
-		 * Parses the content of a newly created item
-		 * 
-		 * @param json The JSON to parse the item from
-		 * @throws PrismsRecordException If an error occurs parsing the item or if the item's
-		 *         identity has not been parsed previously
-		 */
-		void parseContent(JSONObject json) throws PrismsRecordException
-		{
-			String type = (String) json.get("type");
-			long id = ((Number) json.get("id")).longValue();
-			Object val = theBag.get(type, id);
-			if(val == null)
-				throw new PrismsRecordException("No parsed item " + type + "/" + id);
-			PrismsSynchronizer2.this.parseContent(val, json, true, this);
+				return;
+			ObjectID key = new ObjectID(type, id);
+			if(!thePreRegisters.containsKey(key))
+				thePreRegisters.put(key, json);
 		}
 
 		private void parseContent(Object value, ObjectID id, JSONObject json, boolean newItem)
@@ -815,6 +801,9 @@ public class PrismsSynchronizer2
 			if(ret != null)
 				return ret;
 			ObjectID key = new ObjectID(type, id);
+			JSONObject preRegistered = thePreRegisters.remove(key);
+			if(preRegistered != null)
+				return read(preRegistered);
 			Integer pos = theObjectPositions.get(key);
 			if(pos == null)
 				throw new PrismsRecordException("No such object " + type + "/" + id
@@ -995,8 +984,6 @@ public class PrismsSynchronizer2
 
 		private boolean storeSyncRecord;
 
-		private java.util.HashSet<ObjectID> theItemsNeedParsing;
-
 		ChangeReader(Reader reader, SyncRecord record, PS2ItemReader getter, int totalChangeCount,
 			prisms.ui.UI.DefaultProgressInformer pi, boolean storeSR)
 		{
@@ -1007,13 +994,20 @@ public class PrismsSynchronizer2
 			thePI = pi;
 			thePI.setProgressScale(totalChangeCount);
 			storeSyncRecord = storeSR;
-			theItemsNeedParsing = new java.util.HashSet<ObjectID>();
 		}
 
 		int parse() throws java.io.IOException, prisms.util.json.SAJParser.ParseException
 		{
 			new prisms.util.json.SAJParser().parse(theReader, this);
 			return theChangeCount;
+		}
+
+		@Override
+		public void valueNumber(ParseState state, Number value)
+		{
+			super.valueNumber(state, value);
+			if("id".equals(state.top().getPropertyName()))
+				theGetter.preRegister((JSONObject) top());
 		}
 
 		public void endObject(ParseState state)
@@ -1072,33 +1066,6 @@ public class PrismsSynchronizer2
 				} catch(PrismsRecordException e2)
 				{
 					log.error("Could not persist change " + change.id, e2);
-				}
-			}
-			else if(json.containsKey("type") && json.containsKey("id")
-				&& !Boolean.TRUE.equals(json.get("-syncstore-")))
-			{
-				try
-				{
-					for(int d = getDepth() - 1; d >= 0; d--)
-					{
-						Object val = fromTop(d);
-						if(!(val instanceof JSONObject))
-							continue;
-						JSONObject jsonVal = (JSONObject) val;
-						if(jsonVal.containsKey("type") && jsonVal.containsKey("id")
-							&& !Boolean.TRUE.equals(jsonVal.get("-syncstore-")))
-						{
-							if(theGetter.parseID(jsonVal))
-								theItemsNeedParsing.add(new ObjectID((String) jsonVal.get("type"),
-									((Number) jsonVal.get("id")).longValue()));
-						}
-					}
-					if(theItemsNeedParsing.remove(new ObjectID((String) json.get("type"),
-						((Number) json.get("id")).longValue())) || theGetter.parseID(json))
-						theGetter.parseContent(json);
-				} catch(Exception e)
-				{
-					log.error("Could not read item", e);
 				}
 			}
 		}
