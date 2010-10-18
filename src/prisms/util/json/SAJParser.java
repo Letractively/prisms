@@ -174,6 +174,8 @@ public class SAJParser
 			org.json.simple.JSONObject value = new org.json.simple.JSONObject();
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
+			else if(top() instanceof org.json.simple.JSONObject)
+				((org.json.simple.JSONObject) top()).put(state.fromTop(1).getPropertyName(), value);
 			thePath.add(value);
 		}
 
@@ -190,7 +192,6 @@ public class SAJParser
 		public void endProperty(ParseState state, String propName)
 		{
 			theState = state;
-			((org.json.simple.JSONObject) top()).put(propName, theValue);
 		}
 
 		public void endObject(ParseState state)
@@ -205,6 +206,8 @@ public class SAJParser
 			org.json.simple.JSONArray value = new org.json.simple.JSONArray();
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
+			else if(top() instanceof org.json.simple.JSONObject)
+				((org.json.simple.JSONObject) top()).put(state.fromTop(1).getPropertyName(), value);
 			thePath.add(value);
 		}
 
@@ -219,6 +222,8 @@ public class SAJParser
 			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
+			else if(top() instanceof org.json.simple.JSONObject)
+				((org.json.simple.JSONObject) top()).put(state.top().getPropertyName(), value);
 			else
 				theValue = value;
 		}
@@ -228,15 +233,20 @@ public class SAJParser
 			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(value);
+			else if(top() instanceof org.json.simple.JSONObject)
+				((org.json.simple.JSONObject) top()).put(state.top().getPropertyName(), value);
 			else
 				theValue = value;
 		}
 
 		public void valueBoolean(ParseState state, boolean value)
 		{
+			Boolean bValue = value ? Boolean.TRUE : Boolean.FALSE;
 			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
-				((org.json.simple.JSONArray) top()).add(new Boolean(value));
+				((org.json.simple.JSONArray) top()).add(bValue);
+			else if(top() instanceof org.json.simple.JSONObject)
+				((org.json.simple.JSONObject) top()).put(state.top().getPropertyName(), bValue);
 			else
 				theValue = new Boolean(value);
 		}
@@ -246,6 +256,8 @@ public class SAJParser
 			theState = state;
 			if(top() instanceof org.json.simple.JSONArray)
 				((org.json.simple.JSONArray) top()).add(null);
+			else if(top() instanceof org.json.simple.JSONObject)
+				((org.json.simple.JSONObject) top()).put(state.top().getPropertyName(), null);
 			else
 				theValue = null;
 		}
@@ -376,6 +388,21 @@ public class SAJParser
 		public boolean hasContent()
 		{
 			return hasContent;
+		}
+
+		@Override
+		public String toString()
+		{
+			switch(token)
+			{
+			case ARRAY:
+				return "array";
+			case OBJECT:
+				return "object";
+			case PROPERTY:
+				return "property(" + thePropertyName + ")";
+			}
+			return "Unrecognized";
 		}
 	}
 
