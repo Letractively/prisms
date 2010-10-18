@@ -1,5 +1,5 @@
 /*
- * DBUtils.java Created Nov 11, 2009 by Andrew Butler, PSL
+ * 1 * DBUtils.java Created Nov 11, 2009 by Andrew Butler, PSL
  */
 package prisms.util;
 
@@ -34,6 +34,8 @@ public class DBUtils
 		return b ? "'t'" : "'f'";
 	}
 
+	private static final String EMPTY = "*-{EMPTY}-*";
+
 	/**
 	 * Formats a generic string for entry into a database using SQL
 	 * 
@@ -44,7 +46,39 @@ public class DBUtils
 	{
 		if(str == null)
 			return "NULL";
+		else if(str.length() == 0)
+			return toSQL(EMPTY);
 		return "'" + str.replaceAll("'", "''") + "'";
+	}
+
+	/**
+	 * Converts a DBMS-returned string into a java string
+	 * 
+	 * @param dbString The DBMS-returned string
+	 * @return The java string to use
+	 */
+	public static String fromSQL(String dbString)
+	{
+		if(dbString == null)
+			return null;
+		else if(dbString.equals(EMPTY))
+			return "";
+		else
+			return dbString;
+	}
+
+	/**
+	 * Creates a timestamp that reflects the given time as a UTC time. This is important for data
+	 * that must accurately be reflected across multiple databases.
+	 * 
+	 * @param time The time to represent
+	 * @return A timestamp that reflects the given time in UTC.
+	 */
+	public static java.sql.Timestamp getUtcTimestamp(long time)
+	{
+		return new java.sql.Timestamp(time);
+		// java.util.TimeZone here = java.util.Calendar.getInstance().getTimeZone();
+		// return new java.sql.Timestamp(time - here.getOffset(time));
 	}
 
 	/**
@@ -57,7 +91,7 @@ public class DBUtils
 		if(time <= 0)
 			return "NULL";
 
-		String ret = new java.sql.Timestamp(time).toString();
+		String ret = getUtcTimestamp(time).toString();
 
 		if(oracle)
 			ret = "TO_TIMESTAMP('" + ret + "', 'YYYY-MM-DD HH24:MI:SS.FF3')";
