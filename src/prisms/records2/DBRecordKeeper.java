@@ -3,6 +3,8 @@
  */
 package prisms.records2;
 
+import static prisms.util.DBUtils.*;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -457,7 +459,7 @@ public class DBRecordKeeper implements RecordKeeper2
 		ResultSet rs = null;
 		String sql = "SELECT * FROM " + DBOWNER + "prisms_center_view LEFT OUTER JOIN " + DBOWNER
 			+ "prisms_center ON centerID=" + DBOWNER + "prisms_center.id WHERE recordNS="
-			+ toSQL(theNamespace) + " AND deleted=" + boolToSQL(false);
+			+ toSQL(theNamespace) + " AND deleted=" + boolToSql(false);
 		checkConnection();
 		try
 		{
@@ -578,7 +580,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			time = rs.getTimestamp("lastExportSync");
 			if(time != null)
 				pc.setLastExport(time.getTime());
-			pc.setDeleted(boolFromSQL(rs.getString("deleted")));
+			pc.setDeleted(boolFromSql(rs.getString("deleted")));
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not get rules center for ID " + id + ": SQL="
@@ -664,7 +666,6 @@ public class DBRecordKeeper implements RecordKeeper2
 						+ center.getCenterID() + ")";
 					try
 					{
-						stmt = theConn.createStatement();
 						stmt.execute(sql);
 					} catch(SQLException e)
 					{
@@ -698,7 +699,7 @@ public class DBRecordKeeper implements RecordKeeper2
 				sql += (center.getLastImport() > 0 ? formatDate(center.getLastImport()) : "NULL")
 					+ ", "
 					+ (center.getLastExport() > 0 ? formatDate(center.getLastExport()) : "NULL")
-					+ ", " + boolToSQL(center.isDeleted()) + ")";
+					+ ", " + boolToSql(center.isDeleted()) + ")";
 				try
 				{
 					stmt.execute(sql);
@@ -926,7 +927,7 @@ public class DBRecordKeeper implements RecordKeeper2
 							+ dbCenter.getClientUser().getID());
 					sql += ", changeSaveTime="
 						+ (dbCenter.getChangeSaveTime() > 0 ? "" + dbCenter.getChangeSaveTime()
-							: "NULL") + ", deleted=" + boolToSQL(dbCenter.isDeleted());
+							: "NULL") + ", deleted=" + boolToSql(dbCenter.isDeleted());
 					sql += ", syncPriority=" + dbCenter.getPriority();
 					sql += ", lastImportSync=" + formatDate(dbCenter.getLastImport())
 						+ ", lastExportSync=" + formatDate(dbCenter.getLastExport());
@@ -958,7 +959,7 @@ public class DBRecordKeeper implements RecordKeeper2
 		throws PrismsRecordException
 	{
 		Statement stmt = null;
-		String sql = "UPDATE " + DBOWNER + "prisms_center_view SET deleted=" + boolToSQL(true)
+		String sql = "UPDATE " + DBOWNER + "prisms_center_view SET deleted=" + boolToSql(true)
 			+ " WHERE id=" + center.getID();
 		checkConnection();
 		try
@@ -968,6 +969,16 @@ public class DBRecordKeeper implements RecordKeeper2
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not delete center: SQL=" + sql, e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
 		}
 		center.setDeleted(true);
 		ChangeRecord change = persist(user, PrismsChange.center, null, -1, center, null, null,
@@ -984,7 +995,7 @@ public class DBRecordKeeper implements RecordKeeper2
 		String sql = "SELECT * FROM " + DBOWNER + "prisms_sync_record WHERE recordNS="
 			+ toSQL(theNamespace) + " AND syncCenter=" + center.getID();
 		if(isImport != null)
-			sql += " AND isImport=" + boolToSQL(isImport.booleanValue());
+			sql += " AND isImport=" + boolToSql(isImport.booleanValue());
 		sql += " ORDER BY syncTime DESC";
 		ArrayList<SyncRecord> ret = new ArrayList<SyncRecord>();
 		checkConnection();
@@ -996,7 +1007,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			{
 				SyncRecord sr = new SyncRecord(rs.getInt("id"), center, SyncRecord.Type.byName(rs
 					.getString("syncType")), rs.getTimestamp("syncTime").getTime(),
-					boolFromSQL(rs.getString("isImport")));
+					boolFromSql(rs.getString("isImport")));
 				sr.setParallelID(rs.getInt("parallelID"));
 				sr.setSyncError(rs.getString("syncError"));
 				ret.add(sr);
@@ -1004,6 +1015,16 @@ public class DBRecordKeeper implements RecordKeeper2
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not get sync records: SQL=" + sql, e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
 		}
 		return ret.toArray(new SyncRecord [ret.size()]);
 	}
@@ -1073,7 +1094,7 @@ public class DBRecordKeeper implements RecordKeeper2
 					log.debug(changeMsg.substring(0, changeMsg.length() - 1));
 					sql = "UPDATE " + DBOWNER + "prisms_sync_record SET syncType="
 						+ toSQL(dbRecord.getSyncType().toString()) + ", isImport="
-						+ boolToSQL(dbRecord.isImport()) + ", syncTime="
+						+ boolToSql(dbRecord.isImport()) + ", syncTime="
 						+ formatDate(dbRecord.getSyncTime()) + ", parallelID="
 						+ (dbRecord.getParallelID() < 0 ? "NULL" : "" + dbRecord.getParallelID())
 						+ ", syncError=" + toSQL(dbRecord.getSyncError()) + " WHERE id="
@@ -1102,7 +1123,7 @@ public class DBRecordKeeper implements RecordKeeper2
 					+ " syncType, isImport, syncTime, parallelID, syncError) VALUES ("
 					+ record.getID() + ", " + record.getCenter().getID() + ", "
 					+ toSQL(theNamespace) + ", " + toSQL(record.getSyncType().toString()) + ", "
-					+ boolToSQL(record.isImport()) + ", " + formatDate(record.getSyncTime()) + ", "
+					+ boolToSql(record.isImport()) + ", " + formatDate(record.getSyncTime()) + ", "
 					+ (record.getParallelID() < 0 ? "NULL" : "" + record.getParallelID()) + ", "
 					+ toSQL(record.getSyncError()) + ")";
 				try
@@ -1139,7 +1160,7 @@ public class DBRecordKeeper implements RecordKeeper2
 				return null;
 			SyncRecord sr = new SyncRecord(rs.getInt("id"), center, SyncRecord.Type.byName(rs
 				.getString("syncType")), rs.getTimestamp("syncTime").getTime(),
-				boolFromSQL(rs.getString("isImport")));
+				boolFromSql(rs.getString("isImport")));
 			sr.setParallelID(rs.getInt("parallelID"));
 			sr.setSyncError(rs.getString("syncError"));
 			return sr;
@@ -1605,7 +1626,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			stmt = theConn.createStatement();
 			sql = "SELECT count(*) FROM " + DBOWNER + "prisms_sync_assoc WHERE recordNS="
 				+ toSQL(theNamespace) + " AND changeRecord=" + changeID + " AND error="
-				+ boolToSQL(false);
+				+ boolToSql(false);
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
 				return false;
@@ -1667,14 +1688,14 @@ public class DBRecordKeeper implements RecordKeeper2
 	{
 		return getChangeRecords(null, "INNER JOIN " + DBOWNER
 			+ "prisms_sync_assoc ON changeRecord=id", "syncRecord=" + record.getID()
-			+ " AND error=" + boolToSQL(true), "changeTime ASC");
+			+ " AND error=" + boolToSql(true), "changeTime ASC");
 	}
 
 	public long [] getSuccessChanges(SyncRecord record) throws PrismsRecordException
 	{
 		return getChangeRecords(null, "INNER JOIN " + DBOWNER
 			+ "prisms_sync_assoc ON changeRecord=id", "syncRecord=" + record.getID()
-			+ " AND error=" + boolToSQL(false), "changeTime ASC");
+			+ " AND error=" + boolToSql(false), "changeTime ASC");
 	}
 
 	public long [] sortChangeIDs(long [] ids, boolean ascending) throws PrismsRecordException
@@ -2383,7 +2404,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			pStmt = theConn.prepareStatement(sql);
 			pStmt.setLong(1, record.id);
 			pStmt.setString(2, theNamespace);
-			pStmt.setTimestamp(3, new java.sql.Timestamp(record.time));
+			pStmt.setTimestamp(3, getUtcTimestamp(record.time));
 			pStmt.setLong(4, record.user.getID());
 			if(record instanceof ChangeRecordError)
 			{
@@ -2543,7 +2564,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
 				errorB = null;
-			else if(boolFromSQL(rs.getString(1)))
+			else if(boolFromSql(rs.getString(1)))
 				errorB = Boolean.TRUE;
 			else
 				errorB = Boolean.FALSE;
@@ -2570,19 +2591,20 @@ public class DBRecordKeeper implements RecordKeeper2
 				{
 					log.error("Connection error", e);
 				}
+			stmt = null;
 		}
 		if(errorB != null)
 		{
 			if(errorB.booleanValue() == error)
 				return;
-			sql = "UPDATE " + DBOWNER + "prisms_sync_assoc SET error=" + boolToSQL(error)
+			sql = "UPDATE " + DBOWNER + "prisms_sync_assoc SET error=" + boolToSql(error)
 				+ " WHERE recordNS=" + toSQL(theNamespace) + " AND syncRecord="
 				+ syncRecord.getID() + " AND changeRecord=" + change.id;
 		}
 		else
 			sql = "INSERT INTO " + DBOWNER + "prisms_sync_assoc (recordNS, syncRecord,"
 				+ " changeRecord, error) VALUES (" + toSQL(theNamespace) + ", "
-				+ syncRecord.getID() + ", " + change.id + ", " + boolToSQL(error) + ")";
+				+ syncRecord.getID() + ", " + change.id + ", " + boolToSql(error) + ")";
 		try
 		{
 			stmt = theConn.createStatement();
@@ -3397,82 +3419,9 @@ public class DBRecordKeeper implements RecordKeeper2
 		return _isOracle.booleanValue();
 	}
 
-	/**
-	 * @param time the java time to format
-	 * @return the sql expression of the java time
-	 */
-	public String formatDate(long time)
+	String formatDate(long time)
 	{
-		if(time <= 0)
-			return "NULL";
-
-		String ret = new java.sql.Timestamp(time).toString();
-
-		if(isOracle())
-			ret = "TO_TIMESTAMP('" + ret + "', 'YYYY-MM-DD HH24:MI:SS.FF3')";
-		// ret = "TO_DATE('" + ret.substring(0, ret.length()-4) + "', 'YYYY-MM-DD HH24:MI:SS')";
-		else
-			ret = "'" + ret + "'";
-
-		return ret;
-	}
-
-	private static final String EMPTY = "*-{EMPTY}-*";
-
-	/**
-	 * Converts a java string to a properly-escaped SQL string. This method properly handles single
-	 * quotes and empty strings (oracle treats empty strings as null).
-	 * 
-	 * @param string The java string
-	 * @return The SQL to send to the DBMS
-	 */
-	public static String toSQL(String string)
-	{
-		if(string == null)
-			return "NULL";
-		if(string.length() == 0)
-			string = EMPTY;
-		return "'" + string.replaceAll("'", "''") + "'";
-	}
-
-	/**
-	 * Converts a DBMS-returned string into a java string
-	 * 
-	 * @param dbString The DBMS-returned string
-	 * @return The java string to use
-	 */
-	public static String fromSQL(String dbString)
-	{
-		if(dbString == null)
-			return null;
-		else if(dbString.equals(EMPTY))
-			return "";
-		else
-			return dbString;
-	}
-
-	/**
-	 * Converts a boolean to a string. Some DBMS's don't have a boolean type, so we have to use
-	 * CHAR(1)
-	 * 
-	 * @param b The boolean to convert
-	 * @return The converted boolean
-	 */
-	public static String boolToSQL(boolean b)
-	{
-		return b ? "'t'" : "'f'";
-	}
-
-	/**
-	 * Converts an SQL boolean to a java boolean. Some DBMS's don't have a boolean type, so we have
-	 * to use CHAR(1)
-	 * 
-	 * @param dbBool The database boolean
-	 * @return The java boolean to use
-	 */
-	public boolean boolFromSQL(String dbBool)
-	{
-		return "t".equalsIgnoreCase(dbBool);
+		return DBUtils.formatDate(time, isOracle());
 	}
 
 	static boolean equal(Object o1, Object o2)
