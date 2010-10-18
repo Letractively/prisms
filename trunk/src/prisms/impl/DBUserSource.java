@@ -480,9 +480,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		{
 			if(theAppCache != null)
 				return; // Already filled before lock received
-			checkConnection();
 			java.util.ArrayList<DBApplication> appList = new ArrayList<DBApplication>();
-			stmt = theConn.createStatement();
 			sql = "SELECT * FROM " + DBOWNER + "prisms_application WHERE deleted="
 				+ boolToSql(false);
 			rs = stmt.executeQuery(sql);
@@ -2721,6 +2719,16 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				} catch(SQLException e)
 				{
 					log.error("Could not reset user passwords", e);
+				} finally
+				{
+					if(stmt != null)
+						try
+						{
+							stmt.close();
+						} catch(SQLException e)
+						{
+							log.error("Connection error", e);
+						}
 				}
 			}
 		} finally
