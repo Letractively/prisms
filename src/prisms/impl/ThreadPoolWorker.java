@@ -8,19 +8,19 @@ import org.apache.log4j.Logger;
 import prisms.arch.Worker;
 
 /**
- * A fairly simple but safe thread pool. The main method, {@link #run(Runnable, ErrorListener)},
- * runs a user's task in its own thread.<br /> The number of threads in a ThreadPool grows and
- * shrinks quadratically.
+ * A fairly simple but safe thread pool. The main method,
+ * {@link #run(Runnable, Worker.ErrorListener)}, runs a user's task in its own thread.<br />
+ * The number of threads in a ThreadPool grows and shrinks quadratically.
  */
 public class ThreadPoolWorker implements Worker
 {
-	private class TaskQueueObject
+	private static class TaskQueueObject
 	{
 		final Runnable task;
 
-		final ErrorListener listener;
+		final Worker.ErrorListener listener;
 
-		TaskQueueObject(Runnable aTask, ErrorListener aListener)
+		TaskQueueObject(Runnable aTask, Worker.ErrorListener aListener)
 		{
 			task = aTask;
 			listener = aListener;
@@ -31,15 +31,17 @@ public class ThreadPoolWorker implements Worker
 
 	private int theMaxThreadCount;
 
-	int theThreadCounter;
+	volatile int theThreadCounter;
 
-	private java.util.concurrent.locks.ReentrantLock theLock;
+	private final java.util.concurrent.locks.ReentrantLock theLock;
 
-	private java.util.List<ReusableThread> theAvailableThreads;
+	private final java.util.List<ReusableThread> theAvailableThreads;
 
-	private java.util.List<ReusableThread> theInUseThreads;
+	private final java.util.List<ReusableThread> theInUseThreads;
 
-	private java.util.List<TaskQueueObject> theTaskQueue;
+	private final java.util.List<TaskQueueObject> theTaskQueue;
+
+	private boolean isClosed;
 
 	/**
 	 * A subtype of thread that takes up <i>very</i> little CPU time while resting, but may execute
@@ -48,11 +50,11 @@ public class ThreadPoolWorker implements Worker
 	 */
 	private class ReusableThread extends Thread
 	{
-		private boolean isAlive;
+		private volatile boolean isAlive;
 
-		private Runnable theTask;
+		private volatile Runnable theTask;
 
-		private ErrorListener theListener;
+		private volatile Worker.ErrorListener theListener;
 
 		ReusableThread()
 		{
@@ -97,12 +99,14 @@ public class ThreadPoolWorker implements Worker
 						}
 					} catch(Throwable e)
 					{
-						log.error("Error listener threw exception: " + e);
+						log.error("Error listener threw exception: ", e);
+					} finally
+					{
+						theTask = null;
+						release(this);
 					}
-					theTask = null;
 					if(!isAlive)
 						break;
-					release(this);
 				}
 				if(!isAlive)
 					break;
@@ -122,35 +126,37 @@ public class ThreadPoolWorker implements Worker
 		 * @param task The task to be run
 		 * @param listener The listener to notify in case the task throws a Throwable
 		 */
-		void run(Runnable task, ErrorListener listener)
+		void run(Runnable task, Worker.ErrorListener listener)
 		{
+			if(theTask != null)
+				throw new IllegalStateException("This worker thread is already running a task");
 			theListener = listener;
 			theTask = task;
-			interrupt();
+			if(isAlive())
+				interrupt();
 		}
 
 		/**
 		 * Kills this thread as soon as its current task is finished, or immediately if this thread
 		 * is not currently busy
+		 * 
+		 * @param active Whether the thread is currently executing a task or not
 		 */
-		void kill()
+		void kill(boolean active)
 		{
 			isAlive = false;
-			interrupt();
+			if(!active)
+				interrupt();
 		}
 
-		/**
-		 * @return Whether the thread is running a task or available to run one
-		 */
+		/** @return Whether the thread is running a task or available to run one */
 		boolean isActive()
 		{
 			return isAlive;
 		}
 	}
 
-	/**
-	 * Creates a ThreadPool with no active threads.
-	 */
+	/** Creates a ThreadPool with no active threads. */
 	public ThreadPoolWorker()
 	{
 		theLock = new java.util.concurrent.locks.ReentrantLock();
@@ -166,30 +172,26 @@ public class ThreadPoolWorker implements Worker
 	 * met, the task will be queued up to run when a currently-executing thread finishes its task
 	 * and is released.
 	 * 
-	 * @see Worker#run(Runnable, ErrorListener)
+	 * @see Worker#run(Runnable, Worker.ErrorListener)
 	 */
-	public void run(Runnable task, ErrorListener listener)
+	public void run(Runnable task, Worker.ErrorListener listener)
 	{
+		if(isClosed)
+			throw new IllegalStateException("This worker is closed--no new tasks will be accepted");
 		theLock.lock();
 		try
 		{
 			if(theAvailableThreads.size() == 0)
 				adjustThreadCount();
 			if(theAvailableThreads.size() == 0)
-			{
-				log.warn("Maximum thread count exceeded--"
-					+ "waiting to execute task until threads are released");
 				theTaskQueue.add(new TaskQueueObject(task, listener));
-				return;
-			}
 			else
 			{
-				ReusableThread thread = theAvailableThreads.get(theAvailableThreads.size() - 1);
-				theAvailableThreads.remove(theAvailableThreads.size() - 1);
+				ReusableThread thread = theAvailableThreads.remove(theAvailableThreads.size() - 1);
 				theInUseThreads.add(thread);
+				thread.run(task, listener);
 				if(!thread.isAlive())
 					thread.start();
-				thread.run(task, listener);
 			}
 		} finally
 		{
@@ -207,18 +209,22 @@ public class ThreadPoolWorker implements Worker
 		theLock.lock();
 		try
 		{
-			if(theTaskQueue.size() > 0)
+			if(thread.isActive() && theTaskQueue.size() > 0)
 			{
-				TaskQueueObject task = theTaskQueue.get(0);
-				theTaskQueue.remove(0);
+				TaskQueueObject task = theTaskQueue.remove(0);
 				thread.run(task.task, task.listener);
 			}
 			else
 			{
 				theInUseThreads.remove(thread);
-				if(thread.isActive())
-					theAvailableThreads.add(thread);
-				adjustThreadCount();
+				if(isClosed)
+					thread.kill(true);
+				else
+				{
+					if(thread.isActive())
+						theAvailableThreads.add(thread);
+					adjustThreadCount();
+				}
 			}
 		} finally
 		{
@@ -226,26 +232,28 @@ public class ThreadPoolWorker implements Worker
 		}
 	}
 
+	/** @return Whether this thread pool has been marked as closed */
+	public boolean isClosed()
+	{
+		return isClosed;
+	}
+
 	/**
-	 * Shrinks the thread pool's size to zero. Calling this method oes not kill any currently
-	 * executing tasks, but it will cause tasks that are queued up to never be executed (a situation
-	 * that only arises when the number of tasks needing to be executed exceeds this pool's maximum
-	 * thread count).
+	 * Shrinks the thread pool's size to zero. Calling this method does not kill any currently
+	 * executing tasks, and tasks that are queued up will be executed in due time. No new tasks will
+	 * be accepted.
 	 */
 	public void close()
 	{
+		isClosed = true;
 		theLock.lock();
 		try
 		{
-			theTaskQueue.clear();
 			java.util.Iterator<ReusableThread> iter;
-			iter = theInUseThreads.iterator();
-			while(iter.hasNext())
-				iter.next().kill();
 			iter = theAvailableThreads.iterator();
 			while(iter.hasNext())
 			{
-				iter.next().kill();
+				iter.next().kill(false);
 				iter.remove();
 			}
 		} finally
@@ -255,27 +263,58 @@ public class ThreadPoolWorker implements Worker
 	}
 
 	/**
-	 * @return The total number of threads managed by this thread pool
+	 * Shrinks the thread pool's size to zero. Calling this method does not kill any currently
+	 * executing tasks, but it will cause tasks that are queued up to never be executed (a situation
+	 * that only arises when the number of tasks needing to be executed exceeds this pool's maximum
+	 * thread count).
 	 */
+	public void closeNow()
+	{
+		theLock.lock();
+		try
+		{
+			theTaskQueue.clear();
+			java.util.Iterator<ReusableThread> iter;
+			iter = theInUseThreads.iterator();
+			while(iter.hasNext())
+				iter.next().kill(true);
+			iter = theAvailableThreads.iterator();
+			while(iter.hasNext())
+			{
+				iter.next().kill(false);
+				iter.remove();
+			}
+		} finally
+		{
+			theLock.unlock();
+		}
+	}
+
+	/** @return The total number of threads managed by this thread pool */
 	public int getThreadCount()
 	{
 		return theAvailableThreads.size() + theInUseThreads.size();
 	}
 
-	/**
-	 * @return The number of threads in this thread pool available for new tasks
-	 */
+	/** @return The number of threads in this thread pool available for new tasks */
 	public int getAvailableThreadCount()
 	{
 		return theAvailableThreads.size();
 	}
 
-	/**
-	 * @return The number of threads in this thread pool currently executing tasks
-	 */
+	/** @return The number of threads in this thread pool currently executing tasks */
 	public int getInUseThreadCount()
 	{
 		return theInUseThreads.size();
+	}
+
+	/**
+	 * @return The number of tasks that have been queued in this worker but are not currently being
+	 *         executed
+	 */
+	public int getQueuedTaskCount()
+	{
+		return theTaskQueue.size();
 	}
 
 	private void adjustThreadCount()
@@ -289,9 +328,9 @@ public class ThreadPoolWorker implements Worker
 			{ // Need to kill some threads
 				int killCount = total - newTC;
 				for(; theAvailableThreads.size() > 0 && killCount > 0; killCount--)
-					theAvailableThreads.remove(theAvailableThreads.size() - 1).kill();
-				for(; theInUseThreads.size() > 0 && killCount > 0; killCount--)
-					theInUseThreads.remove(theInUseThreads.size() - 1).kill();
+					theAvailableThreads.remove(theAvailableThreads.size() - 1).kill(false);
+				for(int i = theInUseThreads.size() - 1; i >= 0 && killCount > 0; i--, killCount--)
+					theInUseThreads.get(i).kill(true);
 			}
 			else if(newTC > total)
 			{
@@ -364,9 +403,6 @@ public class ThreadPoolWorker implements Worker
 		}
 	}
 
-	/**
-	 * @see prisms.arch.Worker#setSessionCount(int)
-	 */
 	public void setSessionCount(int count)
 	{
 		setMaxThreadCount(count);

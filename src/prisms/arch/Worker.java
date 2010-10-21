@@ -3,9 +3,7 @@
  */
 package prisms.arch;
 
-/**
- * Simply performs generic jobs in the background
- */
+/** Simply performs generic jobs in the background */
 public interface Worker
 {
 	/**
@@ -24,14 +22,17 @@ public interface Worker
 	 */
 	void setSessionCount(int count);
 
-	/**
-	 * Releases all of this worker's resources
-	 */
+	/** Releases all of this worker's resources after all tasks have finished */
 	void close();
 
 	/**
-	 * An interface to listen for errors in a background task
+	 * Releases all of this worker's resources immediately. This method will allow currently
+	 * executing tasks to complete; but it will clear out all tasks that have been queued but are
+	 * not yet being executed.
 	 */
+	void closeNow();
+
+	/** An interface to listen for errors in a background task */
 	interface ErrorListener
 	{
 		/**
