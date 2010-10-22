@@ -629,7 +629,10 @@ public class PrismsServiceConnector
 
 	private static java.nio.charset.Charset getCharset(java.net.URLConnection conn)
 	{
-		String contentType = conn.getContentType().toLowerCase();
+		String contentType = conn.getContentType();
+		if(contentType == null)
+			return java.nio.charset.Charset.forName("Cp1252");
+		contentType = contentType.toLowerCase();
 		int idx = contentType.indexOf("charset=");
 		if(idx < 0)
 			return java.nio.charset.Charset.forName("Cp1252");
@@ -696,8 +699,7 @@ public class PrismsServiceConnector
 	static String BOUNDARY = Long.toHexString((long) (Math.random() * Long.MAX_VALUE));
 
 	/**
-	 * Uploads data to the service
-	 * TODO This does not currently work
+	 * Uploads data to the service TODO This does not currently work
 	 * 
 	 * @param fileName The name of the file to send to the servlet
 	 * @param mimeType The content type to send to the servlet
