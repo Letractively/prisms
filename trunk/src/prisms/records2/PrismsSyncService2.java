@@ -161,14 +161,13 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		return null;
 	}
 
-	/**
-	 * @return The synchronizer that this service should use
-	 */
+	/** @return The synchronizer that this service should use */
 	protected abstract PrismsSynchronizer2 getSynchronizer();
 
-	/**
-	 * @return The record user represented by the user of this session
-	 */
+	/** @return All centers created in the application */
+	protected abstract PrismsCenter [] getCenters();
+
+	/** @return The record user represented by the user of this session */
 	protected abstract RecordUser getUser();
 
 	/**
@@ -609,14 +608,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 	 */
 	protected PrismsCenter getCenter(int centerID)
 	{
-		PrismsCenter [] centers;
-		try
-		{
-			centers = getSynchronizer().getKeeper().getCenters();
-		} catch(prisms.records2.PrismsRecordException e)
-		{
-			throw new IllegalStateException("Could not retrieve centers", e);
-		}
+		PrismsCenter [] centers = getCenters();
 		for(PrismsCenter center : centers)
 			if(center.getID() == centerID)
 				return center;
@@ -628,14 +620,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 	 */
 	protected PrismsCenter getCenter()
 	{
-		PrismsCenter [] centers;
-		try
-		{
-			centers = getSynchronizer().getKeeper().getCenters();
-		} catch(prisms.records2.PrismsRecordException e)
-		{
-			throw new IllegalStateException("Could not retrieve centers", e);
-		}
+		PrismsCenter [] centers = getCenters();
 		RecordUser sessionUser = getUser();
 		for(PrismsCenter center : centers)
 			if(center.getClientUser() != null && center.getClientUser().equals(sessionUser))
