@@ -967,8 +967,17 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		final java.io.Reader reader;
 		try
 		{
-			reader = new java.io.InputStreamReader(new prisms.util.ImportStream(
+			java.io.Reader tempReader = new java.io.InputStreamReader(new prisms.util.ImportStream(
 				new java.io.ByteArrayInputStream(receiptBytes)));
+			java.io.StringWriter writer = new java.io.StringWriter();
+			int read = tempReader.read();
+			while(read >= 0)
+			{
+				writer.write(read);
+				read = tempReader.read();
+			}
+			String json = writer.toString();
+			reader = new java.io.StringReader(json);
 			new prisms.util.json.SAJParser().parse(reader,
 				new prisms.util.json.SAJParser.DefaultHandler()
 				{
@@ -991,6 +1000,10 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 							{
 								throw new IllegalStateException(
 									"Could not parse synchronization receipt", e);
+							} catch(PrismsRecordException e)
+							{
+								throw new IllegalStateException(
+									"Could not read synchronization receipt: " + e.getMessage(), e);
 							}
 							hasReceipt[0] = true;
 						}
