@@ -137,6 +137,10 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			} catch(IOException e)
 			{
 				throw new IllegalStateException("Could not read sync receipt", e);
+			} catch(PrismsRecordException e)
+			{
+				throw new IllegalStateException("Could not import sync receipt: " + e.getMessage(),
+					e);
 			}
 			JSONObject ret = new JSONObject();
 			ret.put("plugin", getName());
@@ -544,7 +548,16 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		if("receipt".equals(event.get("method")))
 		{
 			prisms.records2.PrismsSynchronizer2 sync = getSynchronizer();
-			sync.readSyncReceipt(new java.io.InputStreamReader(input));
+			try
+			{
+				sync.readSyncReceipt(new java.io.InputStreamReader(input));
+			} catch(PrismsRecordException e)
+			{
+				log.error("Could not import sync receipt", e);
+				prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
+				if(ui != null)
+					ui.error("Could not import sync receipt: " + e.getMessage());
+			}
 		}
 		else if("uploadSyncRequest".equals(event.get("method")))
 		{

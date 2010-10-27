@@ -1408,7 +1408,7 @@ public class PrismsSynchronizer2
 
 	private class SyncReceiptHandler extends prisms.util.json.SAJParser.DefaultHandler
 	{
-		private PrismsCenter theCenter;
+		private PrismsCenter [] theCenters;
 
 		private SyncRecord theRecord;
 
@@ -1474,39 +1474,47 @@ public class PrismsSynchronizer2
 				{
 					throw new RuntimeWrapper("Could not retrieve centers", e);
 				}
+				java.util.ArrayList<PrismsCenter> selCenters = new java.util.ArrayList<PrismsCenter>();
 				for(PrismsCenter center : centers)
 					if(center.getCenterID() == value.intValue())
-					{
-						theCenter = center;
-						break;
-					}
-				if(theCenter == null)
+						selCenters.add(center);
+				if(selCenters.size() == 0)
 					throw new RuntimeWrapper("No such center with ID " + value, null);
+				theCenters = selCenters.toArray(new PrismsCenter [selCenters.size()]);
 			}
-			else if(theCenter == null)
+			else if(theCenters == null)
 				throw new RuntimeWrapper(CENTER_ID
 					+ " must be the first element in a synchronization receipt", null);
 			else if("syncRecord".equals(state.top().getPropertyName()))
 			{
 				SyncRecord [] records;
-				try
+				for(PrismsCenter center : theCenters)
 				{
-					records = getKeeper().getSyncRecords(theCenter, Boolean.FALSE);
-				} catch(PrismsRecordException e)
-				{
-					throw new RuntimeWrapper("Could not retrieve sync records", e);
-				}
-				if(records.length == 0)
-					throw new RuntimeWrapper("No sync records for center " + theCenter, null);
-				for(SyncRecord record : records)
-					if(record.getID() == value.intValue())
+					try
 					{
-						theRecord = record;
-						break;
+						records = getKeeper().getSyncRecords(center, Boolean.FALSE);
+					} catch(PrismsRecordException e)
+					{
+						throw new RuntimeWrapper("Could not retrieve sync records", e);
 					}
+					if(records.length == 0)
+						continue;
+					for(SyncRecord record : records)
+						if(record.getID() == value.intValue())
+						{
+							theRecord = record;
+							break;
+						}
+				}
 				if(theRecord == null)
-					throw new RuntimeWrapper("No such sync record with ID " + value
-						+ " for center " + theCenter, null);
+				{
+					if(theCenters.length == 1)
+						throw new RuntimeWrapper("No such sync record with ID " + value
+							+ " for center " + theCenters[0], null);
+					else
+						throw new RuntimeWrapper("No such sync record with ID " + value
+							+ " in centers " + theCenters, null);
+				}
 			}
 			else if(theRecord == null)
 				throw new RuntimeWrapper(
@@ -1546,7 +1554,7 @@ public class PrismsSynchronizer2
 				theRecord.getCenter().setLastExport(theRecord.getSyncTime());
 				try
 				{
-					getKeeper().putCenter(theCenter, null, null);
+					getKeeper().putCenter(theRecord.getCenter(), null, null);
 				} catch(PrismsRecordException e)
 				{
 					throw new RuntimeWrapper("Could not alter center's sync times", e);
@@ -2232,8 +2240,9 @@ public class PrismsSynchronizer2
 	 * 
 	 * @param reader The reader to read the receipt from
 	 * @throws IOException If an error occurs reading or importing the receipt
+	 * @throws PrismsRecordException If an error occurs importing the receipt
 	 */
-	public void readSyncReceipt(Reader reader) throws IOException
+	public void readSyncReceipt(Reader reader) throws IOException, PrismsRecordException
 	{
 		try
 		{
@@ -2244,10 +2253,10 @@ public class PrismsSynchronizer2
 			throw new IOException("Could not parse sync receipt: " + e.getMessage());
 		} catch(RuntimeWrapper e)
 		{
-			if(e.getCause() == null)
-				log.error("Could not read sync receipt", e);
+			if(e.getCause() instanceof PrismsRecordException)
+				throw (PrismsRecordException) e.getCause();
 			else
-				log.error("Could not read sync receipt", e.getCause());
+				throw new PrismsRecordException("Could not read sync receipt: " + e.getMessage(), e);
 		}
 	}
 
