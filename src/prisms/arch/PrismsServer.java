@@ -85,7 +85,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
-	static class PrismsRequest
+	class PrismsRequest
 	{
 		final HttpServletRequest theRequest;
 
@@ -115,28 +115,61 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		ClientConfig client;
 
+		boolean isTrusted;
+
+		boolean checkCas(HttpServletRequest request)
+		{
+
+			org.jasig.cas.client.validation.AssertionImpl assertion;
+			assertion = (org.jasig.cas.client.validation.AssertionImpl) request.getSession()
+				.getAttribute(org.jasig.cas.client.util.AbstractCasFilter.CONST_CAS_ASSERTION);
+
+			if(assertion != null)
+			{
+				isTrusted = true;
+				userName = request.getRemoteUser();
+				return true;
+			}
+			else
+				return false;
+		}
+
 		PrismsRequest(HttpServletRequest req, HttpServletResponse resp,
 			RemoteEventSerializer serializer)
 		{
+
+			if(!checkCas(req))
+			{
+				// Check for external certificate authentication
+				java.security.cert.X509Certificate[] cert = (java.security.cert.X509Certificate[]) req
+					.getAttribute("javax.servlet.request.X509Certificate");
+				if(cert != null && cert.length > 0)
+				{
+					userName = cert[0].getSubjectX500Principal().getName();
+					isTrusted = true;
+				}
+				// The CN and AKOID server variables may store the name from the user's CAC card
+				if(PrismsServer.this.isTrusted())
+				{
+					if(userName == null)
+						userName = req.getHeader("CN");
+					if(userName == null)
+						userName = req.getHeader("AKOID");
+					if(userName != null)
+						isTrusted = true;
+				}
+				if(userName == null)
+					userName = req.getParameter("user");
+				if("null".equals(userName))
+					userName = null;
+
+			}
 			theRequest = req;
 			theResponse = resp;
 			theSerializer = serializer;
 			sessionID = req.getParameter("sessionID");
 			serverMethod = req.getParameter("method");
-			// Check for external certificate authentication
-			java.security.cert.X509Certificate[] cert = (java.security.cert.X509Certificate[]) req
-				.getAttribute("javax.servlet.request.X509Certificate");
-			if(cert != null && cert.length > 0)
-				userName = cert[0].getSubjectX500Principal().getName();
-			// The CN and AKOID server variables may store the name from the user's CAC card
-			if(userName == null)
-				userName = req.getHeader("CN");
-			if(userName == null)
-				userName = req.getHeader("AKOID");
-			if(userName == null)
-				userName = req.getParameter("user");
-			if("null".equals(userName))
-				userName = null;
+
 			appName = req.getParameter("app");
 			clientName = req.getParameter("client");
 			if(clientName == null)
@@ -343,24 +376,21 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(theUser.isLocked())
 				return error(req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
 					+ "\" is locked. Contact your admin.", false);
-			if(!isTrusted() && !ArrayUtils.contains(theAccessApps, req.appName))
+			if(!req.isTrusted && !ArrayUtils.contains(theAccessApps, req.appName))
 			{
 				try
 				{
 					if(!getUserSource().canAccess(theUser, req.app))
-						return error(
-							req,
-							ErrorCode.ValidationFailed,
-							"User \"" + theUser.getName()
-								+ "\" does not have permission to access application \""
-								+ req.app.getName() + "\"", false);
+						return error(req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
+							+ "\" does not have permission to access application \""
+							+ req.app.getName() + "\"", false);
 				} catch(PrismsException e)
 				{
 					log.error("Could not determine user " + theUser + "'s access to application "
 						+ req.app.getName(), e);
-					return error(req, ErrorCode.ServerError,
-						"Could not determine user " + theUser.getName()
-							+ "'s access to application " + req.app.getName(), false);
+					return error(req, ErrorCode.ServerError, "Could not determine user "
+						+ theUser.getName() + "'s access to application " + req.app.getName(),
+						false);
 				}
 				theAccessApps = ArrayUtils.add(theAccessApps, req.appName);
 			}
@@ -396,20 +426,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					} catch(PrismsException e2)
 					{
 						log.error("Error processing request", e2);
-						return error(req, ErrorCode.ServerError,
-							"Error processing request: " + e2.getMessage(), false);
+						return error(req, ErrorCode.ServerError, "Error processing request: "
+							+ e2.getMessage(), false);
 					}
 					if(req.isWMS)
 						return error(req, ErrorCode.ValidationFailed,
 							"WMS does not support encryption.", false);
 					if(theUser.isLocked())
 						return sendLogin(req, "Too many incorrect password attempts.\nUser "
-							+ theUser.getName() + " is locked. Contact your admin",
-							"init".equals(req.serverMethod), true);
+							+ theUser.getName() + " is locked. Contact your admin", "init"
+							.equals(req.serverMethod), true);
 					else if(authChanged)
 						return sendLogin(req, theUser + "'s password has been changed."
-							+ " Use the new password or contact your admin.",
-							"init".equals(req.serverMethod), true);
+							+ " Use the new password or contact your admin.", "init"
+							.equals(req.serverMethod), true);
 					else
 						return sendLogin(req, "Incorrect password for user " + theUser.getName(),
 							"init".equals(req.serverMethod), true);
@@ -432,7 +462,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						"Anonymous access forbidden for client " + req.client.getName()
 							+ " of application " + req.app.getName() + ".  Please log in.");
 			}
-			else if(!isTrusted()
+			else if(!req.isTrusted
 				&& (!hasLoggedIn || !isLoginOnce() || req.client.isService() || !theHttpSession
 					.isSecure()))
 				return sendLogin(req, null, "init".equals(req.serverMethod), false);
@@ -474,8 +504,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					return error(req, ErrorCode.ValidationFailed, e.getMessage(), true);
 				} catch(IOException e)
 				{
-					return error(req, ErrorCode.ServerError,
-						"Could not read validation data: " + e.getMessage(), true);
+					return error(req, ErrorCode.ServerError, "Could not read validation data: "
+						+ e.getMessage(), true);
 				}
 				if(!valid)
 				{
@@ -562,17 +592,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(PrismsException e)
 			{
 				log.error("Could not get password expiration", e);
-				return error(req, ErrorCode.ServerError,
-					"Could not get password expiration: " + e.getMessage(), true);
+				return error(req, ErrorCode.ServerError, "Could not get password expiration: "
+					+ e.getMessage(), true);
 			}
-			if(!isTrusted() && pwdExp > 0 && pwdExp < System.currentTimeMillis())
+			if(!req.isTrusted && pwdExp > 0 && pwdExp < System.currentTimeMillis())
 			{
 				if(req.isWMS)
 					return error(req, ErrorCode.ValidationFailed,
 						"Password change required for user \"" + theUser.getName() + "\"", false);
 				else
-					return sendChangePassword(req,
-						"Password change required for user \"" + theUser.getName() + "\"", false);
+					return sendChangePassword(req, "Password change required for user \""
+						+ theUser.getName() + "\"", false);
 			}
 
 			if("tryChangePassword".equals(req.serverMethod))
@@ -870,10 +900,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					}
 				}
 			}
-			return singleMessage(req, true, "changePassword", (error ? "error" : "message"),
-				msg.toString(), "constraints",
-				prisms.arch.service.PrismsSerializer.serializeConstraints(pc), "hashing",
-				theHashing.toJson());
+			return singleMessage(req, true, "changePassword", (error ? "error" : "message"), msg
+				.toString(), "constraints", prisms.arch.service.PrismsSerializer
+				.serializeConstraints(pc), "hashing", theHashing.toJson());
 		}
 
 		private void loginSucceeded()
@@ -986,8 +1015,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				prisms.arch.PrismsApplication.ApplicationLock lock = theApp.getApplicationLock();
 				if(lock != null && lock.getLockingSession() != theSession)
 					return singleMessage(req, true, "appLocked", "message", lock.getMessage(),
-						"scale", new Integer(lock.getScale()), "progress",
-						new Integer(lock.getProgress()));
+						"scale", new Integer(lock.getScale()), "progress", new Integer(lock
+							.getProgress()));
 			}
 			// Do prisms methods
 			if("init".equals(req.serverMethod))
@@ -1221,8 +1250,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(e instanceof java.io.IOException)
 					throw (java.io.IOException) e;
 				log.error("Could not fulfill " + wms.getRequest() + " typed WMS request", e);
-				return error(req, ErrorCode.ApplicationError,
-					e.getClass().getName() + ": " + e.getMessage());
+				return error(req, ErrorCode.ApplicationError, e.getClass().getName() + ": "
+					+ e.getMessage());
 			}
 			return new PrismsResponse(null);
 		}
@@ -1266,8 +1295,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(contentType == null)
 				contentType = "application/octet-stream";
 			response.setContentType(contentType);
-			response.setHeader("Content-Disposition",
-				"attachment; filename=\"" + plugin.getFileName(event) + "\"");
+			response.setHeader("Content-Disposition", "attachment; filename=\""
+				+ plugin.getFileName(event) + "\"");
 			try
 			{
 				plugin.doDownload(event, response.getOutputStream());
@@ -1336,8 +1365,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						try
 						{
-							plugin.doUpload(event, fileName, item.getContentType(),
-								item.getInputStream(), item.getSize());
+							plugin.doUpload(event, fileName, item.getContentType(), item
+								.getInputStream(), item.getSize());
 						} catch(java.io.IOException e)
 						{
 							log.error("Upload " + fileName + " failed", e);
@@ -1913,8 +1942,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					} catch(Throwable e)
 					{
 						log.error("PRISMS configuration failed", e);
-						events.add(error(ErrorCode.ServerError,
-							"PRISMS configuration failed: " + e.getMessage()));
+						events.add(error(ErrorCode.ServerError, "PRISMS configuration failed: "
+							+ e.getMessage()));
 						pReq.send(events);
 						return;
 					}
@@ -2028,8 +2057,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(PrismsException e)
 			{
 				log.error("Could not retrieve validation info", e);
-				events.add(error(ErrorCode.ServerError,
-					"Could not retrieve validation info: " + e.getMessage()));
+				events.add(error(ErrorCode.ServerError, "Could not retrieve validation info: "
+					+ e.getMessage()));
 				pReq.send(events);
 				return;
 			}
@@ -2119,10 +2148,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		} catch(PrismsException e)
 		{
 			log.error("Could not get user " + req.userName, e);
-			return error(ErrorCode.ServerError,
-				"Could not get user \"" + req.userName + "\": " + e.getMessage());
+			return error(ErrorCode.ServerError, "Could not get user \"" + req.userName + "\": "
+				+ e.getMessage());
 		}
-		if(req.user == null && isTrusted())
+		if(req.user == null && req.isTrusted)
 		{
 			if(theUserSource instanceof prisms.arch.ds.ManageableUserSource)
 			{
