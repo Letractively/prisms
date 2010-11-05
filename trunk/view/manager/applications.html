@@ -1,0 +1,41 @@
+
+<div __dojoType="dijit.layout.BorderContainer" style="width:100%;height:100%">
+	<div __dojoType="prisms.widget.ContentPane" style="height:50px" region="top">
+		<div __dojoType="manager.ApplicationEditor" pluginName="Application Editor"></div>
+	</div>
+	<div __dojoType="prisms.widget.PrismsTabContainer" region="center">
+		<div __dojoType="dijit.layout.BorderContainer" title="Groups">
+			<div __dojoType="dijit.layout.BorderContainer" region="left" style="width:50%">
+				<div __dojoType="prisms.widget.ContentPane" region="left" style="width:50%">
+					<div __dojoType="prisms.widget.ListModel" pluginName="Application Groups"
+					 jsId="manager.instances.appGroupsModel"></div>
+					<div __dojoType="prisms.widget.SearchableList" showSearch="false"
+						model="manager.instances.appGroupsModel"></div>
+				</div>
+				<div __dojoType="prisms.widget.ContentPane" region="center" style="width:50%">
+					<div __dojoType="prisms.widget.ListModel" pluginName="Application Permissions"
+						jsId="manager.instances.appPermissionsModel"></div>
+					<div __dojoType="prisms.widget.SearchableList" showSearch="false"
+						model="manager.instances.appPermissionsModel"></div>
+				</div>
+			</div>
+			<div __dojoType="dijit.layout.BorderContainer" region="center" style="width:50%">
+				<div __dojoType="manager.GroupEditor" pluginName="Group Editor" region="top"
+					style="width:95%;height:50%"></div>
+				<div __dojoType="manager.PermissionEditor" pluginName="Permission Editor"
+					region="center" style="top:50%;width:95%;height:50%"></div>
+			</div>
+		</div>
+		<div __dojoType="dijit.layout.BorderContainer" style="width:100%;height:100%" title="Clients">
+			<div __dojoType="prisms.widget.ContentPane" region="left" style="width:35%">
+				<div __dojoType="prisms.widget.ListModel"  pluginName="Application Clients"
+					jsId="manager.instances.appClientsModel"></div>
+				<div __dojoType="prisms.widget.SearchableList" showSearch="false"
+					model="manager.instances.appClientsModel"></div>
+			</div>
+			<div __dojoType="prisms.widget.ContentPane" region="center" style="width:65%">
+				<div __dojoType="manager.ClientEditor" pluginName="Client Editor"></div>
+			</div>
+		</div>
+	</div>
+</div>

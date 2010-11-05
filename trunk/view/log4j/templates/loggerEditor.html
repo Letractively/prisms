@@ -1,0 +1,32 @@
+
+<div>
+	<table>
+		<tr>
+			<td style="text-align:right;font-weight:bold">Logger Name:</td>
+			<td colspan="3" dojoAttachPoint="loggerName" style="font-weight:bold"></td>
+		</tr>
+		<tr>
+			<td style="text-align:right">Logger Level:</td>
+			<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="levelCheck"
+				dojoAttachEvent="onClick:_levelChanged"></div></td>
+			<td><select dojoAttachPoint="levelCombo" dojoAttachEvent="onchange:_levelChanged">
+				</select></td>
+		</tr>
+		<tr>
+			<td style="text-align:right">Effective Level:</td>
+			<td></td>
+			<td dojoAttachPoint="effectiveLevel"></td>
+		</tr>
+		<tr>
+			<td style="text-align:right">Additivity:</td>
+			<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="additivity"
+				dojoAttachEvent="onClick:_additivityChanged"></div></td>
+		</tr>
+		<tr>
+			<td style="text-align:right">Print Message:</td>
+			<td colspan="2"><div __dojoType="dijit.form.TextBox" dojoAttachPoint="messageBox"
+				dojoAttachEvent="_onKeyPress:_onKeyPress"></div></td>
+			<td><div __dojoType="dijit.form.Button"
+				dojoAttachEvent="onClick:_printMessage">Print to Logger</div></td>
+	</table>
+</div>

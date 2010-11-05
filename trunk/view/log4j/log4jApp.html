@@ -1,0 +1,30 @@
+<div>
+	<div __dojoType="prisms.DojoPrisms" dojoAttachPoint="dojoPrisms"></div>
+	<div __dojoType="prisms.widget.UI" pluginName="UI"></div>
+	<div __dojoType="dijit.layout.BorderContainer" style="width: 100%; height: 100%;">
+		<div __dojoType="dijit.Toolbar" region="top">
+			<div __dojoType="dijit.form.Button" dojoAttachPoint="loginButton"
+				dojoAttachEvent="onClick:_loginClicked">Login...</div>
+			<div __dojoType="dijit.form.DropDownButton">
+				<span>Help</span>
+				<div __dojoType="dijit.Menu">
+				  	<div __dojoType="dijit.MenuItem" dojoAttachEvent="onClick:refresh">
+						Refresh</div> 
+					<div __dojoType="dijit.MenuItem" dojoAttachEvent="onClick:showVersion">
+						About the Log4j Manager</div>
+				</div>
+			</div>
+		</div>
+		<div __dojoType="dijit.layout.BorderContainer" region="center">
+			<div __dojoType="prisms.widget.ContentPane" region="left" style="width:25%">
+				<div __dojoType="prisms.widget.TreeModel" pluginName="Logger Tree"
+					jsId="log4j.instances.LoggerTreeModel"></div>
+				<div __dojoType="prisms.widget.PrismsTree" model="log4j.instances.LoggerTreeModel"
+					searchPrisms="false"></div>
+			</div>
+			<div __dojoType="prisms.widget.ContentPane" region="center" style="width:75%">
+				<div __dojoType="log4j.LoggerEditor" pluginName="Logger Editor" searchPrisms="false"></div>
+			</div>
+		</div>
+	</div>
+</div>
