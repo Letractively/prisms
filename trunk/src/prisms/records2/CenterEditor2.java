@@ -218,9 +218,10 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				if(evt.getProperty("synchronized") != null)
+				String tag = "synchronized" + getSynchronizer().hashCode();
+				if(evt.getProperty(tag) != null)
 					return;
-				evt.setProperty("synchronized", Boolean.TRUE);
+				evt.setProperty(tag, Boolean.TRUE);
 				autoSync();
 			}
 		});
