@@ -1,15 +1,131 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project name="PRISMS" default="jar" basedir=".">
+	<property name="debuglevel"			value="lines,vars,source" />
+
+	<property name="project_name"				value="IWEDA" />
+	<property name="src"						value="./src" />
+	<property name="classes.dir"				value="./classes" />
+	<property name="war.dir"					value="./war" />
+
+	<property name="jar"						value="${project_name}.jar" />
+	<property name="web.dir"					value="WebContent" />
+	<property name="web.classes.dir"			value="${web.dir}/WEB-INF/classes" />
+	<property name="web.lib.dir"				value="${web.dir}/WEB-INF/lib" />
+
+	<property name="exploded.war.name"			value="prisms" />
+	<property name="war.name"					value="${war.dir}/${exploded.war.name}.war" />
+
+	<!-- If the developer sets environment variable  TOMCAT_HOME, use that for deployment. -->
+	<property environment="env"/>
+
+	<condition property="deploy.dir" value="${env.TOMCAT_HOME}/webapps">
+		<isset property="env.TOMCAT_HOME"/>
+	</condition>
+
+	<condition property="deploy.dir" value="${env.CATALINA_HOME}/webapps">
+		<isset property="env.CATALINA_HOME"/>
+	</condition>
+
+	<condition property="deploy.dir" value="C:\apache-tomcat-6.0.16\webapps\">
+		<not>
+			<isset property="deploy.dir"/>
+		</not>
+	</condition>
+
+	<target name="init">
+		<mkdir dir="${classes.dir}" />
+		<mkdir dir="${web.classes.dir}" />
+		<mkdir dir="${web.lib.dir}" />
+		<mkdir dir="${war.dir}" />
+	</target>
+
+	<path id="libs">
+		<fileset dir="./lib">
+			<include name="**/*.jar"/>
+		</fileset>
+	</path>
+
+	<target name="compile" depends="init">
+		<javac
+			srcdir="${src}"
+			destdir="${classes.dir}"
+			optimize="yes"
+			debug="${debug}"
+			debuglevel="${debuglevel}"
+			fork="true"
+			memoryinitialsize="256m"
+			memorymaximumsize="512m">
+			<classpath refid="libs"/>
+		</javac>
+	</target>
+
+	<target name="genWebContent" depends="init"
+		description="Generates web content (html, javscript) for use in the web app">
+		<copy todir="${web.dir}/js">
+			<fileset dir="js">
+				<include name="**/*.js" />
+			</fileset>
+		</copy>
+		<copy todir="${web.dir}/view">
+			<fileset dir="view">
+				<include name="**/*" />
+			</fileset>
+		</copy>
+
+		<replace dir="." propertyFile="WebAppReplaceProps.properties">
+			<include name="${web.dir}/js/**/*.js" />
+			<include name="${web.dir}/view/**/*.html" />
+			<replaceFilter token="__dojox" property="dojox" />
+			<replaceFilter token="__dojo" property="dojo" />
+			<replaceFilter token="__dijit" property="dijit" />
+			<replaceFilter token="__webContentRoot" property="webContentRoot" />
+			<replaceFilter token="__showLogin" property="showLogin" />
+			<replaceFilter token="__showHelp" property="showHelp" />
+		</replace>
+	</target>
+
+	<target name="prepwar" depends="genWebContent" description="Prepare the web directory to generate the war">
+		<copy todir="${web.classes.dir}">
+			<fileset dir="${classes.dir}" />
+		</copy>
+
+		<copy todir="${web.lib.dir}">
+			<fileset file="lib/dom4j-1.6.1.jar" />
+			<fileset file="lib/openmap.jar" />
+			<fileset file="lib/json.jar" />
+			<fileset file="lib/hsqldb.jar" />
+			<fileset file="lib/blowfishj.jar" />
+			<fileset file="lib/commons-fileupload-1.2.1.jar"/>
+			<fileset file="lib/commons-io-1.4.jar" />
+			<fileset file="lib/cas-client-core-3.1.9.jar" />
+		</copy>
+	</target>
+
+	<target name="war-copy" depends="prepwar"
+		description="Copies deployment files to the deployed war without redeploying">
+		<mkdir dir="${deploy.dir}/${exploded.war.name}" />
+		<copy todir="${deploy.dir}/${exploded.war.name}">
+			<fileset dir="${web.dir}" />
+		</copy>
+	</target>
+
+	<!-- The war task does no compiling but merely builds the war from pre-compiled classes-->
+	<target name="war" depends="prepwar">
+		<war warfile="${war.name}" update="no" webxml="${web.dir}/WEB-INF/web.xml" compress="true">
+			<classes dir="${classes.dir}"/>
+
+			<fileset dir="${web.dir}"/>
+
+			<lib dir="lib" includes="*.jar" />
+		</war>
+	</target>
+
+	<target name="build" depends="compile,war"></target>
+
 	<target name="jar">
 		<jar jarfile="prisms.jar">
 			<fileset dir="classes" />
 		</jar>
-	</target>
-	<target name="war">
-		<war warfile="prisms.war" update="no" webxml="WebContent/WEB-INF/web.xml" compress="true">
-			<classes dir="classes"/>			
-			<lib dir="lib" includes="*.jar"/>
-		</war>	
 	</target>
 </project>
