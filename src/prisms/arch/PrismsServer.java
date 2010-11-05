@@ -10,15 +10,17 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.log4j.Logger;
+import org.dom4j.Element;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import prisms.arch.ds.Hashing;
 import prisms.arch.ds.User;
+import prisms.arch.ds.UserGroup;
 import prisms.arch.ds.UserSource;
 import prisms.arch.wms.PrismsWmsRequest;
 import prisms.arch.wms.WmsPlugin;
 import prisms.util.ArrayUtils;
+import prisms.util.PrismsUtils;
 
 /**
  * This server is the root of the PRISMS architecture. It takes HTTP requests that conform to the
@@ -34,9 +36,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 */
 	public static final long WARN_EXPIRE_THRESHOLD = 120000L;
 
-	/**
-	 * An error code that will be sent back with events of type method="error"
-	 */
+	private static final java.text.SimpleDateFormat MOD_DATE_FORMAT = new java.text.SimpleDateFormat(
+		"ddMMMyyyy");
+
+	/** An error code that will be sent back with events of type method="error" */
 	public static enum ErrorCode
 	{
 		/**
@@ -60,9 +63,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		 */
 		ValidationFailed("Validation Failed");
 
-		/**
-		 * A small description of the error
-		 */
+		/** A small description of the error */
 		public final String description;
 
 		ErrorCode(String descrip)
@@ -85,7 +86,86 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
-	class PrismsRequest
+	static class SessionKey
+	{
+	}
+
+	static class AppConfigurator
+	{
+		private static class ClientConfigurator
+		{
+			ClientConfig theClient;
+
+			Element theClientConfigXML;
+
+			ClientConfigurator(Element clientConfigXML)
+			{
+				theClientConfigXML = clientConfigXML;
+			}
+
+			void setClient(ClientConfig client)
+			{
+				theClient = client;
+			}
+
+			synchronized void configureClient(AppConfig appConfig)
+			{
+				if(theClientConfigXML == null)
+					return;
+				appConfig.configureClient(theClient, theClientConfigXML);
+				theClient.setConfigured(this);
+				theClientConfigXML = null;
+			}
+		}
+
+		PrismsApplication theApp;
+
+		final AppConfig theAppConfig;
+
+		Element theAppConfigXML;
+
+		private java.util.HashMap<String, ClientConfigurator> theClients;
+
+		AppConfigurator(AppConfig appConfig, Element appConfigXML)
+		{
+			theAppConfig = appConfig;
+			theAppConfigXML = appConfigXML;
+			theClients = new java.util.HashMap<String, ClientConfigurator>();
+		}
+
+		void setApp(PrismsApplication app)
+		{
+			theApp = app;
+		}
+
+		synchronized void configureApp()
+		{
+			if(theAppConfigXML == null)
+				return;
+			theAppConfig.configureApp(theApp, theAppConfigXML);
+			theApp.setConfigured(this);
+			theAppConfigXML = null;
+		}
+
+		Object addClient(String clientName, Element clientConfigXML)
+		{
+			ClientConfigurator cc = new ClientConfigurator(clientConfigXML);
+			theClients.put(clientName, cc);
+			return cc;
+		}
+
+		void setClient(ClientConfig client)
+		{
+			theClients.get(client.getName()).setClient(client);
+		}
+
+		void configureClient(ClientConfig client)
+		{
+			theClients.get(client.getName()).configureClient(theAppConfig);
+		}
+	}
+
+	static class PrismsRequest
 	{
 		final HttpServletRequest theRequest;
 
@@ -97,8 +177,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		String serverMethod;
 
-		String userName;
-
 		String appName;
 
 		String clientName;
@@ -107,7 +185,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		String dataString;
 
-		boolean encrypted;
+		PrismsAuthenticator auth;
 
 		User user;
 
@@ -115,67 +193,19 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		ClientConfig client;
 
-		boolean isTrusted;
-
-		boolean checkCas(HttpServletRequest request)
-		{
-
-			org.jasig.cas.client.validation.AssertionImpl assertion;
-			assertion = (org.jasig.cas.client.validation.AssertionImpl) request.getSession()
-				.getAttribute(org.jasig.cas.client.util.AbstractCasFilter.CONST_CAS_ASSERTION);
-
-			if(assertion != null)
-			{
-				isTrusted = true;
-				userName = request.getRemoteUser();
-				return true;
-			}
-			else
-				return false;
-		}
-
 		PrismsRequest(HttpServletRequest req, HttpServletResponse resp,
 			RemoteEventSerializer serializer)
 		{
-
-			if(!checkCas(req))
-			{
-				// Check for external certificate authentication
-				java.security.cert.X509Certificate[] cert = (java.security.cert.X509Certificate[]) req
-					.getAttribute("javax.servlet.request.X509Certificate");
-				if(cert != null && cert.length > 0)
-				{
-					userName = cert[0].getSubjectX500Principal().getName();
-					isTrusted = true;
-				}
-				// The CN and AKOID server variables may store the name from the user's CAC card
-				if(PrismsServer.this.isTrusted())
-				{
-					if(userName == null)
-						userName = req.getHeader("CN");
-					if(userName == null)
-						userName = req.getHeader("AKOID");
-					if(userName != null)
-						isTrusted = true;
-				}
-				if(userName == null)
-					userName = req.getParameter("user");
-				if("null".equals(userName))
-					userName = null;
-
-			}
 			theRequest = req;
 			theResponse = resp;
 			theSerializer = serializer;
 			sessionID = req.getParameter("sessionID");
 			serverMethod = req.getParameter("method");
-
 			appName = req.getParameter("app");
 			clientName = req.getParameter("client");
 			if(clientName == null)
 				clientName = req.getParameter("service");
 			dataString = req.getParameter("data");
-			encrypted = "true".equalsIgnoreCase(req.getParameter("encrypted"));
 			isWMS = PrismsWmsRequest.isWMS(req);
 		}
 
@@ -194,9 +224,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				serverMethod = "WMS";
 			if(dataString == null)
 				dataString = "{\"serverPadding\":\"padding\"}";
-			else if(dataString.length() >= 2 && dataString.charAt(0) != '{')
-				encrypted = true;
-			else if(appName == null || userName == null)
+			else if(appName == null)
 			{
 				JSONObject data;
 				try
@@ -206,8 +234,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						appName = (String) data.get("app");
 					if(clientName == null)
 						clientName = (String) data.get("service");
-					if(userName == null)
-						userName = (String) data.get("user");
 					if(sessionID == null)
 						sessionID = (String) data.get("sessionID");
 				} catch(Exception e)
@@ -267,23 +293,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	{
 		private final HttpSession theHttpSession;
 
+		private final PrismsAuthenticator theAuth;
+
 		private final User theUser;
 
-		private Hashing theHashing;
-
-		private long [] theKey;
-
-		private Encryption theEncryption;
+		private Object theAuthInfo;
 
 		private String [] theAccessApps;
 
-		private String [] theValidations;
-
 		private User theAnonymousUser;
-
-		private int theLoginsFailed;
-
-		private boolean authChanged;
 
 		private long userLastChecked;
 
@@ -291,17 +309,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private long theLastUsed;
 
-		private boolean hasLoggedIn;
-
-		SecuritySession(HttpSession session, User user) throws PrismsException
+		SecuritySession(HttpSession session, PrismsAuthenticator auth, User user)
+			throws PrismsException
 		{
 			theHttpSession = session;
+			theAuth = auth;
 			theUser = user;
-			theHashing = PrismsServer.this.getUserSource().getHashing();
 			theAccessApps = new String [0];
-			theValidations = new String [0];
 			checkAuthenticationData();
 			theCreationTime = theLastUsed;
+		}
+
+		PrismsAuthenticator getAuth()
+		{
+			return theAuth;
 		}
 
 		User getUser()
@@ -319,41 +340,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			long time = System.currentTimeMillis();
 			theLastUsed = time;
-			if(isTrusted() || time - userLastChecked < theUserCheckPeriod)
+			if(time - userLastChecked < 30000)
 				return;
 			userLastChecked = time;
-			theAnonymousUser = getUserSource().getUser(null);
+			theAnonymousUser = getEnv().getUserSource().getUser(null);
 			theAccessApps = new String [0];
-			theValidations = new String [0];
-			long [] newKey = getUserSource().getKey(theUser, theHashing);
-			if(theKey == null && newKey != null)
-			{
-				theKey = newKey;
-				if(theEncryption != null)
-					theEncryption.dispose();
-				theEncryption = createEncryption();
-				theEncryption.init(theKey, theEncryptionProperties);
-			}
-			else if(newKey == null)
-			{
-				theKey = null;
-				theEncryption = null;
-			}
-			else if(!ArrayUtils.equals(theKey, newKey))
-			{
-				theKey = newKey;
-				// byte [] init = new byte [10];
-				// for(int i = 0; i < init.length; i++)
-				// init[i] = (byte) ((Math.random() - 0.5) * 2 * Byte.MAX_VALUE);
-				if(theEncryption != null)
-					theEncryption.dispose();
-				if(theKey != null)
-				{
-					theEncryption = createEncryption();
-					theEncryption.init(theKey, null);
-				}
-				authChanged = true;
-			}
 		}
 
 		/**
@@ -364,6 +355,32 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		 */
 		public PrismsResponse validate(PrismsRequest req)
 		{
+			if(theAuthInfo == null)
+			{
+				try
+				{
+					theAuthInfo = theAuth.createAuthenticationInfo(req.theRequest, theUser);
+				} catch(PrismsException e)
+				{
+					log.error("Could not initialize authentication", e);
+					return error(req, ErrorCode.ServerError,
+						"Could not initialize authentication: " + e.getMessage(), false);
+				}
+			}
+
+			if(req.user.equals(theAnonymousUser) && !req.client.allowsAnonymous())
+			{
+				JSONObject login = theAuth.requestLogin(req.theRequest, theAuthInfo);
+				if(login == null)
+					return error(req, ErrorCode.ServerError,
+						"Anonymous access forbidden for client " + req.client.getName()
+							+ " of application " + req.app.getName(), false);
+				else
+					return sendLogin(req,
+						"Anonymous access forbidden for client " + req.client.getName()
+							+ " of application " + req.app.getName() + ".  Please log in.",
+						"init".equals(req.serverMethod), true);
+			}
 			try
 			{
 				checkAuthenticationData();
@@ -376,96 +393,62 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(theUser.isLocked())
 				return error(req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
 					+ "\" is locked. Contact your admin.", false);
-			if(!req.isTrusted && !ArrayUtils.contains(theAccessApps, req.appName))
+			if(!ArrayUtils.contains(theAccessApps, req.appName))
 			{
 				try
 				{
-					if(!getUserSource().canAccess(theUser, req.app))
-						return error(req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
-							+ "\" does not have permission to access application \""
-							+ req.app.getName() + "\"", false);
+					if(!getEnv().getUserSource().canAccess(theUser, req.app))
+						return error(
+							req,
+							ErrorCode.ValidationFailed,
+							"User \"" + theUser.getName()
+								+ "\" does not have permission to access application \""
+								+ req.app.getName() + "\"", false);
 				} catch(PrismsException e)
 				{
 					log.error("Could not determine user " + theUser + "'s access to application "
 						+ req.app.getName(), e);
-					return error(req, ErrorCode.ServerError, "Could not determine user "
-						+ theUser.getName() + "'s access to application " + req.app.getName(),
-						false);
+					return error(req, ErrorCode.ServerError,
+						"Could not determine user " + theUser.getName()
+							+ "'s access to application " + req.app.getName(), false);
 				}
 				theAccessApps = ArrayUtils.add(theAccessApps, req.appName);
 			}
-			String dataStr = req.dataString;
-			if(req.encrypted)
+			try
 			{
-				if(dataStr == null)
-					return error(req, ErrorCode.RequestInvalid, "No data parameter in request",
-						false);
-				// For some reason, "+" gets mis-translated at a space
-				dataStr = dataStr.replaceAll(" ", "+");
-				String encryptedText = dataStr;
-				try
+				getEnv().getUserSource().assertAccessible(theUser, req.client);
+			} catch(PrismsException e)
+			{
+				log.error("User " + theUser + " cannot access client " + req.client.getName()
+					+ " of application " + req.app.getName(), e);
+				return error(req, ErrorCode.ValidationFailed, e.getMessage(), false);
+			}
+
+			Object authData;
+			try
+			{
+				authData = theAuth.getAuthenticatedData(req.theRequest, theAuthInfo,
+					theHttpSession.isSecure());
+			} catch(PrismsException e)
+			{
+				return error(req, ErrorCode.ServerError, "Could not authenticate session", false);
+			}
+			if(authData instanceof PrismsAuthenticator.AuthenticationError)
+			{
+				PrismsAuthenticator.AuthenticationError err = (PrismsAuthenticator.AuthenticationError) authData;
+				if(err.reattempt)
 				{
-					dataStr = decrypt(req, dataStr);
-					if(dataStr == null || dataStr.length() < 2 || dataStr.charAt(0) != '{'
-						|| dataStr.charAt(dataStr.length() - 1) != '}')
-					{
-						/* Even though no exception was thrown the decryption has failed.
-						 * The result is not a JSON object. */
-						Exception toThrow = new Exception("Decrypted result: " + dataStr
-							+ " is not a JSON object");
-						toThrow.setStackTrace(new StackTraceElement [0]);
-						throw toThrow; // To be caught in same method
-					}
-				} catch(Exception e)
-				{
-					log.error("Decryption of " + encryptedText + " failed with encryption "
-						+ theEncryption, e);
-					try
-					{
-						loginFailed();
-					} catch(PrismsException e2)
-					{
-						log.error("Error processing request", e2);
-						return error(req, ErrorCode.ServerError, "Error processing request: "
-							+ e2.getMessage(), false);
-					}
 					if(req.isWMS)
 						return error(req, ErrorCode.ValidationFailed,
 							"WMS does not support encryption.", false);
-					if(theUser.isLocked())
-						return sendLogin(req, "Too many incorrect password attempts.\nUser "
-							+ theUser.getName() + " is locked. Contact your admin", "init"
-							.equals(req.serverMethod), true);
-					else if(authChanged)
-						return sendLogin(req, theUser + "'s password has been changed."
-							+ " Use the new password or contact your admin.", "init"
-							.equals(req.serverMethod), true);
 					else
-						return sendLogin(req, "Incorrect password for user " + theUser.getName(),
-							"init".equals(req.serverMethod), true);
+						return sendLogin(req, err.message, "init".equals(req.serverMethod),
+							err.message != null);
 				}
-
-				// Decryption succeeded
-				if(dataStr.length() < 20)
-					return error(req, ErrorCode.ValidationFailed, "Data string null or too short"
-						+ "--at least 20 characters of data must be included to verify encryption."
-						+ "  Use \"-XXSERVERPADDING...\" for padding", false);
-				// Remove "-XXSERVERPADDING" comment if present
-				int commentIdx = dataStr.indexOf("-XXSERVERPADDING");
-				if(commentIdx >= 0)
-					dataStr = dataStr.substring(0, commentIdx);
+				else
+					return error(req, ErrorCode.ValidationFailed, err.message, false);
 			}
-			else if(theUser.equals(theAnonymousUser))
-			{
-				if(!req.client.allowsAnonymous())
-					return singleMessage(req, false, "login", "error",
-						"Anonymous access forbidden for client " + req.client.getName()
-							+ " of application " + req.app.getName() + ".  Please log in.");
-			}
-			else if(!req.isTrusted
-				&& (!hasLoggedIn || !isLoginOnce() || req.client.isService() || !theHttpSession
-					.isSecure()))
-				return sendLogin(req, null, "init".equals(req.serverMethod), false);
+			String dataStr = (String) authData;
 
 			RemoteEventSerializer serializer = req.client.getSerializer();
 			if(serializer == null)
@@ -488,126 +471,75 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			else
 				event = null;
 			// The encryption succeeded--the session knows the password
-			loginSucceeded();
-
-			if("validate".equals(req.serverMethod))
-			{
-				Validator validator = req.client.getValidator();
-				JSONObject evt = new JSONObject();
-				boolean valid;
-				try
-				{
-					valid = validator == null
-						|| validator.validate(theUser, req.app, req.client, req.theRequest, event);
-				} catch(RuntimeException e)
-				{
-					return error(req, ErrorCode.ValidationFailed, e.getMessage(), true);
-				} catch(IOException e)
-				{
-					return error(req, ErrorCode.ServerError, "Could not read validation data: "
-						+ e.getMessage(), true);
-				}
-				if(!valid)
-				{
-					JSONObject valInfo = validator.getValidationInfo(theUser, req.app, req.client,
-						req.theRequest);
-					evt.put("method", "validate");
-					evt.put("validationFailed", new Boolean(true));
-					evt.put("params", valInfo);
-					return singleMessage(req, evt, true);
-				}
-				else
-				{
-					// Validation successful--we're done. Tell the client to re-initialize.
-					theValidations = ArrayUtils.add(theValidations, req.appName + "/"
-						+ req.clientName);
-					return singleMessage(req, true, "callInit");
-				}
-			}
-			if(!ArrayUtils.contains(theValidations, req.appName + "/" + req.clientName)
-				&& req.client.getValidator() != null)
-			{
-				Validator validator = req.client.getValidator();
-				JSONObject valInfo = validator.getValidationInfo(theUser, req.app, req.client,
-					req.theRequest);
-				if(valInfo != null && req.isWMS)
-					return error(req, ErrorCode.ValidationFailed, "Validation required for user \""
-						+ theUser.getName() + "\" access to application \"" + req.app.getName()
-						+ "\"", true);
-				else if(valInfo == null)
-				{
-					try
-					{
-						if(!validator.validate(theUser, req.app, req.client, req.theRequest, null))
-						{
-							return error(req, ErrorCode.ValidationFailed, "Validator " + validator
-								+ " prevents this session from being valid", true);
-						}
-						theValidations = ArrayUtils.add(theValidations, req.appName + "/"
-							+ req.clientName);
-					} catch(RuntimeException e)
-					{
-						return error(req, ErrorCode.ValidationFailed, e.getMessage(), true);
-					} catch(IOException e)
-					{
-						return error(req, ErrorCode.ServerError, "Could not read validation data: "
-							+ e.getMessage(), true);
-					}
-				}
-				else
-					return singleMessage(req, true, "validate", "params", valInfo);
-			}
-			// The session is validated or no validation is required
 
 			if("changePassword".equals(req.serverMethod))
 			{
-				long [] pwdData = null;
-				try
+				PrismsAuthenticator.AuthenticationError error = theAuth.changePassword(
+					req.theRequest, theAuthInfo, event);
+				if(error != null)
 				{
-					JSONArray jsonPwdData = (JSONArray) event.get("passwordData");
-					pwdData = new long [jsonPwdData.size()];
-					for(int i = 0; i < pwdData.length; i++)
-						pwdData[i] = ((Number) jsonPwdData.get(i)).longValue();
-					getUserSource().setPassword(theUser, pwdData, theUser.isAdmin());
-					// Password change succeeded--we're done. Tell the client to re-initialize.
-					return singleMessage(req, true, "callInit");
-				} catch(Exception e)
-				{
-					log.error("Password change failed", e);
-					if(pwdData != null)
-						log.error("Could not set password data for user " + theUser.getName()
-							+ " to " + ArrayUtils.toString(pwdData), e);
+					JSONObject change;
+					try
+					{
+						change = theAuth.requestPasswordChange(req.theRequest, theAuthInfo);
+					} catch(PrismsException e)
+					{
+						log.error("Could not request password change", e);
+						return error(req, ErrorCode.ServerError,
+							"Could not request password change", true);
+					}
+					String msg = (String) change.remove("message");
+					if(msg != null)
+						msg = error.message + "\n" + msg;
 					else
-						log.error("Could not set password data for user " + theUser.getName()
-							+ ": no passwordData sent", e);
-					return sendChangePassword(req, "Could not change password: " + e.getMessage(),
-						true);
+						msg = error.message;
+					change.put("error", msg);
+					change.put("method", "changePassword");
+					return singleMessage(req, change, true);
 				}
+				return singleMessage(req, true, "callInit");
 			}
 
-			long pwdExp;
 			try
 			{
-				pwdExp = getUserSource().getPasswordExpiration(theUser);
+				if(theAuth.needsPasswordChange(req.theRequest, theAuthInfo))
+				{
+					if(req.isWMS)
+						return error(req, ErrorCode.ValidationFailed,
+							"Password change required for user \"" + theUser.getName() + "\"",
+							false);
+					JSONObject change = theAuth.requestPasswordChange(req.theRequest, theAuthInfo);
+					String msg = (String) change.get("message");
+					if(msg != null)
+						msg = "Password change required for user \"" + theUser.getName() + "\"\n"
+							+ msg;
+					else
+						msg = "Password change required for user \"" + theUser.getName() + "\"";
+					change.put("message", msg);
+					change.put("method", "changePassword");
+					return singleMessage(req, change, true);
+				}
 			} catch(PrismsException e)
 			{
 				log.error("Could not get password expiration", e);
-				return error(req, ErrorCode.ServerError, "Could not get password expiration: "
-					+ e.getMessage(), true);
-			}
-			if(!req.isTrusted && pwdExp > 0 && pwdExp < System.currentTimeMillis())
-			{
-				if(req.isWMS)
-					return error(req, ErrorCode.ValidationFailed,
-						"Password change required for user \"" + theUser.getName() + "\"", false);
-				else
-					return sendChangePassword(req, "Password change required for user \""
-						+ theUser.getName() + "\"", false);
+				return error(req, ErrorCode.ServerError,
+					"Could not get password expiration: " + e.getMessage(), true);
 			}
 
 			if("tryChangePassword".equals(req.serverMethod))
 			{
-				return sendChangePassword(req, null, false);
+				JSONObject change;
+				try
+				{
+					change = theAuth.requestPasswordChange(req.theRequest, theAuthInfo);
+				} catch(PrismsException e)
+				{
+					log.error("Could not request password change", e);
+					return error(req, ErrorCode.ServerError, "Could not request password change",
+						true);
+				}
+				change.put("method", "changePassword");
+				return singleMessage(req, change, true);
 			}
 			if("getVersion".equals(req.serverMethod))
 			{
@@ -656,7 +588,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					throw new IllegalStateException("Could not serialize return events", e);
 				}
 			}
-			if(response.shouldEncrypt && request.encrypted)
+			if(response.shouldEncrypt)
 				str = encrypt(request, str);
 			request.theResponse.setContentType("text/prisms-json");
 			String acceptEncoding = request.theRequest.getHeader("accept-encoding");
@@ -677,239 +609,26 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 
-		private String encrypt(PrismsRequest request, String text) throws IOException
+		private String encrypt(PrismsRequest request, String text)
 		{
 			/* TODO: For whatever reason, information encrypted by the server is not decrypted
 			 * correctly by the javascript dojo blowfish implementation on the HTML client. Pending
 			 * more extensive investigation, we'll just send information unencrypted. */
 			if(request.client.isService())
-			{
-				java.nio.charset.Charset charSet = null;
-				String acceptChs = request.theRequest.getHeader("Accept-Charset");
-				if(acceptChs == null)
-					charSet = java.nio.charset.Charset.defaultCharset();
-				else
-				{
-					String [] chs = acceptChs.split("[;,]");
-					for(int c = 0; c < chs.length && charSet == null; c++)
-						charSet = java.nio.charset.Charset.forName(chs[c].trim());
-					if(charSet == null)
-						charSet = java.nio.charset.Charset.defaultCharset();
-				}
-				return theEncryption.encrypt(text, charSet);
-			}
+				return theAuth.encrypt(request.theRequest, text, theAuthInfo);
 			return text;
-		}
-
-		private String decrypt(PrismsRequest request, String encrypted) throws IOException
-		{
-			if(theEncryption == null)
-				return encrypted;
-			java.nio.charset.Charset charSet;
-			if(request.theRequest.getCharacterEncoding() == null)
-				charSet = java.nio.charset.Charset.defaultCharset();
-			else
-				charSet = java.nio.charset.Charset.forName(request.theRequest
-					.getCharacterEncoding());
-			return theEncryption.decrypt(encrypted, charSet);
-		}
-
-		private void loginFailed() throws PrismsException
-		{
-			if(theUser.isLocked())
-				return;
-			if(authChanged)
-			{ // If password changed, give a bonus attempt
-				authChanged = false;
-				return;
-			}
-			theLoginsFailed++;
-			if(theLoginsFailed >= theLoginFailTolerance && !theUser.getName().equals("admin"))
-			{
-				theUser.setLocked(true);
-				getUserSource().lockUser(theUser);
-				theLoginsFailed = 0;
-			}
 		}
 
 		private PrismsResponse sendLogin(PrismsRequest req, String error, boolean postInit,
 			boolean isError)
 		{
-			if(theEncryption == null)
-				return error(req, ErrorCode.ValidationFailed, "User " + req.userName
-					+ " does not have a password set--consult your admin", false);
-			JSONObject evt = new JSONObject();
-			evt.put("method", "startEncryption");
-			evt.put("encryption", theEncryption.getParams());
-			JSONObject hashing = theHashing.toJson();
-			hashing.put("user", theUser.getName());
-			evt.put("hashing", hashing);
+			JSONObject evt = theAuth.requestLogin(req.theRequest, theAuthInfo);
 			if(postInit)
 				evt.put("postAction", "callInit");
 			if(isError)
 				evt.put("code", ErrorCode.ValidationFailed.description);
 			evt.put("error", error);
 			return singleMessage(req, evt, false);
-		}
-
-		private PrismsResponse sendChangePassword(PrismsRequest req, String message, boolean error)
-		{
-			prisms.arch.ds.PasswordConstraints pc;
-			try
-			{
-				pc = getUserSource().getPasswordConstraints();
-			} catch(PrismsException e)
-			{
-				return error(req, ErrorCode.ServerError, "Could not get password change data", true);
-			}
-			StringBuilder msg = new StringBuilder();
-			if(message != null)
-				msg.append(message);
-			if(pc.getNumConstraints() == 1)
-			{
-				if(msg.length() > 0)
-					msg.append('\n');
-				if(pc.getMinCharacterLength() > 0)
-				{
-					msg.append("The new password must be at least ");
-					msg.append(pc.getMinCharacterLength());
-					msg.append(" characters long");
-				}
-				else if(pc.getMinUpperCase() > 0)
-				{
-					msg.append("The new password must have at least ");
-					msg.append(pc.getMinUpperCase());
-					msg.append(" upper-case letter");
-					if(pc.getMinUpperCase() > 1)
-						msg.append('s');
-				}
-				else if(pc.getMinLowerCase() > 0)
-				{
-					msg.append("The new password must have at least ");
-					msg.append(pc.getMinLowerCase());
-					msg.append(" lower-case letter");
-					if(pc.getMinLowerCase() > 1)
-						msg.append('s');
-				}
-				else if(pc.getMinDigits() > 0)
-				{
-					msg.append("The new password must have at least ");
-					msg.append(pc.getMinDigits());
-					msg.append(" digit");
-					if(pc.getMinDigits() > 1)
-						msg.append('s');
-					msg.append(" (0-9)");
-				}
-				else if(pc.getMinSpecialChars() > 0)
-				{
-					msg.append("The new password must have at least ");
-					msg.append(pc.getMinSpecialChars());
-					msg.append(" special character");
-					if(pc.getMinSpecialChars() > 1)
-						msg.append('s');
-					msg.append(" (&, *, _, @, etc.)");
-				}
-				else if(pc.getNumConstraints() > 0)
-				{
-					msg.append("The new password must not be the same as ");
-					if(pc.getNumConstraints() == 1)
-						msg.append("your current password");
-					else if(pc.getNumConstraints() == 2)
-						msg.append("your current or previous passwords");
-					else
-					{
-						msg.append("any of your previous ");
-						msg.append(pc.getNumConstraints());
-						msg.append(" passwords");
-					}
-				}
-				else
-					throw new IllegalStateException("Unaccounted-for password constraint");
-			}
-			else if(pc.getNumConstraints() > 1)
-			{
-				if(msg.length() > 0)
-					msg.append('\n');
-				msg.append("The new password must:");
-				int count = 1;
-				if(pc.getMinCharacterLength() > 0)
-				{
-					msg.append("\n\t");
-					msg.append(count);
-					msg.append(") be ");
-					msg.append(pc.getMinCharacterLength());
-					msg.append(" characters long");
-					count++;
-				}
-				if(pc.getMinUpperCase() > 0)
-				{
-					msg.append("\n\t");
-					msg.append(count);
-					msg.append(") have at least ");
-					msg.append(pc.getMinUpperCase());
-					msg.append(" upper-case letter");
-					if(pc.getMinUpperCase() > 1)
-						msg.append('s');
-				}
-				if(pc.getMinLowerCase() > 0)
-				{
-					msg.append("\n\t");
-					msg.append(count);
-					msg.append(") have at least ");
-					msg.append(pc.getMinLowerCase());
-					msg.append(" lower-case letter");
-					if(pc.getMinLowerCase() > 1)
-						msg.append('s');
-				}
-				if(pc.getMinDigits() > 0)
-				{
-					msg.append("\n\t");
-					msg.append(count);
-					msg.append(") have at least ");
-					msg.append(pc.getMinDigits());
-					msg.append(" digit");
-					if(pc.getMinDigits() > 1)
-						msg.append('s');
-					msg.append(" (0-9)");
-				}
-				if(pc.getMinSpecialChars() > 0)
-				{
-					msg.append("\n\t");
-					msg.append(count);
-					msg.append(") have at least ");
-					msg.append(pc.getMinSpecialChars());
-					msg.append(" special character");
-					if(pc.getMinSpecialChars() > 1)
-						msg.append('s');
-					msg.append(" (&, *, _, @, etc.)");
-				}
-				if(pc.getNumConstraints() > 0)
-				{
-					msg.append("\n\t");
-					msg.append(count);
-					msg.append(") not be the same as ");
-					if(pc.getNumConstraints() == 1)
-						msg.append("your current password");
-					else if(pc.getNumConstraints() == 2)
-						msg.append("your current or previous passwords");
-					else
-					{
-						msg.append("any of your previous ");
-						msg.append(pc.getNumConstraints());
-						msg.append(" passwords");
-					}
-				}
-			}
-			return singleMessage(req, true, "changePassword", (error ? "error" : "message"), msg
-				.toString(), "constraints", prisms.arch.service.PrismsSerializer
-				.serializeConstraints(pc), "hashing", theHashing.toJson());
-		}
-
-		private void loginSucceeded()
-		{
-			hasLoggedIn = true;
-			theLoginsFailed = 0;
-			authChanged = false;
 		}
 
 		private PrismsResponse error(PrismsRequest req, ErrorCode code, String message,
@@ -955,8 +674,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		void destroy()
 		{
-			if(theEncryption != null)
-				theEncryption.dispose();
+			theAuth.destroy(theAuthInfo);
 		}
 	}
 
@@ -972,7 +690,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private PrismsSession theSession;
 
-		private long theCreationTime;
+		private final long theCreationTime;
 
 		/**
 		 * Creates a session holder
@@ -1015,8 +733,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				prisms.arch.PrismsApplication.ApplicationLock lock = theApp.getApplicationLock();
 				if(lock != null && lock.getLockingSession() != theSession)
 					return singleMessage(req, true, "appLocked", "message", lock.getMessage(),
-						"scale", new Integer(lock.getScale()), "progress", new Integer(lock
-							.getProgress()));
+						"scale", new Integer(lock.getScale()), "progress",
+						new Integer(lock.getProgress()));
 			}
 			// Do prisms methods
 			if("init".equals(req.serverMethod))
@@ -1095,7 +813,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			try
 			{
 				if(theSession == null)
-					theSession = getUserSource().createSession(theClient, theUser);
+					theSession = createSession(theClient, theUser);
 			} catch(PrismsException e)
 			{
 				String error = "Could not create " + (theClient.isService() ? "service " : "UI ")
@@ -1122,6 +840,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			JSONObject evt = new JSONObject();
 			evt.put("method", "init");
+			evt.put("user", req.user.getName());
 			ret.add(evt);
 			ret.addAll(theSession.getEvents());
 			return new PrismsResponse(ret, true);
@@ -1132,56 +851,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			JSONArray ret = null;
 			if(theSession.getClient().isService()
 				|| Boolean.TRUE.equals(event.get("prisms-synchronous")))
-			{
-				try
-				{
-					ret = theSession.processSync(event);
-				} catch(Throwable e)
-				{
-					log.error("Session error processing events", e);
-				}
-			}
+				ret = theSession.processSync(event);
 			else
-			{
-				boolean [] finished = new boolean [] {false};
-				try
-				{
-					theSession.processAsync(event, finished);
-				} catch(Throwable e)
-				{
-					log.error("Session error processing events", e);
-				}
-				try
-				{
-					Thread.sleep(100);
-				} catch(InterruptedException e)
-				{}
-				/*
-				 * This code checks every quarter second to see if the event has been processed. If
-				 * the processing isn't finished after 1/2 second, this method returns, leaving the
-				 * final results of the event on the queue to be retrieved at the next client poll
-				 * or user action. This allows progress bars to be shown to the user quickly while a
-				 * long operation progresses.
-				 */
-				int waitCount = 0;
-				while(!finished[0] && waitCount < 2)
-				{
-					try
-					{
-						Thread.sleep(250);
-					} catch(InterruptedException e)
-					{}
-					waitCount++;
-				}
-				boolean fin = finished[0];
-				ret = theSession.getEvents();
-				if(!fin)
-				{
-					JSONObject getEventsEvent = new JSONObject();
-					getEventsEvent.put("method", "getEvents");
-					ret.add(getEventsEvent);
-				}
-			}
+				ret = theSession.processAsync(event, null);
 			long exp = untilExpires();
 			if(exp <= WARN_EXPIRE_THRESHOLD)
 			{
@@ -1250,8 +922,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(e instanceof java.io.IOException)
 					throw (java.io.IOException) e;
 				log.error("Could not fulfill " + wms.getRequest() + " typed WMS request", e);
-				return error(req, ErrorCode.ApplicationError, e.getClass().getName() + ": "
-					+ e.getMessage());
+				return error(req, ErrorCode.ApplicationError,
+					e.getClass().getName() + ": " + e.getMessage());
 			}
 			return new PrismsResponse(null);
 		}
@@ -1295,8 +967,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(contentType == null)
 				contentType = "application/octet-stream";
 			response.setContentType(contentType);
-			response.setHeader("Content-Disposition", "attachment; filename=\""
-				+ plugin.getFileName(event) + "\"");
+			response.setHeader("Content-Disposition",
+				"attachment; filename=\"" + plugin.getFileName(event) + "\"");
 			try
 			{
 				plugin.doDownload(event, response.getOutputStream());
@@ -1365,8 +1037,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						try
 						{
-							plugin.doUpload(event, fileName, item.getContentType(), item
-								.getInputStream(), item.getSize());
+							plugin.doUpload(event, fileName, item.getContentType(),
+								item.getInputStream(), item.getSize());
 						} catch(java.io.IOException e)
 						{
 							log.error("Upload " + fileName + " failed", e);
@@ -1467,21 +1139,22 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			isSecure = false;
 		}
 
-		SecuritySession getSecurity(User user)
+		SecuritySession getSecurity(PrismsAuthenticator auth, User user)
 		{
 			theLastUsed = System.currentTimeMillis();
 			for(SecuritySession sec : theSecurities)
-				if(sec.getUser().equals(user))
+				if(sec.getAuth().equals(auth) && sec.getUser().equals(user))
 					return sec;
 			return null;
 		}
 
-		synchronized SecuritySession createSecurity(User user) throws PrismsException
+		synchronized SecuritySession createSecurity(PrismsAuthenticator auth, User user)
+			throws PrismsException
 		{
 			for(SecuritySession sec : theSecurities)
-				if(sec.getUser().equals(user))
+				if(sec.getAuth().equals(auth) && sec.getUser().equals(user))
 					return sec;
-			SecuritySession newSec = new SecuritySession(this, user);
+			SecuritySession newSec = new SecuritySession(this, auth, user);
 			theSecurities = ArrayUtils.add(theSecurities, newSec);
 			return newSec;
 		}
@@ -1569,39 +1242,29 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
-	private UserSource theUserSource;
+	private PrismsEnv theEnv;
+
+	private java.util.HashMap<String, AppConfigurator> theConfigs;
 
 	private boolean isConfigured;
 
+	private final java.util.LinkedHashMap<String, PrismsApplication> theApps;
+
+	private final java.util.ArrayList<PrismsAuthenticator> theAuthenticators;
+
 	private final java.util.concurrent.ConcurrentHashMap<String, HttpSession> theSessions;
 
-	private Class<? extends Encryption> theEncryptionClass;
-
-	java.util.HashMap<String, String> theEncryptionProperties;
-
 	private RemoteEventSerializer theSerializer;
-
-	private PersisterFactory thePersisterFactory;
 
 	private long theCleanTimer;
 
 	private long theCleanInterval;
 
-	int theLoginFailTolerance = 3;
-
-	long theUserCheckPeriod = 60000;
-
 	private long theSecurityTimeout;
 
 	private long theSecurityRefresh;
 
-	private boolean loginOnce;
-
-	private boolean isTrusted;
-
-	/**
-	 * Creates a PRISMS server with default logging configuration
-	 */
+	/** Creates a PRISMS server with default logging configuration */
 	public PrismsServer()
 	{
 		this(true);
@@ -1620,6 +1283,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		theCleanInterval = 60 * 1000;
 		if(initDefaultLogging)
 			initLog4j(getClass().getResource("log4j.xml"));
+		theApps = new java.util.LinkedHashMap<String, PrismsApplication>();
+		theAuthenticators = new java.util.ArrayList<PrismsAuthenticator>();
+		theConfigs = new java.util.HashMap<String, AppConfigurator>();
 	}
 
 	/**
@@ -1663,25 +1329,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			System.out.println("could not find log4j properties!");
 	}
 
-	/**
-	 * @return This server's persister factory
-	 */
-	public PersisterFactory getPersisterFactory()
+	/** @return This server's environment */
+	public PrismsEnv getEnv()
 	{
-		return thePersisterFactory;
+		return theEnv;
 	}
 
-	/**
-	 * @param factory The PersisterFactory to set for this server
-	 */
-	public void setPersisterFactory(PersisterFactory factory)
-	{
-		thePersisterFactory = factory;
-	}
-
-	/**
-	 * @return The event serializer that this server uses
-	 */
+	/** @return The event serializer that this server uses by default */
 	public RemoteEventSerializer getSerializer()
 	{
 		return theSerializer;
@@ -1705,29 +1359,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		return theSecurityRefresh;
 	}
 
-	/**
-	 * @return Whether this server allows clients to login to a security session once and then
-	 *         assumes that the security tag is kept safe. The alternative is requiring the user to
-	 *         log in for each application and whenever the browser is refreshed.
-	 */
-	public boolean isLoginOnce()
-	{
-		return loginOnce;
-	}
-
-	/**
-	 * @return Whether this server assumes that requests given it have already been authentication
-	 *         through another architecture
-	 */
-	public boolean isTrusted()
-	{
-		return isTrusted;
-	}
-
-	/**
-	 * @return The XML to use to configure this server
-	 */
-	protected org.dom4j.Element getConfigXML()
+	/** @return The XML to use to configure this server */
+	protected Element getConfigXML()
 	{
 		try
 		{
@@ -1741,17 +1374,38 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
+	 * @return The XML to use to configure this server's default applications. These are the
+	 *         applications that come packaged with PRISMS and must exist to support the
+	 *         architecture.
+	 */
+	protected Element getDefaultAppXML()
+	{
+		try
+		{
+			return new org.dom4j.io.SAXReader().read(
+				PrismsServer.class.getResource("DefaultApplications.xml")).getRootElement();
+		} catch(Exception e)
+		{
+			log.error("Could not read PRISMS default applications file!", e);
+			throw new IllegalStateException("Could not read PRISMS default applications file", e);
+		}
+	}
+
+	/**
 	 * Configures this server
 	 * 
 	 * @throws IllegalStateException If an error occurs
 	 */
-	protected void configurePRISMS()
+	protected synchronized void configurePRISMS()
 	{
+		if(isConfigured)
+			return;
 		log.info("Configuring PRISMS...");
-		org.dom4j.Element configEl = getConfigXML();
+		Element configEl = getConfigXML();
+		String configXmlRef = getClass().getResource("PRISMSConfig.xml").toString();
 
-		org.dom4j.Element securityEl = configEl.element("security");
-		org.dom4j.Element timeoutEl = securityEl == null ? null : securityEl.element("timeout");
+		Element securityEl = configEl.element("security");
+		Element timeoutEl = securityEl == null ? null : securityEl.element("timeout");
 		if(timeoutEl == null)
 			theSecurityTimeout = 5L * 60 * 6000;
 		else
@@ -1772,7 +1426,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			theSecurityTimeout = ((hours * 60L + minutes) * 60 + seconds) * 1000;
 		}
-		org.dom4j.Element refreshEl = securityEl == null ? null : securityEl.element("refresh");
+		Element refreshEl = securityEl == null ? null : securityEl.element("refresh");
 		if(refreshEl == null)
 			theSecurityRefresh = -1;
 		else
@@ -1793,41 +1447,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			theSecurityRefresh = ((hours * 60L + minutes) * 60 + seconds) * 1000;
 		}
-		if(securityEl != null)
-		{
-			loginOnce = "true".equalsIgnoreCase(securityEl.elementTextTrim("loginOnce"));
-			isTrusted = "true".equalsIgnoreCase(securityEl.elementTextTrim("validation-trusted"));
-		}
-		else
-		{
-			loginOnce = false;
-			isTrusted = false;
-		}
-
-		theEncryptionProperties = new java.util.HashMap<String, String>();
-		org.dom4j.Element encryptionEl = configEl.element("encryption");
-		if(encryptionEl != null)
-		{
-			String encryptionClass = encryptionEl.elementTextTrim("class");
-			try
-			{
-				theEncryptionClass = Class.forName(encryptionClass).asSubclass(Encryption.class);
-			} catch(Throwable e)
-			{
-				log.error("Could not instantiate encryption " + encryptionClass, e);
-				throw new IllegalStateException("Could not instantiate encryption "
-					+ encryptionClass, e);
-			}
-			for(org.dom4j.Element propEl : (java.util.List<org.dom4j.Element>) encryptionEl
-				.elements())
-			{
-				if(propEl.getName().equals("class"))
-					continue;
-				theEncryptionProperties.put(propEl.getName(), propEl.getTextTrim());
-			}
-		}
-		else
-			theEncryptionClass = BlowfishEncryption.class;
 
 		String serializerClass = configEl.elementTextTrim("serializer");
 		if(serializerClass != null)
@@ -1842,57 +1461,537 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					+ serializerClass, e);
 			}
 
-		org.dom4j.Element persisterFactoryEl = configEl.element("persisterFactory");
-		if(thePersisterFactory == null && persisterFactoryEl != null)
+		PersisterFactory factory = null;
+		Element persisterFactoryEl = configEl.element("persisterFactory");
+		if(theEnv == null && persisterFactoryEl != null)
 		{
 			String className = persisterFactoryEl.elementTextTrim("class");
 			try
 			{
-				thePersisterFactory = (PersisterFactory) Class.forName(className).newInstance();
+				factory = (PersisterFactory) Class.forName(className).newInstance();
 			} catch(Throwable e)
 			{
 				log.error("Could not instantiate persister factory " + className, e);
 				throw new IllegalStateException("Could not instantiate persister factory "
 					+ className, e);
 			}
-			thePersisterFactory.configure(persisterFactoryEl);
+			factory.configure(persisterFactoryEl);
 		}
-		if(thePersisterFactory == null)
+		if(factory == null)
 			throw new IllegalStateException("No PersisterFactory set--cannot configure PRISMS");
 
-		org.dom4j.Element dsEl = configEl.element("datasource");
+		Element dsEl = configEl.element("datasource");
 		if(dsEl == null)
 		{
 			log.error("No datasource element in server config");
 			throw new IllegalStateException("No datasource element in server config");
 		}
 
+		UserSource userSource;
 		String dsClass = dsEl.elementTextTrim("class");
 		try
 		{
-			theUserSource = (UserSource) Class.forName(dsClass).newInstance();
+			userSource = (UserSource) Class.forName(dsClass).newInstance();
 		} catch(Exception e)
 		{
 			log.error("Could not instantiate data source " + dsClass + e.getMessage());
 			throw new IllegalStateException("Could not instantiate data source " + dsClass, e);
 		}
 
+		theEnv = new PrismsEnv(userSource, factory);
+
+		// Add global listeners
+		Element globalListeners = configEl.element("global-listeners");
+		if(globalListeners != null)
+		{
+			for(Element listSetEl : (java.util.List<Element>) globalListeners
+				.elements("listener-set"))
+			{
+				String globalName = listSetEl.attributeValue("name");
+				if(globalName == null)
+				{
+					log.error("No name attribute for listener-set");
+					continue;
+				}
+				for(Element listEl : (java.util.List<Element>) listSetEl.elements("property"))
+				{
+					String mgrType = listEl.attributeValue("type");
+					prisms.arch.event.PropertyManager<?> mgr;
+					try
+					{
+						mgr = (prisms.arch.event.PropertyManager<?>) Class.forName(mgrType)
+							.newInstance();
+					} catch(Throwable e)
+					{
+						log.error("Could not instantiate manager type " + mgrType, e);
+						return;
+					}
+					theEnv.addGlobalManager(globalName, mgr, listEl);
+				}
+			}
+		}
+
+		// Now we load default applications, one of which must be the manager application
+		Element appXml = getDefaultAppXML();
+		loadApps(appXml, PrismsServer.class.getResource("PrismsServer.class").getQuery());
+
+		// Now we load the custom applications
+		appXml = configEl.element("applications");
+		if(appXml == null)
+			log.warn("No custom applications found in "
+				+ getClass().getResource("PRISMSConfig.xml"));
+		else
+			loadApps(appXml, configXmlRef);
+		theEnv.setConfigured();
+
+		PrismsApplication [] apps = theApps.values()
+			.toArray(new PrismsApplication [theApps.size()]);
+		// Now we can configure the user source
 		try
 		{
-			theUserSource.configure(dsEl, thePersisterFactory);
+			userSource.configure(dsEl, theEnv, apps);
 		} catch(Exception e)
 		{
 			log.error("Could not configure data source " + e.getMessage());
 			throw new IllegalStateException("Could not configure data source", e);
 		}
+		if(userSource.getIDs().isNewInstall())
+		{
+			String ref = configEl.elementTextTrim("default-users");
+			if(ref != null)
+			{
+				if(!(userSource instanceof prisms.arch.ds.ManageableUserSource))
+					log.error("Cannot load default users--user source is not manageable");
+				else
+				{
+					Element defaultUsers;
+					try
+					{
+						defaultUsers = PrismsUtils.getRootElement(ref, configXmlRef);
+						loadDefaultUsers(defaultUsers);
+					} catch(java.io.IOException e)
+					{
+						log.error("Could not load default users", e);
+					}
+				}
+			}
+			else
+				log.info("No default users to load");
+		}
+		for(PrismsApplication app : theApps.values())
+			if(theEnv.isManager(app))
+			{
+				app.addManager(new prisms.util.persisters.ReadOnlyManager<PrismsApplication []>(
+					app, prisms.arch.event.PrismsProperties.applications, apps));
+				theConfigs.get(app.getName()).configureApp();
+				log.info("Configured manager application \"" + app.getName() + "\"");
+				break;
+			}
+
+		// Load authenticators
+		for(Element authEl : (java.util.List<Element>) configEl.elements("authenticator"))
+		{
+			String authClass = authEl.elementTextTrim("class");
+			if(authClass == null)
+			{
+				log.error("No class given for authenticator");
+				continue;
+			}
+			PrismsAuthenticator auth;
+			try
+			{
+				auth = (PrismsAuthenticator) Class.forName(authClass).newInstance();
+			} catch(Throwable e)
+			{
+				log.error("Could not load authenticator class " + authClass, e);
+				continue;
+			}
+			auth.configure(authEl, userSource, apps);
+			theAuthenticators.add(auth);
+		}
+
+		// Now we configure the applications
+		isConfigured = true;
+		log.info("PRISMS Configured");
 	}
 
-	/**
-	 * @return This server's user source
-	 */
-	public UserSource getUserSource()
+	private void loadApps(Element appXml, String path)
 	{
-		return theUserSource;
+		for(Element appEl : (java.util.List<Element>) appXml.elements("application"))
+		{
+			if(!appEl.getName().equals("application"))
+				continue;
+			boolean manager = "true".equalsIgnoreCase(appEl.attributeValue("manager"));
+			String appConfigXML = appEl.attributeValue("configXML");
+			if(appConfigXML == null)
+			{
+				log.error("Missing configXML attribute in application");
+				continue;
+			}
+			try
+			{
+				appEl = PrismsUtils.getRootElement(appConfigXML, path, null);
+			} catch(IOException e)
+			{
+				log.error("Could not read application config XML " + appConfigXML, e);
+				continue;
+			}
+			if(appEl == null)
+				continue;
+			String appName = appEl.elementTextTrim("name");
+			if(appName == null)
+			{
+				log.error("No name element in application XML");
+				continue;
+			}
+			PrismsApplication app = theApps.get(appName);
+			if(app != null)
+			{
+				log.error("Application " + appName + " is already loaded--will not be reconfigured");
+				continue;
+			}
+			AppConfig config;
+			String configClass = appEl.elementTextTrim("config-class");
+			if(configClass != null)
+			{
+				try
+				{
+					config = (AppConfig) Class.forName(configClass).newInstance();
+				} catch(Throwable e)
+				{
+					log.error("Could not instantiate configuration class " + configClass
+						+ " to configure application " + appName, e);
+					continue;
+				}
+			}
+			else
+				config = new AppConfig();
+			String descrip = appEl.elementTextTrim("description");
+			int [] version = null;
+			String versionString = appEl.elementTextTrim("version");
+			if(versionString != null)
+			{
+				String [] split = versionString.split("\\.");
+				version = new int [split.length];
+				for(int v = 0; version != null && v < version.length; v++)
+				{
+					try
+					{
+						version[v] = Integer.parseInt(split[v]);
+					} catch(Exception e)
+					{
+						log.error("Invalid character in version: " + versionString, e);
+						version = null;
+					}
+				}
+			}
+			if(version == null)
+				version = new int [0];
+			long modDate = -1;
+			String dateString = appEl.elementTextTrim("modified");
+			if(dateString != null)
+			{
+				try
+				{
+					modDate = MOD_DATE_FORMAT.parse(dateString).getTime();
+				} catch(Exception e)
+				{
+					log.error("Invalid modified date in XML: " + dateString
+						+ "--must be in form ddMMMyyyy", e);
+				}
+			}
+			AppConfigurator ac = new AppConfigurator(config, appEl);
+			app = new PrismsApplication(theEnv, appName, descrip, version, modDate, ac);
+			theApps.put(app.getName(), app);
+			ac.setApp(app);
+			theConfigs.put(appName, ac);
+			if(manager)
+			{
+				if(theEnv.hasManager())
+					log.error("Only one manager application can be specified");
+				else
+					theEnv.setManagerApp(app);
+			}
+			for(Element permEl : (java.util.List<Element>) appEl.element("permissions").elements())
+			{
+				if(!permEl.getName().equals("permission"))
+					continue;
+				String permName = permEl.elementTextTrim("name");
+				descrip = permEl.elementTextTrim("description");
+				app.addPermission(new Permission(app, permName, descrip));
+			}
+			for(Element clientEl : (java.util.List<Element>) appEl.element("clients").elements())
+			{
+				if(!clientEl.getName().equals("client"))
+					continue;
+				String clientConfigXML = clientEl.attributeValue("configXML");
+				if(clientConfigXML == null)
+				{
+					log.error("Missing configXML attribute in client of application "
+						+ app.getName());
+					continue;
+				}
+				try
+				{
+					clientEl = PrismsUtils.getRootElement(clientConfigXML, appConfigXML, path);
+				} catch(IOException e)
+				{
+					log.error("Could not client config XML " + clientConfigXML + " of application "
+						+ app.getName(), e);
+					continue;
+				}
+				if(clientEl == null)
+					continue;
+				String clientName = clientEl.elementTextTrim("name");
+				if(clientName == null)
+				{
+					log.error("No name element in client config XML for application " + appName);
+					continue;
+				}
+				ClientConfig client = app.getClient(clientName);
+				if(client != null)
+				{
+					log.error("Client " + clientName + " of application " + appName
+						+ " is already loaded--will not be reconfigured");
+					continue;
+				}
+				descrip = clientEl.elementTextTrim("description");
+				boolean service = "true".equalsIgnoreCase(clientEl.elementTextTrim("service"));
+				boolean anonymous = "true".equalsIgnoreCase(clientEl
+					.elementTextTrim("allowAnonymous"));
+				client = new ClientConfig(app, clientName, descrip, service, anonymous,
+					ac.addClient(clientName, clientEl));
+				app.addClientConfig(client);
+				ac.setClient(client);
+
+				String serializerClass = clientEl.elementTextTrim("serializer");
+				if(serializerClass != null)
+					try
+					{
+						client.setSerializer((RemoteEventSerializer) Class.forName(serializerClass)
+							.newInstance());
+					} catch(Throwable e)
+					{
+						log.error(
+							"Could not create event serializer " + serializerClass + " for client "
+								+ client.getName() + " of application " + app.getName(), e);
+						continue;
+					}
+				else
+					client.setSerializer(new JsonSerializer());
+				String sessionTimeout = clientEl.elementTextTrim("session-timeout");
+				if(sessionTimeout == null)
+				{
+					log.error("Session timeout not specified for client " + client.getName()
+						+ " of application " + client.getApp().getName());
+					continue;
+				}
+				try
+				{
+					client.setSessionTimeout(Long.parseLong(sessionTimeout));
+				} catch(NumberFormatException e)
+				{
+					log.error("Session timeout \"" + sessionTimeout + "\" invalid for client "
+						+ client.getName() + " of application " + app.getName()
+						+ ": must be an integer");
+					continue;
+				}
+			}
+		}
+		if(!theEnv.hasManager())
+			throw new IllegalStateException("No manager application configured in"
+				+ " DefaultApplications.xml");
+	}
+
+	private void loadDefaultUsers(Element xml) throws PrismsException
+	{
+		prisms.arch.ds.ManageableUserSource us = (prisms.arch.ds.ManageableUserSource) theEnv
+			.getUserSource();
+		Element pcEl = xml.element("password-constraints");
+		if(pcEl != null)
+		{
+			prisms.arch.ds.PasswordConstraints pc = us.getPasswordConstraints();
+			if(pcEl.elementTextTrim("length") != null)
+				pc.setMinCharacterLength(Integer.parseInt(pcEl.elementTextTrim("length")));
+			if(pcEl.elementTextTrim("upper") != null)
+				pc.setMinUpperCase(Integer.parseInt(pcEl.elementTextTrim("upper")));
+			if(pcEl.elementTextTrim("lower") != null)
+				pc.setMinLowerCase(Integer.parseInt(pcEl.elementTextTrim("lower")));
+			if(pcEl.elementTextTrim("digit") != null)
+				pc.setMinDigits(Integer.parseInt(pcEl.elementTextTrim("digit")));
+			if(pcEl.elementTextTrim("special") != null)
+				pc.setMinSpecialChars(Integer.parseInt(pcEl.elementTextTrim("special")));
+			if(pcEl.elementTextTrim("duration") != null)
+				pc.setMaxPasswordDuration(Integer.parseInt(pcEl.elementTextTrim("duration")) * 24L
+					* 60 * 60 * 1000);
+			if(pcEl.elementTextTrim("pre-unique") != null)
+				pc.setNumPreviousUnique(Integer.parseInt(pcEl.elementTextTrim("pre-unique")));
+			if(pcEl.elementTextTrim("change-interval") != null)
+				pc.setMinPasswordChangeInterval(Integer.parseInt(pcEl
+					.elementTextTrim("change-interval")) * 60L * 1000);
+			us.setPasswordConstraints(pc);
+		}
+
+		Element groupsEl = xml.element("groups");
+		if(groupsEl != null)
+			for(Element groupEl : (java.util.List<Element>) groupsEl.elements("group"))
+			{
+				String groupName = groupEl.attributeValue("name");
+				if(groupName == null)
+				{
+					log.error("No name for group");
+					continue;
+				}
+				String appName = groupEl.attributeValue("app");
+				if(appName == null)
+				{
+					log.error("No application name for group " + groupName);
+					continue;
+				}
+				PrismsApplication app = theApps.get(appName);
+				if(app == null)
+				{
+					log.error("No such application " + appName + " for group " + groupName);
+					continue;
+				}
+				UserGroup group = null;
+				UserGroup [] groups = us.getGroups(app);
+				for(UserGroup g : groups)
+					if(g.getName().equals(groupName))
+					{
+						group = g;
+						break;
+					}
+				if(group == null)
+				{
+					group = us.createGroup(app, groupName);
+					log.debug("Created " + appName + " group " + groupName);
+				}
+				boolean changed = false;
+				String descrip = groupEl.elementTextTrim("description");
+				if(descrip != null && !descrip.equals(group.getDescription()))
+				{
+					group.setDescription(descrip);
+					changed = true;
+				}
+				for(Element permEl : (java.util.List<Element>) groupEl.elements("permissions"))
+				{
+					String permName = permEl.getTextTrim();
+					Permission perm = app.getPermission(permName);
+					if(perm == null)
+					{
+						log.error("No such " + appName + " permission " + permName);
+						continue;
+					}
+					if(!group.getPermissions().has(permName))
+					{
+						changed = true;
+						group.getPermissions().addPermission(perm);
+						log.debug("Adding permission " + permName + " to " + appName + " group "
+							+ groupName);
+					}
+				}
+				if(changed)
+					us.putGroup(group);
+			}
+
+		Element usersEl = xml.element("users");
+		if(usersEl != null)
+			for(Element userEl : (java.util.List<Element>) usersEl.elements("user"))
+			{
+				String userName = userEl.attributeValue("name");
+				User user = us.getUser(userName);
+				if(user == null)
+				{
+					user = us.createUser(userName);
+					log.debug("Created user " + userName);
+				}
+				String password = userEl.elementTextTrim("password");
+				if(password != null && us.getKey(user, us.getHashing()) == null)
+				{
+					us.setPassword(user, us.getHashing().partialHash(password), true);
+					log.debug("Set initial password of user " + userName);
+				}
+				for(Element appAssocEl : (java.util.List<Element>) userEl.elements("app-assoc"))
+				{
+					String appName = appAssocEl.getTextTrim();
+					PrismsApplication app = theApps.get(appName);
+					if(app == null)
+					{
+						log.error("No such app " + appName + " to associate user " + userName
+							+ " with");
+						continue;
+					}
+					if(!us.canAccess(user, app))
+					{
+						us.setUserAccess(user, app, true);
+						log.debug("Granted user " + userName + " access to application " + appName);
+					}
+				}
+				boolean changed = false;
+				for(Element groupEl : (java.util.List<Element>) userEl.elements("group"))
+				{
+					String groupName = groupEl.attributeValue("name");
+					if(groupName == null)
+					{
+						log.error("No name for group to associate with user " + userName);
+						continue;
+					}
+					String appName = groupEl.attributeValue("app");
+					PrismsApplication app = theApps.get(appName);
+					if(app == null)
+					{
+						log.error("No such app " + appName + " to associate user " + userName
+							+ " with group " + groupName);
+						continue;
+					}
+					UserGroup group = null;
+					for(UserGroup g : us.getGroups(app))
+						if(g.getName().equals(groupName))
+						{
+							group = g;
+							break;
+						}
+					if(group == null)
+					{
+						log.error("No such group " + groupName + " for application " + appName
+							+ " to associate user " + userName + " with");
+						continue;
+					}
+					if(!ArrayUtils.contains(user.getGroups(), group))
+					{
+						changed = true;
+						user.addTo(group);
+						log.error("Associated user " + userName + " with " + appName + " group "
+							+ groupName);
+					}
+				}
+				if(changed)
+					us.putUser(user);
+			}
+	}
+
+	PrismsSession createSession(ClientConfig client, User user) throws PrismsException
+	{
+		PrismsSession ret = new PrismsSession(client.getApp(), client, user);
+		AppConfig appConfig = theConfigs.get(client.getApp().getName()).theAppConfig;
+		try
+		{
+			client.getApp().configureSession(ret);
+			appConfig.configureSession(ret);
+		} catch(Throwable e)
+		{
+			throw new PrismsException(e.getMessage(), e);
+		}
+		try
+		{
+			client.configure(ret);
+		} catch(Throwable e)
+		{
+			throw new PrismsException("Could not configure session of client " + client.getName()
+				+ " of application " + client.getApp().getName() + " for user " + user, e);
+		}
+		return ret;
 	}
 
 	@Override
@@ -1900,6 +1999,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	{
 		JSONArray events = new JSONArray();
 		JSONObject temp;
+
 		PrismsRequest pReq = new PrismsRequest(req, resp, getSerializer());
 		if(pReq.isWMS)
 		{
@@ -1911,47 +2011,34 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				return;
 			}
 		}
-		if(req.getParameterValues("user") != null && req.getParameterValues("user").length > 1)
-		{
-			/* If multiple user names are sent in the request, it could be an attacker attempting
-			 * to take advantage of the trust relationship this PRISMS server has with the
-			 * application server. It must be caught and rejected. */
-			String [] userNames = req.getParameterValues("user");
-			for(String un : userNames)
-				if(!un.equals(pReq.userName))
-				{
-					events.add(error(ErrorCode.RequestInvalid,
-						"Multiple user names sent in request"));
-					pReq.send(events);
-					return;
-				}
-		}
-
 		// Configure the server if it has not been yet
 		if(!isConfigured)
 		{
-			synchronized(this)
+			try
 			{
-				if(!isConfigured)
-				{
-					log.info("Not yet configured! Configuring...");
-					try
-					{
-						configurePRISMS();
-						isConfigured = true;
-					} catch(Throwable e)
-					{
-						log.error("PRISMS configuration failed", e);
-						events.add(error(ErrorCode.ServerError, "PRISMS configuration failed: "
-							+ e.getMessage()));
-						pReq.send(events);
-						return;
-					}
-					log.info("... Done Configuring.");
-				}
+				configurePRISMS();
+			} catch(Throwable e)
+			{
+				log.error("PRISMS configuration failed", e);
+				events.add(error(ErrorCode.ServerError,
+					"PRISMS configuration failed: " + e.getMessage()));
+				pReq.send(events);
+				return;
 			}
 		}
 
+		for(PrismsAuthenticator auth : theAuthenticators)
+			if(auth.recognized(req))
+			{
+				pReq.auth = auth;
+				break;
+			}
+		if(pReq.auth == null)
+		{
+			events.add(error(ErrorCode.RequestInvalid, "No authentication for request"));
+			pReq.send(events);
+			return;
+		}
 		// Fill in the request with user, app, client, etc.
 		temp = fillRequest(pReq);
 		if(temp != null)
@@ -2046,19 +2133,19 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			httpSession.unsecure();
 
 		// Now we check the user's credentials
-		SecuritySession security = httpSession.getSecurity(pReq.user);
+		SecuritySession security = httpSession.getSecurity(pReq.auth, pReq.user);
 		if(security == null)
 		{
 			/* If the security has not been created for the user yet or if the security session has
 			 * expired, create a new one and let the security tell them what to do. */
 			try
 			{
-				security = httpSession.createSecurity(pReq.user);
+				security = httpSession.createSecurity(pReq.auth, pReq.user);
 			} catch(PrismsException e)
 			{
 				log.error("Could not retrieve validation info", e);
-				events.add(error(ErrorCode.ServerError, "Could not retrieve validation info: "
-					+ e.getMessage()));
+				events.add(error(ErrorCode.ServerError,
+					"Could not retrieve validation info: " + e.getMessage()));
 				pReq.send(events);
 				return;
 			}
@@ -2142,66 +2229,50 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return error(ErrorCode.RequestInvalid, "No application specified!");
 		if(req.clientName == null)
 			return error(ErrorCode.RequestInvalid, "No client configuration specified!");
-		try
-		{
-			req.user = theUserSource.getUser(req.userName);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get user " + req.userName, e);
-			return error(ErrorCode.ServerError, "Could not get user \"" + req.userName + "\": "
-				+ e.getMessage());
-		}
-		if(req.user == null && req.isTrusted)
-		{
-			if(theUserSource instanceof prisms.arch.ds.ManageableUserSource)
-			{
-				try
-				{
-					req.user = ((prisms.arch.ds.ManageableUserSource) theUserSource)
-						.createUser(req.userName);
-				} catch(PrismsException e)
-				{
-					log.error("Could not create new user " + req.userName, e);
-					return toEvent("login", "error", "Cannot create user " + req.userName);
-				}
-				if(req.user == null)
-					return toEvent("login", "error", "Cannot create user " + req.userName);
-			}
-			else
-				return toEvent("login", "error", "Cannot create users");
-		}
-		if(req.user == null)
-		{
-			if(req.userName == null)
-				return toEvent("login", "error", "No anonymous user configured");
-			else
-				return toEvent("login", "error", "No such user \"" + req.userName + "\"");
-		}
-		try
-		{
-			req.app = theUserSource.getApp(req.appName);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get application " + req.appName, e);
-			return error(ErrorCode.ServerError, "Could not get application \"" + req.appName
-				+ "\": " + e.getMessage());
-		}
+		req.app = theApps.get(req.appName);
 		if(req.app == null)
 			return error(ErrorCode.RequestInvalid, "No such application \"" + req.appName + "\"");
-		if(req.app.getServer() != this)
-			req.app.setServer(this);
-		try
+		if(!req.app.isConfigured())
 		{
-			req.client = theUserSource.getClient(req.app, req.clientName);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get client " + req.clientName, e);
-			return error(ErrorCode.ServerError, "Could not get application \"" + req.clientName
-				+ "\": " + e.getMessage());
+			try
+			{
+				theConfigs.get(req.app.getName()).configureApp();
+			} catch(Throwable e)
+			{
+				log.error("Could not configure applcation " + req.appName, e);
+				return error(ErrorCode.ServerError, "Application \"" + req.appName
+					+ "\" could not be configured: " + e.getMessage());
+			}
 		}
+		req.client = req.app.getClient(req.clientName);
 		if(req.client == null)
 			return error(ErrorCode.RequestInvalid, "No such client \"" + req.clientName
 				+ "\" for application \"" + req.appName + "\"");
+		if(!req.client.isConfigured())
+		{
+			try
+			{
+				theConfigs.get(req.app.getName()).configureClient(req.client);
+			} catch(Throwable e)
+			{
+				log.error("Could not configure client " + req.clientName + " of application "
+					+ req.appName, e);
+				return error(ErrorCode.ServerError,
+					"Client \"" + req.clientName + "\" of application \"" + req.appName
+						+ "\" could not be configured: " + e.getMessage());
+			}
+		}
+		try
+		{
+			// TODO Direct PRISMS call. Redirect to cache.
+			req.user = req.auth.getUser(req.theRequest);
+		} catch(PrismsException e)
+		{
+			log.error("Could not get user for request", e);
+			return error(ErrorCode.ServerError, "Could not get user: " + e.getMessage());
+		}
+		if(req.user == null)
+			return error(ErrorCode.ServerError, "Could not get user");
 		return null;
 	}
 
@@ -2239,9 +2310,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		theSessions.remove(id);
 	}
 
-	/**
-	 * Disposes of application sessions that are expired
-	 */
+	/** Disposes of application sessions that are expired */
 	public void clean()
 	{
 		long time = System.currentTimeMillis();
@@ -2259,18 +2328,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		System.gc();
 	}
 
-	Encryption createEncryption()
-	{
-		try
-		{
-			return theEncryptionClass.newInstance();
-		} catch(Exception e)
-		{
-			throw new IllegalStateException("Could not instantiate encryption "
-				+ theEncryptionClass, e);
-		}
-	}
-
 	@Override
 	public void destroy()
 	{
@@ -2279,8 +2336,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		theSessions.clear();
 		for(HttpSession session : sessions)
 			session.destroy();
-		theUserSource.disconnect();
-		thePersisterFactory.destroy();
+		for(PrismsApplication app : theApps.values())
+			app.destroy();
+		getEnv().getUserSource().disconnect();
+		getEnv().getPersisterFactory().destroy();
 		System.gc();
 	}
 }

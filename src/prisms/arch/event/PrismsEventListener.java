@@ -5,15 +5,14 @@ package prisms.arch.event;
 
 import prisms.arch.PrismsSession;
 
-/**
- * Listens for a {@link PrismsEvent} to occur in a {@link PrismsSession}
- */
+/** Listens for a {@link PrismsEvent} to occur in a {@link PrismsSession} */
 public interface PrismsEventListener
 {
 	/**
 	 * Called by the session when the listened-for event occurs
 	 * 
+	 * @param session The session that the event is being fired in currently
 	 * @param evt The event that was fired in the session
 	 */
-	void eventOccurred(PrismsEvent evt);
+	void eventOccurred(PrismsSession session, PrismsEvent evt);
 }

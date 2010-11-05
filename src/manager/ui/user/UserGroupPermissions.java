@@ -7,8 +7,8 @@ import manager.app.ManagerProperties;
 
 import org.dom4j.Element;
 
+import prisms.arch.Permission;
 import prisms.arch.PrismsSession;
-import prisms.arch.ds.Permission;
 import prisms.arch.ds.UserGroup;
 import prisms.ui.list.SelectableList;
 
@@ -20,7 +20,8 @@ public class UserGroupPermissions extends SelectableList<Permission>
 	UserGroup theGroup;
 
 	/**
-	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
+	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession,
+	 *      org.dom4j.Element)
 	 */
 	@Override
 	public void initPlugin(PrismsSession session, Element pluginEl)
@@ -38,24 +39,25 @@ public class UserGroupPermissions extends SelectableList<Permission>
 					setGroup(evt.getNewValue());
 				}
 			});
-		session.addEventListener("userChanged", new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				if(getSession().getUser().getName().equals(
-					((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+				if(getSession().getUser().getName()
+					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 					initClient();// Refresh this tree to take new permissions changes into account
 			}
 		});
-		session.addEventListener("groupPermissionsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+		session.addEventListener("groupPermissionsChanged",
+			new prisms.arch.event.PrismsEventListener()
 			{
-				if(evt.getProperty("group") != theGroup)
-					return;
-				setGroup(theGroup);
-			}
-		});
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+				{
+					if(evt.getProperty("group") != theGroup)
+						return;
+					setGroup(theGroup);
+				}
+			});
 	}
 
 	void setGroup(UserGroup group)

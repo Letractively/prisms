@@ -18,6 +18,10 @@ public class SyncServiceClient
 
 	private String thePlugin;
 
+	private String theTrustStoreFile;
+
+	private String theTrustStorePassword;
+
 	/**
 	 * Creates a service client
 	 * 
@@ -40,6 +44,18 @@ public class SyncServiceClient
 	}
 
 	/**
+	 * Sets the trust store information for an HTTPS connection
+	 * 
+	 * @param trustStore The file location of the trust store to use for client certificates
+	 * @param trustPassword The password to access the trust store
+	 */
+	public void setSecurityInfo(String trustStore, String trustPassword)
+	{
+		theTrustStoreFile = trustStore;
+		theTrustStorePassword = trustPassword;
+	}
+
+	/**
 	 * Connects to the synchronization service
 	 * 
 	 * @param center The PRISMS center to connect to
@@ -56,6 +72,7 @@ public class SyncServiceClient
 		prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(
 			center.getServerURL(), theAppName, theClientName, center.getServerUserName());
 		conn.setPassword(center.getServerPassword());
+		conn.setSecureInfo(theTrustStoreFile, theTrustStorePassword);
 		try
 		{
 			conn.init();

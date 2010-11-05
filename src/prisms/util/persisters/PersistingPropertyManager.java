@@ -5,63 +5,61 @@ package prisms.util.persisters;
 
 import prisms.arch.Persister;
 import prisms.arch.PrismsSession;
+import prisms.arch.event.PrismsEvent;
 
 /**
  * A property manager that persists its data using a {@link Persister}
  * 
  * @param <T> The type of the manager
  */
-public abstract class PersistingPropertyManager<T> extends prisms.arch.event.PropertyManager<T>
+public abstract class PersistingPropertyManager<T> extends
+	prisms.arch.event.GlobalPropertyManager<T>
 {
 	private Persister<T> thePersister;
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#configure(prisms.arch.PrismsApplication,
-	 *      org.dom4j.Element)
-	 */
+	private boolean hasLoaded;
+
 	@Override
 	public void configure(prisms.arch.PrismsApplication app, org.dom4j.Element configEl)
 	{
 		super.configure(app, configEl);
-		Persister<T> persister;
-		org.dom4j.Element persisterEl = configEl.element("persister");
-		if(persisterEl != null)
-			persister = app.getServer().getPersisterFactory()
-				.create(persisterEl, app, getProperty());
-		else
-			persister = null;
-		setPersister(persister);
-		java.util.List<org.dom4j.Element> eventEls = configEl.elements("changeEvent");
-		for(org.dom4j.Element eventEl : eventEls)
+		if(thePersister == null)
 		{
-			String eventName = eventEl.elementTextTrim("name");
-			if(eventName == null)
-				throw new IllegalArgumentException("Cannot listen for change event on property "
-					+ getProperty() + ". No event name specified");
-			String propName = eventEl.elementTextTrim("eventProperty");
-			if(propName == null)
-				throw new IllegalArgumentException("Cannot listen for change event on property "
-					+ getProperty() + ". No eventProperty specified");
-			// Put the property name and type in here so the event listener can find this property
-			// manager
-			eventEl.addElement("persistProperty").setText(getProperty().getName());
-			eventEl.addElement("type").setText(getProperty().getType().getName());
-			app.addEventListenerType(eventName, PersistingChangeListener.class, eventEl);
+			Persister<T> persister;
+			org.dom4j.Element persisterEl = configEl.element("persister");
+			if(persisterEl != null)
+				persister = app.getEnvironment().getPersisterFactory()
+					.create(persisterEl, app, getProperty());
+			else
+				persister = null;
+			setPersister(persister);
 		}
 	}
 
 	@Override
-	public void propertiesSet()
+	protected void eventOccurred(PrismsSession session, PrismsEvent evt, Object eventValue)
 	{
-		super.propertiesSet();
-		if(thePersister != null)
-			setValue(thePersister.link(getApplicationValue()));
+		changeValue(session, session.getProperty(getProperty()), eventValue, evt);
+	}
+
+	@Override
+	public void propertiesSet(prisms.arch.PrismsApplication app)
+	{
+		super.propertiesSet(app);
+		if(thePersister != null && !hasLoaded)
+		{
+			hasLoaded = true;
+			setValue(thePersister.link(getGlobalValue()));
+		}
 	}
 
 	@Override
 	public void changeValues(prisms.arch.PrismsSession session, prisms.arch.event.PrismsPCE<T> evt)
 	{
 		super.changeValues(session, evt);
+		if(Boolean.TRUE.equals(evt.get("prismsPersisted")))
+			return;
+		evt.set("prismsPersisted", Boolean.TRUE);
 		saveData(session, evt);
 	}
 
@@ -77,18 +75,7 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 		prisms.arch.event.PrismsEvent evt)
 	{
 		if(thePersister != null)
-		{
-			if(thePersister instanceof RequiresSession)
-			{
-				synchronized(thePersister)
-				{
-					((RequiresSession) thePersister).setSession(session);
-					thePersister.valueChanged(fullValue, o, evt);
-				}
-			}
-			else
-				thePersister.valueChanged(fullValue, o, evt);
-		}
+			thePersister.valueChanged(session, fullValue, o, evt);
 	}
 
 	/**
@@ -113,6 +100,9 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 		setValue(thePersister.getValue());
 	}
 
+	/** @return All values that should be persisted for this property */
+	public abstract T getGlobalValue();
+
 	/**
 	 * Called to set the initial value of this manager. NOT called when the property changes.
 	 * 
@@ -131,16 +121,6 @@ public abstract class PersistingPropertyManager<T> extends prisms.arch.event.Pro
 	{
 		if(thePersister == null)
 			return;
-		if(thePersister instanceof RequiresSession)
-		{
-			if(session != null)
-				synchronized(thePersister)
-				{
-					((RequiresSession) thePersister).setSession(session);
-					thePersister.setValue(getApplicationValue(), evt);
-				}
-		}
-		else
-			thePersister.setValue(getApplicationValue(), evt);
+		thePersister.setValue(session, getGlobalValue(), evt);
 	}
 }

@@ -12,16 +12,12 @@ import prisms.arch.event.PrismsEventListener;
 import prisms.arch.event.PropertyManager;
 import prisms.arch.event.SessionMonitor;
 
-/**
- * Configures a {@link PrismsApplication}
- */
+/** Configures a {@link PrismsApplication} and its clients and sessions */
 public class AppConfig
 {
 	private static Logger log = Logger.getLogger(AppConfig.class);
 
-	/**
-	 * Creates the configurator
-	 */
+	/** Creates the configurator */
 	public AppConfig()
 	{
 	}
@@ -38,38 +34,6 @@ public class AppConfig
 		{
 			if(app.isConfigured())
 				return;
-			String versionString = config.elementTextTrim("version");
-			if(versionString != null)
-			{
-				String [] split = versionString.split("\\.");
-				int [] version = new int [split.length];
-				for(int v = 0; version != null && v < version.length; v++)
-				{
-					try
-					{
-						version[v] = Integer.parseInt(split[v]);
-					} catch(Exception e)
-					{
-						log.error("Invalid character in version: " + versionString, e);
-						version = null;
-					}
-				}
-				if(version != null)
-					app.setVersion(version);
-			}
-			String dateString = config.elementTextTrim("modified");
-			if(dateString != null)
-			{
-				try
-				{
-					app.setModifiedDate(new java.text.SimpleDateFormat("ddMMMyyyy").parse(
-						dateString).getTime());
-				} catch(Exception e)
-				{
-					log.error("Invalid modified date in XML: " + dateString
-						+ "--must be in form ddMMMyyyy", e);
-				}
-			}
 			Element workerEl = config.element("worker");
 			configureWorker(app, workerEl);
 			Element propertiesEl = config.element("properties");
@@ -92,7 +56,7 @@ public class AppConfig
 			{
 				try
 				{
-					pm.propertiesSet();
+					pm.propertiesSet(app);
 				} catch(Throwable e)
 				{
 					log.error("Properties set failed: ", e);
@@ -130,7 +94,6 @@ public class AppConfig
 					}
 				}
 			}
-			app.setConfigured();
 		}
 	}
 
@@ -188,7 +151,6 @@ public class AppConfig
 				}
 			}
 		}
-		client.setConfigured();
 	}
 
 	/**
@@ -198,9 +160,8 @@ public class AppConfig
 	 * {@link ClientConfig#configure(PrismsSession)} methods.
 	 * 
 	 * @param session The new session to configure
-	 * @param config The client configuration element
 	 */
-	public void configureSession(PrismsSession session, Element config)
+	public void configureSession(PrismsSession session)
 	{
 	}
 
@@ -229,26 +190,52 @@ public class AppConfig
 	public void addPropertyManager(PrismsApplication app, Element propEl)
 		throws IllegalArgumentException
 	{
-		String mgrType = propEl.attributeValue("type");
 		log.debug("Adding property manager:\n" + propEl.asXML());
-		PropertyManager<?> mgr;
-		try
+		String globalName = propEl.attributeValue("globalRef");
+		if(globalName != null)
 		{
-			mgr = (PropertyManager<?>) Class.forName(mgrType).newInstance();
-		} catch(Throwable e)
-		{
-			log.error("Could not instantiate manager type " + mgrType, e);
-			return;
+			PropertyManager<?> [] mgrs = app.getEnvironment().getManagers(globalName);
+			Element [] configs = app.getEnvironment().getManagerConfigs(globalName);
+			if(mgrs == null)
+			{
+				log.error("No global property managers named " + globalName);
+				return;
+			}
+			for(int m = 0; m < mgrs.length; m++)
+			{
+				try
+				{
+					mgrs[m].configure(app, configs[m]);
+				} catch(Exception e)
+				{
+					log.error("Could not configure manager: " + configs[m].asXML(), e);
+					continue;
+				}
+				app.addManager(mgrs[m]);
+			}
 		}
-		try
+		else
 		{
-			mgr.configure(app, propEl);
-		} catch(Exception e)
-		{
-			log.error("Could not configure manager type " + mgrType + ": " + propEl.asXML(), e);
-			return;
+			PropertyManager<?> mgr;
+			String mgrType = propEl.attributeValue("type");
+			try
+			{
+				mgr = (PropertyManager<?>) Class.forName(mgrType).newInstance();
+			} catch(Throwable e)
+			{
+				log.error("Could not instantiate manager type " + mgrType, e);
+				return;
+			}
+			try
+			{
+				mgr.configure(app, propEl);
+			} catch(Exception e)
+			{
+				log.error("Could not configure manager: " + propEl.asXML(), e);
+				return;
+			}
+			app.addManager(mgr);
 		}
-		app.addManager(mgr);
 	}
 
 	/**
@@ -306,9 +293,7 @@ public class AppConfig
 			monitorClass = (Class<? extends SessionMonitor>) Class.forName(monitorClassStr);
 		} catch(Throwable e)
 		{
-			log
-				.error("Could not get monitor type " + monitorClassStr + ": " + monitorEl.asXML(),
-					e);
+			log.error("Could not get monitor type " + monitorClassStr + ": " + monitorEl.asXML(), e);
 			return;
 		}
 		if(!SessionMonitor.class.isAssignableFrom(monitorClass))

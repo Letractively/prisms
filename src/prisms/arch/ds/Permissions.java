@@ -3,6 +3,8 @@
  */
 package prisms.arch.ds;
 
+import prisms.arch.Permission;
+
 /**
  * A simple permissions interface that allows an application to determine a user's allowed
  * capabilities based on a common set of names assigned to an indefinite number of abilities.

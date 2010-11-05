@@ -1,38 +1,27 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <application>
-	<version>1.3.0</version>
-	<modified>13May2010</modified>
+	<name>MANAGER</name>
+	<description>Allows management of PRISMS users, applications, permissions, etc.</description>
+	<config-class>prisms.arch.AppConfig</config-class>
+	<version>1.4.0</version>
+	<modified>28Oct2010</modified>
 	<worker>
 		<type>threadpool</type>
 	</worker>
 	<properties>
-		<property type="prisms.util.persisters.CommonValueManager">
-			<field>manager.app.ManagerProperties.applications</field>
-			<persister>
-				<class>manager.persisters.AppPersister</class>
-			</persister>
-			<changeEvent>
-				<name>appChanged</name>
-				<eventProperty>app</eventProperty>
-			</changeEvent>
-		</property>
 		<property type="prisms.util.persisters.CommonValueManager">
 			<field>manager.app.ManagerProperties.users</field>
 			<persister>
 				<class>manager.persisters.UserPersister</class>
 			</persister>
 			<changeEvent>
-				<name>userChanged</name>
+				<name>prismsUserChanged</name>
 				<eventProperty>user</eventProperty>
 			</changeEvent>
 		</property>
 	</properties>
 	<events>
-		<event>
-			<name>userChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
 		<event>
 			<name>userPermissionsChanged</name>
 			<class>prisms.util.EventGlobalizer</class>
@@ -42,19 +31,7 @@
 			<class>prisms.util.EventGlobalizer</class>
 		</event>
 		<event>
-			<name>appChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
-		<event>
-			<name>permissionChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
-		<event>
 			<name>appGroupsChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
-		<event>
-			<name>appPermissionsChanged</name>
 			<class>prisms.util.EventGlobalizer</class>
 		</event>
 		<event>
@@ -65,18 +42,24 @@
 			<name>userGroupsChanged</name>
 			<class>prisms.util.EventGlobalizer</class>
 		</event>
-		<event>
-			<name>clientChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
-		<event>
-			<name>appClientsChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
 	</events>
 	<monitors>
-		<monitor>
-			<class>manager.app.ManagerMonitor</class>
-		</monitor>
 	</monitors>
+	<clients>
+		<client configXML="ManagerClientConfig.xml"/>
+	</clients>
+	<permissions>
+		<permission>
+			<name>createUser</name>
+			<description>Allows users to create new users</description>
+		</permission>
+		<permission>
+			<name>userAdmin</name>
+			<description>Allows users to administrate other users</description>
+		</permission>
+		<permission>
+			<name>createGroup</name>
+			<description>Allows users to create new groups</description>
+		</permission>
+	</permissions>
 </application>

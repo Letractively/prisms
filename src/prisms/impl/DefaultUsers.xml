@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<prisms>
+	<groups>
+		<group app="MANAGER" name="userAdmin">
+			<permission>createUser</permission>
+			<permission>createGroup</permission>
+			<permission>userAdmin</permission>
+		</group>
+	</groups>
+	<users>
+		<user name="admin">
+			<app-assoc>MANAGER</app-assoc>
+			<app-assoc>Log4j</app-assoc>
+			<group app="MANAGER" name="userAdmin" />
+			<password>admin</password>
+		</user>
+	</users>
+</prisms>

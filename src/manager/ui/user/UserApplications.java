@@ -22,9 +22,10 @@ public class UserApplications extends SelectableList<PrismsApplication>
 		super.initPlugin(session, pluginEl);
 		setSelectionMode(SelectionMode.SINGLE);
 		setDisplaySelectedOnly(false);
-		PrismsApplication [] apps = session.getProperty(ManagerProperties.applications);
+		PrismsApplication [] apps = session
+			.getProperty(prisms.arch.event.PrismsProperties.applications);
 		setListData(apps);
-		session.addPropertyChangeListener(ManagerProperties.applications,
+		session.addPropertyChangeListener(prisms.arch.event.PrismsProperties.applications,
 			new prisms.arch.event.PrismsPCL<PrismsApplication []>()
 			{
 				public void propertyChange(prisms.arch.event.PrismsPCE<PrismsApplication []> evt)
@@ -44,7 +45,7 @@ public class UserApplications extends SelectableList<PrismsApplication>
 			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				for(int i = 0; i < getItemCount(); i++)
 					if(getItem(i) instanceof SelectableList<?>.ItemNode
@@ -52,12 +53,12 @@ public class UserApplications extends SelectableList<PrismsApplication>
 						((ItemNode) getItem(i)).check();
 			}
 		});
-		session.addEventListener("userChanged", new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				if(getSession().getUser().getName().equals(
-					((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+				if(getSession().getUser().getName()
+					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 					initClient();// Refresh this tree to take new permissions changes into account
 			}
 		});

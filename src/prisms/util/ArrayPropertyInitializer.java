@@ -30,7 +30,7 @@ public class ArrayPropertyInitializer<T> extends prisms.arch.event.PropertyManag
 	}
 
 	@Override
-	public T getApplicationValue()
+	public T getApplicationValue(PrismsApplication app)
 	{
 		return null;
 	}
@@ -56,8 +56,8 @@ public class ArrayPropertyInitializer<T> extends prisms.arch.event.PropertyManag
 	 */
 	public void register(prisms.arch.PrismsSession session, org.dom4j.Element configEl)
 	{
-		prisms.arch.event.PrismsProperty<T> prop = prisms.arch.event.PrismsProperty.get(configEl
-			.elementText("property"), (Class<T>) Object [].class);
+		prisms.arch.event.PrismsProperty<T> prop = prisms.arch.event.PrismsProperty.get(
+			configEl.elementText("property"), (Class<T>) Object [].class);
 		if(session.getProperty(prop) == null)
 			session.setProperty(prop, zeroLengthArray(prop));
 	}

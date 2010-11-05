@@ -6,9 +6,8 @@ package prisms.util.persisters;
 import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
-import prisms.arch.PrismsSession;
 import prisms.arch.Persister;
-import prisms.arch.event.PropertyManager;
+import prisms.arch.PrismsSession;
 
 /**
  * A PropertyManager that throws an exception if a session attempts to change the value of the
@@ -16,7 +15,7 @@ import prisms.arch.event.PropertyManager;
  * 
  * @param <T> The type of property to manage
  */
-public class ReadOnlyManager<T> extends PropertyManager<T>
+public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<T>
 {
 	private static final Logger log = Logger.getLogger(ReadOnlyManager.class);
 
@@ -53,8 +52,8 @@ public class ReadOnlyManager<T> extends PropertyManager<T>
 		if(persisterEl == null)
 			persister = null;
 		else
-			persister = app.getServer().getPersisterFactory().create(configEl.element("persister"),
-				app, getProperty());
+			persister = app.getEnvironment().getPersisterFactory()
+				.create(configEl.element("persister"), app, getProperty());
 
 		if(persister != null)
 		{
@@ -85,17 +84,17 @@ public class ReadOnlyManager<T> extends PropertyManager<T>
 	public synchronized void propertyChange(prisms.arch.event.PrismsPCE<T> evt)
 	{
 		boolean isCorrect;
-		if(evt.getSource() instanceof PrismsSession)
-			isCorrect = isValueCorrect((PrismsSession) evt.getSource(), evt.getNewValue());
+		if(evt.getSession() != null)
+			isCorrect = isValueCorrect(evt.getSession(), evt.getNewValue());
 		else
-			isCorrect = prisms.util.ArrayUtils.equals(evt.getNewValue(), getApp()
+			isCorrect = prisms.util.ArrayUtils.equals(evt.getNewValue(), evt.getApp()
 				.getGlobalProperty(getProperty()));
 		if(!isCorrect)
 			throw new IllegalArgumentException("Cannot change the value of the read-only property "
 				+ getProperty());
 	}
 
-	public T getApplicationValue()
+	public T getApplicationValue(prisms.arch.PrismsApplication app)
 	{
 		return theValue;
 	}
@@ -117,5 +116,11 @@ public class ReadOnlyManager<T> extends PropertyManager<T>
 	public boolean isValueCorrect(PrismsSession session, Object val)
 	{
 		return val == theValue;
+	}
+
+	@Override
+	protected void eventOccurred(PrismsSession session, prisms.arch.event.PrismsEvent evt,
+		Object eventValue)
+	{
 	}
 }

@@ -13,11 +13,9 @@ import prisms.arch.PrismsSession;
  */
 public abstract class PropertyManager<T> implements PrismsPCL<T>
 {
-	private PrismsApplication theApp;
-
 	private PrismsProperty<T> theProperty;
 
-	volatile boolean theDataLock;
+	private java.util.ArrayList<PrismsApplication> theApps;
 
 	/**
 	 * Creates a PropertyManager that must be configured to get its application and target property
@@ -25,6 +23,7 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 */
 	public PropertyManager()
 	{
+		theApps = new java.util.ArrayList<PrismsApplication>();
 	}
 
 	/**
@@ -35,8 +34,9 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 */
 	public PropertyManager(PrismsApplication app, PrismsProperty<T> prop)
 	{
-		theApp = app;
+		this();
 		theProperty = prop;
+		theApps.add(app);
 	}
 
 	/**
@@ -47,7 +47,10 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 */
 	public void configure(PrismsApplication app, org.dom4j.Element configEl)
 	{
-		theApp = app;
+		synchronized(theApps)
+		{
+			theApps.add(app);
+		}
 		String propField = configEl.elementTextTrim("field");
 		if(propField != null)
 		{
@@ -78,33 +81,15 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 		}
 	}
 
-	/**
-	 * @return The application that this PropertyManager manages a property in
-	 */
-	public PrismsApplication getApp()
-	{
-		return theApp;
-	}
-
-	/**
-	 * @return The name of the property that this manager manages
-	 */
+	/** @return The property that this manager manages */
 	public PrismsProperty<T> getProperty()
 	{
 		return theProperty;
 	}
 
-	/**
-	 * @see java.beans.PropertyChangeListener#propertyChange(java.beans.PropertyChangeEvent)
-	 */
 	public void propertyChange(PrismsPCE<T> evt)
 	{
-		if(theDataLock)
-			return;
-		if(evt.getSource() instanceof PrismsSession)
-			changeValues((PrismsSession) evt.getSource(), evt);
-		else
-			changeValues(null, evt);
+		changeValues(evt.getSession(), evt);
 	}
 
 	/**
@@ -116,26 +101,59 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 */
 	public void changeValues(PrismsSession session, PrismsPCE<T> evt)
 	{
-		theApp.runSessionTask(session, new PrismsApplication.SessionTask()
+		if(session == null)
+			return;
+		if(!isValueCorrect(session, session.getProperty(getProperty())))
 		{
-			public void run(PrismsSession s)
+			session.setProperty(getProperty(), getCorrectValue(session));
+		}
+	}
+
+	/**
+	 * Adjusts the values of this property in every session of every application which this manager
+	 * manages, excluding the given session (if not null).
+	 * 
+	 * @param app The application of the session to not fire the event in
+	 * @param session The session to not fire the event in
+	 * @param eventProps The properties of the event to fire
+	 */
+	protected void globalAdjustValues(PrismsApplication app, PrismsSession session,
+		Object... eventProps)
+	{
+		app.runSessionTask(session, new PrismsApplication.SessionTask()
+		{
+			public void run(PrismsSession session2)
 			{
-				if(!isValueCorrect(s, s.getProperty(getProperty())))
-				{
-					theDataLock = true;
-					try
-					{
-						s.setProperty(getProperty(), getCorrectValue(s));
-					} finally
-					{
-						theDataLock = false;
-					}
-				}
+				if(!isValueCorrect(session2, session2.getProperty(getProperty())))
+					session2.setProperty(getProperty(), getCorrectValue(session2));
 			}
-		}, false);
-		T appData = getApplicationValue();
-		if(appData != null)
-			theApp.fireGlobalPropertyChange(getProperty(), this, appData);
+		}, true);
+		for(PrismsApplication app2 : theApps)
+		{
+			if(app2 != app)
+				app2.runSessionTask(null, new PrismsApplication.SessionTask()
+				{
+					public void run(PrismsSession session2)
+					{
+						if(!isValueCorrect(session2, session2.getProperty(getProperty())))
+							session2.setProperty(getProperty(), getCorrectValue(session2));
+					}
+				}, false);
+		}
+	}
+
+	/**
+	 * Fires an event in every application that this manager manages except the application given
+	 * 
+	 * @param app The application to not fire the event in
+	 * @param name The name of the event to fire
+	 * @param eventProps The properties of the event to fire
+	 */
+	protected void fireGlobalEvent(PrismsApplication app, String name, Object... eventProps)
+	{
+		for(PrismsApplication app2 : theApps)
+			if(app2 != app)
+				app2.fireGlobally(null, new PrismsEvent(name, eventProps));
 	}
 
 	/**
@@ -143,17 +161,20 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 * deserialized and set. This is intended to be used for linking--so that property elements
 	 * containing elements of other properties may be properly linked. By default, this does
 	 * nothing.
+	 * 
+	 * @param app The application whose properties have been set
 	 */
-	public void propertiesSet()
+	public void propertiesSet(PrismsApplication app)
 	{
 	}
 
 	/**
+	 * @param app The application to get the values for
 	 * @return All data for this manager's property that is available to the application. This may
 	 *         return null if no data is available to the application as a whole--that is, if the
 	 *         managed property's value is completely session-specific
 	 */
-	public abstract T getApplicationValue();
+	public abstract T getApplicationValue(PrismsApplication app);
 
 	/**
 	 * @param <V> The type of value to set

@@ -20,9 +20,16 @@ public class PrismsServiceConnector
 {
 	static final Logger log = Logger.getLogger(PrismsServiceConnector.class);
 
-	/**
-	 * Represents a request that was rejected by the PRISMS architecture for some reason
-	 */
+	/** The name of the system property to set the SSL handler package in */
+	public static final String SSL_HANDLER_PROP = "java.protocol.handler.pkgs";
+
+	/** The name of the system property to set the trust store location in */
+	public static final String TRUST_STORE_PROP = "javax.net.ssl.trustStore";
+
+	/** The name of the system property to set the trust store password in */
+	public static final String TRUST_STORE_PWD_PROP = "javax.net.ssl.trustStorePassword";
+
+	/** Represents a request that was rejected by the PRISMS architecture for some reason */
 	public static class PrismsServiceException extends IOException
 	{
 		private final prisms.arch.PrismsServer.ErrorCode theErrorCode;
@@ -44,40 +51,30 @@ public class PrismsServiceConnector
 			thePrismsMsg = prismsMsg;
 		}
 
-		/**
-		 * @return The error code from the server
-		 */
+		/** @return The error code from the server */
 		public prisms.arch.PrismsServer.ErrorCode getErrorCode()
 		{
 			return theErrorCode;
 		}
 
-		/**
-		 * @return The error message from the server
-		 */
+		/** @return The error message from the server */
 		public String getPrismsMessage()
 		{
 			return thePrismsMsg;
 		}
 	}
 
-	/**
-	 * Thrown when the user name/password combination fails to validate with the server
-	 */
+	/** Thrown when the user name/password combination fails to validate with the server */
 	public static class AuthenticationFailedException extends IOException
 	{
-		/**
-		 * @see IOException#IOException(String)
-		 */
+		/** @see IOException#IOException(String) */
 		public AuthenticationFailedException(String s)
 		{
 			super(s);
 		}
 	}
 
-	/**
-	 * Automatically generates a new password when one expires
-	 */
+	/** Automatically generates a new password when one expires */
 	public static interface PasswordChanger
 	{
 		/**
@@ -90,9 +87,7 @@ public class PrismsServiceConnector
 		String getNewPassword(String message, prisms.arch.ds.PasswordConstraints constraints);
 	}
 
-	/**
-	 * The different server methods that may be used
-	 */
+	/** The different server methods that may be used */
 	static enum ServerMethod
 	{
 		/** Requests server validation */
@@ -111,9 +106,7 @@ public class PrismsServiceConnector
 		doUpload
 	}
 
-	/**
-	 * Used when client validation is requested by the server
-	 */
+	/** Used when client validation is requested by the server */
 	public static interface Validator
 	{
 		/**
@@ -125,9 +118,7 @@ public class PrismsServiceConnector
 		JSONObject validate(JSONObject validationInfo);
 	}
 
-	/**
-	 * Allows a remote method with a return value to be called asynchronously
-	 */
+	/** Allows a remote method with a return value to be called asynchronously */
 	public static interface AsyncReturn
 	{
 		/**
@@ -181,6 +172,10 @@ public class PrismsServiceConnector
 	private Validator theValidator;
 
 	private int theValidationTries;
+
+	private String theTrustStoreFile;
+
+	private String theTrustStorePassword;
 
 	private boolean logRequestsResponses;
 
@@ -246,6 +241,36 @@ public class PrismsServiceConnector
 	public void setValidator(Validator validator)
 	{
 		theValidator = validator;
+	}
+
+	/**
+	 * Sets the security parameters for a HTTPS connections in general
+	 * 
+	 * @param handlerPkg The handler package for the HTTPS protocol
+	 * @param provider The HTTPS security provider
+	 */
+	public static void setGlobalSecurityInfo(String handlerPkg, java.security.Provider provider)
+	{
+		if(handlerPkg != null)
+		{
+			String handlers = System.getProperty(SSL_HANDLER_PROP);
+			if(handlers == null || !handlers.contains(handlerPkg))
+				System.setProperty(SSL_HANDLER_PROP, handlers + "|" + handlerPkg);
+		}
+		if(provider != null)
+			java.security.Security.addProvider(provider);
+	}
+
+	/**
+	 * Sets the security parameters for an HTTPS connection
+	 * 
+	 * @param trustStore The file location of the trust store containing client certificates to use
+	 * @param trustPwd The password to the trust store
+	 */
+	public void setSecureInfo(String trustStore, String trustPwd)
+	{
+		theTrustStoreFile = trustStore;
+		theTrustStorePassword = trustPwd;
 	}
 
 	/**
@@ -598,8 +623,32 @@ public class PrismsServiceConnector
 			callURL += "&encrypted=true";
 		if(dataStr != null && !isPost)
 			callURL += "&data=" + dataStr;
-		java.net.URL url = new java.net.URL(callURL);
-		java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+
+		java.net.HttpURLConnection conn;
+		boolean propsSet = false;
+		String preTrustStore = null;
+		String preTrustPwd = null;
+		try
+		{
+			if(theTrustStoreFile != null && callURL.startsWith("https"))
+			{
+				preTrustStore = System.getProperty(TRUST_STORE_PROP);
+				preTrustPwd = System.getProperty(TRUST_STORE_PWD_PROP);
+				propsSet = true;
+				System.setProperty(TRUST_STORE_PROP, theTrustStoreFile);
+				System.setProperty(TRUST_STORE_PWD_PROP, theTrustStorePassword);
+			}
+			java.net.URL url = new java.net.URL(callURL);
+			conn = (java.net.HttpURLConnection) url.openConnection();
+		} finally
+		{
+			if(propsSet && theTrustStoreFile != null
+				&& theTrustStoreFile.equals(System.getProperty(TRUST_STORE_PROP)))
+				System.setProperty(TRUST_STORE_PROP, preTrustStore);
+			if(propsSet && theTrustStorePassword != null
+				&& theTrustStorePassword.equals(System.getProperty(TRUST_STORE_PWD_PROP)))
+				System.setProperty(TRUST_STORE_PWD_PROP, preTrustPwd);
+		}
 		conn.setRequestProperty("Accept-Encoding", "gzip");
 		conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset().name());
 		return conn;

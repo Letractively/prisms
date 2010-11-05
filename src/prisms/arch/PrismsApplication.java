@@ -8,8 +8,6 @@ import java.util.ArrayList;
 import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
-import prisms.arch.ds.UserGroup;
-import prisms.arch.ds.UserSource;
 import prisms.arch.event.*;
 
 /**
@@ -20,6 +18,9 @@ import prisms.arch.event.*;
 public class PrismsApplication
 {
 	private static Logger log = Logger.getLogger(PrismsApplication.class);
+
+	/** A property in a PRISMS event that marks the event as having been fired globally */
+	public static final String GLOBALIZED_EVENT_PROPERTY = "globalEvent";
 
 	/** A task to be run on a session */
 	public static interface SessionTask
@@ -134,19 +135,23 @@ public class PrismsApplication
 		}
 	}
 
-	private PrismsServer theServer;
-
-	private final UserSource theDataSource;
+	private PrismsEnv theEnv;
 
 	private String theName;
+
+	private String theDescription;
 
 	private int [] theVersion;
 
 	private long theModifiedDate;
 
+	private Object theConfigurator;
+
 	private boolean isConfigured;
 
-	private final ArrayList<UserGroup> theAdminGroups;
+	private final java.util.LinkedHashMap<String, ClientConfig> theClientConfigs;
+
+	private final java.util.LinkedHashMap<String, Permission> thePermissions;
 
 	private final java.util.concurrent.ConcurrentLinkedQueue<PrismsSession> theSessions;
 
@@ -155,6 +160,8 @@ public class PrismsApplication
 	private final ArrayList<EventListenerType> theELTypes;
 
 	private final ArrayList<MonitorType> theMonitorTypes;
+
+	private final java.util.concurrent.ConcurrentHashMap<String, PrismsEventListener []> theGlobalListeners;
 
 	private final ArrayList<ScheduledTask> theOneTimeTasks;
 
@@ -176,17 +183,30 @@ public class PrismsApplication
 	/**
 	 * Creates a PluginApplication
 	 * 
-	 * @param userSource The user source that this application is from
+	 * @param env The environment that this application will be used in
+	 * @param name The name for this application
+	 * @param descrip The description for this application
+	 * @param version The version information for this application
+	 * @param modifiedDate The last time this application was modified
+	 * @param configurator The object that is responsible for configuring this application
 	 */
 	@SuppressWarnings("rawtypes")
-	public PrismsApplication(UserSource userSource)
+	public PrismsApplication(PrismsEnv env, String name, String descrip, int [] version,
+		long modifiedDate, Object configurator)
 	{
-		theDataSource = userSource;
-		theAdminGroups = new ArrayList<UserGroup>();
+		theEnv = env;
+		theName = name;
+		theDescription = descrip;
+		theVersion = version;
+		theModifiedDate = modifiedDate;
+		theConfigurator = configurator;
+		theClientConfigs = new java.util.LinkedHashMap<String, ClientConfig>();
+		thePermissions = new java.util.LinkedHashMap<String, Permission>();
 		theSessions = new java.util.concurrent.ConcurrentLinkedQueue<PrismsSession>();
 		theManagers = new ArrayList<PropertyManager<?>>();
 		theELTypes = new java.util.ArrayList<EventListenerType>();
 		theMonitorTypes = new java.util.ArrayList<MonitorType>();
+		theGlobalListeners = new java.util.concurrent.ConcurrentHashMap<String, PrismsEventListener []>();
 		theOneTimeTasks = new ArrayList<ScheduledTask>();
 		theRecurringTasks = new ArrayList<ScheduledTask>();
 		theDestroyTasks = new ArrayList<Runnable>();
@@ -195,49 +215,54 @@ public class PrismsApplication
 		thePropertyStack = new java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, PrismsApplication>();
 	}
 
-	/**
-	 * @return The server that this application was created for
-	 */
-	public PrismsServer getServer()
+	/** @return The environment that this application is used in */
+	public PrismsEnv getEnvironment()
 	{
-		return theServer;
+		return theEnv;
 	}
 
-	/**
-	 * @param server The server that this application was created for
-	 */
-	public void setServer(PrismsServer server)
-	{
-		theServer = server;
-	}
-
-	/**
-	 * @return Whether this application has been fully configured
-	 */
+	/** @return Whether this application has been fully configured */
 	public boolean isConfigured()
 	{
 		return isConfigured;
 	}
 
 	/**
-	 * Marks this application as fully configured
+	 * Marks this application as configured
+	 * 
+	 * @param config The object that is responsible for configuring this application. This must be
+	 *        the same object as the configurator that was passed to the constructor.
 	 */
-	public void setConfigured()
+	public void setConfigured(Object config)
 	{
-		isConfigured = true;
+		if(config == theConfigurator)
+		{
+			theConfigurator = null;
+			isConfigured = true;
+		}
+		else
+			throw new IllegalArgumentException("Configurator is not correct");
 	}
 
-	/**
-	 * @return This application's version
-	 */
+	/** @return The name of this application */
+	public String getName()
+	{
+		return theName;
+	}
+
+	/** @return The description of this application */
+	public String getDescription()
+	{
+		return theDescription;
+	}
+
+	/** @return This application's version */
 	public int [] getVersion()
 	{
 		return theVersion;
 	}
 
-	/**
-	 * @return This application's version as a string
-	 */
+	/** @return This application's version as a string */
 	public String getVersionString()
 	{
 		if(theVersion == null)
@@ -250,16 +275,6 @@ public class PrismsApplication
 				ret.append('.');
 		}
 		return ret.toString();
-	}
-
-	/**
-	 * Sets this application's version
-	 * 
-	 * @param version The version for this application
-	 */
-	public void setVersion(int [] version)
-	{
-		theVersion = version;
 	}
 
 	/**
@@ -285,75 +300,64 @@ public class PrismsApplication
 		}
 	}
 
+	/** @return All client configurations that provide access to this application's data and logic */
+	public ClientConfig [] getClients()
+	{
+		return theClientConfigs.values().toArray(new ClientConfig [theClientConfigs.size()]);
+	}
+
 	/**
-	 * Sets this application's modification date
+	 * @param name The name of the client configuration to get
+	 * @return This application's client configuration with the given name, or null if no such
+	 *         config exists
+	 */
+	public ClientConfig getClient(String name)
+	{
+		return theClientConfigs.get(name);
+	}
+
+	/**
+	 * Adds a client to this application. This will throw an exception if this application has
+	 * already been configured
 	 * 
-	 * @param modified the tiime when this application was last developed
+	 * @param client A new client for this application
 	 */
-	public void setModifiedDate(long modified)
+	public void addClientConfig(ClientConfig client)
 	{
-		theModifiedDate = modified;
+		if(isConfigured())
+			throw new IllegalStateException("Cannot add a client config to an application that has"
+				+ " been completely configured");
+		theClientConfigs.put(client.getName(), client);
+	}
+
+	/** @return All permissions that are mapped to capabilities in this application */
+	public Permission [] getPermissions()
+	{
+		return thePermissions.values().toArray(new prisms.arch.Permission [thePermissions.size()]);
 	}
 
 	/**
-	 * @return The data source that created this application
+	 * @param name The name of the permission to get
+	 * @return This application's permission with the given name, or null if no such permission
+	 *         exists
 	 */
-	public UserSource getDataSource()
+	public Permission getPermission(String name)
 	{
-		return theDataSource;
+		return thePermissions.get(name);
 	}
 
 	/**
-	 * @return The name of this application
-	 */
-	public String getName()
-	{
-		return theName;
-	}
-
-	/**
-	 * @param name The name for this application
-	 */
-	public void setName(String name)
-	{
-		theName = name;
-	}
-
-	/**
-	 * @return Groups whose users can administrate this application
-	 */
-	public UserGroup [] getAdminGroups()
-	{
-		synchronized(theAdminGroups)
-		{
-			return theAdminGroups.toArray(new UserGroup [theAdminGroups.size()]);
-		}
-	}
-
-	/**
-	 * Gives a group permission to administrate this application
+	 * Adds a permission to this application. This will throw an exception if this application has
+	 * already been configured.
 	 * 
-	 * @param group The group to give administration priveleges to
+	 * @param permission The permission to add to this application
 	 */
-	public void addAdminGroup(UserGroup group)
+	public void addPermission(Permission permission)
 	{
-		synchronized(theAdminGroups)
-		{
-			theAdminGroups.add(group);
-		}
-	}
-
-	/**
-	 * Removes the permission of a group to administrate this application
-	 * 
-	 * @param group The group to remove from administration priveleges
-	 */
-	public void removeAdminGroup(UserGroup group)
-	{
-		synchronized(theAdminGroups)
-		{
-			theAdminGroups.remove(group);
-		}
+		if(isConfigured())
+			throw new IllegalStateException("Cannot add a permission to an application that has"
+				+ " been completely configured");
+		thePermissions.put(permission.getName(), permission);
 	}
 
 	/**
@@ -421,6 +425,56 @@ public class PrismsApplication
 	}
 
 	/**
+	 * Adds an event listener to listen to an event whatever session it occurs in. The listener will
+	 * receive an event as many times as there are sessions when the event fires each time the event
+	 * fires.
+	 * 
+	 * @param eventName The name of the event to listen to, or null to listen to every event
+	 * @param listener The listener to listen for the event
+	 */
+	public void addGlobalEventListener(String eventName, PrismsEventListener listener)
+	{
+		PrismsEventListener [] listeners = theGlobalListeners.get(eventName);
+		if(listeners == null)
+			listeners = new PrismsEventListener [] {listener};
+		else
+			listeners = prisms.util.ArrayUtils.add(listeners, listener);
+		theGlobalListeners.put(eventName, listeners);
+		for(PrismsSession session : theSessions)
+		{
+			if(eventName == null)
+				session.addEventListener(listener);
+			else
+				session.addEventListener(eventName, listener);
+		}
+	}
+
+	/**
+	 * Removes an event listener that has been added to listen to events globally
+	 * 
+	 * @param eventName The name of the event that the listener is registered to
+	 * @param listener The listener to remove
+	 */
+	public void removeGlobalEventListener(String eventName, PrismsEventListener listener)
+	{
+		PrismsEventListener [] listeners = theGlobalListeners.get(eventName);
+		if(listeners == null)
+			return;
+		else if(listeners.length == 1)
+			listeners = null;
+		else
+			listeners = prisms.util.ArrayUtils.remove(listeners, listener);
+		theGlobalListeners.put(eventName, listeners);
+		for(PrismsSession session : theSessions)
+		{
+			if(eventName == null)
+				session.removeEventListener(listener);
+			else
+				session.removeEventListener(eventName, listener);
+		}
+	}
+
+	/**
 	 * Searches this application's property managers for the application value of a property. This
 	 * may be called from application-level objects such as property managers and serializers. This
 	 * should <b>NEVER</b> be called from session-level objects such as plugin instances. These
@@ -440,10 +494,10 @@ public class PrismsApplication
 			if(manager.getProperty() != null && manager.getProperty().equals(propName))
 			{
 				if(ret == null)
-					ret = ((PropertyManager<T>) manager).getApplicationValue();
+					ret = ((PropertyManager<T>) manager).getApplicationValue(this);
 				else
 				{
-					T temp = ((PropertyManager<T>) manager).getApplicationValue();
+					T temp = ((PropertyManager<T>) manager).getApplicationValue(this);
 					if(temp != null && !ret.equals(temp))
 						throw new IllegalStateException("Managers have two different values for"
 							+ " property " + propName);
@@ -451,6 +505,29 @@ public class PrismsApplication
 			}
 		}
 		return ret;
+	}
+
+	private <T> PrismsPCE<T> createPCE(PrismsProperty<T> prop, T value, Object... eventProps)
+	{
+		// Generics *can* be defeated--check the type here
+		if(value != null && !prop.getType().isInstance(value))
+			throw new IllegalArgumentException("Cannot set an instance of "
+				+ value.getClass().getName() + " for property " + prop + ", type "
+				+ prop.getType().getName());
+		if(eventProps.length % 2 != 0)
+			throw new IllegalArgumentException("Event properties for property change event must be"
+				+ " in the form of name, value, name, value, etc.--" + eventProps.length
+				+ " arguments illegal");
+		PrismsPCE<T> propEvt = new PrismsPCE<T>(this, null, prop, null, value);
+		for(int i = 0; i < eventProps.length; i += 2)
+		{
+			if(!(eventProps[i] instanceof String))
+				throw new IllegalArgumentException("Event properties for property change event"
+					+ " must be in the form of name, value, name, value, etc.--eventProps[" + i
+					+ "] is not a string");
+			propEvt.set((String) eventProps[i], eventProps[i + 1]);
+		}
+		return propEvt;
 	}
 
 	/**
@@ -464,24 +541,7 @@ public class PrismsApplication
 	 */
 	public <T> void setGlobalProperty(PrismsProperty<T> prop, T value, Object... eventProps)
 	{
-		// Generics *can* be defeated--check the type here
-		if(value != null && !prop.getType().isInstance(value))
-			throw new IllegalArgumentException("Cannot set an instance of "
-				+ value.getClass().getName() + " for property " + prop + ", type "
-				+ prop.getType().getName());
-		if(eventProps.length % 2 != 0)
-			throw new IllegalArgumentException("Event properties for property change event must be"
-				+ " in the form of name, value, name, value, etc.--" + eventProps.length
-				+ " arguments illegal");
-		PrismsPCE<T> propEvt = new PrismsPCE<T>(this, prop, null, value);
-		for(int i = 0; i < eventProps.length; i += 2)
-		{
-			if(!(eventProps[i] instanceof String))
-				throw new IllegalArgumentException("Event properties for property change event"
-					+ " must be in the form of name, value, name, value, etc.--eventProps[" + i
-					+ "] is not a string");
-			propEvt.set((String) eventProps[i], eventProps[i + 1]);
-		}
+		PrismsPCE<T> propEvt = createPCE(prop, value, eventProps);
 		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
 		PropertyManager<T> manager = null;
 		synchronized(getPropertyLock(prop))
@@ -491,7 +551,7 @@ public class PrismsApplication
 				if(mgr != manager && mgr.getProperty().equals(prop))
 				{
 					PropertyManager<T> propMgr = (PropertyManager<T>) mgr;
-					if(manager == null && propMgr.getApplicationValue() != null)
+					if(manager == null && propMgr.getApplicationValue(this) != null)
 						manager = propMgr;
 					propMgr.propertyChange(propEvt);
 				}
@@ -523,35 +583,36 @@ public class PrismsApplication
 		}
 	}
 
-	/**
-	 * Signals that data for a globally managed property is changed. This is called when the data
-	 * available to the application is changed, not just that available to a particular session.
-	 * This method does not change the data in a session--it merely fires the appropriate property
-	 * change listeners.
-	 * 
-	 * @param <T> The type of property that changed
-	 * @param prop The property whose value is changed
-	 * @param manager The manager of the changed property
-	 * @param value The new global value of the property
-	 */
-	public <T> void fireGlobalPropertyChange(PrismsProperty<T> prop, PropertyManager<T> manager,
-		T value)
-	{
-		PrismsPCE<T> propEvt = new PrismsPCE<T>(manager != null ? manager : this, prop, null, value);
-		PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
-		synchronized(getPropertyLock(prop))
-		{
-			thePropertyStack.put(prop, this);
-			for(PrismsPCL<T> l : listeners)
-			{
-				l.propertyChange(propEvt);
-				/* If this property is changed as a result of the above PCL, stop this notification */
-				if(!thePropertyStack.containsKey(prop))
-					break;
-			}
-			thePropertyStack.remove(prop);
-		}
-	}
+	// /**
+	// * Signals that data for a globally managed property is changed. This is called when the data
+	// * available to the application is changed, not just that available to a particular session.
+	// * This method does not change the data in a session--it merely fires the appropriate property
+	// * change listeners.
+	// *
+	// * @param <T> The type of property that changed
+	// * @param prop The property whose value is changed
+	// * @param manager The manager of the changed property
+	// * @param value The new global value of the property
+	// */
+	// public <T> void fireGlobalPropertyChange(PrismsProperty<T> prop, PropertyManager<T> manager,
+	// T value, Object... eventProps)
+	// {
+	// PrismsPCE<T> propEvt = createPCE(prop, value, eventProps);
+	// PrismsPCL<T> [] listeners = getGlobalPropertyChangeListeners(prop);
+	// synchronized(getPropertyLock(prop))
+	// {
+	// thePropertyStack.put(prop, this);
+	// for(PrismsPCL<T> l : listeners)
+	// {
+	// if(l != manager)
+	// l.propertyChange(propEvt);
+	// /* If this property is changed as a result of the above PCL, stop this notification */
+	// if(!thePropertyStack.containsKey(prop))
+	// break;
+	// }
+	// thePropertyStack.remove(prop);
+	// }
+	// }
 
 	private Object getPropertyLock(PrismsProperty<?> property)
 	{
@@ -655,7 +716,7 @@ public class PrismsApplication
 	 */
 	public void fireGlobally(PrismsSession session, final PrismsEvent toFire)
 	{
-		toFire.setProperty("globalEvent", Boolean.TRUE);
+		toFire.setProperty(GLOBALIZED_EVENT_PROPERTY, Boolean.TRUE);
 		runSessionTask(session, new SessionTask()
 		{
 			public void run(PrismsSession s)
@@ -844,6 +905,15 @@ public class PrismsApplication
 	 */
 	protected void addEventListeners(PrismsSession session)
 	{
+		for(java.util.Map.Entry<String, PrismsEventListener []> globalEvent : theGlobalListeners
+			.entrySet())
+			for(PrismsEventListener listener : globalEvent.getValue())
+			{
+				if(globalEvent.getKey() == null)
+					session.addEventListener(listener);
+				else
+					session.addEventListener(globalEvent.getKey(), listener);
+			}
 		for(EventListenerType elt : theELTypes)
 		{
 			PrismsEventListener pel;
@@ -1009,5 +1079,11 @@ public class PrismsApplication
 			theTask.run();
 			return true;
 		}
+	}
+
+	@Override
+	public String toString()
+	{
+		return theName;
 	}
 }

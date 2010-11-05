@@ -3,15 +3,16 @@
  */
 package prisms.arch.ds;
 
+import prisms.arch.Permission;
 import prisms.arch.PrismsApplication;
 
 /**
  * Represents a user of a {@link PrismsApplication}. Allows the application to restrict or deny
  * access based on a user's credentials and verifiability.
  */
-public class User
+public class User implements Cloneable
 {
-	private int theID;
+	private long theID;
 
 	private boolean isAdmin;
 
@@ -23,6 +24,8 @@ public class User
 
 	private java.util.ArrayList<UserGroup> theGroups;
 
+	private boolean isReadOnly;
+
 	private boolean isLocked;
 
 	/**
@@ -32,7 +35,7 @@ public class User
 	 * @param name The name of the user
 	 * @param id The storage ID for the user
 	 */
-	public User(UserSource src, String name, int id)
+	public User(UserSource src, String name, long id)
 	{
 		theSource = src;
 		theName = name;
@@ -52,7 +55,7 @@ public class User
 	/**
 	 * @return This user's storage ID
 	 */
-	public int getID()
+	public long getID()
 	{
 		return theID;
 	}
@@ -64,7 +67,7 @@ public class User
 	 * 
 	 * @param id The storage ID for this user
 	 */
-	public void setID(int id)
+	public void setID(long id)
 	{
 		theID = id;
 	}
@@ -100,6 +103,8 @@ public class User
 	 */
 	public void setName(String name)
 	{
+		if(isReadOnly)
+			throw new IllegalStateException("User " + theName + " is read-only");
 		theName = name;
 	}
 
@@ -119,7 +124,11 @@ public class User
 	public void addTo(UserGroup group)
 	{
 		if(!theGroups.contains(group))
+		{
+			if(isReadOnly)
+				throw new IllegalStateException("User " + theName + " is read-only");
 			theGroups.add(group);
+		}
 	}
 
 	/**
@@ -129,7 +138,12 @@ public class User
 	 */
 	public void removeFrom(UserGroup group)
 	{
-		theGroups.remove(group);
+		if(theGroups.contains(group))
+		{
+			if(isReadOnly)
+				throw new IllegalStateException("User " + theName + " is read-only");
+			theGroups.remove(group);
+		}
 	}
 
 	/**
@@ -157,6 +171,38 @@ public class User
 		isLocked = locked;
 	}
 
+	/** @return Whether this user is read-only and cannot be modified */
+	public boolean isReadOnly()
+	{
+		return isReadOnly;
+	}
+
+	/** Marks this user as read-only so that it cannot be changed through the manager */
+	public void setReadOnly()
+	{
+		isReadOnly = true;
+	}
+
+	@Override
+	public User clone()
+	{
+		User ret;
+		try
+		{
+			ret = (User) super.clone();
+		} catch(CloneNotSupportedException e)
+		{
+			throw new IllegalStateException("Clone not supported", e);
+		}
+		ret.theID = -1;
+		ret.isReadOnly = false;
+		ret.isLocked = false;
+		ret.theGroups = new java.util.ArrayList<UserGroup>();
+		ret.theGroups.addAll(theGroups);
+		ret.thePermissions = new UserPermissions(ret);
+		return ret;
+	}
+
 	public String toString()
 	{
 		return theName;
@@ -175,7 +221,7 @@ public class User
 
 	public int hashCode()
 	{
-		return theID;
+		return ((int) theID) ^ ((int) (theID >>> 32));
 	}
 
 	private static class UserPermissions implements Permissions
@@ -198,9 +244,9 @@ public class User
 			return false;
 		}
 
-		public prisms.arch.ds.Permission getPermission(String capability)
+		public prisms.arch.Permission getPermission(String capability)
 		{
-			prisms.arch.ds.Permission perm = null;
+			prisms.arch.Permission perm = null;
 			for(UserGroup group : theUser.getGroups())
 			{
 				perm = group.getPermissions().getPermission(capability);
@@ -210,14 +256,14 @@ public class User
 			return perm;
 		}
 
-		public prisms.arch.ds.Permission[] getAllPermissions()
+		public prisms.arch.Permission[] getAllPermissions()
 		{
-			java.util.ArrayList<prisms.arch.ds.Permission> ret;
-			ret = new java.util.ArrayList<prisms.arch.ds.Permission>();
+			java.util.ArrayList<prisms.arch.Permission> ret;
+			ret = new java.util.ArrayList<prisms.arch.Permission>();
 			for(UserGroup group : theUser.getGroups())
-				for(prisms.arch.ds.Permission perm : group.getPermissions().getAllPermissions())
+				for(prisms.arch.Permission perm : group.getPermissions().getAllPermissions())
 					ret.add(perm);
-			return ret.toArray(new prisms.arch.ds.Permission [ret.size()]);
+			return ret.toArray(new prisms.arch.Permission [ret.size()]);
 		}
 
 		public Permissions forApp(PrismsApplication app)
@@ -263,7 +309,7 @@ public class User
 
 		public Permission getPermission(String capability)
 		{
-			prisms.arch.ds.Permission perm = null;
+			prisms.arch.Permission perm = null;
 			for(UserGroup group : theRoot.theUser.getGroups())
 			{
 				if(group.getApp() != theApp)
@@ -277,16 +323,16 @@ public class User
 
 		public Permission [] getAllPermissions()
 		{
-			java.util.ArrayList<prisms.arch.ds.Permission> ret;
-			ret = new java.util.ArrayList<prisms.arch.ds.Permission>();
+			java.util.ArrayList<prisms.arch.Permission> ret;
+			ret = new java.util.ArrayList<prisms.arch.Permission>();
 			for(UserGroup group : theRoot.theUser.getGroups())
 			{
 				if(group.getApp() != theApp)
 					continue;
-				for(prisms.arch.ds.Permission perm : group.getPermissions().getAllPermissions())
+				for(prisms.arch.Permission perm : group.getPermissions().getAllPermissions())
 					ret.add(perm);
 			}
-			return ret.toArray(new prisms.arch.ds.Permission [ret.size()]);
+			return ret.toArray(new prisms.arch.Permission [ret.size()]);
 		}
 	}
 }

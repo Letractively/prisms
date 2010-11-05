@@ -3,17 +3,13 @@
  */
 package prisms.arch.event;
 
-/**
- * A PrismsEvent may be fired using a PluginAppSession to communicate between plugins
- */
+/** A PrismsEvent may be fired using a PrismsSession to communicate between plugins */
 public class PrismsEvent
 {
-	/**
-	 * The name of this event
-	 */
+	/** The name of this event */
 	public final String name;
 
-	private java.util.HashMap<String, Object> theProperties;
+	private final java.util.HashMap<String, Object> theProperties;
 
 	/**
 	 * Creates a PrismsEvent with no properties. This is the same as calling either of the other
@@ -36,13 +32,9 @@ public class PrismsEvent
 	public PrismsEvent(String aName, java.util.Map<String, Object> evtProps)
 	{
 		name = aName.intern();
-		if(evtProps == null || evtProps.isEmpty())
-			theProperties = null;
-		else
-		{
-			theProperties = new java.util.HashMap<String, Object>();
-			theProperties.putAll(evtProps);
-		}
+		theProperties = new java.util.HashMap<String, Object>(evtProps == null ? 4
+			: evtProps.size() + 2);
+		theProperties.putAll(evtProps);
 	}
 
 	/**
@@ -57,11 +49,15 @@ public class PrismsEvent
 	{
 		name = aName;
 		if(evtProps == null || evtProps.length == 0)
+		{
+			theProperties = new java.util.HashMap<String, Object>(4);
 			return;
+		}
+		else
+			theProperties = new java.util.HashMap<String, Object>(evtProps.length / 2 + 2);
 		if(evtProps.length % 2 != 0)
 			throw new IllegalArgumentException("An even number of arguments are required, not "
 				+ evtProps.length);
-		theProperties = new java.util.HashMap<String, Object>();
 		for(int i = 0; i < evtProps.length; i += 2)
 		{
 			if(!(evtProps[i] instanceof String))
@@ -77,10 +73,7 @@ public class PrismsEvent
 	 */
 	public Object getProperty(String propName)
 	{
-		if(theProperties == null)
-			return null;
-		else
-			return theProperties.get(propName);
+		return theProperties.get(propName);
 	}
 
 	/**
@@ -89,9 +82,20 @@ public class PrismsEvent
 	 */
 	public void setProperty(String propName, Object propValue)
 	{
-		if(theProperties == null && propValue != null)
-			theProperties = new java.util.HashMap<String, Object>();
-		if(theProperties != null)
-			theProperties.put(propName, propValue);
+		theProperties.put(propName, propValue);
+	}
+
+	/** @return All properties set in this event in the form [name, value, name, value...] */
+	public Object [] getPropertyList()
+	{
+		Object [] ret = new Object [theProperties.size() * 2];
+		int i = 0;
+		for(java.util.Map.Entry<String, Object> entry : theProperties.entrySet())
+		{
+			ret[i] = entry.getKey();
+			ret[i + 1] = entry.getValue();
+			i += 2;
+		}
+		return ret;
 	}
 }

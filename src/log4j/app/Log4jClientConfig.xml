@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <client>
+	<name>log4jwebapp</name>
+	<description>The Log4j configuration web application</description>
+	<service>false</service>
+	<allowAnonymous>false</allowAnonymous>
+	<session-timeout>900000</session-timeout>
 	<monitors>
 	</monitors>
 	<plugins>

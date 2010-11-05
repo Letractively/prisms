@@ -6,12 +6,11 @@ package prisms.arch.service;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import prisms.arch.Permission;
 import prisms.arch.PrismsApplication;
 import prisms.arch.ds.*;
 
-/**
- * Serializes PRISMS objects for the web service
- */
+/** Serializes PRISMS objects for the web service */
 public class PrismsSerializer
 {
 	/**
@@ -67,7 +66,7 @@ public class PrismsSerializer
 			return null;
 		JSONObject ret = new JSONObject();
 		ret.put("name", user.getName());
-		ret.put("id", new Integer(user.getID()));
+		ret.put("id", Long.valueOf(user.getID()));
 		ret.put("locked", new Boolean(user.isLocked()));
 		return ret;
 	}
@@ -153,7 +152,7 @@ public class PrismsSerializer
 			return null;
 		UserGroup ret = new UserGroup(source, (String) json.get("name"), app);
 		ret.setDescription((String) json.get("description"));
-		prisms.arch.ds.SimplePermissions perms = new prisms.arch.ds.SimplePermissions();
+		prisms.arch.ds.GroupPermissions perms = new prisms.arch.ds.GroupPermissions();
 		for(Permission p : deserializePermissions((JSONArray) json.get("permissions"), app))
 			perms.addPermission(p);
 		ret.setPermissions(perms);
@@ -218,7 +217,7 @@ public class PrismsSerializer
 	 */
 	public static Permission deserializePermission(JSONObject json, PrismsApplication app)
 	{
-		return new Permission((String) json.get("name"), (String) json.get("description"), app);
+		return new Permission(app, (String) json.get("name"), (String) json.get("description"));
 	}
 
 	/**

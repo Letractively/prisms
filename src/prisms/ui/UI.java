@@ -5,26 +5,34 @@ package prisms.ui;
 
 import org.json.simple.JSONObject;
 
-/**
- * A user interface plugin that allows plugins to get direct, generic-form input from the user.
- */
+/** A user interface plugin that allows plugins to get direct, generic-form input from the user. */
 public class UI implements prisms.arch.AppPlugin
 {
+	static enum EventType
+	{
+		ERROR(1), WARNING(2), INFO(6), CONFIRM(3), INPUT(4), SELECT(5), PROGRESS(7);
+
+		int priority;
+
+		EventType(int pri)
+		{
+			priority = pri;
+		}
+	}
+
 	private prisms.arch.PrismsSession theSession;
 
 	String theName;
 
 	private java.util.Map<String, Object> theListeners;
 
-	private java.util.TreeSet<EventObject> theEventQueue;
+	private java.util.Queue<EventObject> theEventQueue;
 
-	/**
-	 * Creates a UI object
-	 */
+	/** Creates a UI plugin */
 	public UI()
 	{
-		theListeners = new java.util.HashMap<String, Object>();
-		theEventQueue = new java.util.TreeSet<EventObject>();
+		theListeners = new java.util.concurrent.ConcurrentHashMap<String, Object>();
+		theEventQueue = new java.util.concurrent.ConcurrentLinkedQueue<EventObject>();
 	}
 
 	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element configEl)
@@ -35,22 +43,16 @@ public class UI implements prisms.arch.AppPlugin
 
 	public void initClient()
 	{
-		EventObject first;
-		synchronized(this)
+		EventObject first = theEventQueue.peek();
+		if(first != null)
 		{
-			if(!theEventQueue.isEmpty())
+			if(first.listener instanceof ProgressInformer
+				&& ((ProgressInformer) first.listener).isTaskDone())
 			{
-				first = theEventQueue.first();
-				if(first.listener instanceof ProgressInformer
-					&& ((ProgressInformer) first.listener).isTaskDone())
-				{
-					removeEvent(first.id);
-					initClient();
-					return;
-				}
+				removeEvent(first.id);
+				initClient();
+				return;
 			}
-			else
-				first = null;
 		}
 		if(first != null)
 		{
@@ -76,15 +78,12 @@ public class UI implements prisms.arch.AppPlugin
 	public void processEvent(JSONObject evt)
 	{
 		String messageID = (String) evt.get("messageID");
-		Object listener;
+		Object listener = null;
 		if(messageID != null)
 		{
-			synchronized(this)
-			{
-				listener = theListeners.get(messageID);
-				if("eventReturned".equals(evt.get("method")))
-					removeEvent(messageID);
-			}
+			listener = theListeners.get(messageID);
+			if("eventReturned".equals(evt.get("method")))
+				removeEvent(messageID);
 		}
 		else if("refresh".equals(evt.get("method")))
 		{
@@ -168,7 +167,7 @@ public class UI implements prisms.arch.AppPlugin
 	 */
 	public void error(String message)
 	{
-		addEvent(new EventObject("error", message, null));
+		addEvent(new EventObject(EventType.ERROR, message, null));
 	}
 
 	/**
@@ -178,7 +177,7 @@ public class UI implements prisms.arch.AppPlugin
 	 */
 	public void warn(String message)
 	{
-		addEvent(new EventObject("warning", message, null));
+		addEvent(new EventObject(EventType.WARNING, message, null));
 	}
 
 	/**
@@ -188,7 +187,7 @@ public class UI implements prisms.arch.AppPlugin
 	 */
 	public void info(String message)
 	{
-		addEvent(new EventObject("info", message, null));
+		addEvent(new EventObject(EventType.INFO, message, null));
 	}
 
 	/**
@@ -199,7 +198,7 @@ public class UI implements prisms.arch.AppPlugin
 	 */
 	public void confirm(String message, ConfirmListener L)
 	{
-		addEvent(new EventObject("confirm", message, L));
+		addEvent(new EventObject(EventType.CONFIRM, message, L));
 	}
 
 	/**
@@ -211,7 +210,7 @@ public class UI implements prisms.arch.AppPlugin
 	 */
 	public void input(String message, String def, InputListener L)
 	{
-		addEvent(new EventObject("input", message, L, "init", def));
+		addEvent(new EventObject(EventType.INPUT, message, L, "init", def));
 	}
 
 	/**
@@ -224,7 +223,7 @@ public class UI implements prisms.arch.AppPlugin
 	 */
 	public void select(String message, String [] options, int init, SelectListener L)
 	{
-		addEvent(new EventObject("select", message, L, "options", options, "initSelection",
+		addEvent(new EventObject(EventType.SELECT, message, L, "options", options, "initSelection",
 			new Integer(init > 0 ? init : -1)));
 	}
 
@@ -236,9 +235,16 @@ public class UI implements prisms.arch.AppPlugin
 	 */
 	public void startTimedTask(ProgressInformer informer)
 	{
-		addEvent(new EventObject("progress", informer.getTaskText(), informer, "length",
+		addEvent(new EventObject(EventType.PROGRESS, informer.getTaskText(), informer, "length",
 			new Integer(informer.getTaskScale()), "progress", new Integer(
 				informer.getTaskProgress()), "cancelable", new Boolean(informer.isCancelable())));
+	}
+
+	/** @return Whether the active user interface dialog is a progress dialog */
+	public boolean isProgressShowing()
+	{
+		EventObject eo = theEventQueue.peek();
+		return eo != null && eo.type == EventType.PROGRESS;
 	}
 
 	String createMessageID()
@@ -253,33 +259,18 @@ public class UI implements prisms.arch.AppPlugin
 
 	private class EventObject implements Comparable<EventObject>
 	{
-		final String id;
+		final EventType type;
 
-		final int priority;
+		final String id;
 
 		final JSONObject event;
 
 		final Object listener;
 
-		EventObject(String type, String message, Object L, Object... options)
+		EventObject(EventType aType, String message, Object L, Object... options)
 		{
+			type = aType;
 			id = createMessageID();
-			if("error".equals(type))
-				priority = 1;
-			else if("warning".equals(type))
-				priority = 2;
-			else if("confirm".equals(type))
-				priority = 3;
-			else if("input".equals(type))
-				priority = 4;
-			else if("select".equals(type))
-				priority = 5;
-			else if("info".equals(type))
-				priority = 6;
-			else if("progress".equals(type))
-				priority = 7;
-			else
-				throw new IllegalStateException("Unexpected event type: " + type);
 			listener = L;
 			event = new JSONObject();
 			event.put("plugin", theName);
@@ -302,14 +293,14 @@ public class UI implements prisms.arch.AppPlugin
 
 		public int compareTo(EventObject o)
 		{
-			int ret = priority - o.priority;
+			int ret = type.priority - o.type.priority;
 			if(ret != 0)
 				return ret;
 			return id.hashCode() - o.id.hashCode();
 		}
 	}
 
-	private synchronized void addEvent(EventObject obj)
+	private void addEvent(EventObject obj)
 	{
 		for(EventObject eo : theEventQueue)
 			if(eo.listener == obj.listener)
@@ -321,13 +312,13 @@ public class UI implements prisms.arch.AppPlugin
 		if(theEventQueue.isEmpty())
 			oldFirst = null;
 		else
-			oldFirst = theEventQueue.first();
+			oldFirst = theEventQueue.peek();
 		theEventQueue.add(obj);
-		if(theEventQueue.first() != oldFirst)
+		if(theEventQueue.peek() != oldFirst)
 			theSession.postOutgoingEvent(obj.event);
 	}
 
-	private synchronized void removeEvent(String messageID)
+	private void removeEvent(String messageID)
 	{
 		theListeners.remove(messageID);
 		java.util.Iterator<EventObject> iter = theEventQueue.iterator();
@@ -341,7 +332,7 @@ public class UI implements prisms.arch.AppPlugin
 			}
 		}
 		if(!theEventQueue.isEmpty())
-			theSession.postOutgoingEvent(theEventQueue.first().event);
+			theSession.postOutgoingEvent(theEventQueue.peek().event);
 	}
 
 	/**

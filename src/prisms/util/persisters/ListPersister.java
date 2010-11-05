@@ -8,6 +8,7 @@ import org.dom4j.Element;
 
 import prisms.arch.Persister;
 import prisms.arch.PrismsApplication;
+import prisms.arch.PrismsSession;
 import prisms.arch.event.PrismsProperty;
 import prisms.util.ArrayUtils;
 
@@ -58,10 +59,6 @@ public abstract class ListPersister<T> implements Persister<T []>
 
 	T [] theUpdateQueue;
 
-	/**
-	 * @see prisms.arch.Persister#configure(org.dom4j.Element, prisms.arch.PrismsApplication,
-	 *      prisms.arch.event.PrismsProperty)
-	 */
 	public void configure(Element configEl, PrismsApplication app, PrismsProperty<T []> property)
 	{
 		theApp = app;
@@ -70,36 +67,29 @@ public abstract class ListPersister<T> implements Persister<T []>
 		theElements = new java.util.ArrayList<ListElementContainer>();
 		theUpdateQueue = (T []) java.lang.reflect.Array.newInstance(property.getType()
 			.getComponentType(), 0);
-		reload();
+
+		for(T value : depersist())
+			theElements.add(new ListElementContainer(clone(value), value));
 	}
 
-	/**
-	 * @return The application that this persister is persisting a property for
-	 */
+	/** @return The application that this persister is persisting a property for */
 	public PrismsApplication getApp()
 	{
 		return theApp;
 	}
 
-	/**
-	 * @return The XML configuration that intitialized this persister
-	 */
+	/** @return The XML configuration that intitialized this persister */
 	public Element getConfigEl()
 	{
 		return theConfigEl;
 	}
 
-	/**
-	 * @return The property that this persister is persisting
-	 */
+	/** @return The property that this persister is persisting */
 	public PrismsProperty<T []> getProperty()
 	{
 		return theProperty;
 	}
 
-	/**
-	 * @see prisms.arch.Persister#getValue()
-	 */
 	public synchronized T [] getValue()
 	{
 		T [] ret = (T []) java.lang.reflect.Array.newInstance(theProperty.getType()
@@ -109,15 +99,12 @@ public abstract class ListPersister<T> implements Persister<T []>
 		return ret;
 	}
 
-	/**
-	 * @see prisms.arch.Persister#link(java.lang.Object)
-	 */
 	public T [] link(T [] value)
 	{
 		return value;
 	}
 
-	public synchronized void setValue(Object [] value,
+	public synchronized void setValue(final PrismsSession session, Object [] value,
 		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		final prisms.arch.event.PrismsPCE<T []> fEvt = evt;
@@ -133,7 +120,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 
 				public ListElementContainer added(T o, int index, int retIdx)
 				{
-					T dbArea = add(o, fEvt);
+					T dbArea = add(session, o, fEvt);
 					if(dbArea != null)
 					{
 						ListElementContainer ret = new ListElementContainer(dbArea, o);
@@ -152,7 +139,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 				{
 					synchronized(o.theDBValue)
 					{
-						remove(o.theDBValue, fEvt);
+						remove(session, o.theDBValue, fEvt);
 					}
 					synchronized(theElements)
 					{
@@ -178,7 +165,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 			});
 	}
 
-	public synchronized void valueChanged(T [] fullValue, Object o,
+	public synchronized void valueChanged(PrismsSession session, T [] fullValue, Object o,
 		prisms.arch.event.PrismsEvent evt)
 	{
 		for(ListElementContainer el : theElements)
@@ -199,7 +186,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 						el.isLocked = true;
 						try
 						{
-							update(el.theDBValue, (T) o, evt);
+							update(session, el.theDBValue, (T) o, evt);
 						} finally
 						{
 							el.isLocked = preLocked;
@@ -220,12 +207,9 @@ public abstract class ListPersister<T> implements Persister<T []>
 			}
 		}
 		if(toUpdate != null)
-			valueChanged(fullValue, toUpdate, evt);
+			valueChanged(session, fullValue, toUpdate, evt);
 	}
 
-	/**
-	 * @see prisms.arch.Persister#reload()
-	 */
 	public void reload()
 	{
 		theElements.clear();
@@ -248,7 +232,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 	 * its argument. The return value to this method will never be returned from the
 	 * {@link #getValue()} method. It will be passed as the first argument to the
 	 * {@link #equivalent(Object, Object)} and
-	 * {@link #update(Object, Object, prisms.arch.event.PrismsEvent)} methods.
+	 * {@link #update(PrismsSession, Object, Object, prisms.arch.event.PrismsEvent)} methods.
 	 * 
 	 * @param toClone The available object to clone for this persister's cache
 	 * @return An object independent of but identical to <code>toClone</code> for internal use.
@@ -265,28 +249,34 @@ public abstract class ListPersister<T> implements Persister<T []>
 	/**
 	 * Adds a new value to the set of persisted data
 	 * 
+	 * @param session The session that caused the change
 	 * @param newValue The value to persist
 	 * @param evt The event that represents the change
 	 * @return An independent but identical representation of <code>newValue</code> for this
 	 *         persister's cache
 	 */
-	protected abstract T add(T newValue, prisms.arch.event.PrismsPCE<T []> evt);
+	protected abstract T add(PrismsSession session, T newValue,
+		prisms.arch.event.PrismsPCE<T []> evt);
 
 	/**
 	 * Removes a value from persistent storage
 	 * 
+	 * @param session The session that caused the change
 	 * @param removed The databased object that should be removed
 	 * @param evt The event that represents the change
 	 */
-	protected abstract void remove(T removed, prisms.arch.event.PrismsPCE<T []> evt);
+	protected abstract void remove(PrismsSession session, T removed,
+		prisms.arch.event.PrismsPCE<T []> evt);
 
 	/**
 	 * Updates any possible changes to an object into persistent storage
 	 * 
+	 * @param session The session that caused the change
 	 * @param dbValue The cloned, cached value representing the value currently in persistence
 	 * @param availableValue The value with the same identity as <code>dbValue</code> that may have
 	 *        been modified and may need to be updated in persistent storage
 	 * @param evt The event that represents the change
 	 */
-	protected abstract void update(T dbValue, T availableValue, prisms.arch.event.PrismsEvent evt);
+	protected abstract void update(PrismsSession session, T dbValue, T availableValue,
+		prisms.arch.event.PrismsEvent evt);
 }

@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <application>
+	<name>Log4j</name>
+	<description>Allows dynamic configuration of logging with log4j</description>
 	<version>1.0.1</version>
 	<modified>12Nov2009</modified>
 	<worker>
 		<type>threadpool</type>
 	</worker>
+	<clients>
+		<client configXML="Log4jClientConfig.xml" />
+	</clients>
+	<permissions />
 </application>

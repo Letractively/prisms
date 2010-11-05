@@ -1,0 +1,5 @@
+
+<applications>
+	<application manager="true" configXML="classpath://manager/app/ManagerConfig.xml" />
+	<application configXML="classpath://log4j/app/Log4jAppConfig.xml" />
+</applications>

@@ -10,9 +10,7 @@ import org.json.simple.JSONObject;
 import prisms.arch.PrismsSession;
 import prisms.util.preferences.Preference;
 
-/**
- * A plugin allowing the user to change preferences registered as user-modifiable by other plugins
- */
+/** A plugin allowing the user to change preferences registered as user-modifiable by other plugins */
 public class PreferencesEditor implements prisms.arch.AppPlugin
 {
 	private PrismsSession theSession;
@@ -23,9 +21,6 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 
 	boolean theDataLock;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
 	{
 		theSession = session;
@@ -41,7 +36,7 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 		theSession.addEventListener("preferencesChanged",
 			new prisms.arch.event.PrismsEventListener()
 			{
-				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 				{
 					if(theDataLock)
 						return;
@@ -57,16 +52,10 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 			});
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		prisms.util.preferences.Preferences prefs = theSession.getProperty(thePrefProperty);

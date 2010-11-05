@@ -46,9 +46,9 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 					setUserApp(evt.getNewValue(), theApp);
 				}
 			});
-		session.addEventListener("userChanged", new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				User user2 = (User) evt.getProperty("user");
 				if(user2.equals(theUser))
@@ -65,7 +65,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				PrismsApplication app2 = (PrismsApplication) evt.getProperty("app");
 				if(app2.equals(theApp))
@@ -82,12 +82,14 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setEnabled");
-		evt.put("enabled", new Boolean(theUser != null
-			&& theApp != null
-			&& !(theApp == theSession.getApp() && theUser.getName().equals(
-				theSession.getUser().getName()))
-			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
-				.getPermissions(theSession.getApp()))));
+		evt.put(
+			"enabled",
+			new Boolean(theUser != null
+				&& theApp != null
+				&& !(theApp == theSession.getApp() && theUser.getName().equals(
+					theSession.getUser().getName()))
+				&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
+					theUser.getPermissions(theSession.getApp()))));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -123,7 +125,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 			return false;
 		try
 		{
-			return theSession.getApp().getDataSource().canAccess(theUser, theApp);
+			return theSession.getApp().getEnvironment().getUserSource().canAccess(theUser, theApp);
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not determine application accessibility", e);
@@ -139,8 +141,8 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 
 	void changeAccess(boolean accessible)
 	{
-		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
-			.getPermissions(theSession.getApp())))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
+			theUser.getPermissions(theSession.getApp())))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " does not have permission to modify user " + theUser
 				+ "'s access to application " + theApp.getName());
@@ -150,7 +152,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 			&& theApp == theSession.getApp())
 			throw new IllegalArgumentException("A user cannot disallow his/her own access"
 				+ " to the manager application");
-		prisms.arch.ds.UserSource us = theSession.getApp().getDataSource();
+		prisms.arch.ds.UserSource us = theSession.getApp().getEnvironment().getUserSource();
 		if(!(us instanceof ManageableUserSource))
 			throw new IllegalStateException(
 				"Cannot modify user access--user source is not manageable");
@@ -162,6 +164,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 			throw new IllegalStateException("Could not set user-application accessibility", e);
 		}
 		theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
-		theSession.fireEvent(new prisms.arch.event.PrismsEvent("userChanged", "user", theUser));
+		theSession
+			.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user", theUser));
 	}
 }

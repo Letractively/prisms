@@ -13,9 +13,7 @@ import prisms.arch.ds.ManageableUserSource;
 import prisms.arch.ds.User;
 import prisms.arch.ds.UserGroup;
 
-/**
- * Allows the user to manage the association of a user with a group in an application
- */
+/** Allows the user to manage the association of a user with a group in an application */
 public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 {
 	private static final Logger log = Logger.getLogger(UserGroupAssocEditor.class);
@@ -30,9 +28,6 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 
 	boolean theDataLock;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
 	{
 		theSession = session;
@@ -48,9 +43,9 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 					setUserGroup(evt.getNewValue(), theGroup);
 				}
 			});
-		session.addEventListener("userChanged", new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(theDataLock)
 					return;
@@ -62,10 +57,10 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 		session.addEventListener("userPermissionsChanged",
 			new prisms.arch.event.PrismsEventListener()
 			{
-				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 				{
-					if(theSession.getUser().getName().equals(
-						((User) evt.getProperty("user")).getName()))
+					if(theSession.getUser().getName()
+						.equals(((User) evt.getProperty("user")).getName()))
 						setUserGroup(theUser, theGroup);
 				}
 			});
@@ -79,7 +74,7 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(theDataLock)
 					return;
@@ -90,21 +85,12 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 		});
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setEnabled");
-		evt.put("enabled", new Boolean(theUser != null
-			&& theGroup != null
-			&& !(theGroup.getApp() == theSession.getApp()
-				&& theUser.getName().equals(theSession.getUser().getName()) && theGroup.getName()
-				.equals("userAdmin"))
-			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
-				.getPermissions(theSession.getApp()))));
+		evt.put("enabled", new Boolean(isEnabled()));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -130,9 +116,22 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 		return prisms.util.ArrayUtils.contains(theUser.getGroups(), theGroup);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
+	boolean isEnabled()
+	{
+		if(theUser == null || theGroup == null)
+			return false;
+		if(theUser.isReadOnly())
+			return false;
+		if(theGroup.getApp() == theSession.getApp()
+			&& theUser.getName().equals(theSession.getUser().getName())
+			&& theGroup.getName().equals("userAdmin"))
+			return false;
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
+			theUser.getPermissions(theSession.getApp())))
+			return false;
+		return true;
+	}
+
 	public void processEvent(JSONObject evt)
 	{
 		if("membershipChanged".equals(evt.get("method")))
@@ -162,12 +161,14 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			return;
 		if(isMember == prisms.util.ArrayUtils.contains(theUser.getGroups(), theGroup))
 			return;
-		prisms.arch.ds.UserSource us = theSession.getApp().getDataSource();
+		if(theUser.isReadOnly())
+			throw new IllegalStateException("User " + theUser + " is read-only");
+		prisms.arch.ds.UserSource us = theSession.getApp().getEnvironment().getUserSource();
 		if(!(us instanceof ManageableUserSource))
 			throw new IllegalStateException(
 				"Cannot modify user group membership--user source is not manageable");
-		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theUser
-			.getPermissions(theSession.getApp())))
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
+			theUser.getPermissions(theSession.getApp())))
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " cannot modify user " + theUser.getName() + "'s permissions");
 		if(isMember && theGroup.getApp() == theSession.getApp()

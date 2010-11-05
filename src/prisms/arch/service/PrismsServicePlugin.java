@@ -23,7 +23,7 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 	{
 		theSession = session;
 		theName = pluginEl.elementText("name");
-		theSource = theSession.getApp().getDataSource();
+		theSource = theSession.getApp().getEnvironment().getUserSource();
 	}
 
 	public void initClient()
@@ -57,7 +57,14 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				prisms.arch.ds.User user = theSource.getUser((String) evt.get("userName"));
 				if(user == null)
 					ret.put("canAccess", Boolean.FALSE);
-				prisms.arch.PrismsApplication app = theSource.getApp((String) evt.get("appName"));
+				prisms.arch.PrismsApplication app = null;
+				for(prisms.arch.PrismsApplication ap : theSession
+					.getProperty(prisms.arch.event.PrismsProperties.applications))
+					if(ap.getName().equals(evt.get("appName")))
+					{
+						app = ap;
+						break;
+					}
 				if(app == null)
 					ret.put("canAccess", Boolean.FALSE);
 				ret.put("canAccess", new Boolean(theSource.canAccess(user, app)));
@@ -90,61 +97,6 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 					hash[h] = hashList.get(h).longValue();
 				theSource.setPassword(user, hash, ((Boolean) evt.get("admin")).booleanValue());
 			}
-			else if(method.equals("getAppConfig"))
-			{
-				prisms.arch.PrismsApplication app = theSource.getApp((String) evt.get("appName"));
-				if(app == null)
-					throw new PrismsException("No such application: " + evt.get("appName"));
-				if(!(app instanceof prisms.impl.DBApplication))
-					throw new PrismsException("Unrecognized application implementation: "
-						+ app.getClass().getName());
-				prisms.impl.DBApplication dbApp = (prisms.impl.DBApplication) app;
-				JSONObject appConfig = new JSONObject();
-				ret.put("appConfig", appConfig);
-				appConfig.put("name", app.getName());
-				appConfig.put("description", dbApp.getDescription());
-				if(dbApp.getConfig() instanceof prisms.impl.PlaceholderAppConfig)
-					appConfig.put("configClass", ((prisms.impl.PlaceholderAppConfig) dbApp
-						.getConfig()).getAppConfigClassName());
-				else
-					appConfig.put("configClass", dbApp.getConfig().getClass().getName());
-				appConfig.put("configXML", dbApp.getConfigXML());
-			}
-			else if(method.equals("getClient"))
-			{
-				prisms.arch.PrismsApplication app = theSource.getApp((String) evt.get("appName"));
-				if(app == null)
-					throw new PrismsException("No such application: " + evt.get("appName"));
-				prisms.arch.ClientConfig cc = theSource.getClient(app, (String) evt
-					.get("clientName"));
-				if(cc == null)
-					throw new PrismsException("No such client " + evt.get("clientName")
-						+ " of application " + app.getName());
-				if(!(cc instanceof prisms.impl.DBClientConfig))
-					throw new PrismsException("Unrecognized client config implementation: "
-						+ cc.getClass().getName());
-				prisms.impl.DBClientConfig dbCC = (prisms.impl.DBClientConfig) cc;
-				JSONObject clientConfig = new JSONObject();
-				ret.put("clientConfig", clientConfig);
-				clientConfig.put("name", dbCC.getName());
-				clientConfig.put("description", dbCC.getDescription());
-				clientConfig.put("configXML", dbCC.getConfigXML());
-				clientConfig.put("sessionTimeout", new Long(dbCC.getSessionTimeout()));
-				if(dbCC.getSerializer() instanceof prisms.impl.PlaceholderSerializer)
-					clientConfig.put("serializerStr", ((prisms.impl.PlaceholderSerializer) dbCC
-						.getSerializer()).getSerializerClassName());
-				else
-					clientConfig.put("serializerStr", dbCC.getSerializer() == null ? null : dbCC
-						.getSerializer().getClass().getName());
-			}
-			else if(method.equals("getGroup"))
-			{
-				prisms.arch.PrismsApplication app = theSource.getApp((String) evt.get("appName"));
-				if(app == null)
-					throw new PrismsException("No such application: " + evt.get("appName"));
-				ret.put("group", PrismsSerializer.serializeGroup(theSource.getGroup(app,
-					(String) evt.get("groupName"))));
-			}
 			else if(method.equals("getHashing"))
 				ret.put("hashing", theSource.getHashing().toJson());
 			else if(method.equals("getKey"))
@@ -152,8 +104,8 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				prisms.arch.ds.User user = theSource.getUser((String) evt.get("userName"));
 				if(user == null)
 					throw new PrismsException("No such user: " + evt.get("userName"));
-				long [] key = theSource.getKey(user, prisms.arch.ds.Hashing
-					.fromJson((JSONObject) evt.get("hashing")));
+				long [] key = theSource.getKey(user,
+					prisms.arch.ds.Hashing.fromJson((JSONObject) evt.get("hashing")));
 				org.json.simple.JSONArray jsonKey = new org.json.simple.JSONArray();
 				for(int k = 0; k < key.length; k++)
 					jsonKey.add(new Long(key[k]));

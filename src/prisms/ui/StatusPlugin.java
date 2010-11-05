@@ -28,7 +28,7 @@ public class StatusPlugin implements AppPlugin
 		theName = pluginEl.elementText("name");
 		theSession.addEventListener("sendStatusUpdate", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				sendStatusUpdate((String) evt.getProperty("message"));
 			}
@@ -36,7 +36,7 @@ public class StatusPlugin implements AppPlugin
 
 		theSession.addEventListener("sendStatusError", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				sendStatusError((String) evt.getProperty("message"));
 			}

@@ -5,9 +5,7 @@ package prisms.arch.ds;
 
 import prisms.arch.PrismsApplication;
 
-/**
- * A group that a user can belong to that gives the user permissions
- */
+/** A group that a user can belong to that gives the user permissions */
 public class UserGroup
 {
 	private final UserSource theSource;
@@ -18,7 +16,7 @@ public class UserGroup
 
 	private String theDescription;
 
-	private SimplePermissions thePermissions;
+	private GroupPermissions thePermissions;
 
 	/**
 	 * Creates a UserGroup
@@ -32,69 +30,53 @@ public class UserGroup
 		theSource = src;
 		theName = name;
 		theApp = app;
-		thePermissions = new SimplePermissions();
+		thePermissions = new GroupPermissions();
 	}
 
-	/**
-	 * @return This group's source
-	 */
+	/** @return This group's source */
 	public UserSource getSource()
 	{
 		return theSource;
 	}
 
-	/**
-	 * @return This group's name
-	 */
+	/** @return This group's name */
 	public String getName()
 	{
 		return theName;
 	}
 
-	/**
-	 * @param name The name for this group
-	 */
+	/** @param name The name for this group */
 	public void setName(String name)
 	{
 		theName = name;
 	}
 
-	/**
-	 * @return The name of the application that this group applies to
-	 */
+	/** @return The name of the application that this group applies to */
 	public PrismsApplication getApp()
 	{
 		return theApp;
 	}
 
-	/**
-	 * @return The group's description
-	 */
+	/** @return The group's description */
 	public String getDescription()
 	{
 		return theDescription;
 	}
 
-	/**
-	 * @param descrip A description for the group
-	 */
+	/** @param descrip A description for the group */
 	public void setDescription(String descrip)
 	{
 		theDescription = descrip;
 	}
 
-	/**
-	 * @return This group's permissions
-	 */
-	public SimplePermissions getPermissions()
+	/** @return This group's permissions */
+	public GroupPermissions getPermissions()
 	{
 		return thePermissions;
 	}
 
-	/**
-	 * @param per The permissions for this group
-	 */
-	public void setPermissions(SimplePermissions per)
+	/** @param per The permissions for this group */
+	public void setPermissions(GroupPermissions per)
 	{
 		thePermissions = per;
 	}
