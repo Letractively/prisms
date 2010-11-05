@@ -3,17 +3,15 @@
  */
 package prisms.arch.ds;
 
-/**
- * Implements Permissions in a simple way
- */
-public class SimplePermissions implements Permissions
+import prisms.arch.Permission;
+
+/** Implements Permissions in for a group */
+public class GroupPermissions implements Permissions
 {
 	private final java.util.Map<String, Permission> theMap;
 
-	/**
-	 * Creates a Permissions set
-	 */
-	public SimplePermissions()
+	/** Creates a Permissions set */
+	public GroupPermissions()
 	{
 		theMap = new java.util.HashMap<String, Permission>();
 	}
@@ -41,17 +39,13 @@ public class SimplePermissions implements Permissions
 		return ret;
 	}
 
-	/**
-	 * @param permission The permission to add
-	 */
+	/** @param permission The permission to add */
 	public void addPermission(Permission permission)
 	{
 		theMap.put(permission.getName(), permission);
 	}
 
-	/**
-	 * @param name The name of the permission to remove
-	 */
+	/** @param name The name of the permission to remove */
 	public void removePermission(String name)
 	{
 		theMap.remove(name);

@@ -3,10 +3,8 @@
  */
 package prisms.impl;
 
-/**
- * A database implementation of a user
- */
-public class DBUser extends prisms.arch.ds.User
+/** A database implementation of a user */
+class DBUser extends prisms.arch.ds.User
 {
 	private boolean isDeleted;
 
@@ -17,7 +15,7 @@ public class DBUser extends prisms.arch.ds.User
 	 * @param name The name for the user
 	 * @param id The database ID for the user
 	 */
-	public DBUser(prisms.arch.ds.UserSource source, String name, int id)
+	public DBUser(prisms.arch.ds.UserSource source, String name, long id)
 	{
 		super(source, name, id);
 	}

@@ -64,7 +64,8 @@ public class PreferencesPersister implements
 				Preferences userPrefs = ret.get(user);
 				if(userPrefs == null)
 				{
-					userPrefs = new Preferences(theApp.getDataSource().getUser(user));
+					userPrefs = new Preferences(theApp.getEnvironment().getUserSource()
+						.getUser(user));
 					ret.put(user, userPrefs);
 				}
 				String domain = rs.getString(2);
@@ -146,18 +147,14 @@ public class PreferencesPersister implements
 		return value;
 	}
 
-	public <V extends Map<String, Preferences>> void setValue(V o,
-		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
+	public <V extends Map<String, Preferences>> void setValue(prisms.arch.PrismsSession session,
+		V o, @SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		// Don't commit the world--this persister persists with each change
 	}
 
-	/**
-	 * @see prisms.arch.Persister#valueChanged(java.lang.Object, java.lang.Object,
-	 *      prisms.arch.event.PrismsEvent)
-	 */
-	public void valueChanged(Map<String, Preferences> fullValue, Object o,
-		prisms.arch.event.PrismsEvent evt)
+	public void valueChanged(prisms.arch.PrismsSession session, Map<String, Preferences> fullValue,
+		Object o, prisms.arch.event.PrismsEvent evt)
 	{
 	}
 
@@ -254,10 +251,10 @@ public class PreferencesPersister implements
 			return;
 		try
 		{
-			theConnection = theApp.getServer().getPersisterFactory()
-				.getConnection(theConnEl, theApp.getDataSource());
-			DBOWNER = theApp.getServer().getPersisterFactory()
-				.getTablePrefix(theConnection, theConnEl, theApp.getDataSource());
+			prisms.arch.PrismsEnv env = theApp.getEnvironment();
+			theConnection = env.getPersisterFactory().getConnection(theConnEl, env.getUserSource());
+			DBOWNER = env.getPersisterFactory().getTablePrefix(theConnection, theConnEl,
+				env.getUserSource());
 		} catch(Exception e)
 		{
 			throw new IllegalStateException("Could not get connection!", e);

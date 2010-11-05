@@ -383,4 +383,81 @@ public class PrismsUtils
 			.getPropertyChangeListeners(randomProperty);
 		return listeners.length > generalListeners.length;
 	}
+
+	/**
+	 * Retrieves and parses XML for a given location
+	 * 
+	 * @param location The location of the XML file to parse
+	 * @param relative The locations to which the location may be relative
+	 * @return The root element of the given XMl file
+	 * @throws java.io.IOException If an error occurs finding, reading, or parsing the file
+	 */
+	public static org.dom4j.Element getRootElement(String location, String... relative)
+		throws java.io.IOException
+	{
+		String newLocation = resolve(location, relative);
+		if(newLocation == null)
+			return null;
+		java.net.URL configURL;
+		if(newLocation.startsWith("classpath:/"))
+		{ // Classpath resource
+			configURL = PrismsUtils.class
+				.getResource(newLocation.substring("classpath:/".length()));
+			if(configURL == null)
+			{
+				throw new java.io.FileNotFoundException("Classpath configuration URL "
+					+ newLocation + " refers to a non-existent resource");
+			}
+		}
+		else if(newLocation.contains(":/"))
+		{ // Absolute resource
+			configURL = new java.net.URL(newLocation);
+		}
+		else
+		{
+			throw new java.io.IOException("Location " + newLocation + " is invalid");
+		}
+		org.dom4j.Element configEl;
+		try
+		{
+			configEl = new org.dom4j.io.SAXReader().read(configURL).getRootElement();
+		} catch(org.dom4j.DocumentException e)
+		{
+			throw new javax.imageio.IIOException("Could not read XML file " + location, e);
+		}
+		return configEl;
+	}
+
+	private static String resolve(String location, String... relative) throws java.io.IOException
+	{
+		if(location.contains(":/"))
+			return location;
+		else if(relative.length > 0)
+		{
+			String resolvedRel = resolve(relative[0], ArrayUtils.remove(relative, 0));
+			if(resolvedRel.contains(":/"))
+			{
+				String newLocation = location;
+				do
+				{
+					int lastSlash = resolvedRel.lastIndexOf("/");
+					resolvedRel = resolvedRel.substring(0, lastSlash);
+					if(newLocation.startsWith("../"))
+						newLocation = newLocation.substring(3);
+				} while(newLocation.startsWith("../"));
+				if(!resolvedRel.contains(":/"))
+				{
+					throw new java.io.IOException("Location " + location + " relative to "
+						+ ArrayUtils.toString(relative) + " is invalid");
+				}
+				return resolvedRel + "/" + newLocation;
+			}
+			else
+				return null;
+		}
+		else
+		{
+			throw new java.io.IOException("Location " + location + " is invalid");
+		}
+	}
 }

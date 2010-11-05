@@ -13,9 +13,7 @@ public class CommonValueManager<T> extends PersistingPropertyManager<T>
 {
 	private T theValue;
 
-	/**
-	 * Creates a CommonValueManager
-	 */
+	/** Creates a CommonValueManager */
 	public CommonValueManager()
 	{
 	}
@@ -33,23 +31,23 @@ public class CommonValueManager<T> extends PersistingPropertyManager<T>
 		super.propertyChange(evt);
 	}
 
-	public T getApplicationValue()
+	@Override
+	public T getGlobalValue()
 	{
 		return theValue;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#getCorrectValue(prisms.arch.PrismsSession)
-	 */
+	public T getApplicationValue(prisms.arch.PrismsApplication app)
+	{
+		return theValue;
+	}
+
 	@Override
 	public T getCorrectValue(prisms.arch.PrismsSession session)
 	{
 		return theValue;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession, java.lang.Object)
-	 */
 	@Override
 	public boolean isValueCorrect(prisms.arch.PrismsSession session, Object val)
 	{

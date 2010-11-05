@@ -13,19 +13,13 @@ import prisms.arch.ds.User;
 import prisms.arch.ds.UserGroup;
 import prisms.ui.list.SelectableList;
 
-/**
- * Lists the groups that a user can belong to for a specific application
- */
+/** Lists the groups that a user can belong to for a specific application */
 public class UserGroups extends SelectableList<UserGroup>
 {
 	User theUser;
 
 	PrismsApplication theApp;
 
-	/**
-	 * @see prisms.ui.list.DataListMgrPlugin#initPlugin(prisms.arch.PrismsSession,
-	 *      org.dom4j.Element)
-	 */
 	@Override
 	public void initPlugin(PrismsSession session, Element pluginEl)
 	{
@@ -43,9 +37,9 @@ public class UserGroups extends SelectableList<UserGroup>
 					setUserApp(evt.getNewValue(), theApp);
 				}
 			});
-		session.addEventListener("userChanged", new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				User user2 = (User) evt.getProperty("user");
 				if(user2.equals(theUser))
@@ -62,7 +56,7 @@ public class UserGroups extends SelectableList<UserGroup>
 			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				PrismsApplication app2 = (PrismsApplication) evt.getProperty("app");
 				if(app2.equals(theApp))
@@ -71,7 +65,7 @@ public class UserGroups extends SelectableList<UserGroup>
 		});
 		session.addEventListener("appGroupsChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(theApp == evt.getProperty("app"))
 					setListData((UserGroup []) evt.getProperty("groups"));
@@ -79,26 +73,26 @@ public class UserGroups extends SelectableList<UserGroup>
 		});
 		session.addEventListener("userGroupsChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				if(theUser.equals(evt.getProperty("user")))
+				if(theUser != null && theUser.equals(evt.getProperty("user")))
 					setUserApp(theUser, theApp);
 			}
 		});
 		session.addEventListener("userPermissionsChanged",
 			new prisms.arch.event.PrismsEventListener()
 			{
-				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 				{
-					if(getSession().getUser().getName().equals(
-						((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+					if(getSession().getUser().getName()
+						.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 						initClient();// Refresh this tree to take new permissions changes into
 					// account
 				}
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				UserGroup group = (UserGroup) evt.getProperty("group");
 				for(int i = 0; i < getItemCount(); i++)
@@ -115,7 +109,7 @@ public class UserGroups extends SelectableList<UserGroup>
 	void setUserApp(User user, PrismsApplication app)
 	{
 		prisms.arch.ds.ManageableUserSource src = (prisms.arch.ds.ManageableUserSource) getSession()
-			.getApp().getDataSource();
+			.getApp().getEnvironment().getUserSource();
 		theUser = user;
 		theApp = app;
 		setListParams();
@@ -144,9 +138,6 @@ public class UserGroups extends SelectableList<UserGroup>
 			setSelectedObjects(new UserGroup [0]);
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListMgrPlugin#setSelection(prisms.ui.list.DataListNode[], boolean)
-	 */
 	@Override
 	public synchronized void setSelection(prisms.ui.list.DataListNode[] nodes, boolean fromUser)
 	{
@@ -173,9 +164,6 @@ public class UserGroups extends SelectableList<UserGroup>
 		}
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getTitle()
-	 */
 	@Override
 	public String getTitle()
 	{
@@ -183,63 +171,42 @@ public class UserGroups extends SelectableList<UserGroup>
 			+ (theUser == null ? "" : " for user " + theUser.getName());
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getIcon()
-	 */
 	@Override
 	public String getIcon()
 	{
 		return "manager/application";
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getItemName(java.lang.Object)
-	 */
 	@Override
 	public String getItemName(UserGroup item)
 	{
 		return item.getName();
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getItemIcon(java.lang.Object)
-	 */
 	@Override
 	public String getItemIcon(UserGroup item)
 	{
 		return "manager/group";
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#canSelect(java.lang.Object)
-	 */
 	@Override
 	public boolean canSelect(UserGroup item)
 	{
 		return true;
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#doSelect(java.lang.Object)
-	 */
 	@Override
 	public void doSelect(UserGroup item)
 	{
 		getSession().setProperty(ManagerProperties.userSelectedGroup, item);
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#canDeselect(java.lang.Object)
-	 */
 	@Override
 	public boolean canDeselect(UserGroup item)
 	{
 		return true;
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#doDeselect(java.lang.Object)
-	 */
 	@Override
 	public void doDeselect(UserGroup item)
 	{

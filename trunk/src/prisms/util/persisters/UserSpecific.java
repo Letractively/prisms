@@ -17,46 +17,37 @@ public class UserSpecific<T extends OwnedObject> extends prisms.arch.event.Prope
 
 	private java.util.Map<String, T> theValues;
 
-	/**
-	 * Creates a user-specific property manager
-	 */
+	/** Creates a user-specific property manager */
 	public UserSpecific()
 	{
 		theValues = new java.util.HashMap<String, T>();
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#configure(prisms.arch.PrismsApplication,
-	 *      org.dom4j.Element)
-	 */
 	@Override
 	public void configure(prisms.arch.PrismsApplication app, org.dom4j.Element configEl)
 	{
 		super.configure(app, configEl);
-		org.dom4j.Element persisterEl = configEl.element("persister");
-		if(persisterEl != null)
+		if(thePersister == null)
 		{
-			// Gets around a java compile error. THIS IS SAFE.
-			Object persister = app.getServer().getPersisterFactory()
-				.create(persisterEl, app, getProperty());
-			thePersister = (UserSpecificPersister<T>) persister;
+			org.dom4j.Element persisterEl = configEl.element("persister");
+			if(persisterEl != null)
+			{
+				// Gets around a java compile error. THIS IS SAFE.
+				Object persister = app.getEnvironment().getPersisterFactory()
+					.create(persisterEl, app, getProperty());
+				thePersister = (UserSpecificPersister<T>) persister;
+			}
+			if(thePersister != null)
+				theValues = thePersister.getValue();
 		}
-		if(thePersister != null)
-			theValues = thePersister.getValue();
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#getApplicationValue()
-	 */
 	@Override
-	public T getApplicationValue()
+	public T getApplicationValue(prisms.arch.PrismsApplication app)
 	{
 		return null;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#getCorrectValue(prisms.arch.PrismsSession)
-	 */
 	@Override
 	public T getCorrectValue(PrismsSession session)
 	{
@@ -69,10 +60,6 @@ public class UserSpecific<T extends OwnedObject> extends prisms.arch.event.Prope
 		return ret;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession,
-	 *      java.lang.Object)
-	 */
 	@Override
 	public <V extends T> boolean isValueCorrect(PrismsSession session, V val)
 	{
@@ -83,16 +70,13 @@ public class UserSpecific<T extends OwnedObject> extends prisms.arch.event.Prope
 	public void changeValues(PrismsSession session, prisms.arch.event.PrismsPCE<T> evt)
 	{
 		super.changeValues(session, evt);
-		thePersister.setValue(theValues, evt);
+		thePersister.setValue(session, theValues, evt);
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#propertiesSet()
-	 */
 	@Override
-	public void propertiesSet()
+	public void propertiesSet(prisms.arch.PrismsApplication app)
 	{
-		super.propertiesSet();
+		super.propertiesSet(app);
 		theValues = thePersister.link(theValues);
 	}
 }

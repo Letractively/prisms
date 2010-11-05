@@ -3,22 +3,16 @@
  */
 package prisms.arch;
 
-/**
- * Thrown whenever a PRISMS-specific problem occurs
- */
+/** Thrown whenever a PRISMS-specific problem occurs */
 public class PrismsException extends java.io.IOException
 {
-	/**
-	 * @see java.io.IOException#IOException(String)
-	 */
+	/** @see java.io.IOException#IOException(String) */
 	public PrismsException(String s)
 	{
 		super(s);
 	}
 
-	/**
-	 * @see Exception#Exception(String, Throwable)
-	 */
+	/** @see Exception#Exception(String, Throwable) */
 	public PrismsException(String s, Throwable cause)
 	{
 		this(s);

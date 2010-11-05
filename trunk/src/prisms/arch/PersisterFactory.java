@@ -53,11 +53,22 @@ public interface PersisterFactory
 	/**
 	 * @param conn The connection to get the table prefix for
 	 * @param connEl The connection element used to configure the given connection
-	 * @param userSource The user source userd to configure the given connection
+	 * @param userSource The user source used to configure the given connection
 	 * @return The prefix that should be used before the name of each column in all SQL statements
 	 *         executed on the given connection
 	 */
 	String getTablePrefix(java.sql.Connection conn, Element connEl, UserSource userSource);
+
+	/**
+	 * Creates or retrieves an ID generator for the given connection
+	 * 
+	 * @param el The connection element to configure the connection
+	 * @param userSource The user source used to configure the connection
+	 * @return An ID generator for the given connection
+	 * @throws PrismsException If an error occurs establishing the generator
+	 */
+	prisms.arch.ds.IDGenerator getIDGenerator(Element el, UserSource userSource)
+		throws PrismsException;
 
 	/**
 	 * Performs a disconnect operation on a connection as configured by an XML configuration element

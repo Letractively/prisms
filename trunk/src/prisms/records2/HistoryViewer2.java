@@ -88,15 +88,14 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 		theStart = 1;
 		session.addEventListener("preferencesChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
 				if(!pEvt.getPreference().equals(theCountPref))
 					return;
 				theStart = 1;
 				theCount = ((Integer) pEvt.getValue()).intValue();
-				refresh();
-				initClient();
+				refresh(false);
 			}
 		});
 		String prefPropName = pluginEl.elementTextTrim("preferenceProperty");
@@ -128,7 +127,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 			theSession.addEventListener(showHistoryEvent,
 				new prisms.arch.event.PrismsEventListener()
 				{
-					public void eventOccurred(PrismsEvent evt)
+					public void eventOccurred(PrismsSession session2, PrismsEvent evt)
 					{
 						theHistoryItem = evt.getProperty("item");
 						theActivityUser = null;
@@ -143,7 +142,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 			theSession.addEventListener(showUserActivityEvent,
 				new prisms.arch.event.PrismsEventListener()
 				{
-					public void eventOccurred(PrismsEvent evt)
+					public void eventOccurred(PrismsSession session2, PrismsEvent evt)
 					{
 						theHistoryItem = null;
 						theActivityUser = (RecordUser) evt.getProperty("user");
@@ -158,7 +157,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 			theSession.addEventListener(showCenterHistoryEvent,
 				new prisms.arch.event.PrismsEventListener()
 				{
-					public void eventOccurred(PrismsEvent evt)
+					public void eventOccurred(PrismsSession session2, PrismsEvent evt)
 					{
 						theHistoryItem = null;
 						theActivityCenter = (PrismsCenter) evt.getProperty("center");
@@ -175,7 +174,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 			theSession.addEventListener("showSyncRecordHistory",
 				new prisms.arch.event.PrismsEventListener()
 				{
-					public void eventOccurred(PrismsEvent evt)
+					public void eventOccurred(PrismsSession session2, PrismsEvent evt)
 					{
 						theHistoryItem = null;
 						theActivitySyncRecord = (SyncRecord) evt.getProperty("syncRecord");
@@ -191,7 +190,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 		theSession.addEventListener(theAutoPurgeChangeEvent,
 			new prisms.arch.event.PrismsEventListener()
 			{
-				public void eventOccurred(PrismsEvent evt)
+				public void eventOccurred(PrismsSession session2, PrismsEvent evt)
 				{
 					sendAutoPurge();
 				}
@@ -258,10 +257,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 	public void processEvent(JSONObject evt)
 	{
 		if("refresh".equals(evt.get("method")))
-		{
-			refresh();
-			initClient();
-		}
+			refresh(false);
 		else if("navigate".equals(evt.get("method")))
 		{
 			int idx = ((Number) evt.get("start")).intValue();
@@ -277,8 +273,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 		{
 			theSorter.addSort(getFieldName((String) evt.get("column")),
 				((Boolean) evt.get("ascending")).booleanValue());
-			refresh();
-			initClient();
+			refresh(false);
 		}
 		else if("setSelected".equals(evt.get("method")))
 		{
@@ -304,44 +299,82 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 			throw new IllegalArgumentException("Unrecognized " + theName + " event: " + evt);
 	}
 
-	void refresh()
+	void refresh(boolean show)
 	{
-		if(theRecordKeeper == null)
-			return;
-		theSnapshotTime = System.currentTimeMillis();
+		prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
+		prisms.ui.UI.DefaultProgressInformer pi = new prisms.ui.UI.DefaultProgressInformer();
+		pi.setProgressText("Querying history");
+		if(ui != null)
+			ui.startTimedTask(pi);
 		try
 		{
-			long [] snapshot;
-			if(theHistoryItem != null)
-				snapshot = theRecordKeeper.getHistory(theHistoryItem);
-			else if(theActivityUser != null)
-				snapshot = theRecordKeeper.getHistoryBy(theActivityUser);
-			else if(theActivityCenter != null)
+			if(theRecordKeeper == null)
+				return;
+			theSnapshotTime = System.currentTimeMillis();
+			String baseText;
+			try
 			{
-				prisms.records2.SyncRecord[] records = theRecordKeeper.getSyncRecords(
-					theActivityCenter, new Boolean(isCenterActivityImport));
-				snapshot = new long [0];
-				for(prisms.records2.SyncRecord record : records)
-					snapshot = (long []) ArrayUtils.concatP(Long.TYPE, snapshot,
-						theRecordKeeper.getSyncChanges(record));
-			}
-			else if(theActivitySyncRecord != null)
-				snapshot = theRecordKeeper.getSyncChanges(theActivitySyncRecord);
-			else
-				snapshot = theRecordKeeper.getChangeIDs(-1, -1, 0);
+				long [] snapshot;
+				if(theHistoryItem != null)
+				{
+					pi.setProgressText("Querying history of " + display(theHistoryItem));
+					snapshot = theRecordKeeper.getHistory(theHistoryItem);
+				}
+				else if(theActivityUser != null)
+				{
+					pi.setProgressText("Querying activity of " + theActivityUser.getName());
+					snapshot = theRecordKeeper.getHistoryBy(theActivityUser);
+				}
+				else if(theActivityCenter != null)
+				{
+					pi.setProgressText("Querying changes "
+						+ (isCenterActivityImport ? "imported from " : "exported to ")
+						+ theActivityCenter.getName());
+					prisms.records2.SyncRecord[] records = theRecordKeeper.getSyncRecords(
+						theActivityCenter, new Boolean(isCenterActivityImport));
+					snapshot = new long [0];
+					for(prisms.records2.SyncRecord record : records)
+						snapshot = (long []) ArrayUtils.concatP(Long.TYPE, snapshot,
+							theRecordKeeper.getSyncChanges(record));
+				}
+				else if(theActivitySyncRecord != null)
+				{
+					pi.setProgressText("Querying changes "
+						+ (theActivitySyncRecord.isImport() ? "imported from " : "exported to ")
+						+ theActivitySyncRecord.getCenter().getName() + " at "
+						+ PrismsUtils.print(theActivitySyncRecord.getSyncTime()));
+					snapshot = theRecordKeeper.getSyncChanges(theActivitySyncRecord);
+				}
+				else
+				{
+					pi.setProgressText("Querying entire history");
+					snapshot = theRecordKeeper.getChangeIDs(-1, -1, 0);
+				}
 
-			theSnapshot = theRecordKeeper.sortChangeIDs(snapshot, theSorter);
-		} catch(PrismsRecordException e)
+				baseText = pi.getTaskText();
+				pi.setProgressText(baseText + " (" + snapshot.length + " changes total)");
+				theSnapshot = theRecordKeeper.sortChangeIDs(snapshot, theSorter);
+			} catch(PrismsRecordException e)
+			{
+				theSnapshot = new long [0];
+				throw new IllegalStateException("Could not get history", e);
+			}
+			if(theStart > theSnapshot.length)
+				theStart = 0;
+			java.util.Iterator<Long> selIter = theSelectedIndices.iterator();
+			while(selIter.hasNext())
+				if(!ArrayUtils.containsP(theSnapshot, selIter.next()))
+					selIter.remove();
+			int count = theCount;
+			if(count > theSnapshot.length - theStart)
+				count = theSnapshot.length - theStart;
+			pi.setProgressText(baseText + " (displaying " + count + " of " + theSnapshot.length
+				+ " changes)");
+			sendDisplay(show);
+		} finally
 		{
-			theSnapshot = new long [0];
-			throw new IllegalStateException("Could not get history", e);
+			pi.setDone();
 		}
-		if(theStart > theSnapshot.length)
-			theStart = 0;
-		java.util.Iterator<Long> selIter = theSelectedIndices.iterator();
-		while(selIter.hasNext())
-			if(!ArrayUtils.containsP(theSnapshot, selIter.next()))
-				selIter.remove();
 	}
 
 	void reset(boolean show)
@@ -350,8 +383,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 		theSorter.addSort(DBRecordKeeper.ChangeField.CHANGE_TIME, false);
 		theStart = 1;
 		theSelectedIndices.clear();
-		refresh();
-		sendDisplay(show);
+		refresh(show);
 	}
 
 	/**
@@ -868,8 +900,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 				}
 				if(error != null)
 					ui.error(error);
-				refresh();
-				initClient();
+				refresh(false);
 			}
 		};
 		String warn = null;
@@ -989,7 +1020,7 @@ public abstract class HistoryViewer2 implements prisms.arch.AppPlugin
 					{
 						public void run()
 						{
-							refresh();
+							refresh(false);
 						}
 					});
 				}

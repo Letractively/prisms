@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <client>
+	<name>fullclient</name>
+	<description>Designed for the web user interface</description>
+	<service>false</service>
+	<allowAnonymous>false</allowAnonymous>
+	<session-timeout>900000</session-timeout>
 	<monitors>
 	</monitors>
 	<plugins>

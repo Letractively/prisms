@@ -70,7 +70,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 			true);
 		session.addEventListener("preferencesChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
 				if(!pEvt.getPreference().equals(theCountPref))
@@ -126,7 +126,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 			});
 		session.addEventListener("centerChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(evt.getProperty("center").equals(theCenter))
 					sendCenter(false, false);
@@ -134,7 +134,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		});
 		prisms.arch.event.PrismsEventListener recordListener = new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				SyncRecord record = (SyncRecord) evt.getProperty("record");
 				if(!record.getCenter().equals(theCenter))
@@ -183,7 +183,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		session.addEventListener("syncAttemptChanged", recordListener);
 		session.addEventListener("syncPurged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(dataLock)
 					return;
@@ -199,7 +199,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		});
 		session.addEventListener("genSyncReceipt", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				try
 				{
@@ -216,7 +216,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		 * on a timer */
 		session.addEventListener("doAutoSynchronize", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(evt.getProperty("synchronized") != null)
 					return;
@@ -1062,9 +1062,11 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		String error = null;
 		try
 		{
-			new SyncServiceClient(getSynchronizer(), theAppName, theClientName,
-				theServicePluginName).synchronize(theCenter, SyncRecord.Type.MANUAL_REMOTE, pi,
-				requiresRecords(), true);
+			SyncServiceClient syncClient = new SyncServiceClient(getSynchronizer(), theAppName,
+				theClientName, theServicePluginName);
+			syncClient.setSecurityInfo(getTrustStore(), getTrustPassword());
+			syncClient.synchronize(theCenter, SyncRecord.Type.MANUAL_REMOTE, pi, requiresRecords(),
+				true);
 		} catch(prisms.records2.PrismsRecordException e)
 		{
 			log.error("Manual synchronization failed", e);
@@ -1416,11 +1418,13 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 			return;
 		for(PrismsCenter center : toSync)
 		{
+			SyncServiceClient syncClient = new SyncServiceClient(getSynchronizer(), theAppName,
+				theClientName, theServicePluginName);
+			syncClient.setSecurityInfo(getTrustStore(), getTrustPassword());
 			try
 			{
-				new SyncServiceClient(getSynchronizer(), theAppName, theClientName,
-					theServicePluginName).synchronize(center, SyncRecord.Type.AUTOMATIC, null,
-					requiresRecords(), true);
+				syncClient.synchronize(center, SyncRecord.Type.AUTOMATIC, null, requiresRecords(),
+					true);
 			} catch(prisms.records2.PrismsRecordException e)
 			{
 				log.error("Automatic synchronization failed", e);
@@ -1428,29 +1432,19 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		}
 	}
 
-	/**
-	 * @return The synchronizer that this editor is to use for manual synchronization
-	 */
+	/** @return The synchronizer that this editor is to use for manual synchronization */
 	protected abstract PrismsSynchronizer2 getSynchronizer();
 
-	/**
-	 * @return All users available to connect to a center
-	 */
+	/** @return All users available to connect to a center */
 	protected abstract RecordUser [] getUsers();
 
-	/**
-	 * @return All centers available for synchronization
-	 */
+	/** @return All centers available for synchronization */
 	protected abstract PrismsCenter [] getCenters();
 
-	/**
-	 * @return Whether the current session has authority to edit the selected center
-	 */
+	/** @return Whether the current session has authority to edit the selected center */
 	protected abstract boolean isEditable();
 
-	/**
-	 * @return Whether the current session has authority to purge synchronization records
-	 */
+	/** @return Whether the current session has authority to purge synchronization records */
 	protected abstract boolean canPurge();
 
 	/**
@@ -1458,4 +1452,26 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 	 *         synchronization
 	 */
 	protected abstract boolean requiresRecords();
+
+	/**
+	 * Gets the location of the trust store to use for connecting to the selected center. Should be
+	 * overridden by subclasses in environments where secure connections will be needed.
+	 * 
+	 * @return The location of the trust store
+	 */
+	protected String getTrustStore()
+	{
+		return null;
+	}
+
+	/**
+	 * Gets the password to the trust store to use for connecting to the selected center. Should be
+	 * overridden by subclasses in environments where secure connections will be needed.
+	 * 
+	 * @return The password to use to access the trust store
+	 */
+	protected String getTrustPassword()
+	{
+		return null;
+	}
 }

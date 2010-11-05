@@ -3,6 +3,8 @@
  */
 package prisms.util;
 
+import prisms.arch.PrismsSession;
+
 /**
  * Globalizes events that are specific to a user. When an event occurs, this listener broadcasts it
  * to every other session in the application open to the same user name.
@@ -13,18 +15,12 @@ public class UserEventGlobalizer implements prisms.arch.event.ConfiguredPEL
 
 	prisms.arch.PrismsSession theSession;
 
-	/**
-	 * @see prisms.arch.event.ConfiguredPEL#configure(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	public void configure(prisms.arch.PrismsSession session, org.dom4j.Element configEl)
 	{
 		theSession = session;
 	}
 
-	/**
-	 * @see prisms.arch.event.PrismsEventListener#eventOccurred(prisms.arch.event.PrismsEvent)
-	 */
-	public void eventOccurred(final prisms.arch.event.PrismsEvent evt)
+	public void eventOccurred(PrismsSession session, final prisms.arch.event.PrismsEvent evt)
 	{
 		if(evt.getProperty("globalEventID") != null)
 			return;
@@ -33,10 +29,10 @@ public class UserEventGlobalizer implements prisms.arch.event.ConfiguredPEL
 		theSession.getApp().runSessionTask(theSession,
 			new prisms.arch.PrismsApplication.SessionTask()
 			{
-				public void run(prisms.arch.PrismsSession session)
+				public void run(prisms.arch.PrismsSession session2)
 				{
-					if(session.getUser().equals(theSession.getUser()))
-						session.fireEvent(evt);
+					if(session2.getUser().equals(theSession.getUser()))
+						session2.fireEvent(evt);
 				}
 			}, true);
 	}

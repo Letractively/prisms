@@ -8,6 +8,7 @@ import manager.app.ManagerProperties;
 import org.apache.log4j.Logger;
 
 import prisms.arch.PrismsException;
+import prisms.arch.PrismsSession;
 import prisms.arch.ds.User;
 
 /**
@@ -38,7 +39,8 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 				if(user.equals(getSession().getUser()))
 					throw new IllegalArgumentException("User " + user
 						+ " cannot delete him/herself");
-				if(!getSession().getPermissions().has("deleteUser"))
+				if(!manager.app.ManagerUtils.canEdit(getSession().getPermissions(),
+					user.getPermissions(getSession().getApp())))
 					throw new IllegalArgumentException("User " + getSession().getUser()
 						+ " does not have permission to delete a user");
 				prisms.ui.UI.ConfirmListener cl = new prisms.ui.UI.ConfirmListener()
@@ -49,7 +51,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 							return;
 						prisms.arch.ds.ManageableUserSource source;
 						source = (prisms.arch.ds.ManageableUserSource) getSession().getApp()
-							.getDataSource();
+							.getEnvironment().getUserSource();
 						User [] users = getSession().getProperty(ManagerProperties.users);
 						try
 						{
@@ -78,7 +80,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 						+ " does not have permission to create a user");
 				prisms.arch.ds.ManageableUserSource source;
 				source = (prisms.arch.ds.ManageableUserSource) getSession().getApp()
-					.getDataSource();
+					.getEnvironment().getUserSource();
 				User user = ((ItemNode) evt.getSource()).getObject();
 				final User [] users = getSession().getProperty(ManagerProperties.users);
 				User newUser;
@@ -97,7 +99,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 					throw new IllegalStateException("Could not create user", e);
 				}
 				for(prisms.arch.PrismsApplication app : getSession().getProperty(
-					ManagerProperties.applications))
+					prisms.arch.event.PrismsProperties.applications))
 				{
 					try
 					{
@@ -147,9 +149,9 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 						setSelectedObjects(new User [] {evt.getNewValue()});
 				}
 			});
-		session.addEventListener("userChanged", new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				User user = (User) evt.getProperty("user");
 				if(getSession().getUser().getName().equals(user.getName()))
@@ -166,7 +168,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 		session.addEventListener("userPermissionsChanged",
 			new prisms.arch.event.PrismsEventListener()
 			{
-				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 				{
 					if(getSession().getPermissions().has("createUser") && getItemCount() == 0
 						|| !(getItem(0) instanceof prisms.ui.list.ActionListNode))
@@ -184,14 +186,14 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 			});
 		session.addEventListener("createNewUser", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(!getSession().getPermissions().has("createUser"))
 					throw new IllegalStateException("User " + getSession().getUser()
 						+ " does not have permission to create a user");
 				prisms.arch.ds.ManageableUserSource source;
 				source = (prisms.arch.ds.ManageableUserSource) getSession().getApp()
-					.getDataSource();
+					.getEnvironment().getUserSource();
 				final User [] users = getSession().getProperty(ManagerProperties.users);
 				User newUser;
 				try
@@ -258,7 +260,9 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 	public ItemNode createObjectNode(User a)
 	{
 		ItemNode ret = super.createObjectNode(a);
-		if(getSession().getPermissions().has("deleteUser") && !getSession().getUser().equals(a))
+		if(manager.app.ManagerUtils.canEdit(getSession().getPermissions(),
+			a.getPermissions(getSession().getApp()))
+			&& !getSession().getUser().equals(a))
 			ret.addAction(DELETE_USER_ACTION);
 		if(manager.app.ManagerUtils.canEdit(getSession().getPermissions(),
 			a.getPermissions(getSession().getApp())))

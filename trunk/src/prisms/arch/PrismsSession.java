@@ -60,6 +60,8 @@ public class PrismsSession
 
 	private EventListener theListener;
 
+	private java.util.concurrent.ConcurrentHashMap<String, boolean []> theRunningTasks;
+
 	/**
 	 * Creates a PluginAppSession
 	 * 
@@ -84,6 +86,7 @@ public class PrismsSession
 		theELs = new ListenerManager<PrismsEventListener>(PrismsEventListener.class);
 		theTaskList = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
 		theInvocations = new ConcurrentHashMap<Thread, JSONArray>();
+		theRunningTasks = new ConcurrentHashMap<String, boolean []>();
 	}
 
 	/**
@@ -202,9 +205,37 @@ public class PrismsSession
 	 * @param event The event to process
 	 * @param finished A boolean array whose first element will be set to true when the event has
 	 *        been processed
+	 * @return The events posted to this session that need to be sent to the client, whether or not
+	 *         they are a result of this particular call
 	 */
-	public void processAsync(final JSONObject event, final boolean [] finished)
+	public JSONArray processAsync(final JSONObject event, boolean [] finished)
 	{
+		if(finished == null)
+			finished = new boolean [1];
+		final boolean [] fFinished = finished;
+		if(event.get("plugin") == null && "getEvents".equals(event.get("method"))
+			&& event.containsKey("taskID"))
+		{
+			java.util.Iterator<boolean []> values = theRunningTasks.values().iterator();
+			while(values.hasNext())
+			{
+				if(values.next()[0])
+					values.remove();
+			}
+
+			String taskID = (String) event.get("taskID");
+			finished = theRunningTasks.get(taskID);
+			JSONArray ret = getEvents();
+			if(finished != null && !finished[0])
+			{
+				JSONObject getEvents = new JSONObject();
+				getEvents.put("method", "getEvents");
+				getEvents.put("taskID", taskID);
+				ret.add(getEvents);
+			}
+			fFinished[0] = true;
+			return ret;
+		}
 		Runnable toRun = new Runnable()
 		{
 			public void run()
@@ -214,8 +245,7 @@ public class PrismsSession
 					process(event);
 				} finally
 				{
-					if(finished != null && finished.length > 0)
-						finished[0] = true;
+					fFinished[0] = true;
 				}
 			}
 		};
@@ -231,6 +261,39 @@ public class PrismsSession
 				postOutgoingEvent(wrapError("Background task runtime exception", e));
 			}
 		});
+		/*
+		 * This code checks every tenth of a second to see if the event has been processed.
+		 * If the processing isn't finished after 1/2 second, this method returns, leaving
+		 * the final results of the event on the queue to be retrieved at the next client
+		 * poll or user action. This allows progress bars to be shown to the user quickly
+		 * while a long operation progresses.
+		 */
+		int waitCount = 0;
+		do
+		{
+			try
+			{
+				Thread.sleep(100);
+			} catch(InterruptedException e)
+			{}
+			waitCount++;
+		} while(!finished[0] && waitCount < 5);
+		if(!finished[0])
+		{
+			String taskID = Integer.toHexString(toRun.hashCode());
+			JSONObject getEvents = new JSONObject();
+			getEvents.put("method", "getEvents");
+			getEvents.put("taskID", taskID);
+			prisms.ui.UI ui = (prisms.ui.UI) getPlugin("UI");
+			if(!finished[0] && ui == null || !ui.isProgressShowing())
+			{
+				theRunningTasks.put(taskID, finished);
+				JSONArray ret = getEvents();
+				ret.add(getEvents);
+				return ret;
+			}
+		}
+		return getEvents();
 	}
 
 	void process(JSONObject event)
@@ -543,7 +606,7 @@ public class PrismsSession
 				theProperties.put(propName, propValue);
 			listeners = getPropertyChangeListeners(propName);
 
-			PrismsPCE<T> propEvt = new PrismsPCE<T>(this, propName,
+			PrismsPCE<T> propEvt = new PrismsPCE<T>(getApp(), this, propName,
 				(T) theProperties.get(propName), propValue);
 			for(int i = 0; i < eventProps.length; i += 2)
 			{
@@ -646,7 +709,7 @@ public class PrismsSession
 	{
 		PrismsEventListener [] listeners = getEventListeners(event.name);
 		for(PrismsEventListener l : listeners)
-			l.eventOccurred(event);
+			l.eventOccurred(this, event);
 	}
 
 	/**

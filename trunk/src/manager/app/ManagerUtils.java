@@ -3,8 +3,9 @@
  */
 package manager.app;
 
-import prisms.arch.PrismsApplication;
-import prisms.arch.ds.*;
+import prisms.arch.Permission;
+import prisms.arch.ds.Permissions;
+import prisms.arch.ds.UserGroup;
 
 /**
  * A utility class for determining a user's permissions to edit manager objects
@@ -208,24 +209,6 @@ public class ManagerUtils
 		if(isAdmin(toEdit))
 			return false;
 		return getManagementLevel(perms) > getManagementLevel(toEdit);
-	}
-
-	/**
-	 * Determines whether a user can edit an application
-	 * 
-	 * @param manager The manager user (the one accessing the application)
-	 * @param mgrApp The manager application to get permissions for
-	 * @param app The application to be edited
-	 * @return Whether the user can modify the application
-	 */
-	public static boolean canEdit(User manager, PrismsApplication mgrApp,
-		prisms.arch.PrismsApplication app)
-	{
-		if(isAdmin(manager.getPermissions(mgrApp)))
-			return true;
-		UserGroup [] userGroups = manager.getGroups();
-		UserGroup [] adminGroups = app.getAdminGroups();
-		return prisms.util.ArrayUtils.mergeExclusive(UserGroup.class, userGroups, adminGroups).length > 0;
 	}
 
 	/**

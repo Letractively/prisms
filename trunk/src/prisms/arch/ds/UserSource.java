@@ -3,21 +3,24 @@
  */
 package prisms.arch.ds;
 
-import prisms.arch.*;
+import prisms.arch.PrismsException;
 
-/**
- * Provides access to a set of users
- */
+/** Provides access to a set of users */
 public interface UserSource
 {
 	/**
 	 * Sets this user source's data source
 	 * 
 	 * @param configEl The XML element to configure this data source with
-	 * @param factory The PersisterFactory to use to get connection information
+	 * @param env The PRISMS environment that this user source will be used in
+	 * @param apps All applications configured in the PRISMS environment
 	 * @throws PrismsException If the user source could not be configured correctly
 	 */
-	void configure(org.dom4j.Element configEl, PersisterFactory factory) throws PrismsException;
+	void configure(org.dom4j.Element configEl, prisms.arch.PrismsEnv env,
+		prisms.arch.PrismsApplication[] apps) throws PrismsException;
+
+	/** @return The ID generator used to configure IDs in this PRISMS environment */
+	prisms.arch.ds.IDGenerator getIDs();
 
 	/**
 	 * @return The PRISMS user source's password constraints
@@ -35,37 +38,12 @@ public interface UserSource
 	User getUser(String name) throws PrismsException;
 
 	/**
-	 * Retrieves a user group
-	 * 
-	 * @param app The application that the group applies to
-	 * @param groupName The name of the group to get
-	 * @return The specified group, or null if no such group exists
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	UserGroup getGroup(PrismsApplication app, String groupName) throws PrismsException;
-
-	/**
-	 * @param name The name of the application to get
-	 * @return The stored application with the given name
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	PrismsApplication getApp(String name) throws PrismsException;
-
-	/**
 	 * @param user The user requesting access to the application
 	 * @param app The application the user is requesting access to
 	 * @return Whether the user has permission to access the given application
 	 * @throws PrismsException If an error occurs accessing the data
 	 */
-	boolean canAccess(User user, PrismsApplication app) throws PrismsException;
-
-	/**
-	 * @param app The application for the configuration to retrieve
-	 * @param name The name of the client configuration to retrieve
-	 * @return The client configuration of the given application and name
-	 * @throws PrismsException If an error occurs getting the data
-	 */
-	ClientConfig getClient(PrismsApplication app, String name) throws PrismsException;
+	boolean canAccess(User user, prisms.arch.PrismsApplication app) throws PrismsException;
 
 	/**
 	 * Gets a set of password hashing data to generate an encryption key from
@@ -122,19 +100,17 @@ public interface UserSource
 	User [] getAllUsers() throws PrismsException;
 
 	/**
-	 * Creates a new session for an application
+	 * Allows this user source to veto the otherwise inevitable accessto the given client by the
+	 * given user. This should be an extremely fast operation.
 	 * 
-	 * @param client The client configuration to create the session for
-	 * @param user The user to create the session for
-	 * @param asService Whether the new session is to be creates as an M2M client as opposed to as a
-	 *        user interface client
-	 * @return The new session to use
-	 * @throws PrismsException If an error configuring the session
+	 * @param user The user that is attempting to access the client
+	 * @param config The client config that the user is attempting to access
+	 * @throws PrismsException If the given user should not be allowed to access the given client.
+	 *         The message in the exception will be returned to the user to explain why access was
+	 *         denied, so this message should be as descriptive as possible.
 	 */
-	PrismsSession createSession(ClientConfig client, User user) throws PrismsException;
+	void assertAccessible(User user, prisms.arch.ClientConfig config) throws PrismsException;
 
-	/**
-	 * Disposes of this data source's resources
-	 */
+	/** Disposes of this data source's resources */
 	void disconnect();
 }

@@ -1,11 +1,20 @@
 
---------------------------------------------------------------------------------
---The schema for the Plugin Remote Integrated Service Management System (PRISMS)
---database.  This script works with HSQL.  Modifications may be needed for other
---database flavors.
---------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+--The schema for the Plugin Remote Integrated Service Management System (PRISMS) database.
+--This script works with HSQL.  Modifications may be needed for other database flavors.
+----------------------------------------------------------------------------------------------------
 --PRISMS ARCHITECTURE TABLES
---------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+
+CREATE TABLE prisms_installation(
+	centerID INT NOT NULL,
+	installDate TIMESTAMP NOT NULL
+);
+
+CREATE TABLE prisms_auto_increment(
+	tableName VARCHAR(32) NOT NULL,
+	nextID	  NUMERIC(20) NOT NULL
+);
 
 CREATE TABLE prisms_hashing (
 	id INT NOT NULL PRIMARY KEY,
@@ -26,14 +35,14 @@ CREATE TABLE prisms_password_constraints(
 );
 
 CREATE TABLE prisms_user (
-	id INT NOT NULL PRIMARY KEY,
+	id NUMERIC(20) NOT NULL PRIMARY KEY,
 	userName VARCHAR NOT NULL,
 	deleted CHAR(1) NOT NULL
 );
 
 CREATE TABLE prisms_user_password (
 	id INT NOT NULL PRIMARY KEY,
-	pwdUser INT NOT NULL,
+	pwdUser NUMERIC(20) NOT NULL,
 	pwdData VARCHAR NULL,
 	pwdTime NUMERIC(14) NOT NULL,
 	pwdExpire NUMERIC(14) NULL,
@@ -41,80 +50,36 @@ CREATE TABLE prisms_user_password (
 	FOREIGN KEY(pwdUser) REFERENCES prisms_user(id) ON DELETE CASCADE
 );
 
-CREATE TABLE prisms_application (
-	id INT NOT NULL PRIMARY KEY,
-	appName VARCHAR NOT NULL,
-	appDescrip VARCHAR NULL,
-	configClass VARCHAR NOT NULL,
-	configXML VARCHAR NOT NULL,
-	userRestrictive CHAR(1) NOT NULL,
-	deleted CHAR(1) NOT NULL
-);
-
 CREATE TABLE prisms_user_app_assoc (
-	assocUser INT NOT NULL,
-	assocApp INT NOT NULL,
+	assocUser NUMERIC(20) NOT NULL,
+	assocApp VARCHAR(32) NOT NULL,
 	PRIMARY KEY(assocUser, assocApp),
-	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
-	FOREIGN KEY(assocApp) REFERENCES prisms_application(id) ON DELETE CASCADE
-);
-
-CREATE TABLE prisms_client_config (
-	id INT NOT NULL PRIMARY KEY,
-	configApp INT NOT NULL,
-	configName VARCHAR NOT NULL,
-	configDescrip VARCHAR NULL,
-	configSerializer VARCHAR NULL,
-	configXML VARCHAR NOT NULL,
-	validatorClass VARCHAR NULL,
-	isService CHAR(1) NOT NULL,
-	sessionTimeout NUMERIC(14) NOT NULL,
-	allowAnonymous CHAR(1) NOT NULL,
-	deleted CHAR(1) NOT NULL,
-	FOREIGN KEY(configApp) REFERENCES prisms_application(id) ON DELETE CASCADE
+	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_user_group (
 	id INT NOT NULL PRIMARY KEY,
+	groupApp VARCHAR(32) NOT NULL,
 	groupName VARCHAR NOT NULL,
 	groupDescrip VARCHAR NULL,
-	groupApp INT NOT NULL,
 	deleted CHAR(1) NOT NULL,
-	FOREIGN KEY(groupApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
 	UNIQUE(groupApp, groupName)
 );
 
-CREATE TABLE prisms_app_admin_group (
-	adminApp INT NOT NULL,
-	adminGroup INT NOT NULL,
-	PRIMARY KEY(adminApp, adminGroup),
-	FOREIGN KEY(adminApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
-	FOREIGN KEY(adminGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
-);
-
 CREATE TABLE prisms_user_group_assoc (
-	assocUser INT NOT NULL,
+	assocUser NUMERIC(20) NOT NULL,
 	assocGroup INT NOT NULL,
 	PRIMARY KEY(assocUser, assocGroup),
 	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
 	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
 );
 
-CREATE TABLE prisms_permission (
-	id INT NOT NULL PRIMARY KEY,
-	pApp INT NOT NULL,
-	pName VARCHAR NOT NULL,
-	pDescrip VARCHAR NULL,
-	deleted CHAR(1) NOT NULL,
-	FOREIGN KEY(pApp) REFERENCES prisms_application(id) ON DELETE CASCADE
-);
-
 CREATE TABLE prisms_group_permissions (
 	assocGroup INT NOT NULL,
-	assocPermission INT NOT NULL,
-	PRIMARY KEY(assocGroup, assocPermission),
-	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE,
-	FOREIGN KEY(assocPermission) REFERENCES prisms_permission(id) ON DELETE CASCADE
+	pApp VARCHAR(32) NOT NULL,
+	assocPermission VARCHAR(64) NOT NULL,
+	PRIMARY KEY(assocGroup, pApp, assocPermission),
+	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
 );
 
 -- End of PRISMS-proper table schema
@@ -152,11 +117,6 @@ CREATE TABLE prisms_change_record(
 	changeData2 NUMERIC(20) NULL,
 
 	PRIMARY KEY(id, recordNS)
-);
-
-CREATE TABLE prisms_installation(
-	recordNS VARCHAR(32) NOT NULL,
-	installDate TIMESTAMP NOT NULL
 );
 
 CREATE TABLE prisms_center(
@@ -223,15 +183,47 @@ CREATE TABLE prisms_purge_excl_type(
 	exclAdditivity CHAR(1) NOT NULL
 );
 
-CREATE TABLE prisms_auto_increment(
-	recordNS VARCHAR(32) NOT NULL,
-	tableName VARCHAR(32) NOT NULL,
-	nextID	  NUMERIC(20) NOT NULL
-);
-
 CREATE TABLE prisms_purge_record(
 	recordNS VARCHAR(32) NOT NULL,
 	centerID INT NOT NULL,
 	subjectCenter INT NOT NULL,
 	latestChange TIMESTAMP NOT NULL
+);
+
+--The PRISMS messaging schema allows email-like messages to be sent to other users within the same
+--application
+
+CREATE TABLE prisms_message(
+	id INT NOT NULL PRIMARY KEY,
+	author INT NOT NULL,
+	time TIMESTAMP NOT NULL,
+	sent CHAR(1) NOT NULL,
+	priority INT NOT NULL,
+	predecessor INT NULL,
+	override CHAR(1) NOT NULL,
+	subject VARCHAR2 NOT NULL,
+	content LONGVARCHAR NOT NULL,
+
+	FOREIGN KEY(author) REFERENCES prisms_user(id) ON DELETE CASCADE,
+	FOREIGN KEY(predecessor) REFERENCES prisms_message(id)
+);
+
+CREATE TABLE prisms_message_recipient(
+	message INT NOT NULL,
+	recipient INT NOT NULL,
+	applicability INT NOT NULL,
+	readTime TIMESTAMP NULL,
+
+	FOREIGN KEY(message) REFERENCES prisms_message(ID) ON DELETE CASCADE,
+	FOREIGN KEY(recipient) REFERENCE prisms_user(id) ON DELETE CASCADE
+);
+
+CREATE TABLE prisms_message_attachment(
+	id INT NOT NULL PRIMARY KEY,
+	message INT NOT NULL,
+	name VARCHAR NOT NULL,
+	type VARCHAR NOT NULL,
+	data LONGVARBINARY NOT NULL,
+
+	FOREIGN KEY(message) REFERENCES prisms_message(id) ON DELETE CASCADE
 );

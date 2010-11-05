@@ -8,12 +8,11 @@ import manager.app.ManagerProperties;
 import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
+import prisms.arch.PrismsSession;
 import prisms.arch.ds.User;
 import prisms.arch.ds.UserGroup;
 
-/**
- * Allows the user to edit properties of an application
- */
+/** Allows the user to edit properties of a user group */
 public class GroupEditor implements prisms.arch.AppPlugin
 {
 	private static final Logger log = Logger.getLogger(GroupEditor.class);
@@ -26,14 +25,11 @@ public class GroupEditor implements prisms.arch.AppPlugin
 
 	boolean theDataLock;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
 	{
 		theSession = session;
 		theName = pluginEl.elementText("name");
-		prisms.arch.ds.UserSource us = session.getApp().getDataSource();
+		prisms.arch.ds.UserSource us = session.getApp().getEnvironment().getUserSource();
 		if(!(us instanceof prisms.arch.ds.ManageableUserSource))
 			log.warn("User source is not manageable");
 		theGroup = theSession.getProperty(ManagerProperties.selectedAppGroup);
@@ -47,7 +43,7 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				if(theDataLock)
 					return;
@@ -57,10 +53,10 @@ public class GroupEditor implements prisms.arch.AppPlugin
 		session.addEventListener("userPermissionsChanged",
 			new prisms.arch.event.PrismsEventListener()
 			{
-				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 				{
-					if(theSession.getUser().getName().equals(
-						((User) evt.getProperty("user")).getName()))
+					if(theSession.getUser().getName()
+						.equals(((User) evt.getProperty("user")).getName()))
 					{
 						setGroup(theGroup);
 					}
@@ -68,9 +64,6 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			});
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 		boolean visible = theGroup != null;
@@ -96,9 +89,6 @@ public class GroupEditor implements prisms.arch.AppPlugin
 		theSession.postOutgoingEvent(evt);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		if("nameChanged".equals(evt.get("method")))
@@ -110,7 +100,8 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			log.info("User " + theSession.getUser() + " changing name of group " + theGroup
 				+ " in application " + theGroup.getApp() + " to " + newName);
 			prisms.arch.ds.ManageableUserSource source;
-			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
+			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getEnvironment()
+				.getUserSource();
 			theGroup.setName(newName);
 			try
 			{
@@ -138,7 +129,8 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			log.info("User " + theSession.getUser() + " changing description of group " + theGroup
 				+ " in application " + theGroup.getApp() + " to " + newDescrip);
 			prisms.arch.ds.ManageableUserSource source;
-			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getDataSource();
+			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getEnvironment()
+				.getUserSource();
 			theGroup.setDescription(newDescrip);
 			try
 			{

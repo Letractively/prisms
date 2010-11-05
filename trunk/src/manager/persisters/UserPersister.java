@@ -3,48 +3,160 @@
  */
 package manager.persisters;
 
-import org.apache.log4j.Logger;
-
+import prisms.arch.PrismsApplication;
+import prisms.arch.PrismsException;
+import prisms.arch.PrismsSession;
 import prisms.arch.ds.User;
+import prisms.arch.event.PrismsEvent;
+import prisms.arch.event.PrismsPCE;
 
-/**
- * Retrieves all users from the user source
- */
-public class UserPersister extends prisms.util.persisters.AbstractPersister<User []>
+/** Retrieves all users from the user source */
+public class UserPersister extends prisms.util.persisters.ListPersister<User>
 {
-	private static final Logger log = Logger.getLogger(UserPersister.class);
+	private PrismsApplication theManager;
 
-	/**
-	 * @see prisms.arch.Persister#getValue()
-	 */
-	public User [] getValue()
+	private PrismsApplication [] theApps;
+
+	private boolean isLoaded;
+
+	/** Creates a user persister */
+	public UserPersister()
 	{
-		User [] users;
-		try
-		{
-			users = ((prisms.arch.ds.ManageableUserSource) getApp().getDataSource()).getAllUsers();
-		} catch(prisms.arch.PrismsException e)
-		{
-			log.error("Could not get users", e);
-			return new User [0];
-		}
-		return users;
+		theApps = new PrismsApplication [0];
 	}
 
-	public void setValue(User [] o, @SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
+	@Override
+	public void configure(org.dom4j.Element configEl, PrismsApplication app,
+		prisms.arch.event.PrismsProperty<User []> property)
 	{
-		// Changes should not be made directly to a user, but rather through the manager,
-		// so persistence is not handled here
+		super.configure(configEl, app, property);
+		theApps = prisms.util.ArrayUtils.add(theApps, app);
+		if(app.getEnvironment().isManager(app))
+			theManager = app;
+		else if(theManager == null)
+			throw new IllegalStateException("A " + getClass().getName()
+				+ " must be configured in the" + " manager application first");
 	}
 
-	public void valueChanged(User [] fullValue, Object o, prisms.arch.event.PrismsEvent evt)
+	@Override
+	protected boolean equivalent(User po, User avo)
 	{
-		// Changes should not be made directly to a user, but rather through the manager,
-		// so persistence is not handled here
+		return po.equals(avo);
 	}
 
+	@Override
+	protected User clone(User toClone)
+	{
+		return toClone.clone();
+	}
+
+	@Override
 	public void reload()
 	{
-		// No cache to clear
+		// Don't reload the users
+	}
+
+	@Override
+	protected User [] depersist()
+	{
+		if(isLoaded)
+			return getValue();
+		try
+		{
+			User [] ret = getApp().getEnvironment().getUserSource().getAllUsers();
+			isLoaded = true;
+			return ret;
+		} catch(PrismsException e)
+		{
+			throw new IllegalStateException("Could not retrieve users", e);
+		}
+	}
+
+	@Override
+	public void setValue(PrismsSession session, Object [] value,
+		@SuppressWarnings("rawtypes") PrismsPCE evt)
+	{
+		User [] oldVal = getValue();
+		super.setValue(session, value, evt);
+		User [] newVal = getValue();
+		if(prisms.util.ArrayUtils.equals(oldVal, newVal))
+			return;
+		for(PrismsApplication app : theApps)
+			if(app != session.getApp())
+				app.setGlobalProperty(getProperty(), newVal);
+	}
+
+	@Override
+	protected User add(PrismsSession session, User newValue, PrismsPCE<User []> evt)
+	{
+		if(session == null)
+			throw new IllegalArgumentException("Users cannot be modified through"
+				+ " a global operation");
+		if(!session.getUser().getPermissions(theManager).has("createUser"))
+			throw new IllegalArgumentException("User " + session.getUser()
+				+ " does not have permission to create users");
+		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
+		if(ds instanceof prisms.arch.ds.ManageableUserSource)
+		{
+			try
+			{
+				((prisms.arch.ds.ManageableUserSource) ds).putUser(newValue);
+			} catch(PrismsException e)
+			{
+				throw new IllegalStateException("Could not add user", e);
+			}
+			return newValue.clone();
+		}
+		return null;
+	}
+
+	@Override
+	protected void remove(PrismsSession session, User removed, PrismsPCE<User []> evt)
+	{
+		if(session == null)
+			throw new IllegalArgumentException("Users cannot be modified through"
+				+ " a global operation");
+		if(!manager.app.ManagerUtils.canEdit(session.getUser().getPermissions(theManager),
+			removed.getPermissions(theManager)))
+			throw new IllegalArgumentException("User " + session.getUser()
+				+ " does not have permission to delete user " + removed);
+		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
+		if(ds instanceof prisms.arch.ds.ManageableUserSource)
+		{
+			try
+			{
+				((prisms.arch.ds.ManageableUserSource) ds).deleteUser(removed);
+			} catch(PrismsException e)
+			{
+				throw new IllegalStateException("Could not add user", e);
+			}
+		}
+	}
+
+	@Override
+	protected void update(PrismsSession session, User dbValue, User availableValue, PrismsEvent evt)
+	{
+		if(session == null)
+			throw new IllegalArgumentException("Users cannot be modified through"
+				+ " a global operation");
+		if(!manager.app.ManagerUtils.canEdit(session.getUser().getPermissions(theManager),
+			availableValue.getPermissions(theManager)))
+			throw new IllegalArgumentException("User " + session.getUser()
+				+ " does not have permission to modify user " + availableValue);
+		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
+		if(ds instanceof prisms.arch.ds.ManageableUserSource)
+		{
+			try
+			{
+				((prisms.arch.ds.ManageableUserSource) ds).putUser(availableValue);
+			} catch(PrismsException e)
+			{
+				throw new IllegalStateException("Could not add user", e);
+			}
+		}
+		evt.setProperty("responsibleApp", session.getApp());
+		for(PrismsApplication app : theApps)
+			if(app != session.getApp())
+				app.fireGlobally(null, evt);
 	}
 }

@@ -17,7 +17,7 @@
 			<driver>org.hsqldb.jdbcDriver</driver>
 			<url>jdbc:hsqldb:hsql://localhost:9001/prisms</url>
 			<username>PRISMS</username>
-			<password>PRISMS</password> 
+			<password>PRISMS</password>
 		</connection>
 	</persisterFactory>
 	<datasource>
@@ -25,4 +25,19 @@
 		<connection name="PRISMS" />
 		<anonymous>anonymous</anonymous>
 	</datasource>
+	<applications />
+	<global-listeners>
+		<listener-set name="prisms-users">
+			<property type="manager.persisters.PrismsUserManager">
+				<field>prisms.arch.event.PrismsProperties.users</field>
+				<persister>
+					<class>manager.persisters.UserPersister</class>
+				</persister>
+				<changeEvent>
+					<name>userChanged</name>
+					<eventProperty>user</eventProperty>
+				</changeEvent>
+			</property>
+		</listener-set>
+	</global-listeners>
 </server>

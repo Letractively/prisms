@@ -3,6 +3,8 @@
  */
 package prisms.impl;
 
+import java.sql.Connection;
+
 import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
@@ -16,17 +18,20 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 {
 	private static final Logger log = Logger.getLogger(DefaultPersisterFactory.class);
 
-	private java.util.HashMap<String, java.sql.Connection> theNamedConnections;
+	private java.util.HashMap<String, Connection> theNamedConnections;
 
 	private java.util.HashMap<String, Element> theNamedConnEls;
+
+	private java.util.HashMap<Connection, prisms.arch.ds.IDGenerator> theIDGenerators;
 
 	/**
 	 * Creates this persister factory
 	 */
 	public DefaultPersisterFactory()
 	{
-		theNamedConnections = new java.util.HashMap<String, java.sql.Connection>();
+		theNamedConnections = new java.util.HashMap<String, Connection>();
 		theNamedConnEls = new java.util.HashMap<String, Element>();
+		theIDGenerators = new java.util.HashMap<Connection, prisms.arch.ds.IDGenerator>();
 	}
 
 	public void configure(Element configEl)
@@ -82,7 +87,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		return ds;
 	}
 
-	public java.sql.Connection getConnection(Element el, prisms.arch.ds.UserSource userSource)
+	public Connection getConnection(Element el, prisms.arch.ds.UserSource userSource)
 	{
 		if(el == null)
 		{
@@ -93,10 +98,10 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		String ref = el.attributeValue("ref");
 		if(ref != null)
 		{
-			java.sql.Connection ret = theNamedConnections.get(ref);
+			Connection ret = theNamedConnections.get(ref);
 			if(ret == null)
 			{
-				org.dom4j.Element namedConnEl = getConnectionElement(ref);
+				Element namedConnEl = getConnectionElement(ref);
 				if(namedConnEl != null)
 				{
 					ret = getConnection(namedConnEl, userSource);
@@ -167,7 +172,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		return connEl;
 	}
 
-	public String getTablePrefix(java.sql.Connection conn, org.dom4j.Element connEl,
+	public String getTablePrefix(Connection conn, Element connEl,
 		prisms.arch.ds.UserSource userSource)
 	{
 		if("true".equalsIgnoreCase(connEl.elementText("usePrismsConnection")))
@@ -188,7 +193,20 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		return "";
 	}
 
-	public void disconnect(java.sql.Connection conn, org.dom4j.Element connEl)
+	public prisms.arch.ds.IDGenerator getIDGenerator(Element connEl, prisms.arch.ds.UserSource source)
+		throws prisms.arch.PrismsException
+	{
+		Connection conn = getConnection(connEl, source);
+		prisms.arch.ds.IDGenerator ret = theIDGenerators.get(conn);
+		if(ret == null)
+		{
+			ret = new prisms.arch.ds.IDGenerator(conn, getTablePrefix(conn, connEl, source));
+			theIDGenerators.put(conn, ret);
+		}
+		return ret;
+	}
+
+	public void disconnect(Connection conn, Element connEl)
 	{
 		if(connEl == null)
 		{
@@ -204,7 +222,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		String ref = connEl.attributeValue("ref");
 		if(ref != null)
 		{
-			java.sql.Connection ret = theNamedConnections.get(ref);
+			Connection ret = theNamedConnections.get(ref);
 			if(ret != null)
 			{
 				/* This connection is managed by the persister factory--we'll close it when
@@ -231,9 +249,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 			name = connEl.elementTextTrim("name");
 		if(closed)
 		{
-			log
-				.error("Connection " + (name == null ? connEl.asXML() : name)
-					+ " is already closed");
+			log.error("Connection " + (name == null ? connEl.asXML() : name) + " is already closed");
 		}
 		if(conn.getClass().getName().contains("hsql") && connEl.element("noshutdown") == null)
 		{
@@ -260,7 +276,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 	{
 		for(String connName : theNamedConnections.keySet())
 		{
-			java.sql.Connection conn = theNamedConnections.get(connName);
+			Connection conn = theNamedConnections.get(connName);
 			disconnect(conn, theNamedConnEls.get(connName));
 		}
 		theNamedConnections.clear();

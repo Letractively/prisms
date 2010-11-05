@@ -3,6 +3,8 @@
  */
 package prisms.arch.event;
 
+import prisms.arch.PrismsApplication;
+import prisms.arch.PrismsSession;
 import prisms.util.ArrayUtils;
 
 /**
@@ -13,7 +15,9 @@ import prisms.util.ArrayUtils;
  */
 public class PrismsPCE<T>
 {
-	private final Object theSource;
+	private final PrismsApplication theApp;
+
+	private final PrismsSession theSession;
 
 	private final PrismsProperty<T> theProperty;
 
@@ -28,29 +32,32 @@ public class PrismsPCE<T>
 	/**
 	 * Creates a property change event
 	 * 
-	 * @param source The source that fired the event
+	 * @param app The application that the event is to be fired in
+	 * @param session The session that fired the event. May be null
 	 * @param property The property that changed
 	 * @param oldValue The value of the property before the change
 	 * @param newValue The new (current) value of the property
 	 */
-	public PrismsPCE(Object source, PrismsProperty<T> property, T oldValue, T newValue)
+	public PrismsPCE(PrismsApplication app, PrismsSession session, PrismsProperty<T> property,
+		T oldValue, T newValue)
 	{
-		theSource = source;
+		theApp = app;
+		theSession = session;
 		theProperty = property;
 		theOldValue = oldValue;
 		theNewValue = newValue;
 	}
 
-	/**
-	 * @return The source that fired the event. Normally, this will be the session on which the
-	 *         event was originally fired. If the event was fired globally (via
-	 *         {@link prisms.arch.PrismsApplication#fireGlobalPropertyChange(PrismsProperty, PropertyManager, Object)}
-	 *         ), this will be either the property manager passed to the method or the application
-	 *         itself if the given manager was null.
-	 */
-	public Object getSource()
+	/** @return The application that this event was fired in */
+	public PrismsApplication getApp()
 	{
-		return theSource;
+		return theApp;
+	}
+
+	/** @return The session that caused the change. May be null. */
+	public PrismsSession getSession()
+	{
+		return theSession;
 	}
 
 	/**
@@ -135,5 +142,19 @@ public class PrismsPCE<T>
 			else
 				thePropertyValues[idx] = value;
 		}
+	}
+
+	/** @return All properties set in this event in the form [name, value, name, value...] */
+	public Object [] getPropertyList()
+	{
+		if(thePropertyNames == null)
+			return new Object [0];
+		Object [] ret = new Object [thePropertyNames.length * 2];
+		for(int i = 0; i < thePropertyNames.length; i++)
+		{
+			ret[i * 2] = thePropertyNames[i];
+			ret[i * 2 + 1] = thePropertyValues[i];
+		}
+		return ret;
 	}
 }

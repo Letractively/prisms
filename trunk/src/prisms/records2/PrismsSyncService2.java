@@ -44,7 +44,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		theSession.addEventListener("downloadSyncRequest",
 			new prisms.arch.event.PrismsEventListener()
 			{
-				public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 				{
 					generateSyncRequest((PrismsCenter) evt.getProperty("center"),
 						((Boolean) evt.getProperty("withRecords")).booleanValue());
@@ -52,14 +52,14 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			});
 		theSession.addEventListener("downloadSyncData", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				startRequestUpload((PrismsCenter) evt.getProperty("center"));
 			}
 		});
 		theSession.addEventListener("uploadSyncData", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				startSyncUpload((PrismsCenter) evt.getProperty("center"));
 			}

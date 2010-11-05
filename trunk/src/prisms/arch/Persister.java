@@ -45,22 +45,29 @@ public interface Persister<T>
 	/**
 	 * Sets the values to be persisted to storage
 	 * 
+	 * @param session The session that the change occurred in. May be null if
+	 *        {@link PrismsApplication#setGlobalProperty(prisms.arch.event.PrismsProperty, Object, Object...)
+	 *        setGlobalProperty} was called.
 	 * @param <V> The type of value to set
 	 * @param o The values to persist
 	 * @param evt The event that represents the change. This is a raw value due to conflicts with
 	 *        generics.
 	 */
 	@SuppressWarnings("rawtypes")
-	<V extends T> void setValue(V o, prisms.arch.event.PrismsPCE evt);
+	<V extends T> void setValue(PrismsSession session, V o, prisms.arch.event.PrismsPCE evt);
 
 	/**
 	 * Called when a single element of the persister's value changes
 	 * 
+	 * @param session The session that the change occurred in. May be null if
+	 *        {@link PrismsApplication#fireGlobally(PrismsSession, prisms.arch.event.PrismsEvent)
+	 *        fireGlobally} was called.
 	 * @param fullValue The whole persisted value
 	 * @param o The value that changed
 	 * @param evt The event that represents the change
 	 */
-	void valueChanged(T fullValue, Object o, prisms.arch.event.PrismsEvent evt);
+	void valueChanged(PrismsSession session, T fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt);
 
 	/**
 	 * Reloads this persister's value from the data source, clearing any cached resources that may

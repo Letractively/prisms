@@ -3,9 +3,7 @@
  */
 package prisms.impl;
 
-/**
- * A database implementation of a PRISMS group
- */
+/** A database implementation of a PRISMS group */
 public class DBGroup extends prisms.arch.ds.UserGroup
 {
 	private int theID;

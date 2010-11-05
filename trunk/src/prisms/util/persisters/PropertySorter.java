@@ -3,12 +3,15 @@
  */
 package prisms.util.persisters;
 
+import prisms.arch.PrismsSession;
+import prisms.arch.event.PrismsEvent;
+
 /**
  * Sorts a list property by a configured comparator or the property values' natural order
  * 
  * @param <T> The type of elements in the property to sort
  */
-public class PropertySorter<T> extends prisms.arch.event.PropertyManager<T []>
+public class PropertySorter<T> extends prisms.arch.event.GlobalPropertyManager<T []>
 {
 	private java.util.Comparator<T> theComparator;
 
@@ -16,38 +19,31 @@ public class PropertySorter<T> extends prisms.arch.event.PropertyManager<T []>
 	public void configure(prisms.arch.PrismsApplication app, org.dom4j.Element configEl)
 	{
 		super.configure(app, configEl);
-		String compClass = configEl.elementTextTrim("comparator");
-		if(compClass != null)
-			try
-			{
-				theComparator = Class.forName(compClass).asSubclass(java.util.Comparator.class)
-					.newInstance();
-			} catch(Throwable e)
-			{
-				throw new IllegalArgumentException("Could not instantiate comparator class "
-					+ compClass);
-			}
-		java.util.List<org.dom4j.Element> eventEls = configEl.elements("changeEvent");
-		for(org.dom4j.Element eventEl : eventEls)
+		if(theComparator == null)
 		{
-			String eventName = eventEl.elementTextTrim("name");
-			if(eventName == null)
-				throw new IllegalArgumentException("Cannot listen for change event on property "
-					+ getProperty() + ". No event name specified");
-			String propName = eventEl.elementTextTrim("eventProperty");
-			if(propName == null)
-				throw new IllegalArgumentException("Cannot listen for change event on property "
-					+ getProperty() + ". No eventProperty specified");
-			// Put the property name and type in here so the event listener can find this property
-			// manager
-			eventEl.addElement("persistProperty").setText(getProperty().getName());
-			eventEl.addElement("type").setText(getProperty().getType().getName());
-			app.addEventListenerType(eventName, SortChangeListener.class, eventEl);
+			String compClass = configEl.elementTextTrim("comparator");
+			if(compClass != null)
+				try
+				{
+					theComparator = Class.forName(compClass).asSubclass(java.util.Comparator.class)
+						.newInstance();
+				} catch(Throwable e)
+				{
+					throw new IllegalArgumentException("Could not instantiate comparator class "
+						+ compClass);
+				}
 		}
 	}
 
 	@Override
-	public T [] getApplicationValue()
+	protected void eventOccurred(PrismsSession session, PrismsEvent evt, Object eventValue)
+	{
+		if(!isValueCorrect(session, session.getProperty(getProperty())))
+			session.setProperty(getProperty(), getCorrectValue(session));
+	}
+
+	@Override
+	public T [] getApplicationValue(prisms.arch.PrismsApplication app)
 	{
 		return null;
 	}

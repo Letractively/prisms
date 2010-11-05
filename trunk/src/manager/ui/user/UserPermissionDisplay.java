@@ -7,8 +7,8 @@ import manager.app.ManagerProperties;
 
 import org.json.simple.JSONObject;
 
+import prisms.arch.Permission;
 import prisms.arch.PrismsSession;
-import prisms.arch.ds.Permission;
 
 /**
  * Displays the description of the selected permission in the user editor
@@ -40,7 +40,7 @@ public class UserPermissionDisplay implements prisms.arch.AppPlugin
 			});
 		session.addEventListener("permissionChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				Permission perm2 = (Permission) evt.getProperty("permission");
 				if(perm2.equals(thePermission))

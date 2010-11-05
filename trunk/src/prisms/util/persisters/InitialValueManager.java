@@ -6,8 +6,8 @@ package prisms.util.persisters;
 import org.apache.log4j.Logger;
 import org.dom4j.Element;
 
-import prisms.arch.PrismsSession;
 import prisms.arch.Persister;
+import prisms.arch.PrismsSession;
 import prisms.arch.event.PropertyManager;
 
 /**
@@ -50,8 +50,8 @@ public class InitialValueManager<T> extends PropertyManager<T>
 	public void configure(prisms.arch.PrismsApplication app, Element configEl)
 	{
 		super.configure(app, configEl);
-		Persister<T> persister = app.getServer().getPersisterFactory().create(
-			configEl.element("persister"), app, getProperty());
+		Persister<T> persister = app.getEnvironment().getPersisterFactory()
+			.create(configEl.element("persister"), app, getProperty());
 		if(persister != null)
 		{
 			try
@@ -82,7 +82,7 @@ public class InitialValueManager<T> extends PropertyManager<T>
 		// Do nothing
 	}
 
-	public T getApplicationValue()
+	public T getApplicationValue(prisms.arch.PrismsApplication app)
 	{
 		return theValue;
 	}
@@ -97,7 +97,8 @@ public class InitialValueManager<T> extends PropertyManager<T>
 	}
 
 	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession, java.lang.Object)
+	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession,
+	 *      java.lang.Object)
 	 */
 	@Override
 	public <V extends T> boolean isValueCorrect(PrismsSession session, V val)

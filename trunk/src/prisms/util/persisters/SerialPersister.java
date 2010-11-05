@@ -41,7 +41,7 @@ public class SerialPersister<T> extends AbstractPersister<T>
 		}
 		else
 			theSerializer = null;
-		thePDS = app.getServer().getPersisterFactory().parseDS(configEl.element("datasource"));
+		thePDS = app.getEnvironment().getPersisterFactory().parseDS(configEl.element("datasource"));
 	}
 
 	/**
@@ -62,13 +62,14 @@ public class SerialPersister<T> extends AbstractPersister<T>
 		return theSerializer.link(value, getApp());
 	}
 
-	public <V extends T> void setValue(V o,
+	public <V extends T> void setValue(prisms.arch.PrismsSession session, V o,
 		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		thePDS.saveData(theProperty.getName(), theSerializer.serialize(o));
 	}
 
-	public void valueChanged(T fullValue, Object o, prisms.arch.event.PrismsEvent evt)
+	public void valueChanged(prisms.arch.PrismsSession session, T fullValue, Object o,
+		prisms.arch.event.PrismsEvent evt)
 	{
 		thePDS.saveData(theProperty.getName(), theSerializer.serialize(fullValue));
 	}
