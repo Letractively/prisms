@@ -5,7 +5,6 @@ package prisms.arch;
 
 import org.dom4j.Element;
 
-import prisms.arch.ds.UserSource;
 import prisms.arch.event.PrismsProperty;
 import prisms.arch.event.PropertyDataSource;
 
@@ -48,7 +47,7 @@ public interface PersisterFactory
 	 * @param userSource The user source of the application to get the connection for
 	 * @return The configured connection
 	 */
-	java.sql.Connection getConnection(Element el, UserSource userSource);
+	java.sql.Connection getConnection(Element el);
 
 	/**
 	 * @param conn The connection to get the table prefix for
@@ -57,18 +56,7 @@ public interface PersisterFactory
 	 * @return The prefix that should be used before the name of each column in all SQL statements
 	 *         executed on the given connection
 	 */
-	String getTablePrefix(java.sql.Connection conn, Element connEl, UserSource userSource);
-
-	/**
-	 * Creates or retrieves an ID generator for the given connection
-	 * 
-	 * @param el The connection element to configure the connection
-	 * @param userSource The user source used to configure the connection
-	 * @return An ID generator for the given connection
-	 * @throws PrismsException If an error occurs establishing the generator
-	 */
-	prisms.arch.ds.IDGenerator getIDGenerator(Element el, UserSource userSource)
-		throws PrismsException;
+	String getTablePrefix(java.sql.Connection conn, Element connEl);
 
 	/**
 	 * Performs a disconnect operation on a connection as configured by an XML configuration element

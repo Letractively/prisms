@@ -6,9 +6,7 @@ import javax.crypto.Cipher;
 
 import org.json.simple.JSONObject;
 
-/**
- * Implements AES in counter mode. 128, 192, and 256 bit encryption is supported
- */
+/** Implements AES in counter mode. 128, 192, and 256 bit encryption is supported */
 public class AESEncryption implements Encryption
 {
 	private Cipher theEncryptCipher;
@@ -75,12 +73,18 @@ public class AESEncryption implements Encryption
 		{
 			throw new IllegalStateException("Could not perform AES encryption", e);
 		}
-		return new sun.misc.BASE64Encoder().encode(encrypted);
+
+		// return new sun.misc.BASE64Encoder().encode(encrypted);
+		// Sun whines about BASE64 being proprietary. Use apache instead...
+		return new org.apache.commons.codec.binary.Base64().encodeToString(encrypted);
 	}
 
 	public String decrypt(String encrypted, java.nio.charset.Charset charSet) throws IOException
 	{
-		byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
+		// byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
+		// Sun whines about BASE64 being proprietary. Use apache instead...
+		byte [] data = org.apache.commons.codec.binary.Base64.decodeBase64(encrypted);
+
 		byte [] decrypted;
 		try
 		{
@@ -115,6 +119,7 @@ public class AESEncryption implements Encryption
 		return ret;
 	}
 
+	@Override
 	public String toString()
 	{
 		return "AES";

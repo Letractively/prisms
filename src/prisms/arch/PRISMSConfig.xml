@@ -34,7 +34,15 @@
 					<class>manager.persisters.UserPersister</class>
 				</persister>
 				<changeEvent>
-					<name>userChanged</name>
+					<name>prismsUserChanged</name>
+					<eventProperty>user</eventProperty>
+				</changeEvent>
+			</property>
+			<property type="prisms.util.persisters.PropertySorter">
+				<field>prisms.arch.event.PrismsProperties.users</field>
+				<comparator>manager.persisters.UserComparator</comparator>
+				<changeEvent>
+					<name>prismsUserChanged</name>
 					<eventProperty>user</eventProperty>
 				</changeEvent>
 			</property>

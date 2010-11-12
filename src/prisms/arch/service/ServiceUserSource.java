@@ -84,6 +84,26 @@ public class ServiceUserSource implements UserSource
 		}
 	}
 
+	public User getUser(long id) throws PrismsException
+	{
+		JSONObject res;
+		try
+		{
+			res = theConnector.getResult(thePluginName, "getUser", "id", new Long(id));
+		} catch(java.io.IOException e)
+		{
+			throw new PrismsException("Could not communicate with PRISMS server", e);
+		}
+		try
+		{
+			return PrismsSerializer.deserializeUser((JSONObject) res.get("user"), this);
+		} catch(RuntimeException e)
+		{
+			throw new PrismsException("Could not deserialize user from PRISMS service: "
+				+ res.get("user"), e);
+		}
+	}
+
 	public boolean canAccess(User serverUser, PrismsApplication app) throws PrismsException
 	{
 		JSONObject res;
@@ -114,7 +134,7 @@ public class ServiceUserSource implements UserSource
 		}
 	}
 
-	public User [] getAllUsers() throws PrismsException
+	public User [] getActiveUsers() throws PrismsException
 	{
 		JSONObject res;
 		try

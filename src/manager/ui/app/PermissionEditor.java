@@ -140,7 +140,7 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 			&& theGroup.getName().equals("userAdmin"))
 			throw new IllegalStateException(
 				"The userAdmin group cannot be modified through this interface");
-		User [] users = theSession.getProperty(ManagerProperties.users);
+		User [] users = theSession.getProperty(prisms.arch.event.PrismsProperties.users);
 		users = users.clone();
 		for(int u = 0; u < users.length; u++)
 		{

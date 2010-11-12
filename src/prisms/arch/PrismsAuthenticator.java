@@ -78,7 +78,7 @@ public interface PrismsAuthenticator
 	 * @param secure Whether this request is being made over a secure connection that has not been
 	 *        jeopardized
 	 * @return Either an {@link AuthenticationError} or the decrypted data parameter
-	 * @throws PrismsException
+	 * @throws PrismsException If an error occurs accessing the needed information
 	 */
 	Object getAuthenticatedData(HttpServletRequest request, Object authInfo, boolean secure)
 		throws PrismsException;
@@ -91,8 +91,10 @@ public interface PrismsAuthenticator
 	 *        {@link #createAuthenticationInfo(HttpServletRequest, User)} for the request's session
 	 * @return An event to send to the client to ask the user to login. The response to this event
 	 *         will be passed to {@link #getAuthenticatedData(HttpServletRequest, Object, boolean)}
+	 * @throws PrismsException If an error occurs accessing the needed information
 	 */
-	org.json.simple.JSONObject requestLogin(HttpServletRequest request, Object authInfo);
+	org.json.simple.JSONObject requestLogin(HttpServletRequest request, Object authInfo)
+		throws PrismsException;
 
 	/**
 	 * Encrypts data for passing to the client. This method may simply return the data unmodified if
@@ -103,8 +105,9 @@ public interface PrismsAuthenticator
 	 * @param authInfo The object returned from
 	 *        {@link #createAuthenticationInfo(HttpServletRequest, User)} for the request's session
 	 * @return The encrypted data
+	 * @throws PrismsException If an error occurs accessing the needed information
 	 */
-	String encrypt(HttpServletRequest request, String data, Object authInfo);
+	String encrypt(HttpServletRequest request, String data, Object authInfo) throws PrismsException;
 
 	/**
 	 * @param request The request from the client
@@ -112,6 +115,7 @@ public interface PrismsAuthenticator
 	 *        {@link #createAuthenticationInfo(HttpServletRequest, User)} for the request's session
 	 * @return Whether the user needs to change his/her password immediately
 	 * @throws PrismsException If an error occurs getting the required information
+	 * @throws PrismsException If an error occurs accessing the needed information
 	 */
 	boolean needsPasswordChange(HttpServletRequest request, Object authInfo) throws PrismsException;
 
@@ -132,14 +136,16 @@ public interface PrismsAuthenticator
 	 * @param event The event asking for the password change
 	 * @return The error that occurred changing the password, or null if the password change was
 	 *         successful
+	 * @throws PrismsException If an error occurs accessing the needed information
 	 */
 	AuthenticationError changePassword(HttpServletRequest request, Object authInfo,
-		org.json.simple.JSONObject event);
+		org.json.simple.JSONObject event) throws PrismsException;
 
 	/**
 	 * Destroys the given authentication info, releasing its resources
 	 * 
 	 * @param authInfo The authentication info to destroy
+	 * @throws PrismsException If an error occurs accessing the needed information
 	 */
-	void destroy(Object authInfo);
+	void destroy(Object authInfo) throws PrismsException;
 }

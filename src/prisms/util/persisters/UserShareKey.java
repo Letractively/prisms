@@ -3,9 +3,6 @@
  */
 package prisms.util.persisters;
 
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-
 import prisms.arch.PrismsApplication;
 import prisms.arch.ds.User;
 import prisms.util.ArrayUtils;
@@ -20,7 +17,7 @@ public class UserShareKey implements ShareKey
 
 	PrismsApplication theApp;
 
-	private String [] theAccessUsers;
+	private User [] theAccessUsers;
 
 	private boolean [] theEditUsers;
 
@@ -53,7 +50,7 @@ public class UserShareKey implements ShareKey
 		isShared = shared;
 		theViewAllPermission = viewAllPermission;
 		theEditAllPermission = editAllPermission;
-		theAccessUsers = new String [0];
+		theAccessUsers = new User [0];
 		theEditUsers = new boolean [0];
 	}
 
@@ -109,7 +106,7 @@ public class UserShareKey implements ShareKey
 	 * @param idx The index of the user to get
 	 * @return The name of the access user at the given index
 	 */
-	public String getUser(int idx)
+	public User getUser(int idx)
 	{
 		return theAccessUsers[idx];
 	}
@@ -137,21 +134,9 @@ public class UserShareKey implements ShareKey
 	}
 
 	/**
-	 * @param user The name of the user to get the edit permission of
-	 * @return Whether the given user is allowed to edit this key's object
-	 */
-	public boolean canEdit(String user)
-	{
-		int idx = ArrayUtils.indexOf(theAccessUsers, user);
-		if(idx < 0)
-			return false;
-		return theEditUsers[idx];
-	}
-
-	/**
 	 * @return The names of all this key's access users
 	 */
-	public String [] getUsers()
+	public User [] getUsers()
 	{
 		return theAccessUsers;
 	}
@@ -159,7 +144,7 @@ public class UserShareKey implements ShareKey
 	/**
 	 * @param user The name of the user to add access to this key's object to
 	 */
-	public void addAccessUser(String user)
+	public void addAccessUser(User user)
 	{
 		if(ArrayUtils.contains(theAccessUsers, user))
 			return;
@@ -172,7 +157,7 @@ public class UserShareKey implements ShareKey
 	/**
 	 * @param user The name of the user to remove access to this key's object from
 	 */
-	public void removeAccessUser(String user)
+	public void removeAccessUser(User user)
 	{
 		int idx = ArrayUtils.indexOf(theAccessUsers, user);
 		if(idx >= 0)
@@ -198,7 +183,7 @@ public class UserShareKey implements ShareKey
 	 * @param user The name of the user to set the edit permission of
 	 * @param canEdit Whether the given user should be able to edit this key's object
 	 */
-	public void setEditAccess(String user, boolean canEdit)
+	public void setEditAccess(User user, boolean canEdit)
 	{
 		int idx = ArrayUtils.indexOf(theAccessUsers, user);
 		if(idx < 0)
@@ -250,7 +235,7 @@ public class UserShareKey implements ShareKey
 	 */
 	public void clearUsers()
 	{
-		theAccessUsers = new String [0];
+		theAccessUsers = new User [0];
 		theEditUsers = new boolean [0];
 	}
 
@@ -258,7 +243,7 @@ public class UserShareKey implements ShareKey
 	{
 		if(isViewPublic
 			|| user.getName().equals(theOwner.getName())
-			|| ArrayUtils.contains(theAccessUsers, user.getName())
+			|| ArrayUtils.contains(theAccessUsers, user)
 			|| (theViewAllPermission != null && user.getPermissions(theApp).has(
 				theViewAllPermission))
 			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
@@ -274,7 +259,7 @@ public class UserShareKey implements ShareKey
 			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
 				theEditAllPermission)))
 			return true;
-		int u = ArrayUtils.indexOf(theAccessUsers, user.getName());
+		int u = ArrayUtils.indexOf(theAccessUsers, user);
 		if(u < 0)
 			return false;
 		return theEditUsers[u];
@@ -289,6 +274,7 @@ public class UserShareKey implements ShareKey
 		return false;
 	}
 
+	@Override
 	public UserShareKey clone()
 	{
 		UserShareKey ret;
@@ -320,6 +306,7 @@ public class UserShareKey implements ShareKey
 		return ret;
 	}
 
+	@Override
 	public boolean equals(Object o)
 	{
 		if(o == this)
@@ -345,6 +332,7 @@ public class UserShareKey implements ShareKey
 		return true;
 	}
 
+	@Override
 	public int hashCode()
 	{
 		int userHash = 0;
@@ -359,87 +347,5 @@ public class UserShareKey implements ShareKey
 	private static boolean equal(String s1, String s2)
 	{
 		return s1 == null ? s2 == null : s1.equals(s2);
-	}
-
-	/**
-	 * @return A JSON-array containing this share key's groups and their accessibility
-	 */
-	public JSONArray getUserJSON()
-	{
-		JSONArray ret = new JSONArray();
-		for(int g = 0; g < theAccessUsers.length; g++)
-		{
-			JSONObject jsonG = new JSONObject();
-			jsonG.put("userName", theAccessUsers[g]);
-			jsonG.put("canView", new Boolean(true));
-			jsonG.put("canEdit", new Boolean(canEdit(g)));
-			ret.add(jsonG);
-		}
-		return ret;
-	}
-
-	/**
-	 * Fills this key's groups out from a JSON array
-	 * 
-	 * @param json A JSON-array containing a list of groups and their accessibility
-	 * @param user The user that is attempting to adjust the values
-	 */
-	public void fromGroupJSON(JSONArray json, final User user)
-	{
-		final boolean [] adminChecked = new boolean [] {user == null};
-		ArrayUtils.adjust(theAccessUsers,
-			(JSONObject []) json.toArray(new JSONObject [json.size()]),
-			new ArrayUtils.DifferenceListener<String, JSONObject>()
-			{
-				public boolean identity(String o1, JSONObject o2)
-				{
-					return o1.equals(o2.get("userName"));
-				}
-
-				public String added(JSONObject o, int idx, int retIdx)
-				{
-					if(Boolean.FALSE.equals(o.get("canView")))
-						return null;
-					String userName = (String) o.get("userName");
-					if(!adminChecked[0] && !canAdministrate(user))
-						throw new IllegalArgumentException("User " + user.getName()
-							+ " does not have permission to modify this object's sharing");
-					adminChecked[0] = true;
-					addAccessUser(userName);
-					if(Boolean.TRUE.equals(o.get("canEdit")))
-						setEditAccess(userName, true);
-					return userName;
-				}
-
-				public String removed(String o, int idx, int incMod, int retIdx)
-				{
-					if(!adminChecked[0] && !canAdministrate(user))
-						throw new IllegalArgumentException("User " + user.getName()
-							+ " does not have permission to modify this object's sharing");
-					removeAccessUser(o);
-					return null;
-				}
-
-				public String set(String o1, int idx1, int incMod, JSONObject o2, int idx2,
-					int retIdx)
-				{
-					if(Boolean.FALSE.equals(o2.get("canView")))
-					{
-						if(!adminChecked[0] && !canAdministrate(user))
-							throw new IllegalArgumentException("User " + user.getName()
-								+ " does not have permission to modify this object's sharing");
-						removeAccessUser(o1);
-						return null;
-					}
-					if(canEdit(o1) != Boolean.TRUE.equals(o2.get("canEdit")))
-					{
-						if(!adminChecked[0] && !canAdministrate(user))
-							throw new IllegalArgumentException("User " + user.getName()
-								+ " does not have permission to modify this object's sharing");
-						setEditAccess(o1, Boolean.TRUE.equals(o2.get("canEdit")));
-					}
-					return o1;
-				}
-			});
 	}
 }

@@ -46,6 +46,9 @@
 		</fileset>
 	</path>
 
+	<!-- Compiles java source code and copies metadata (XML files, etc.) from the source path into
+		the classpath. This task emulates the eclipse build process and should not be run in an
+		eclipse-enabled environment. -->
 	<target name="compile" depends="init">
 		<javac
 			srcdir="${src}"
@@ -58,6 +61,24 @@
 			memorymaximumsize="512m">
 			<classpath refid="libs"/>
 		</javac>
+
+		<copy todir="${classes.dir}">
+			<fileset dir="${src}" excludes="**/*.java"/>
+		</copy>
+	</target>
+
+	<target name="clean" depends="init">
+		<!--${classes.dir} is used by eclipse and messes it up if it is deleted -->
+		<delete dir="${classes.dir}" />
+		<delete dir="${web.lib.dir}" />
+		<delete dir="${web.dir}/js" />
+		<delete dir="${web.dir}/view" />
+
+		<delete file="${war.name}" />
+
+		<mkdir dir="${classes.dir}" />
+		<mkdir dir="${web.classes.dir}" />
+		<mkdir dir="${web.lib.dir}" />
 	</target>
 
 	<target name="genWebContent" depends="init"
@@ -121,11 +142,13 @@
 		</war>
 	</target>
 
-	<target name="build" depends="compile,war"></target>
-
 	<target name="jar">
 		<jar jarfile="prisms.jar">
 			<fileset dir="classes" />
 		</jar>
 	</target>
+
+	<target name="build" depends="compile,jar" />
+
+	<target name="rebuild" depends="clean,compile,jar" />
 </project>

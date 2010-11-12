@@ -57,6 +57,13 @@ public interface ManageableUserSource extends UserSource
 	UserGroup [] getGroups(prisms.arch.PrismsApplication app) throws PrismsException;
 
 	/**
+	 * @return All users registered in this user source, including those that have been deleted or
+	 *         those that are not local to this installation
+	 * @throws PrismsException If an error occurs retrieving the data
+	 */
+	User [] getAllUsers() throws PrismsException;
+
+	/**
 	 * Creates a new user in the user source
 	 * 
 	 * @param name The name for the new user

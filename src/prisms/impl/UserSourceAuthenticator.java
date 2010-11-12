@@ -165,14 +165,20 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return theEncryption.decrypt(encrypted, charSet);
 		}
 
-		JSONObject requestLogin()
+		JSONObject requestLogin() throws PrismsException
 		{
+			checkAuthenticationData();
 			JSONObject evt = new JSONObject();
-			evt.put("method", "startEncryption");
-			evt.put("encryption", theEncryption.getParams());
-			JSONObject hashing = theHashing.toJson();
-			hashing.put("user", theUser.getName());
-			evt.put("hashing", hashing);
+			if(theEncryption != null)
+			{
+				evt.put("method", "startEncryption");
+				evt.put("encryption", theEncryption.getParams());
+				JSONObject hashing = theHashing.toJson();
+				hashing.put("user", theUser.getName());
+				evt.put("hashing", hashing);
+			}
+			else
+				evt.put("method", "login");
 			return evt;
 		}
 
@@ -236,6 +242,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 
 		JSONObject requestPasswordChange() throws PrismsException
 		{
+			checkAuthenticationData();
 			prisms.arch.ds.PasswordConstraints pc = theUserSource.getPasswordConstraints();
 			StringBuilder msg = new StringBuilder();
 			if(pc.getNumConstraints() == 1)
@@ -484,7 +491,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		if(userName == null)
 		{
 			String data = request.getParameter("data");
-			if(!isEncrypted(data))
+			if(data != null && !isEncrypted(data))
 			{
 				org.json.simple.JSONObject desData;
 				try
@@ -516,11 +523,13 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 	}
 
 	public JSONObject requestLogin(HttpServletRequest request, Object authInfo)
+		throws PrismsException
 	{
 		return ((USAuthInfo) authInfo).requestLogin();
 	}
 
 	public String encrypt(HttpServletRequest request, String data, Object authInfo)
+		throws PrismsException
 	{
 		return ((USAuthInfo) authInfo).encrypt(request, data);
 	}
@@ -538,12 +547,12 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 	}
 
 	public AuthenticationError changePassword(HttpServletRequest request, Object authInfo,
-		JSONObject event)
+		JSONObject event) throws PrismsException
 	{
 		return ((USAuthInfo) authInfo).changePassword(event);
 	}
 
-	public void destroy(Object authInfo)
+	public void destroy(Object authInfo) throws PrismsException
 	{
 		((USAuthInfo) authInfo).destroy();
 	}

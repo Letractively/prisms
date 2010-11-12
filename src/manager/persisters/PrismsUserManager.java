@@ -47,6 +47,14 @@ public class PrismsUserManager extends prisms.util.persisters.PersistingProperty
 	}
 
 	@Override
+	public void changeValues(final prisms.arch.PrismsSession session,
+		prisms.arch.event.PrismsPCE<User []> evt)
+	{
+		theUsers = evt.getNewValue();
+		super.changeValues(session, evt);
+	}
+
+	@Override
 	protected void globalAdjustValues(PrismsApplication app, prisms.arch.PrismsSession session,
 		Object... eventProps)
 	{

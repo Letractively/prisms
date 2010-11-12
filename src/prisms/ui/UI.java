@@ -12,10 +12,13 @@ public class UI implements prisms.arch.AppPlugin
 	{
 		ERROR(1), WARNING(2), INFO(6), CONFIRM(3), INPUT(4), SELECT(5), PROGRESS(7);
 
-		int priority;
+		final String display;
+
+		final int priority;
 
 		EventType(int pri)
 		{
+			display = toString().toLowerCase();
 			priority = pri;
 		}
 	}
@@ -275,7 +278,7 @@ public class UI implements prisms.arch.AppPlugin
 			event = new JSONObject();
 			event.put("plugin", theName);
 			event.put("messageID", id);
-			event.put("method", type);
+			event.put("method", type.display);
 			event.put("message", message);
 			for(int arg = 0; arg < options.length; arg += 2)
 			{

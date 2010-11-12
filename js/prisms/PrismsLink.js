@@ -130,8 +130,8 @@ __dojo.declare("prisms.PrismsLink", null, {
 		if(event.method=="getEvents")
 		{
 			window.setTimeout(function(){
-				self.callApp(null, "getEvents", "taskID", event.taskID);
-			}, 200);
+				self.callApp(null, "getEvents", {"taskID": event.taskID});
+			}, 500);
 		}
 		else if(event.method=="setVersion")
 		{
@@ -715,7 +715,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 	_primaryHashDigit: function(password, mult, mod){
 		var ret = 0;
 		for(var p = 0; p < password.length; p++)
-			ret = ((ret + password.charCodeAt(p)) * mult) % mod;
+			ret = this._multModCalc(ret+password.charCodeAt(p), mult, mod);
 		return ret;
 	},
 
@@ -726,7 +726,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 		for(var i = 0; i < ret.length; i++)
 		{
 			for(var j = 0; j < secondaryMults.length; j++)
-				ret[i]=this._secondaryHashDigit(ret[i], secondaryMults[j], secondaryMods[j]);
+				ret[i]=this._multModCalc(ret[i], secondaryMults[j], secondaryMods[j]);
 		}
 		return ret;
 	},
@@ -737,7 +737,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 	 * small errors to propagate if done natively. This function accounts for
 	 * and fixes those errors.
 	 */
-	_secondaryHashDigit: function(digit, mult, mod){
+	_multModCalc: function(digit, mult, mod){
 		var newVal=Math.floor(digit * mult);
 		var lastDigit=(digit%1000)*(mult%1000);
 		lastDigit=lastDigit%1000;

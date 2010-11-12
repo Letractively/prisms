@@ -51,6 +51,20 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 {
 	private static final Logger log = Logger.getLogger(GlobalPropertyManager.class);
 
+	/**
+	 * The user that caused the change represented by a global event. This property may be present
+	 * in property change events and PRISMS events that are a result of a change to the managed
+	 * property.
+	 */
+	public static final String CAUSE_USER = "causeUser";
+
+	/**
+	 * The application where a global change event was caused from. This property may be present in
+	 * property change events and PRISMS events that are a result of a change to the managed
+	 * property.
+	 */
+	public static final String CAUSE_APP = "causeUser";
+
 	private static class EventProperty
 	{
 		final String eventProp;
@@ -249,6 +263,10 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 		if(!Boolean.TRUE.equals(evt
 			.getProperty(prisms.arch.PrismsApplication.GLOBALIZED_EVENT_PROPERTY)))
 			session.getApp().fireGlobally(session, evt);
+		if(evt.getProperty(CAUSE_USER) == null)
+			evt.setProperty(CAUSE_USER, session.getUser());
+		if(evt.getProperty(CAUSE_APP) == null)
+			evt.setProperty(CAUSE_APP, session.getApp());
 		fireGlobalEvent(session.getApp(), evt.name, evt.getPropertyList());
 	}
 
@@ -282,6 +300,12 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 		}, false);
 		T appData = getApplicationValue(evt.getApp());
 		if(appData != null)
+		{
+			if(session != null && evt.get(CAUSE_USER) == null)
+				evt.set(CAUSE_USER, session.getUser());
+			if(evt.get(CAUSE_APP) == null)
+				evt.set(CAUSE_APP, evt.getApp());
 			globalAdjustValues(evt.getApp(), session, evt.getPropertyList());
+		}
 	}
 }

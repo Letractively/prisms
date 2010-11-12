@@ -370,7 +370,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 			if(req.user.equals(theAnonymousUser) && !req.client.allowsAnonymous())
 			{
-				JSONObject login = theAuth.requestLogin(req.theRequest, theAuthInfo);
+				JSONObject login;
+				try
+				{
+					login = theAuth.requestLogin(req.theRequest, theAuthInfo);
+				} catch(PrismsException e)
+				{
+					log.error("Could not send login information", e);
+					return error(req, ErrorCode.ServerError, "Could not send login information: "
+						+ e.getMessage(), false);
+				}
 				if(login == null)
 					return error(req, ErrorCode.ServerError,
 						"Anonymous access forbidden for client " + req.client.getName()
@@ -474,8 +483,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 			if("changePassword".equals(req.serverMethod))
 			{
-				PrismsAuthenticator.AuthenticationError error = theAuth.changePassword(
-					req.theRequest, theAuthInfo, event);
+				PrismsAuthenticator.AuthenticationError error;
+				try
+				{
+					error = theAuth.changePassword(req.theRequest, theAuthInfo, event);
+				} catch(PrismsException e)
+				{
+					log.error("Could not send change password", e);
+					return error(req, ErrorCode.ServerError,
+						"Could not change password: " + e.getMessage(), false);
+				}
 				if(error != null)
 				{
 					JSONObject change;
@@ -609,7 +626,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 
-		private String encrypt(PrismsRequest request, String text)
+		private String encrypt(PrismsRequest request, String text) throws PrismsException
 		{
 			/* TODO: For whatever reason, information encrypted by the server is not decrypted
 			 * correctly by the javascript dojo blowfish implementation on the HTML client. Pending
@@ -622,7 +639,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		private PrismsResponse sendLogin(PrismsRequest req, String error, boolean postInit,
 			boolean isError)
 		{
-			JSONObject evt = theAuth.requestLogin(req.theRequest, theAuthInfo);
+			JSONObject evt;
+			try
+			{
+				evt = theAuth.requestLogin(req.theRequest, theAuthInfo);
+			} catch(PrismsException e)
+			{
+				log.error("Could not send login information", e);
+				return error(req, ErrorCode.ServerError,
+					"Could not send login information: " + e.getMessage(), false);
+			}
 			if(postInit)
 				evt.put("postAction", "callInit");
 			if(isError)
@@ -674,7 +700,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		void destroy()
 		{
-			theAuth.destroy(theAuthInfo);
+			try
+			{
+				theAuth.destroy(theAuthInfo);
+			} catch(PrismsException e)
+			{
+				log.error("Error destroying authentication metadata", e);
+			}
 		}
 	}
 
@@ -1874,7 +1906,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					group.setDescription(descrip);
 					changed = true;
 				}
-				for(Element permEl : (java.util.List<Element>) groupEl.elements("permissions"))
+				for(Element permEl : (java.util.List<Element>) groupEl.elements("permission"))
 				{
 					String permName = permEl.getTextTrim();
 					Permission perm = app.getPermission(permName);
@@ -1906,6 +1938,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					user = us.createUser(userName);
 					log.debug("Created user " + userName);
 				}
+				boolean changed = false;
+				if(userEl.element("admin") != null)
+				{
+					changed = true;
+					user.setAdmin("true".equalsIgnoreCase(userEl.elementTextTrim("admin")));
+				}
+				Boolean readOnly=null;
+				if(userEl.attributeValue("readonly") != null)
+					readOnly="true".equalsIgnoreCase(userEl.attributeValue("readonly"));
 				String password = userEl.elementTextTrim("password");
 				if(password != null && us.getKey(user, us.getHashing()) == null)
 				{
@@ -1928,7 +1969,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						log.debug("Granted user " + userName + " access to application " + appName);
 					}
 				}
-				boolean changed = false;
 				for(Element groupEl : (java.util.List<Element>) userEl.elements("group"))
 				{
 					String groupName = groupEl.attributeValue("name");
@@ -1962,9 +2002,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						changed = true;
 						user.addTo(group);
-						log.error("Associated user " + userName + " with " + appName + " group "
+						log.debug("Associated user " + userName + " with " + appName + " group "
 							+ groupName);
 					}
+				}
+				if(readOnly!=null)
+				{
+					changed = true;
+					user.setReadOnly(readOnly);
 				}
 				if(changed)
 					us.putUser(user);

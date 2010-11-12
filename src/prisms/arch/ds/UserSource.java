@@ -29,13 +29,22 @@ public interface UserSource
 	PasswordConstraints getPasswordConstraints() throws PrismsException;
 
 	/**
-	 * Gets a user based on his/her id
+	 * Gets a user based on his/her user name
 	 * 
-	 * @param name The id of the user to get
-	 * @return The user with the specified id, or null if no such user exists
+	 * @param name The name of the user to get
+	 * @return The user with the specified name, or null if no such user exists
 	 * @throws PrismsException If an error occurs getting the data
 	 */
 	User getUser(String name) throws PrismsException;
+
+	/**
+	 * Gets a user based on his/her id
+	 * 
+	 * @param id The name of the id to get
+	 * @return The user with the specified id, or null if no such user exists
+	 * @throws PrismsException If an error occurs getting the data
+	 */
+	User getUser(long id) throws PrismsException;
 
 	/**
 	 * @param user The user requesting access to the application
@@ -92,12 +101,12 @@ public interface UserSource
 	void lockUser(User user) throws PrismsException;
 
 	/**
-	 * Retrieves all users from this user source
+	 * Retrieves all users from this user source that are local and visible
 	 * 
 	 * @return All users available from this user source
 	 * @throws PrismsException If an error occurs getting the data
 	 */
-	User [] getAllUsers() throws PrismsException;
+	User [] getActiveUsers() throws PrismsException;
 
 	/**
 	 * Allows this user source to veto the otherwise inevitable accessto the given client by the
