@@ -12,17 +12,14 @@ import java.util.ArrayList;
 
 import org.apache.log4j.Logger;
 
+import prisms.arch.PrismsException;
 import prisms.records2.RecordPersister2.ChangeData;
 import prisms.util.*;
 
-/**
- * Keeps persistent records of changes to a data set
- */
+/** Keeps persistent records of changes to a data set */
 public class DBRecordKeeper implements RecordKeeper2
 {
-	/**
-	 * Fields on which the history may be sorted
-	 */
+	/** Fields on which the history may be sorted */
 	public static enum ChangeField implements prisms.records2.HistorySorter.Field
 	{
 		/**
@@ -45,6 +42,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			theDBValue = dbValue;
 		}
 
+		@Override
 		public String toString()
 		{
 			return theDBValue;
@@ -171,6 +169,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			return null;
 		}
 
+		@Override
 		public String toString()
 		{
 			return theName;
@@ -187,11 +186,11 @@ public class DBRecordKeeper implements RecordKeeper2
 
 	private java.sql.Connection theConn;
 
+	private final prisms.arch.ds.IDGenerator theIDs;
+
 	String DBOWNER;
 
 	RecordPersister2 thePersister;
-
-	private int theCenterID;
 
 	private int theLocalPriority;
 
@@ -206,13 +205,15 @@ public class DBRecordKeeper implements RecordKeeper2
 	 *        keepers using the same database.
 	 * @param connEl The XML element to use to obtain a database connection
 	 * @param factory The persister factory to use to obtain a database connection
+	 * @param ids The ID generator to get IDs from for this record keeper
 	 */
 	public DBRecordKeeper(String namespace, org.dom4j.Element connEl,
-		prisms.arch.PersisterFactory factory)
+		prisms.arch.PersisterFactory factory, prisms.arch.ds.IDGenerator ids)
 	{
 		theNamespace = namespace;
 		theConnEl = connEl;
 		theFactory = factory;
+		theIDs = ids;
 		try
 		{
 			doStartup();
@@ -244,28 +245,20 @@ public class DBRecordKeeper implements RecordKeeper2
 	protected void doStartup() throws PrismsRecordException
 	{
 		PrismsCenter selfCenter = getCenter(0, null);
-		if(getInstallDate() < 0)
+		if(selfCenter == null)
+		{
+			selfCenter = new PrismsCenter(0, "Here");
+			selfCenter.setPriority(100);
+			selfCenter.setNamespace(theNamespace);
+			selfCenter.setCenterID(theIDs.getCenterID());
+			theLocalPriority = selfCenter.getPriority();
+			putCenter(selfCenter, null, null);
+			log.debug("Created rules center with ID " + selfCenter.getCenterID());
+		}
+		else if(selfCenter.getCenterID() != theIDs.getCenterID())
 			installRecordKeeper(selfCenter);
 		else
-		{
-			if(selfCenter == null)
-			{
-				int newCenterID = (int) (Math.random() * Record2Utils.theCenterIDRange);
-				selfCenter = new PrismsCenter(0, "Here");
-				selfCenter.setPriority(100);
-				selfCenter.setNamespace(theNamespace);
-				selfCenter.setCenterID(newCenterID);
-				theCenterID = selfCenter.getCenterID();
-				theLocalPriority = selfCenter.getPriority();
-				putCenter(selfCenter, null, null);
-				log.debug("Created rules center with ID " + selfCenter.getCenterID());
-			}
-			else
-			{
-				theCenterID = selfCenter.getCenterID();
-				theLocalPriority = selfCenter.getPriority();
-			}
-		}
+			theLocalPriority = selfCenter.getPriority();
 	}
 
 	/**
@@ -286,56 +279,20 @@ public class DBRecordKeeper implements RecordKeeper2
 		return thePersister;
 	}
 
+	/** @return This record keeper's ID generator */
+	public prisms.arch.ds.IDGenerator getIDs()
+	{
+		return theIDs;
+	}
+
 	public int getCenterID()
 	{
-		return theCenterID;
+		return theIDs.getCenterID();
 	}
 
 	public int getLocalPriority()
 	{
 		return theLocalPriority;
-	}
-
-	/**
-	 * @return The date when this set of records was installed
-	 * @throws PrismsRecordException If an error occurs retrieving the data
-	 */
-	public long getInstallDate() throws PrismsRecordException
-	{
-		Statement stmt = null;
-		ResultSet rs = null;
-		String sql = "SELECT installDate FROM " + DBOWNER + "prisms_installation WHERE recordNS="
-			+ toSQL(theNamespace);
-		checkConnection();
-		try
-		{
-			stmt = theConn.createStatement();
-			rs = stmt.executeQuery(sql);
-			if(!rs.next())
-				return -1;
-			return rs.getTimestamp(1).getTime();
-		} catch(SQLException e)
-		{
-			throw new PrismsRecordException("Could not query PRISMS installation", e);
-		} finally
-		{
-			if(rs != null)
-				try
-				{
-					rs.close();
-				} catch(SQLException e)
-				{
-					log.error("Connection error", e);
-				}
-			if(stmt != null)
-				try
-				{
-					stmt.close();
-				} catch(SQLException e)
-				{
-					log.error("Connection error", e);
-				}
-		}
 	}
 
 	/**
@@ -347,10 +304,9 @@ public class DBRecordKeeper implements RecordKeeper2
 	private void installRecordKeeper(PrismsCenter selfCenter) throws PrismsRecordException
 	{
 		/* This is a new installation with copied data. We need to assert our independence.
-		 * We need to delete all the auto-increment tables. Then we will move the center
-		 * that was "Here" when the data was copied to a different ID under the name
-		 * "Installation".  Then we create the "Here" center like normal. Then we update the
-		 * synchronization records to point to "Here", since we know that the data is
+		 * We need to move the center that was "Here" when the data was copied to a different ID
+		 * under the name "Installation".  Then we create the "Here" center like normal. Then we
+		 * update the synchronization records to point to "Here", since we know that the data is
 		 * synchronized with other centers just as it was when the data was copied.  We also
 		 * add a sync record with the Installation server since we have all the data it had
 		 * when it was copied.
@@ -366,14 +322,30 @@ public class DBRecordKeeper implements RecordKeeper2
 			autoCommit = theConn.getAutoCommit();
 			theConn.setAutoCommit(false);
 
-			stmt = theConn.createStatement();
-			sql = "DELETE FROM " + DBOWNER + "prisms_auto_increment WHERE recordNS="
-				+ toSQL(theNamespace);
-			stmt.execute(sql);
 			// Make a new center to represent the old "Here" center
 			PrismsCenter oldHere = null;
 			if(selfCenter != null)
 			{
+				for(PrismsCenter center : getCenters())
+					if(center.getName().endsWith("Installation"))
+					{
+						if(center.getName().equals("Installation"))
+						{
+							center.setName("Old Installation");
+							putCenter(center, null, null);
+						}
+						else
+						{
+							java.util.regex.Matcher match = java.util.regex.Pattern.compile(
+								"Old\\((\\d*)\\) Installation").matcher(center.getName());
+							if(match.matches())
+							{
+								int index = Integer.parseInt(match.group(1));
+								center.setName("Old (" + (index + 1) + ") Installation");
+								putCenter(center, null, null);
+							}
+						}
+					}
 				oldHere = new PrismsCenter("Installation");
 				oldHere.setCenterID(selfCenter.getCenterID());
 				putCenter(oldHere, null, null);
@@ -383,15 +355,14 @@ public class DBRecordKeeper implements RecordKeeper2
 			selfCenter.setPriority(100);
 
 			// Adjust the center ID of the real "Here"
-			int newCenterID = (int) (Math.random() * Record2Utils.theCenterIDRange);
-			selfCenter.setCenterID(newCenterID);
+			selfCenter.setCenterID(theIDs.getCenterID());
 			putCenter(selfCenter, null, null);
-			theCenterID = selfCenter.getCenterID();
 			theLocalPriority = selfCenter.getPriority();
 			log.debug("Created rules center with ID " + selfCenter.getCenterID());
 
 			if(oldHere != null)
 			{
+				stmt = theConn.createStatement();
 				sql = "SELECT MAX(changeTime) FROM " + DBOWNER
 					+ "prisms_change_record WHERE recordNS=" + toSQL(theNamespace);
 				rs = stmt.executeQuery(sql);
@@ -406,9 +377,6 @@ public class DBRecordKeeper implements RecordKeeper2
 					}
 				}
 			}
-			sql = "INSERT INTO " + DBOWNER + "prisms_installation (recordNS, installDate) VALUES ("
-				+ toSQL(theNamespace) + ", " + formatDate(System.currentTimeMillis()) + ")";
-			stmt.execute(sql);
 			theConn.commit();
 			complete = true;
 		} catch(SQLException e)
@@ -497,11 +465,13 @@ public class DBRecordKeeper implements RecordKeeper2
 			}
 			rs.close();
 			rs = null;
-			for(int i = 0; i < ret.size(); i++)
-			{
-				if(clientUsers.get(i) != null)
-					ret.get(i).setClientUser(thePersister.getUser(clientUsers.get(i).longValue()));
-			}
+			if(thePersister != null)
+				for(int i = 0; i < ret.size(); i++)
+				{
+					if(clientUsers.get(i) != null)
+						ret.get(i).setClientUser(
+							thePersister.getUser(clientUsers.get(i).longValue()));
+				}
 			return ret.toArray(new PrismsCenter [ret.size()]);
 		} catch(SQLException e)
 		{
@@ -604,7 +574,7 @@ public class DBRecordKeeper implements RecordKeeper2
 					log.error("Connection error", e);
 				}
 		}
-		if(clientUserID != null)
+		if(clientUserID != null && thePersister != null)
 			pc.setClientUser(thePersister.getUser(clientUserID.longValue()));
 		return pc;
 	}
@@ -628,7 +598,8 @@ public class DBRecordKeeper implements RecordKeeper2
 			if(center.getID() < 0)
 				try
 				{
-					center.setID(getNextIntID(stmt, DBOWNER + "prisms_center_view", "id"));
+					center.setID(prisms.arch.ds.IDGenerator.getNextIntID(stmt, DBOWNER
+						+ "prisms_center_view", "id"));
 				} catch(SQLException e)
 				{
 					throw new PrismsRecordException("Could not get next center ID", e);
@@ -1114,7 +1085,8 @@ public class DBRecordKeeper implements RecordKeeper2
 				log.debug("Sync record " + record + " inserted");
 				try
 				{
-					record.setID(getNextIntID(stmt, DBOWNER + "prisms_sync_record", "id"));
+					record.setID(prisms.arch.ds.IDGenerator.getNextIntID(stmt, DBOWNER
+						+ "prisms_sync_record", "id"));
 				} catch(SQLException e)
 				{
 					throw new PrismsRecordException("Could not get next record ID", e);
@@ -1615,7 +1587,7 @@ public class DBRecordKeeper implements RecordKeeper2
 
 	public boolean hasSuccessfulChange(long changeID) throws PrismsRecordException
 	{
-		if(Record2Utils.getCenterID(changeID) == theCenterID)
+		if(theIDs.belongs(changeID))
 			return true;
 		Statement stmt = null;
 		ResultSet rs = null;
@@ -1959,6 +1931,7 @@ public class DBRecordKeeper implements RecordKeeper2
 		{
 		}
 
+		@Override
 		public String toString()
 		{
 			return "(" + id + ") " + subjectType + "/" + changeType + "/" + add;
@@ -2152,9 +2125,9 @@ public class DBRecordKeeper implements RecordKeeper2
 	int getSubjectCenter(Object obj) throws PrismsRecordException
 	{
 		if(obj instanceof PrismsCenter)
-			return theCenterID;
+			return getCenterID();
 		if(obj instanceof AutoPurger2)
-			return theCenterID;
+			return getCenterID();
 		return Record2Utils.getCenterID(thePersister.getID(obj));
 	}
 
@@ -2350,8 +2323,11 @@ public class DBRecordKeeper implements RecordKeeper2
 		try
 		{
 			stmt = theConn.createStatement();
-			id = getNextID(stmt, DBOWNER, "prisms_change_record", "id", null);
+			id = theIDs.getNextID("prisms_change_record", "id", stmt, DBOWNER);
 		} catch(SQLException e)
+		{
+			throw new PrismsRecordException("Could not persist " + subjectType + " change", e);
+		} catch(PrismsException e)
 		{
 			throw new PrismsRecordException("Could not persist " + subjectType + " change", e);
 		} finally
@@ -2855,11 +2831,7 @@ public class DBRecordKeeper implements RecordKeeper2
 			|| item instanceof Float || item instanceof Double || item instanceof Boolean)
 			return;
 		if(item instanceof PrismsCenter)
-		{
-			if(!((PrismsCenter) item).isDeleted())
-				return;
 			dbDeleteCenter(((PrismsCenter) item).getID(), stmt);
-		}
 		else if(item instanceof AutoPurger2)
 			return;
 		else
@@ -3177,168 +3149,6 @@ public class DBRecordKeeper implements RecordKeeper2
 	// Utility methods
 
 	/**
-	 * Gets the next ID for the given table within this center and namespace
-	 * 
-	 * @param prismsStmt The active statement pointing to the PRISMS records database. Cannot be
-	 *        null or closed.
-	 * @param prefix The table prefix to use for the query
-	 * @param table The name of the table to get the next ID for (including any applicable prefix)
-	 * @param column The ID column of the table
-	 * @param extStmt The active statement pointing to the database where the actual implementation
-	 *        data resides. If this is null it will be assumed that the implementation data resides
-	 *        in the same database as the PRISMS records data and will use the prismsStmt for
-	 *        implementation-specific queries.
-	 * @return The next ID that should be used for an entry in the table
-	 * @throws PrismsRecordException If an error occurs deriving the data
-	 */
-	public long getNextID(Statement prismsStmt, String prefix, String table, String column,
-		Statement extStmt) throws PrismsRecordException
-	{
-		if(extStmt == null)
-			extStmt = prismsStmt;
-		ResultSet rs = null;
-		String sql = null;
-		try
-		{
-			long centerMin = ((long) theCenterID) * Record2Utils.theCenterIDRange;
-			long centerMax = centerMin + Record2Utils.theCenterIDRange - 1;
-
-			sql = "SELECT DISTINCT nextID FROM " + DBOWNER
-				+ "prisms_auto_increment WHERE recordNS=" + toSQL(theNamespace) + " AND tableName="
-				+ toSQL(table);
-			rs = prismsStmt.executeQuery(sql);
-
-			long ret;
-			if(rs.next())
-				ret = rs.getLong(1);
-			else
-				ret = -1;
-			rs.close();
-			if(ret < centerMin || ret > centerMax)
-				ret = -1;
-			if(ret < 0)
-			{
-				sql = "SELECT MAX(" + column + ") FROM " + prefix + table + " WHERE " + column
-					+ ">=" + centerMin + " AND " + column + " <=" + centerMax;
-				rs = extStmt.executeQuery(sql);
-				if(rs.next())
-				{
-					ret = rs.getLong(1);
-					if(ret < centerMin || ret > centerMax)
-						ret = centerMin;
-					else
-						ret++;
-				}
-				else
-					ret = centerMin;
-				if(ret > centerMax)
-					throw new PrismsRecordException("All " + table + " ids are used!");
-				// update the db
-				sql = "INSERT INTO " + DBOWNER + "prisms_auto_increment (recordNS, tableName,"
-					+ " nextID) VALUES(" + toSQL(theNamespace) + ", " + toSQL(table) + ", "
-					+ centerMin + ")";
-				prismsStmt.execute(sql);
-			}
-			sql = null;
-			long nextTry = nextAvailableID(extStmt, prefix + table, column, ret + 1);
-			if(nextTry > centerMax)
-				nextTry = nextAvailableID(extStmt, prefix + table, column, centerMin);
-			if(nextTry == ret || nextTry > centerMax)
-				throw new PrismsRecordException("All " + table + " ids are used!");
-
-			sql = "UPDATE " + DBOWNER + "prisms_auto_increment SET nextID = " + nextTry
-				+ " WHERE recordNS=" + toSQL(theNamespace) + " AND tableName = " + toSQL(table);
-			prismsStmt.executeUpdate(sql);
-			return ret;
-		} catch(SQLException e)
-		{
-			throw new PrismsRecordException("Could not get next ID: SQL=" + sql, e);
-		} finally
-		{
-			try
-			{
-				if(rs != null)
-					rs.close();
-			} catch(SQLException e)
-			{
-				log.error("Connection error", e);
-			}
-		}
-	}
-
-	private long nextAvailableID(Statement stmt, String table, String column, long start)
-		throws PrismsRecordException
-	{
-		String sql = "SELECT DISTINCT " + column + " FROM " + table + " WHERE " + column + ">="
-			+ start + " ORDER BY " + column;
-		ResultSet rs = null;
-		try
-		{
-			rs = stmt.executeQuery(sql);
-			while(rs.next())
-			{
-				long tempID = rs.getLong(1);
-				if(start != tempID)
-					break;
-				start++;
-			}
-		} catch(SQLException e)
-		{
-			throw new PrismsRecordException("Could not get next available table ID: SQL=" + sql, e);
-		} finally
-		{
-			try
-			{
-				if(rs != null)
-					rs.close();
-			} catch(SQLException e)
-			{
-				log.error("Connection error", e);
-			}
-		}
-		return start;
-	}
-
-	/**
-	 * Gets the next ID for a table whose value is not dependent on the center
-	 * 
-	 * @param stmt The statement pointing to the given table
-	 * @param tableName The table to get the next ID for
-	 * @param column The ID column in the table
-	 * @return The next ID to use for an entry in the table
-	 * @throws SQLException If an error occurs retrieving the data
-	 */
-	public int getNextIntID(Statement stmt, String tableName, String column) throws SQLException
-	{
-		int id = 0;
-		ResultSet rs = null;
-		try
-		{
-			rs = stmt.executeQuery("SELECT DISTINCT " + column + " FROM " + tableName
-				+ " ORDER BY " + column);
-			while(rs.next())
-			{
-				int tempID = rs.getInt(1);
-				if(id != tempID)
-					break;
-				id++;
-			}
-		} finally
-		{
-			try
-			{
-				if(rs != null)
-					rs.close();
-			} catch(SQLException e)
-			{
-				e.printStackTrace();
-				log.error("Connection error", e);
-			}
-		}
-		return id;
-	}
-
-	/**
 	 * Gets the maximum length of data for a field
 	 * 
 	 * @param tableName The name of the table
@@ -3435,8 +3245,8 @@ public class DBRecordKeeper implements RecordKeeper2
 		{
 			if(theConn == null || theConn.isClosed())
 			{
-				theConn = theFactory.getConnection(theConnEl, null);
-				DBOWNER = theFactory.getTablePrefix(theConn, theConnEl, null);
+				theConn = theFactory.getConnection(theConnEl);
+				DBOWNER = theFactory.getTablePrefix(theConn, theConnEl);
 			}
 		} catch(SQLException e)
 		{

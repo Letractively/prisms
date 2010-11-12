@@ -96,12 +96,18 @@ public class BlowfishEncryption implements Encryption
 		System.arraycopy(text.getBytes(charSet.name()), 0, input, 0, text.length());
 		byte [] ret = new byte [size];
 		theCipher.encrypt(input, 0, ret, 0, size);
-		return new sun.misc.BASE64Encoder().encode(ret);
+
+		//return new sun.misc.BASE64Encoder().encode(ret);
+		// Sun whines about BASE64 being proprietary. Use apache instead...
+		return new org.apache.commons.codec.binary.Base64().encodeToString(ret);
 	}
 
 	public String decrypt(String encrypted, java.nio.charset.Charset charSet) throws IOException
 	{
-		byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
+		//byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
+		// Sun whines about BASE64 being proprietary. Use apache instead...
+		byte[] data = org.apache.commons.codec.binary.Base64.decodeBase64(encrypted);
+		
 		byte [] ret = new byte [data.length];
 		theCipher.decrypt(data, 0, ret, 0, ret.length);
 		int retSize = ret.length;

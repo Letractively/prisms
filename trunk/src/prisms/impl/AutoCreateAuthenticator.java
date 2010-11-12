@@ -24,27 +24,23 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 
 	private UserSource theUserSource;
 
+	private String theTemplateUserName;
+
 	private User theTemplate;
 
 	public void configure(Element configEl, UserSource userSource, PrismsApplication [] apps)
 	{
 		theApps = apps;
 		theUserSource = userSource;
-		String templateName = configEl.elementTextTrim("user-template");
-		if(templateName != null)
-		{
+		theTemplateUserName = configEl.elementTextTrim("user-template");
+		if(theTemplateUserName != null)
 			try
 			{
-				theTemplate = theUserSource.getUser(templateName);
+				theTemplate = theUserSource.getUser(theTemplateUserName);
 			} catch(PrismsException e)
 			{
 				throw new IllegalStateException("Could not get template user", e);
 			}
-			if(theTemplate == null)
-				log.error("User template " + templateName + " for authenticator "
-					+ getClass().getName() + " does not exist. New users will not"
-					+ " authenticate.");
-		}
 	}
 
 	/** @return The user source that this authenticator uses */
@@ -75,7 +71,24 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 			throw new PrismsException("User source is not manageable--cannot create user for "
 				+ userName);
 		if(theTemplate == null)
-			throw new PrismsException("No user template set--cannot set properties of user");
+		{
+			if(theTemplateUserName == null)
+				throw new PrismsException("No user template set--cannot set properties of user");
+			else
+			{
+				try
+				{
+					theTemplate = theUserSource.getUser(theTemplateUserName);
+				} catch(PrismsException e)
+				{
+					throw new IllegalStateException("Could not get template user", e);
+				}
+				if(theTemplate == null)
+					log.error("User template " + theTemplateUserName + " for authenticator "
+						+ getClass().getName() + " does not exist. New user " + userName
+						+ " can not" + " be authenticated.");
+			}
+		}
 		prisms.arch.ds.ManageableUserSource mus = (prisms.arch.ds.ManageableUserSource) theUserSource;
 		ret = mus.createUser(userName);
 		ret.setName(userName);

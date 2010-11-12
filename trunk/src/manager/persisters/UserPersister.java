@@ -63,7 +63,7 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 			return getValue();
 		try
 		{
-			User [] ret = getApp().getEnvironment().getUserSource().getAllUsers();
+			User [] ret = getApp().getEnvironment().getUserSource().getActiveUsers();
 			isLoaded = true;
 			return ret;
 		} catch(PrismsException e)

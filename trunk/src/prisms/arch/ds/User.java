@@ -28,6 +28,8 @@ public class User implements Cloneable
 
 	private boolean isLocked;
 
+	private boolean isDeleted;
+
 	/**
 	 * Creates a user
 	 * 
@@ -44,17 +46,13 @@ public class User implements Cloneable
 		theGroups = new java.util.ArrayList<UserGroup>();
 	}
 
-	/**
-	 * @return This user's source
-	 */
+	/** @return This user's source */
 	public UserSource getSource()
 	{
 		return theSource;
 	}
 
-	/**
-	 * @return This user's storage ID
-	 */
+	/** @return This user's storage ID */
 	public long getID()
 	{
 		return theID;
@@ -72,25 +70,21 @@ public class User implements Cloneable
 		theID = id;
 	}
 
-	/**
-	 * @return Whether this user is an admin (governs his permission changing passwords)
-	 */
+	/** @return Whether this user is an admin (governs his permission changing passwords) */
 	public boolean isAdmin()
 	{
 		return isAdmin;
 	}
 
-	/**
-	 * @param admin Whether this user is an admin or not
-	 */
-	protected void setAdmin(boolean admin)
+	/** @param admin Whether this user is an admin or not */
+	public void setAdmin(boolean admin)
 	{
+		if(isReadOnly)
+			throw new IllegalStateException("User " + theName + " is read-only");
 		isAdmin = admin;
 	}
 
-	/**
-	 * @return This user's name
-	 */
+	/** @return This user's name */
 	public String getName()
 	{
 		return theName;
@@ -108,9 +102,7 @@ public class User implements Cloneable
 		theName = name;
 	}
 
-	/**
-	 * @return The groups this user belongs to
-	 */
+	/** @return The groups this user belongs to */
 	public UserGroup [] getGroups()
 	{
 		return theGroups.toArray(new UserGroup [theGroups.size()]);
@@ -155,17 +147,13 @@ public class User implements Cloneable
 		return thePermissions.forApp(app);
 	}
 
-	/**
-	 * @return Whether this user is locked from creating new sessions
-	 */
+	/** @return Whether this user is locked from creating new sessions */
 	public boolean isLocked()
 	{
 		return isLocked;
 	}
 
-	/**
-	 * @param locked Whether this user should be locked from creating new sessions
-	 */
+	/** @param locked Whether this user should be locked from creating new sessions */
 	public void setLocked(boolean locked)
 	{
 		isLocked = locked;
@@ -177,10 +165,29 @@ public class User implements Cloneable
 		return isReadOnly;
 	}
 
-	/** Marks this user as read-only so that it cannot be changed through the manager */
-	public void setReadOnly()
+	/**
+	 * @param readOnly Whether this user should be read-only so that it cannot be changed through
+	 *        the manager
+	 */
+	public void setReadOnly(boolean readOnly)
 	{
-		isReadOnly = true;
+		isReadOnly = readOnly;
+	}
+
+	/**
+	 * @return Whether this user has been removed from the active set. Deleted users may be
+	 *         preserved in the database for record-keeping purposes, but they are not reflected in
+	 *         the manager or allowed to log in to applications.
+	 */
+	public boolean isDeleted()
+	{
+		return isDeleted;
+	}
+
+	/** @param deleted Whether this user has been removed from the active set */
+	public void setDeleted(boolean deleted)
+	{
+		isDeleted = deleted;
 	}
 
 	@Override
@@ -203,22 +210,25 @@ public class User implements Cloneable
 		return ret;
 	}
 
+	@Override
 	public String toString()
 	{
 		return theName;
 	}
 
+	@Override
 	public boolean equals(Object o)
 	{
 		if(!(o instanceof User))
 			return false;
 		User u = (User) o;
-		if(u.theID < 0 || theID < 0)
+		if(u.theID == -1 || theID == -1)
 			return theName.equals(u.theName);
 		else
 			return theID == u.theID;
 	}
 
+	@Override
 	public int hashCode()
 	{
 		return ((int) theID) ^ ((int) (theID >>> 32));

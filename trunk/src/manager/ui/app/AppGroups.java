@@ -8,6 +8,7 @@ import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsSession;
 import prisms.arch.ds.ManageableUserSource;
 import prisms.arch.ds.UserGroup;
+import prisms.arch.event.PrismsProperties;
 
 /** Allows the user to view and manage user groups within an application */
 public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
@@ -187,7 +188,7 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 								.getEnvironment().getUserSource();
 
 							prisms.arch.ds.User[] users = getSession().getProperty(
-								ManagerProperties.users);
+								PrismsProperties.users);
 							users = users.clone();
 							for(int u = 0; u < users.length; u++)
 							{

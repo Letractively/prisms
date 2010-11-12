@@ -157,7 +157,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 						synchronized(theElements)
 						{
 							ListElementContainer lec = theElements.remove(incMod);
-							theElements.add(retIdx, lec);
+							theElements.add(incMod, lec);
 						}
 					}
 					return o1;

@@ -96,6 +96,8 @@ public class PrismsServiceConnector
 		changePassword,
 		/** Initializes the session on the server */
 		init,
+		/** Retrieves version information on the application */
+		getVersion,
 		/** Processes a client-generated event */
 		processEvent,
 		/** Returns an image */
@@ -134,6 +136,28 @@ public class PrismsServiceConnector
 		 * @param e The exception that occurred
 		 */
 		void doError(IOException e);
+	}
+
+	/** A structure that holds version information returned from the service */
+	public static class VersionInfo
+	{
+		/** The application-specific version numbers */
+		public final int [] version;
+
+		/** The date of the most recent modification to the application */
+		public final long modified;
+
+		/**
+		 * Creates the version info structure
+		 * 
+		 * @param v The version numbers
+		 * @param m The modification date
+		 */
+		public VersionInfo(int [] v, long m)
+		{
+			version = v;
+			modified = m;
+		}
 	}
 
 	private static class ResponseStream
@@ -316,6 +340,35 @@ public class PrismsServiceConnector
 		initObject.put("iAm", "whoIsayIam");
 		initObject.put("youCan", "validateMeNow");
 		callServer(ServerMethod.init, initObject);
+	}
+
+	/**
+	 * Queries the service for version information on the application that this connector accesses
+	 * 
+	 * @return The version information for the given application
+	 * @throws AuthenticationFailedException If this connector is unable to log in to the PRISMS
+	 *         server
+	 * @throws PrismsServiceException If a PRISMS error occurs
+	 * @throws IOException If this service connector is unable to retrieve the information
+	 */
+	public VersionInfo getVersion() throws AuthenticationFailedException, PrismsServiceException,
+		IOException
+	{
+		JSONArray retArray = callServer(ServerMethod.getVersion, new JSONObject());
+		if(retArray.size() == 0)
+			throw new IOException("Error interfacing with server: No result returned: " + retArray);
+		if(retArray.size() > 1)
+			throw new IOException("Error interfacing with server: Multiple results returned: "
+				+ retArray);
+		JSONObject jsonVersion = (JSONObject) retArray.get(0);
+		if(!"setVersion".equals(jsonVersion.get("method")))
+			throw new IOException(
+				"Error interfacing with server: Returned result is not version info: " + retArray);
+		JSONArray jsonV = (JSONArray) jsonVersion.get("version");
+		int [] v = new int [jsonV.size()];
+		for(int i = 0; i < v.length; i++)
+			v[i] = ((Number) jsonV.get(i)).intValue();
+		return new VersionInfo(v, ((Number) jsonVersion.get("modified")).longValue());
 	}
 
 	/**

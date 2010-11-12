@@ -37,6 +37,8 @@ CREATE TABLE prisms_password_constraints(
 CREATE TABLE prisms_user (
 	id NUMERIC(20) NOT NULL PRIMARY KEY,
 	userName VARCHAR NOT NULL,
+	isAdmin CHAR(1) NOT NULL,
+	isReadOnly CHAR(1) NOT NULL,
 	deleted CHAR(1) NOT NULL
 );
 
@@ -60,8 +62,8 @@ CREATE TABLE prisms_user_app_assoc (
 CREATE TABLE prisms_user_group (
 	id INT NOT NULL PRIMARY KEY,
 	groupApp VARCHAR(32) NOT NULL,
-	groupName VARCHAR NOT NULL,
-	groupDescrip VARCHAR NULL,
+	groupName VARCHAR(64) NOT NULL,
+	groupDescrip VARCHAR(512) NULL,
 	deleted CHAR(1) NOT NULL,
 	UNIQUE(groupApp, groupName)
 );

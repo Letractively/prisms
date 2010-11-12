@@ -30,10 +30,6 @@ public class ManagerProperties
 	public static final PrismsProperty<prisms.arch.Permission> selectedAppPermission = PrismsProperty
 		.create("selectedAppPermission", prisms.arch.Permission.class);
 
-	/** All users available to the application */
-	public static final PrismsProperty<User []> users = PrismsProperty.create("users",
-		User [].class);
-
 	/** The user that has been selected by the client user to be edited */
 	public static final PrismsProperty<User> selectedUser = PrismsProperty.create("selectedUser",
 		User.class);

@@ -10,16 +10,7 @@
 		<type>threadpool</type>
 	</worker>
 	<properties>
-		<property type="prisms.util.persisters.CommonValueManager">
-			<field>manager.app.ManagerProperties.users</field>
-			<persister>
-				<class>manager.persisters.UserPersister</class>
-			</persister>
-			<changeEvent>
-				<name>prismsUserChanged</name>
-				<eventProperty>user</eventProperty>
-			</changeEvent>
-		</property>
+		<property globalRef="prisms-users" />
 	</properties>
 	<events>
 		<event>

@@ -252,9 +252,8 @@ public class PreferencesPersister implements
 		try
 		{
 			prisms.arch.PrismsEnv env = theApp.getEnvironment();
-			theConnection = env.getPersisterFactory().getConnection(theConnEl, env.getUserSource());
-			DBOWNER = env.getPersisterFactory().getTablePrefix(theConnection, theConnEl,
-				env.getUserSource());
+			theConnection = env.getPersisterFactory().getConnection(theConnEl);
+			DBOWNER = env.getPersisterFactory().getTablePrefix(theConnection, theConnEl);
 		} catch(Exception e)
 		{
 			throw new IllegalStateException("Could not get connection!", e);

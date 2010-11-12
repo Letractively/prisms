@@ -120,14 +120,15 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	protected void globalAdjustValues(PrismsApplication app, PrismsSession session,
 		Object... eventProps)
 	{
-		app.runSessionTask(session, new PrismsApplication.SessionTask()
-		{
-			public void run(PrismsSession session2)
+		if(app != null)
+			app.runSessionTask(session, new PrismsApplication.SessionTask()
 			{
-				if(!isValueCorrect(session2, session2.getProperty(getProperty())))
-					session2.setProperty(getProperty(), getCorrectValue(session2));
-			}
-		}, true);
+				public void run(PrismsSession session2)
+				{
+					if(!isValueCorrect(session2, session2.getProperty(getProperty())))
+						session2.setProperty(getProperty(), getCorrectValue(session2));
+				}
+			}, true);
 		for(PrismsApplication app2 : theApps)
 		{
 			if(app2 != app)

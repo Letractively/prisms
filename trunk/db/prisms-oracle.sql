@@ -4,6 +4,17 @@
 -- -------------------------------------------------------------------------------------------------
 --PRISMS ARCHITECTURE TABLES
 -- -------------------------------------------------------------------------------------------------
+
+CREATE TABLE prisms_installation(
+	centerID INT NOT NULL,
+	installDate TIMESTAMP NOT NULL
+);
+
+CREATE TABLE prisms_auto_increment(
+	tableName VARCHAR2(32) NOT NULL,
+	nextID	  NUMERIC(20) NOT NULL
+);
+
 CREATE TABLE prisms_hashing (
 	id INT NOT NULL PRIMARY KEY,
 	multiple INT NOT NULL,
@@ -23,98 +34,57 @@ CREATE TABLE prisms_password_constraints(
 );
 
 CREATE TABLE prisms_user (
-	id INT NOT NULL PRIMARY KEY,
+	id NUMERIC(20) NOT NULL PRIMARY KEY,
 	userName VARCHAR2(128) NOT NULL,
+	isAdmin CHAR(1) NOT NULL,
+	isReadOnly CHAR(1) NOT NULL,
 	deleted CHAR(1) NOT NULL
 );
 
 CREATE TABLE prisms_user_password (
 	id INT NOT NULL PRIMARY KEY,
-	pwdUser INT NOT NULL,
+	pwdUser NUMERIC(20) NOT NULL,
 	pwdData VARCHAR2(1024) NULL,
 	pwdTime NUMERIC(14) NOT NULL,
 	pwdExpire NUMERIC(14) NULL,
 	FOREIGN KEY(pwdUser) REFERENCES prisms_user(id) ON DELETE CASCADE
 );
 
-CREATE TABLE prisms_application (
-	id INT NOT NULL PRIMARY KEY,
-	appName VARCHAR2(64) NOT NULL,
-	appDescrip VARCHAR2(1024) NULL,
-	configClass VARCHAR2(256) NOT NULL,
-	configXML VARCHAR2(256) NOT NULL,
-	userRestrictive CHAR(1) NOT NULL,
-	deleted CHAR(1) NOT NULL
-);
-
 CREATE TABLE prisms_user_app_assoc (
-	assocUser INT NOT NULL,
-	assocApp INT NOT NULL,
+	assocUser NUMERIC(20) NOT NULL,
+	assocApp VARCHAR2(32) NOT NULL,
 	PRIMARY KEY(assocUser, assocApp),
-	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
-	FOREIGN KEY(assocApp) REFERENCES prisms_application(id) ON DELETE CASCADE
-);
-
-CREATE TABLE prisms_client_config (
-	id INT NOT NULL PRIMARY KEY,
-	configApp INT NOT NULL,
-	configName VARCHAR2(128) NOT NULL,
-	configDescrip VARCHAR2(1024) NULL,
-	configSerializer VARCHAR2(256) NULL,
-	configXML VARCHAR2(256) NOT NULL,
-	validatorClass VARCHAR2(256) NULL,
-	isService CHAR(1) NOT NULL,
-	sessionTimeout NUMERIC(14) NOT NULL,
-	allowAnonymous CHAR(1) NOT NULL,
-	deleted CHAR(1) NOT NULL,
-	FOREIGN KEY(configApp) REFERENCES prisms_application(id) ON DELETE CASCADE
+	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_user_group (
 	id INT NOT NULL PRIMARY KEY,
+	groupApp VARCHAR2(32) NOT NULL,
 	groupName VARCHAR2(64) NOT NULL,
 	groupDescrip VARCHAR2(512) NULL,
-	groupApp INT NOT NULL,
 	deleted CHAR(1) NOT NULL,
 	FOREIGN KEY(groupApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
 	UNIQUE(groupApp, groupName)
 );
 
-CREATE TABLE prisms_app_admin_group (
-	adminApp INT NOT NULL,
-	adminGroup INT NOT NULL,
-	PRIMARY KEY(adminApp, adminGroup),
-	FOREIGN KEY(adminApp) REFERENCES prisms_application(id) ON DELETE CASCADE,
-	FOREIGN KEY(adminGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
-);
-
 CREATE TABLE prisms_user_group_assoc (
-	assocUser INT NOT NULL,
+	assocUser NUMERIC(20) NOT NULL,
 	assocGroup INT NOT NULL,
 	PRIMARY KEY(assocUser, assocGroup),
 	FOREIGN KEY(assocUser) REFERENCES prisms_user(id) ON DELETE CASCADE,
 	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
 );
 
-CREATE TABLE prisms_permission (
-	id INT NOT NULL PRIMARY KEY,
-	pApp INT NOT NULL,
-	pName VARCHAR2(128) NOT NULL,
-	pDescrip VARCHAR2(256) NULL,
-	deleted CHAR(1) NOT NULL,
-	FOREIGN KEY(pApp) REFERENCES prisms_application(id) ON DELETE CASCADE
-);
-
 CREATE TABLE prisms_group_permissions (
 	assocGroup INT NOT NULL,
-	assocPermission INT NOT NULL,
-	PRIMARY KEY(assocGroup, assocPermission),
-	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE,
-	FOREIGN KEY(assocPermission) REFERENCES prisms_permission(id) ON DELETE CASCADE
+	pApp VARCHAR2(32) NOT NULL,
+	assocPermission VARCHAR(64) NOT NULL,
+	PRIMARY KEY(assocGroup, pApp, assocPermission),
+	FOREIGN KEY(assocGroup) REFERENCES prisms_user_group(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_preference (
-	pApp VARCHAR2(64) NOT NULL,
+	pApp VARCHAR2(32) NOT NULL,
 	pUser VARCHAR2(128) NOT NULL,
 	pDomain VARCHAR2(128) NOT NULL,
 	pName VARCHAR2(128) NOT NULL,
@@ -122,11 +92,6 @@ CREATE TABLE prisms_preference (
 	pDisplayed CHAR(1) NOT NULL,
 	pValue VARCHAR2(1024) NULL,
 	UNIQUE (pApp, pUser, pDomain, pName)
-);
-
-CREATE TABLE prisms_installation(
-	recordNS VARCHAR2(32) NOT NULL,
-	installDate TIMESTAMP NOT NULL
 );
 
 CREATE TABLE prisms_change_record(
@@ -207,12 +172,6 @@ CREATE TABLE prisms_purge_excl_type(
 	exclSubjectType VARCHAR2(32) NOT NULL,
 	exclChangeType VARCHAR2(32) NULL,
 	exclAdditivity CHAR(1) NOT NULL
-);
-
-CREATE TABLE prisms_auto_increment(
-	recordNS VARCHAR2(32) NOT NULL,
-	tableName VARCHAR2(32) NOT NULL,
-	nextID	  NUMERIC(20) NOT NULL
 );
 
 CREATE TABLE prisms_purge_record(

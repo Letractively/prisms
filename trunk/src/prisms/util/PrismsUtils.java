@@ -428,6 +428,18 @@ public class PrismsUtils
 		return configEl;
 	}
 
+	/**
+	 * Gets the location of a class to use in resolving relative paths with
+	 * {@link #getRootElement(String, String...)}
+	 * 
+	 * @param clazz The class to get the location of
+	 * @return The location of the class file
+	 */
+	public static String getLocation(Class<?> clazz)
+	{
+		return "classpath://" + clazz.getName().replaceAll("\\.", "/") + ".class";
+	}
+
 	private static String resolve(String location, String... relative) throws java.io.IOException
 	{
 		if(location.contains(":/"))

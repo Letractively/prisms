@@ -11,9 +11,7 @@ import org.dom4j.Element;
 import prisms.arch.Persister;
 import prisms.arch.event.PropertyDataSource;
 
-/**
- * A utility class to help with persistence
- */
+/** A utility class to help with persistence */
 public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 {
 	private static final Logger log = Logger.getLogger(DefaultPersisterFactory.class);
@@ -22,16 +20,11 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 
 	private java.util.HashMap<String, Element> theNamedConnEls;
 
-	private java.util.HashMap<Connection, prisms.arch.ds.IDGenerator> theIDGenerators;
-
-	/**
-	 * Creates this persister factory
-	 */
+	/** Creates this persister factory */
 	public DefaultPersisterFactory()
 	{
 		theNamedConnections = new java.util.HashMap<String, Connection>();
 		theNamedConnEls = new java.util.HashMap<String, Element>();
-		theIDGenerators = new java.util.HashMap<Connection, prisms.arch.ds.IDGenerator>();
 	}
 
 	public void configure(Element configEl)
@@ -87,7 +80,7 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		return ds;
 	}
 
-	public Connection getConnection(Element el, prisms.arch.ds.UserSource userSource)
+	public Connection getConnection(Element el)
 	{
 		if(el == null)
 		{
@@ -104,21 +97,13 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				Element namedConnEl = getConnectionElement(ref);
 				if(namedConnEl != null)
 				{
-					ret = getConnection(namedConnEl, userSource);
+					ret = getConnection(namedConnEl);
 					if(ret != null)
 						theNamedConnections.put(ref, ret);
 				}
 			}
 			if(ret != null)
 				return ret;
-		}
-		if("true".equalsIgnoreCase(el.elementText("usePrismsConnection")))
-		{
-			if(userSource instanceof prisms.impl.DBUserSource)
-			{
-				((prisms.impl.DBUserSource) userSource).checkConnection();
-				return ((prisms.impl.DBUserSource) userSource).getConnection();
-			}
 		}
 
 		String url = el.elementText("url");
@@ -132,9 +117,15 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				String user = el.elementText("username");
 				String pwd = el.elementText("password");
 				if(user == null)
+				{
+					log.debug("Connecting to database at " + url);
 					return java.sql.DriverManager.getConnection(url);
+				}
 				else
+				{
+					log.debug("Connecting to database at " + url + " as " + user);
 					return java.sql.DriverManager.getConnection(url, user, pwd);
+				}
 			} catch(Throwable e)
 			{
 				throw new IllegalStateException("Could not instantiate SQL Connection: ", e);
@@ -172,38 +163,19 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 		return connEl;
 	}
 
-	public String getTablePrefix(Connection conn, Element connEl,
-		prisms.arch.ds.UserSource userSource)
+	public String getTablePrefix(Connection conn, Element connEl)
 	{
-		if("true".equalsIgnoreCase(connEl.elementText("usePrismsConnection")))
-		{
-			if(userSource instanceof prisms.impl.DBUserSource)
-			{
-				prisms.impl.DBUserSource dbus = (prisms.impl.DBUserSource) userSource;
-				return getTablePrefix(dbus.getConnection(), dbus.getConnectionConfig(), null);
-			}
-		}
 		String ref = connEl.attributeValue("ref");
 		if(ref != null)
 		{
 			Element namedEl = getConnectionElement(ref);
 			if(namedEl != null)
-				return getTablePrefix(conn, namedEl, userSource);
+				return getTablePrefix(conn, namedEl);
 		}
+		String prefix = connEl.elementTextTrim("prefix");
+		if(prefix != null)
+			return prefix;
 		return "";
-	}
-
-	public prisms.arch.ds.IDGenerator getIDGenerator(Element connEl, prisms.arch.ds.UserSource source)
-		throws prisms.arch.PrismsException
-	{
-		Connection conn = getConnection(connEl, source);
-		prisms.arch.ds.IDGenerator ret = theIDGenerators.get(conn);
-		if(ret == null)
-		{
-			ret = new prisms.arch.ds.IDGenerator(conn, getTablePrefix(conn, connEl, source));
-			theIDGenerators.put(conn, ret);
-		}
-		return ret;
 	}
 
 	public void disconnect(Connection conn, Element connEl)

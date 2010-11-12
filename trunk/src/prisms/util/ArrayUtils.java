@@ -399,13 +399,31 @@ public final class ArrayUtils
 	}
 
 	/**
+	 * @param <T> The type of the array to search
 	 * @param anArray The array to search
 	 * @param anElement The element to search for
 	 * @return The first index <code>0&lt;=idx&lt;anArray.length</code> such that
 	 *         {@link #equals(Object, Object)} returns true for both <code>anArray[idx]</code> and
 	 *         <code>anElement</code>, or -1 if no such index exists
 	 */
-	public static int indexOf(Object anArray, Object anElement)
+	public static <T> int indexOf(T [] anArray, T anElement)
+	{
+		if(anArray == null)
+			return -1;
+		for(int i = 0; i < anArray.length; i++)
+			if(equals(anArray[i], anElement))
+				return i;
+		return -1;
+	}
+
+	/**
+	 * @param anArray The array to search
+	 * @param anElement The element to search for
+	 * @return The first index <code>0&lt;=idx&lt;anArray.length</code> such that
+	 *         {@link #equals(Object, Object)} returns true for both <code>anArray[idx]</code> and
+	 *         <code>anElement</code>, or -1 if no such index exists
+	 */
+	public static int indexOfP(Object anArray, Object anElement)
 	{
 		if(anArray == null)
 			return -1;
@@ -488,9 +506,9 @@ public final class ArrayUtils
 	 * @return A new array with all the elements of <code>anArray</code> except
 	 *         <code>anElement</code>
 	 */
-	public static Object remove(Object anArray, Object anElement)
+	public static Object removeP(Object anArray, Object anElement)
 	{
-		int idx = indexOf(anArray, anElement);
+		int idx = indexOfP(anArray, anElement);
 		if(idx >= 0)
 			return removeP(anArray, idx);
 		else
@@ -646,12 +664,11 @@ public final class ArrayUtils
 
 	/**
 	 * @param <T> The type of the array to search
-	 * @param <E> The type of the element to search for
 	 * @param anArray The array to search
 	 * @param anElement The element to search for
 	 * @return True if <code>anArray</code> contains <code>anElement</code>, false otherwise
 	 */
-	public static <T, E extends T> boolean contains(T [] anArray, E anElement)
+	public static <T> boolean contains(T [] anArray, T anElement)
 	{
 		if(anArray == null)
 			return false;
@@ -1565,11 +1582,33 @@ public final class ArrayUtils
 						r++;
 					/* Remove the originals that occur before the next match */
 					for(o++; o < original.length && oMappings[o] < 0; o++)
+					{
+						if(ret[r] != null)
+						{
+							Object temp = ret[r];
+							for(int r2 = r; r < ret.length - 1 && temp != null; r2++)
+							{
+								Object temp2 = ret[r2 + 1];
+								ret[r2 + 1] = temp;
+								temp = temp2;
+							}
+						}
 						if(remove(o, m + 1, ret, r))
 							r++;
+					}
 				}
 				else
 				{
+					if(ret[r] != null)
+					{
+						Object temp = ret[r];
+						for(int r2 = r; r < ret.length - 1 && temp != null; r2++)
+						{
+							Object temp2 = ret[r2 + 1];
+							ret[r2 + 1] = temp;
+							temp = temp2;
+						}
+					}
 					if(add(m, ret, r))
 						r++;
 				}
@@ -1887,6 +1926,7 @@ public final class ArrayUtils
 			return validCount + naNCount + posInfCount + negInfCount;
 		}
 
+		@Override
 		public String toString()
 		{
 			StringBuilder ret = new StringBuilder();

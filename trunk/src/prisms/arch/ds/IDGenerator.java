@@ -17,9 +17,9 @@ import prisms.util.DBUtils;
  * shared across PRISMS installations without ID clashes.
  * 
  * <p>
- * <b>*</b>When a new PRISMS installation is created there is a 1/{@link #ID_RANGE ID Range}
- * chance that it will clash with another given PRISMS installation. The probability of there being
- * a clash among <code>n</code> PRISMS installations is:
+ * <b>*</b>When a new PRISMS installation is created there is a 1/{@link #ID_RANGE ID Range} chance
+ * that it will clash with another given PRISMS installation. The probability of there being a clash
+ * among <code>n</code> PRISMS installations is:
  * 
  * <pre>
  *         {@link #ID_RANGE ID Range}!
@@ -28,10 +28,10 @@ import prisms.util.DBUtils;
  * </pre>
  * 
  * For values of n much less than the square root of {@link #ID_RANGE ID Range}, the formula
- * <code>n</code>(<code>n</code>-1)/2/ {@link #ID_RANGE ID Range} approximates this well.
- * For perspective, 1,000 installations have a 0.05% chance of a clash; 4,484 installations have a
- * 1% chance; 10,000 have a 5% chance. 100,000 installations have a 0.67% chance of NOT encountering
- * a clash. Practically, coordination with thousands of centers may encounter problems, but for
+ * <code>n</code>(<code>n</code>-1)/2/ {@link #ID_RANGE ID Range} approximates this well. For
+ * perspective, 1,000 installations have a 0.05% chance of a clash; 4,484 installations have a 1%
+ * chance; 10,000 have a 5% chance. 100,000 installations have a 0.67% chance of NOT encountering a
+ * clash. Practically, coordination with thousands of centers may encounter problems, but for
  * smaller scales, this can be assumed to be safe.
  * </p>
  */
@@ -83,6 +83,24 @@ public class IDGenerator
 	}
 
 	/**
+	 * @param centerID The ID of the center to get the minimum item ID for
+	 * @return The minimum ID of an item local to the given center
+	 */
+	public static long getMinID(int centerID)
+	{
+		return centerID * 1L * ID_RANGE;
+	}
+
+	/**
+	 * @param centerID The ID of the center to get the maximum item ID for
+	 * @return The maximum ID of an item local to the given center
+	 */
+	public static long getMaxID(int centerID)
+	{
+		return (centerID + 1L) * ID_RANGE - 1;
+	}
+
+	/**
 	 * Peforms initial functions to set up this data source
 	 * 
 	 * @throws PrismsException If an error occurs getting the setup data
@@ -129,7 +147,7 @@ public class IDGenerator
 	{
 		Statement stmt = null;
 		ResultSet rs = null;
-		String sql = "SELECT * FROM " + thePrefix + "prisms_installation";
+		String sql = "SELECT centerID, installDate FROM " + thePrefix + "prisms_installation";
 		try
 		{
 			stmt = theConn.createStatement();
@@ -140,7 +158,7 @@ public class IDGenerator
 			return rs.getTimestamp("installDate").getTime();
 		} catch(SQLException e)
 		{
-			throw new PrismsException("Could not query PRISMS installation", e);
+			throw new PrismsException("Could not query PRISMS installation: SQL=" + sql, e);
 		} finally
 		{
 			if(rs != null)
@@ -177,9 +195,12 @@ public class IDGenerator
 		{
 			stmt = theConn.createStatement();
 			stmt.execute(sql);
+
+			sql = "DELETE FROM " + thePrefix + "prisms_auto_increment";
+			stmt.execute(sql);
 		} catch(SQLException e)
 		{
-			throw new PrismsException("Could not install PRISMS", e);
+			throw new PrismsException("Could not install PRISMS: SQL=" + sql, e);
 		} finally
 		{
 			if(stmt != null)
@@ -195,7 +216,7 @@ public class IDGenerator
 
 	/**
 	 * Gets the next ID for the given table within this center and namespace. Like
-	 * {@link #getNextID(Statement, String, String, String, Statement)} except that this method
+	 * {@link #getNextID(Statement, String, String, Statement, String)} except that this method
 	 * creates the statement required for the first argument.
 	 * 
 	 * @param table The name of the table to get the next ID for (including any applicable prefix)
@@ -203,16 +224,25 @@ public class IDGenerator
 	 * @param extStmt The active statement pointing to the database where the actual implementation
 	 *        data resides. If this is null it will be assumed that the implementation data resides
 	 *        in the same database as the PRISMS records data.
+	 * @param extPrefix The prefix that should be used to access tables in the external database
 	 * @return The next ID that should be used for an entry in the table
 	 * @throws PrismsException If an error occurs deriving the data
 	 */
-	public long getNextID(String table, String column, Statement extStmt) throws PrismsException
+	public long getNextID(String table, String column, Statement extStmt, String extPrefix)
+		throws PrismsException
 	{
+		boolean closeStmt = true;
 		Statement stmt = null;
 		try
 		{
-			stmt = theConn.createStatement();
-			return getNextID(stmt, thePrefix, table, column, extStmt);
+			if(extStmt != null && extStmt.getConnection() == theConn)
+			{
+				stmt = extStmt;
+				closeStmt = false;
+			}
+			else
+				stmt = theConn.createStatement();
+			return getNextID(stmt, table, column, extStmt, extPrefix);
 		} catch(SQLException e)
 		{
 			throw new PrismsException("Could not create statement to get next ID", e);
@@ -220,7 +250,7 @@ public class IDGenerator
 		{
 			try
 			{
-				if(stmt != null)
+				if(closeStmt && stmt != null)
 					stmt.close();
 			} catch(SQLException e)
 			{
@@ -234,21 +264,24 @@ public class IDGenerator
 	 * 
 	 * @param prismsStmt The active statement pointing to the PRISMS records database. Cannot be
 	 *        null or closed.
-	 * @param prefix The prefix to use before the table name in the SQL
 	 * @param table The name of the table to get the next ID for (including any applicable prefix)
 	 * @param column The ID column of the table
 	 * @param extStmt The active statement pointing to the database where the actual implementation
 	 *        data resides. If this is null it will be assumed that the implementation data resides
 	 *        in the same database as the PRISMS records data and will use the prismsStmt for
 	 *        implementation-specific queries.
+	 * @param extPrefix The prefix that should be used to access tables in the external database
 	 * @return The next ID that should be used for an entry in the table
 	 * @throws PrismsException If an error occurs deriving the data
 	 */
-	public synchronized long getNextID(Statement prismsStmt, String prefix, String table,
-		String column, Statement extStmt) throws PrismsException
+	public synchronized long getNextID(Statement prismsStmt, String table, String column,
+		Statement extStmt, String extPrefix) throws PrismsException
 	{
 		if(extStmt == null)
+		{
 			extStmt = prismsStmt;
+			extPrefix = thePrefix;
+		}
 		ResultSet rs = null;
 		String sql = null;
 		try
@@ -270,7 +303,7 @@ public class IDGenerator
 				ret = -1;
 			if(ret < 0)
 			{
-				sql = "SELECT MAX(" + column + ") FROM " + prefix + table + " WHERE " + column
+				sql = "SELECT MAX(" + column + ") FROM " + extPrefix + table + " WHERE " + column
 					+ ">=" + centerMin + " AND " + column + " <=" + centerMax;
 				rs = extStmt.executeQuery(sql);
 				if(rs.next())
@@ -291,9 +324,9 @@ public class IDGenerator
 				prismsStmt.execute(sql);
 			}
 			sql = null;
-			long nextTry = nextAvailableID(extStmt, prefix + table, column, ret + 1);
+			long nextTry = nextAvailableID(extStmt, extPrefix + table, column, ret + 1);
 			if(nextTry > centerMax)
-				nextTry = nextAvailableID(extStmt, prefix + table, column, centerMin);
+				nextTry = nextAvailableID(extStmt, extPrefix + table, column, centerMin);
 			if(nextTry == ret || nextTry > centerMax)
 				throw new PrismsException("All " + table + " ids are used!");
 

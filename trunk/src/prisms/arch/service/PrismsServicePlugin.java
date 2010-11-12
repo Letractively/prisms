@@ -70,7 +70,7 @@ public class PrismsServicePlugin implements prisms.arch.AppPlugin
 				ret.put("canAccess", new Boolean(theSource.canAccess(user, app)));
 			}
 			else if(method.equals("getAllUsers"))
-				ret.put("users", PrismsSerializer.serializeUsers(theSource.getAllUsers()));
+				ret.put("users", PrismsSerializer.serializeUsers(theSource.getActiveUsers()));
 			else if(method.equals("lockUser"))
 			{
 				ret = null;
