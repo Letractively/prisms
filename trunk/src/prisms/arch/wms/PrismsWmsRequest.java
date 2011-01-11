@@ -8,31 +8,15 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-/**
- * Represents a WMS request. This class makes it easy to modularize WMS implementations.
- */
+/** Represents a WMS request. This class makes it easy to modularize WMS implementations. */
 public class PrismsWmsRequest
 {
 	private static final Color BG = new Color(.5f, .5f, .5f, .5f);
 
-	/**
-	 * The minimum allowable width for WMS overlays
-	 */
-	public static final int MIN_WIDTH = 32;
-
-	/**
-	 * The minimum allowable height for WMS overlays
-	 */
-	public static final int MIN_HEIGHT = 32;
-
-	/**
-	 * The maximum allowable width for WMS overlays
-	 */
+	/** The maximum allowable width for WMS overlays */
 	public static final int MAX_WIDTH = 2048;
 
-	/**
-	 * The maximum allowable height for WMS overlays
-	 */
+	/** The maximum allowable height for WMS overlays */
 	public static final int MAX_HEIGHT = 2048;
 
 	/** The SRS string corresponding to a plain lat/lon projection */
@@ -89,9 +73,7 @@ public class PrismsWmsRequest
 		}
 	}
 
-	/**
-	 * Represents a WMS bounding box
-	 */
+	/** Represents a WMS bounding box */
 	public static class BoundingBox
 	{
 		/**
@@ -512,14 +494,14 @@ public class PrismsWmsRequest
 	private static void fillMapInfo(PrismsWmsRequest ret)
 	{
 		ret.theWidth = Integer.parseInt(ret.getParameter("width"));
-		if(ret.theWidth < MIN_WIDTH || ret.theWidth > MAX_WIDTH)
-			throw new IllegalArgumentException("WIDTH[" + ret.theWidth + "] out of range["
-				+ MIN_WIDTH + " to " + MAX_WIDTH + "]");
+		if(ret.theWidth > MAX_WIDTH)
+			throw new IllegalArgumentException("WIDTH[" + ret.theWidth + "] larger than ["
+				+ MAX_WIDTH + "]");
 
 		ret.theHeight = Integer.parseInt(ret.getParameter("height"));
-		if(ret.theHeight < MIN_HEIGHT || ret.theHeight > MAX_HEIGHT)
-			throw new IllegalArgumentException("HEIGHT[" + ret.theHeight + "] out of range["
-				+ MIN_HEIGHT + " to " + MAX_HEIGHT + "]");
+		if(ret.theHeight > MAX_HEIGHT)
+			throw new IllegalArgumentException("HEIGHT[" + ret.theHeight + "] larger than ["
+				+ MAX_HEIGHT + "]");
 
 		String layers = ret.getParameter("layers");
 		if(layers != null)
@@ -536,10 +518,10 @@ public class PrismsWmsRequest
 		float MinLat = Float.parseFloat(bBoxSplit[1]);
 		float MaxLon = Float.parseFloat(bBoxSplit[2]);
 		float MaxLat = Float.parseFloat(bBoxSplit[3]);
-		if(MinLat >= MaxLat)
+		if(MinLat > MaxLat)
 			throw new IllegalArgumentException("Illegal BBOX: " + BBOX + "--minLat>maxLat");
 
-		if(MinLon >= MaxLon)
+		if(MinLon > MaxLon)
 		{
 			// ret.theError="Illegal BBOX: " + BBOX + "--minLon>maxLon";
 			// return;

@@ -137,7 +137,7 @@ public class PrismsPasswordResetter
 				pwdExpire = System.currentTimeMillis() + expireMinutes.intValue() * 60L * 1000;
 			String pwdData = prisms.impl.DBUserSource.join(theHashing.partialHash(password));
 			int nextPwdID = prisms.arch.ds.IDGenerator.getNextIntID(stmt, prefix
-				+ "prisms_user_password", "id");
+				+ "prisms_user_password", "id", null);
 			sql = "INSERT INTO " + prefix + "prisms_user_password (id, pwdUser, pwdData, pwdTime,"
 				+ " pwdExpire) VALUES (" + nextPwdID + ", " + userID + ", "
 				+ DBUtils.toSQL(pwdData) + ", " + System.currentTimeMillis() + ", "

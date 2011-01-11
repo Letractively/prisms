@@ -14,10 +14,6 @@
 	</properties>
 	<events>
 		<event>
-			<name>userPermissionsChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
-		<event>
 			<name>groupChanged</name>
 			<class>prisms.util.EventGlobalizer</class>
 		</event>
@@ -27,10 +23,6 @@
 		</event>
 		<event>
 			<name>groupPermissionsChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
-		<event>
-			<name>userGroupsChanged</name>
 			<class>prisms.util.EventGlobalizer</class>
 		</event>
 	</events>

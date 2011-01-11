@@ -13,11 +13,10 @@ import org.json.simple.JSONObject;
 import prisms.records2.Synchronize2Impl.ItemGetter;
 import prisms.records2.Synchronize2Impl.ItemWriter;
 import prisms.util.ArrayUtils;
+import prisms.util.json.SAJParser.ParseException;
 import prisms.util.json.SAJParser.ParseState;
 
-/**
- * Provides the ability to keep two sets of java objects synchronized across a network connection
- */
+/** Provides the ability to keep two sets of java objects synchronized across a network connection */
 public class PrismsSynchronizer2
 {
 	/** Listens for new sync records created by the synchronizer */
@@ -60,6 +59,28 @@ public class PrismsSynchronizer2
 				"record", record));
 		}
 	}
+
+	/**
+	 * Allows calling methods a chance to create dependent centers or perform other operations after
+	 * a center's center ID is set
+	 */
+	public static interface PostIDSet
+	{
+		/**
+		 * Called after the center ID for a center is set
+		 * 
+		 * @param sync The synchronizer (may be this or a dependent center) that the center is for
+		 * @param center The center whose ID has been set
+		 * @throws PrismsRecordException If an unrecoverable error occurs performing the operation
+		 */
+		void postIDSet(PrismsSynchronizer2 sync, PrismsCenter center) throws PrismsRecordException;
+	}
+
+	/**
+	 * The JSON property within a synchronization stream that the dependent synchronization data is
+	 * sent in
+	 */
+	public static final String DEPENDS = "depends";
 
 	/** The JSON property within a synchronization stream that the list of all items is sent as */
 	public static final String ALL_ITEMS = "allItems";
@@ -105,6 +126,7 @@ public class PrismsSynchronizer2
 			id = anID;
 		}
 
+		@Override
 		public boolean equals(Object o)
 		{
 			if(!(o instanceof ObjectID))
@@ -112,12 +134,14 @@ public class PrismsSynchronizer2
 			return ((ObjectID) o).type.equals(type) && ((ObjectID) o).id == id;
 		}
 
+		@Override
 		public int hashCode()
 		{
 			return type.hashCode() * 13 + (int) (id / Record2Utils.theCenterIDRange * 7)
 				+ (int) (id % Record2Utils.theCenterIDRange);
 		}
 
+		@Override
 		public String toString()
 		{
 			return type + "(" + id + ")";
@@ -574,7 +598,7 @@ public class PrismsSynchronizer2
 
 		private int theDepth;
 
-		private boolean [] theNewItem;
+		private java.util.ArrayList<boolean []> theNewItems;
 
 		PS2ItemReader(SyncInputHandler syncInput, SyncRecord record,
 			prisms.ui.UI.DefaultProgressInformer pi)
@@ -588,7 +612,7 @@ public class PrismsSynchronizer2
 			theBag = new ObjectBag();
 			theCenterIDs = new int [0];
 			theReferences = new java.util.HashMap<Integer, Reference []>();
-			theNewItem = new boolean [1];
+			theNewItems = new java.util.ArrayList<boolean []>();
 		}
 
 		void store(String type, long id, Object item)
@@ -602,6 +626,9 @@ public class PrismsSynchronizer2
 				return null;
 			Object value = null;
 			theDepth++;
+			while(theNewItems.size() < theDepth)
+				theNewItems.add(new boolean [1]);
+			boolean [] newItem = theNewItems.get(theDepth - 1);
 			try
 			{
 				String type = (String) json.get("type");
@@ -616,25 +643,25 @@ public class PrismsSynchronizer2
 				}
 				else if(Boolean.TRUE.equals(json.get("-localstore-")))
 				{
-					theNewItem[0] = false;
-					value = PrismsSynchronizer2.this.parseID(json, this, theNewItem);
-					if(theNewItem[0])
+					newItem[0] = false;
+					value = PrismsSynchronizer2.this.parseID(json, this, newItem);
+					if(newItem[0])
 						throw new PrismsRecordException("Item " + type + "/" + id
 							+ " not present in data source");
 					theBag.add(type, id, value);
 				}
 				else
 				{
-					theNewItem[0] = false;
-					value = PrismsSynchronizer2.this.parseID(json, this, theNewItem);
+					newItem[0] = false;
+					value = PrismsSynchronizer2.this.parseID(json, this, newItem);
 					theBag.add(type, id, value);
 					parseEmptyContent();
 					if(type != null)
 					{
 						if(theDepth == 1)
-							parseContent(value, new ObjectID(type, id), json, theNewItem[0]);
+							parseContent(value, new ObjectID(type, id), json, newItem[0]);
 						else
-							addEmptyContent(value, new ObjectID(type, id), json, theNewItem[0]);
+							addEmptyContent(value, new ObjectID(type, id), json, newItem[0]);
 						parseEmptyContent();
 					}
 				}
@@ -860,20 +887,23 @@ public class PrismsSynchronizer2
 					}
 					JSONObject json = (JSONObject) handler.finalValue();
 					handler.reset();
-					theNewItem[0] = false;
 					Object item;
 					theDepth++;
+					while(theNewItems.size() < theDepth)
+						theNewItems.add(new boolean [1]);
+					boolean [] newItem = theNewItems.get(theDepth - 1);
+					newItem[0] = false;
 					try
 					{
-						item = PrismsSynchronizer2.this.parseID(json, this, theNewItem);
+						item = PrismsSynchronizer2.this.parseID(json, this, newItem);
 						theBag.add(id.type, id.id, item);
 						parseEmptyContent();
 						if(!json.containsKey("-localstore-"))
 						{
-							if(theNewItem[0] || relativePriority(theSyncRecord.getCenter()) >= 0)
-								parseContent(item, id, json, theNewItem[0]);
+							if(newItem[0] || relativePriority(theSyncRecord.getCenter()) >= 0)
+								parseContent(item, id, json, newItem[0]);
 						}
-						else if(theNewItem[0])
+						else if(newItem[0])
 							log.error("Item " + id + " not locally stored!");
 						parseEmptyContent();
 						thePI.setProgressText(rootProgress + "\nImported " + id.type + " "
@@ -1010,6 +1040,7 @@ public class PrismsSynchronizer2
 				theGetter.preRegister((JSONObject) top());
 		}
 
+		@Override
 		public void endObject(ParseState state)
 		{
 			super.endObject(state);
@@ -1048,8 +1079,13 @@ public class PrismsSynchronizer2
 						Object currentValue = json.get("currentValue");
 						if(currentValue != null && currentValue instanceof JSONObject)
 							currentValue = theGetter.read((JSONObject) currentValue);
-						thePI.setProgressText(prisms.util.PrismsUtils.encodeUnicode("Importing "
-							+ change.toString(currentValue)));
+						if(currentValue != null
+							&& change.type.changeType.getObjectType().isInstance(currentValue))
+							thePI.setProgressText(prisms.util.PrismsUtils
+								.encodeUnicode("Importing " + change.toString(currentValue)));
+						else
+							thePI.setProgressText(prisms.util.PrismsUtils
+								.encodeUnicode("Importing " + change.toString()));
 						getImpl().doChange(change, currentValue, theGetter);
 					}
 				} catch(Exception e)
@@ -1073,11 +1109,13 @@ public class PrismsSynchronizer2
 
 	private class SyncInputHandler extends prisms.util.json.SAJParser.DefaultHandler
 	{
-		private final Reader theReader;
+		final Reader theReader;
 
 		final SyncRecord theSyncRecord;
 
 		final prisms.ui.UI.DefaultProgressInformer thePI;
+
+		final PostIDSet thePIDS;
 
 		private PS2ItemReader theItemReader;
 
@@ -1093,7 +1131,7 @@ public class PrismsSynchronizer2
 
 		private int theTotalChangeCount;
 
-		private boolean storeSyncRecord;
+		boolean storeSyncRecord;
 
 		private boolean hasDoneChanges;
 
@@ -1104,11 +1142,12 @@ public class PrismsSynchronizer2
 		private java.util.ArrayList<LatestCenterChange> theLatestChanges;
 
 		SyncInputHandler(Reader reader, SyncRecord record, prisms.ui.UI.DefaultProgressInformer pi,
-			boolean storeSR)
+			PostIDSet pids, boolean storeSR)
 		{
 			theReader = reader;
 			theSyncRecord = record;
 			thePI = pi;
+			thePIDS = pids;
 			theItemReader = new PS2ItemReader(this, record, thePI);
 			theTotalChangeCount = -1;
 			storeSyncRecord = storeSR;
@@ -1123,7 +1162,65 @@ public class PrismsSynchronizer2
 				throw new prisms.util.CancelException();
 			try
 			{
-				if(ALL_ITEMS.equals(state.top().getPropertyName()))
+				if(DEPENDS.equals(state.top().getPropertyName()))
+				{
+					if(!isCenterIDSet)
+						throw new prisms.util.json.SAJParser.ParseException(
+							"Can't synchronize dependencies before center ID is sent", state);
+					final int [] dependIdx = new int [] {0};
+					new prisms.util.json.SAJParser().parse(theReader,
+						new prisms.util.json.SAJParser.DefaultHandler()
+						{
+							@Override
+							public void startArray(ParseState state2)
+							{
+								super.startArray(state2);
+								inputDependSync(state2);
+							}
+
+							@Override
+							public void separator(ParseState state2)
+							{
+								super.separator(state2);
+								inputDependSync(state2);
+							}
+
+							private void inputDependSync(ParseState state2)
+							{
+								PrismsSynchronizer2 subSync = getDepends()[dependIdx[0]];
+								dependIdx[0]++;
+								PrismsCenter subCenter;
+								try
+								{
+									subCenter = getDependCenter(subSync, theSyncRecord.getCenter());
+									if(subCenter == null)
+										throw new PrismsRecordException("No dependent center"
+											+ " parallel to " + theSyncRecord.getCenter().getName()
+											+ " for synchronizer with impl "
+											+ subSync.getImpl().getClass().getName());
+									// TODO Perhaps adjust the progress input to append something
+									// like "Synchronizing REA: "
+									subSync.doSyncInput(subCenter, theSyncRecord.getSyncType(),
+										theReader, thePI, thePIDS, storeSyncRecord);
+									state2.spoofValue();
+								} catch(IOException e)
+								{
+									throw new RuntimeWrapper(
+										"Could not read dependent synchronization data", e);
+								} catch(ParseException e)
+								{
+									throw new RuntimeWrapper(
+										"Could not parse dependent synchronization data", e);
+								} catch(PrismsRecordException e)
+								{
+									throw new RuntimeWrapper(
+										"Could not interpret dependent synchronization data", e);
+								}
+							}
+						});
+					state.spoofValue();
+				}
+				else if(ALL_ITEMS.equals(state.top().getPropertyName()))
 				{
 					checkStage();
 					if(theStageCount == 0)
@@ -1367,6 +1464,8 @@ public class PrismsSynchronizer2
 					try
 					{
 						getKeeper().putCenter(theSyncRecord.getCenter(), null, null);
+						if(thePIDS != null)
+							thePIDS.postIDSet(PrismsSynchronizer2.this, theSyncRecord.getCenter());
 					} catch(PrismsRecordException e)
 					{
 						throw new RuntimeWrapper("Could not set center ID", e);
@@ -1408,14 +1507,17 @@ public class PrismsSynchronizer2
 
 	private class SyncReceiptHandler extends prisms.util.json.SAJParser.DefaultHandler
 	{
+		Reader theReader;
+
 		private PrismsCenter [] theCenters;
 
 		private SyncRecord theRecord;
 
 		private prisms.util.LongList theErrorChanges;
 
-		SyncReceiptHandler()
+		SyncReceiptHandler(Reader reader)
 		{
+			theReader = reader;
 			theErrorChanges = new prisms.util.LongList();
 		}
 
@@ -1425,6 +1527,9 @@ public class PrismsSynchronizer2
 			super.endArray(state);
 			if("errors".equals(state.top().getPropertyName()))
 			{
+				if(theCenters == null)
+					throw new RuntimeWrapper(CENTER_ID
+						+ " must be the first element in a synchronization receipt", null);
 				long [] ids = theErrorChanges.toArray();
 				theErrorChanges.clear();
 				long [] batch = new long [ids.length < 100 ? ids.length : 100];
@@ -1456,6 +1561,68 @@ public class PrismsSynchronizer2
 						}
 					}
 					i += length;
+				}
+			}
+		}
+
+		@Override
+		public void separator(ParseState state)
+		{
+			if(DEPENDS.equals(state.top().getPropertyName()))
+			{
+				if(theCenters == null)
+					throw new RuntimeWrapper(CENTER_ID
+						+ " must be the first element in a synchronization receipt", null);
+				final int [] dependIdx = new int [] {0};
+				try
+				{
+					new prisms.util.json.SAJParser().parse(theReader,
+						new prisms.util.json.SAJParser.DefaultHandler()
+						{
+							@Override
+							public void startArray(ParseState state2)
+							{
+								super.startArray(state2);
+								inputDependSync(state2);
+							}
+
+							@Override
+							public void separator(ParseState state2)
+							{
+								super.separator(state2);
+								inputDependSync(state2);
+							}
+
+							private void inputDependSync(ParseState state2)
+							{
+								PrismsSynchronizer2 subSync = getDepends()[dependIdx[0]];
+								dependIdx[0]++;
+								try
+								{
+									subSync.readSyncReceipt(theReader);
+									state2.spoofValue();
+								} catch(IOException e)
+								{
+									throw new RuntimeWrapper(
+										"Could not read dependent sync receipt", e);
+								} catch(ParseException e)
+								{
+									throw new RuntimeWrapper(
+										"Could not parse dependent sync receipt", e);
+								} catch(PrismsRecordException e)
+								{
+									throw new RuntimeWrapper(
+										"Could not interpret dependent sync receipt", e);
+								}
+							}
+						});
+					state.spoofValue();
+				} catch(IOException e)
+				{
+					throw new RuntimeWrapper("Could not read dependent sync receipt", e);
+				} catch(ParseException e)
+				{
+					throw new RuntimeWrapper("Could not parse dependent sync receipt", e);
 				}
 			}
 		}
@@ -1590,6 +1757,8 @@ public class PrismsSynchronizer2
 
 	SyncListener theSyncListener;
 
+	private PrismsSynchronizer2 [] theDepends;
+
 	/**
 	 * Creates a synchronizer
 	 * 
@@ -1600,14 +1769,31 @@ public class PrismsSynchronizer2
 	{
 		theKeeper = keeper;
 		theImpl = impl;
+		theDepends = new PrismsSynchronizer2 [0];
 	}
 
-	/**
-	 * @param listener The listener to listen for new sync records
-	 */
+	/** @param listener The listener to listen for new sync records */
 	public void setSyncListener(SyncListener listener)
 	{
 		theSyncListener = listener;
+	}
+
+	/**
+	 * Adds a synchronizer dependency. If synchronizer A depends on synchronizer B, then whenever A
+	 * attempts to sync, B will sync first, assuring that all B's data is up-to-date before A
+	 * operates using that data.
+	 * 
+	 * @param synchronizer The synchronizer that this synchronizer depends on
+	 */
+	public void addDependency(PrismsSynchronizer2 synchronizer)
+	{
+		theDepends = ArrayUtils.add(theDepends, synchronizer);
+	}
+
+	/** @return All synchronizers whose data sets this synchronizer's data set depends on */
+	public PrismsSynchronizer2 [] getDepends()
+	{
+		return theDepends;
 	}
 
 	/**
@@ -1619,14 +1805,15 @@ public class PrismsSynchronizer2
 	 * @param reader The synchronization stream
 	 * @param pi The progress informer to alert the user to the status of synchronization. May be
 	 *        null.
+	 * @param pids The {@link PostIDSet} to invoke after the center's ID has been set
 	 * @param storeSyncRecord Whether to store the sync record and associated changes
 	 * @return The synchronization record of the synchronization that occurred
 	 * @throws IOException If the stream cannot be completely read or parsed
 	 * @throws PrismsRecordException If an error occurs importing the synchronization data
 	 */
 	public SyncRecord doSyncInput(PrismsCenter center, SyncRecord.Type type, Reader reader,
-		prisms.ui.UI.DefaultProgressInformer pi, boolean storeSyncRecord) throws IOException,
-		PrismsRecordException
+		prisms.ui.UI.DefaultProgressInformer pi, PostIDSet pids, boolean storeSyncRecord)
+		throws IOException, PrismsRecordException
 	{
 		if(pi == null)
 			pi = new prisms.ui.UI.DefaultProgressInformer();
@@ -1647,7 +1834,8 @@ public class PrismsSynchronizer2
 		prisms.util.json.SAJParser parser = new prisms.util.json.SAJParser();
 		try
 		{
-			parser.parse(reader, new SyncInputHandler(reader, syncRecord, pi, storeSyncRecord));
+			parser.parse(reader,
+				new SyncInputHandler(reader, syncRecord, pi, pids, storeSyncRecord));
 			syncRecord.setSyncError(null);
 			if(storeSyncRecord)
 				center.setLastImport(syncRecord.getSyncTime());
@@ -1866,7 +2054,7 @@ public class PrismsSynchronizer2
 	 * @throws IOException If the stream cannot be completely written
 	 * @throws PrismsRecordException If an error occurs gathering the data to write to the stream
 	 */
-	public SyncRecord doSyncOutput(PrismsCenter center, LatestCenterChange [] changes,
+	public SyncRecord doSyncOutput(PrismsCenter center, ValueTree<LatestCenterChange []> changes,
 		SyncRecord.Type type, Writer writer, prisms.ui.UI.DefaultProgressInformer pi,
 		boolean withRecords, boolean storeSyncRecord) throws IOException, PrismsRecordException
 	{
@@ -1889,7 +2077,7 @@ public class PrismsSynchronizer2
 		SyncOutput sync;
 		try
 		{
-			sync = getSyncOutput(center, changes, withRecords, false);
+			sync = getSyncOutput(center, changes.getValue(), withRecords, false);
 		} catch(PrismsRecordException e)
 		{
 			log.error("Sync output failed", e);
@@ -1934,6 +2122,25 @@ public class PrismsSynchronizer2
 		jsw.startObject();
 		jsw.startProperty(CENTER_ID);
 		jsw.writeNumber(new Integer(theKeeper.getCenterID()));
+		if(theDepends.length > 0)
+		{
+			jsw.startProperty(DEPENDS);
+			jsw.startArray();
+			for(int d = 0; d < theDepends.length; d++)
+			{
+				PrismsSynchronizer2 subSync = theDepends[d];
+				PrismsCenter subCenter = getDependCenter(subSync, center);
+				if(subCenter == null)
+					throw new PrismsRecordException("No dependent center" + " parallel to "
+						+ center.getName() + " for synchronizer with impl "
+						+ subSync.getImpl().getClass().getName());
+				// TODO Possibly prefix the pi with something like "Creating REA Sync Output: "
+				jsw.writeCustomValue();
+				subSync.doSyncOutput(subCenter, changes.getChildren()[d], type, writer, pi,
+					withRecords, storeSyncRecord);
+			}
+			jsw.endArray();
+		}
 		jsw.startProperty(PARALLEL_ID);
 		jsw.writeNumber(new Integer(syncRecord.getID()));
 		jsw.startProperty("sync-data");
@@ -1948,7 +2155,7 @@ public class PrismsSynchronizer2
 		int stage = 1;
 		try
 		{
-			PS2ItemWriter itemWriter = new PS2ItemWriter(writer, syncRecord, changes,
+			PS2ItemWriter itemWriter = new PS2ItemWriter(writer, syncRecord, changes.getValue(),
 				storeSyncRecord);
 			jsw.startObject();
 			if(!sync.theLateIDs.isEmpty())
@@ -2141,8 +2348,16 @@ public class PrismsSynchronizer2
 					pi.setProgress(i);
 					if(!shouldSend(record))
 						continue;
-					if(sync.theLateIDs.contains(Record2Utils
-						.getCenterID(getID(record.majorSubject))))
+					if(record instanceof ChangeRecordError
+						&& sync.theLateIDs.contains(Record2Utils
+							.getCenterID(((ChangeRecordError) record).getMajorSubjectID())))
+						itemWriter.writeSkippedChange();
+					long subjectID;
+					if(record instanceof ChangeRecordError)
+						subjectID = ((ChangeRecordError) record).getMajorSubjectID();
+					else
+						subjectID = getID(record.majorSubject);
+					if(sync.theLateIDs.contains(Record2Utils.getCenterID(subjectID)))
 						itemWriter.writeSkippedChange();
 					else
 					{
@@ -2180,11 +2395,11 @@ public class PrismsSynchronizer2
 	{
 		SyncRecord [] records = theKeeper.getSyncRecords(center, Boolean.TRUE);
 		prisms.util.json.JsonStreamWriter jsw = new prisms.util.json.JsonStreamWriter(writer);
+		jsw.startObject();
+		jsw.startProperty(CENTER_ID);
+		jsw.writeNumber(Integer.valueOf(getKeeper().getCenterID()));
 		if(records.length == 0)
 		{
-			jsw.startObject();
-			jsw.startProperty(CENTER_ID);
-			jsw.writeNumber(new Integer(getKeeper().getCenterID()));
 			jsw.startProperty("error");
 			jsw.writeString("Synchronization not received");
 			jsw.endObject();
@@ -2203,9 +2418,6 @@ public class PrismsSynchronizer2
 				}
 			if(record == null)
 			{
-				jsw.startObject();
-				jsw.startProperty(CENTER_ID);
-				jsw.writeNumber(new Integer(getKeeper().getCenterID()));
 				jsw.startProperty("error");
 				jsw.writeString("Synchronization not received");
 				jsw.endObject();
@@ -2213,10 +2425,40 @@ public class PrismsSynchronizer2
 				return;
 			}
 		}
+		if(theDepends.length > 0)
+		{
+			jsw.startProperty(DEPENDS);
+			jsw.startArray();
+			for(int d = 0; d < theDepends.length; d++)
+			{
+				PrismsCenter subCenter = getDependCenter(theDepends[d], center);
+				if(subCenter == null)
+					throw new PrismsRecordException("No dependent center" + " parallel to "
+						+ center.getName() + " for synchronizer with impl "
+						+ theDepends[d].getImpl().getClass().getName());
+				SyncRecord [] dependSRs = theDepends[d].getKeeper().getSyncRecords(subCenter,
+					Boolean.TRUE);
+				int i;
+				for(i = 0; i < dependSRs.length
+					&& dependSRs[i].getSyncTime() > record.getSyncTime(); i++);
+				if(i == dependSRs.length)
+				{
+					jsw.startObject();
+					jsw.startProperty(CENTER_ID);
+					jsw.writeNumber(Integer.valueOf(theDepends[d].getKeeper().getCenterID()));
+					jsw.startProperty("error");
+					jsw.writeString("Synchronization not received");
+					jsw.endObject();
+				}
+				else
+				{
+					jsw.writeCustomValue();
+					theDepends[d].sendSyncReceipt(subCenter, writer, dependSRs[i].getParallelID());
+				}
+			}
+			jsw.endArray();
+		}
 		long [] errors = theKeeper.getErrorChanges(record);
-		jsw.startObject();
-		jsw.startProperty(CENTER_ID);
-		jsw.writeNumber(new Integer(getKeeper().getCenterID()));
 		jsw.startProperty("syncRecord");
 		jsw.writeNumber(new Integer(record.getParallelID()));
 		jsw.startProperty(PARALLEL_ID);
@@ -2246,7 +2488,7 @@ public class PrismsSynchronizer2
 	{
 		try
 		{
-			new prisms.util.json.SAJParser().parse(reader, new SyncReceiptHandler());
+			new prisms.util.json.SAJParser().parse(reader, new SyncReceiptHandler(reader));
 		} catch(prisms.util.json.SAJParser.ParseException e)
 		{
 			log.error("Could not parse sync receipt", e);
@@ -2273,10 +2515,10 @@ public class PrismsSynchronizer2
 	 *         needed to be sent.
 	 * @throws PrismsRecordException If an error occurs accessing the data
 	 */
-	public int [] checkSync(final PrismsCenter center, LatestCenterChange [] changes,
+	public int [] checkSync(final PrismsCenter center, ValueTree<LatestCenterChange []> changes,
 		boolean withRecords) throws PrismsRecordException
 	{
-		SyncOutput sync = getSyncOutput(center, changes, withRecords, false);
+		SyncOutput sync = getSyncOutput(center, changes.getValue(), withRecords, false);
 
 		int [] ret = new int [] {0, 0};
 		if(!sync.theLateIDs.isEmpty())
@@ -2304,7 +2546,33 @@ public class PrismsSynchronizer2
 			}
 		}
 		ret[1] = sync.theChangeIDs.length;
+		if(ret[0] > 0 || ret[1] > 0)
+			for(int d = 0; d < theDepends.length; d++)
+			{
+				PrismsCenter subCenter = getDependCenter(theDepends[d], center);
+				if(subCenter == null)
+					throw new PrismsRecordException("No dependent center" + " parallel to "
+						+ center.getName() + " for synchronizer with impl "
+						+ theDepends[d].getImpl().getClass().getName());
+				int [] subRet = theDepends[d].checkSync(subCenter, changes.getChildren()[d],
+					withRecords);
+				ret[0] += subRet[0];
+				ret[1] += subRet[1];
+			}
 		return ret;
+	}
+
+	PrismsCenter getDependCenter(PrismsSynchronizer2 subSync, PrismsCenter center)
+		throws PrismsRecordException
+	{
+		PrismsCenter subCenter = null;
+		for(PrismsCenter c : subSync.getKeeper().getCenters())
+			if(c.getCenterID() == center.getCenterID())
+			{
+				subCenter = c;
+				break;
+			}
+		return subCenter;
 	}
 
 	/**
@@ -2316,9 +2584,7 @@ public class PrismsSynchronizer2
 		return theImpl;
 	}
 
-	/**
-	 * @return The record keeper that this synchronizer uses to keep track of changes
-	 */
+	/** @return The record keeper that this synchronizer uses to keep track of changes */
 	public RecordKeeper2 getKeeper()
 	{
 		return theKeeper;
@@ -2716,6 +2982,23 @@ public class PrismsSynchronizer2
 		{
 			log.error("Could not store data", e);
 		}
+		if(changeType != null && !changeType.isObjectIdentifiable() && data.preValue != null
+			&& Number.class.isAssignableFrom(changeType.getObjectType())
+			&& !changeType.getObjectType().equals(data.preValue.getClass()))
+		{
+			if(Long.class.equals(changeType.getObjectType()))
+				data.preValue = Long.valueOf(((Number) data.preValue).longValue());
+			else if(Integer.class.equals(changeType.getObjectType()))
+				data.preValue = Integer.valueOf(((Number) data.preValue).intValue());
+			else if(Double.class.equals(changeType.getObjectType()))
+				data.preValue = Double.valueOf(((Number) data.preValue).doubleValue());
+			else if(Float.class.equals(changeType.getObjectType()))
+				data.preValue = Float.valueOf(((Number) data.preValue).floatValue());
+			else if(Short.class.equals(changeType.getObjectType()))
+				data.preValue = Short.valueOf(((Number) data.preValue).shortValue());
+			else if(Byte.class.equals(changeType.getObjectType()))
+				data.preValue = Byte.valueOf(((Number) data.preValue).byteValue());
+		}
 		try
 		{
 			return new prisms.records2.ChangeRecord(id, time, user, subjectType, changeType, add,
@@ -2734,6 +3017,8 @@ public class PrismsSynchronizer2
 
 	private SubjectType getSubjectType(String name) throws PrismsRecordException
 	{
+		if(ChangeRecordError.ErrorSubjectType.name().equals(name))
+			return ChangeRecordError.ErrorSubjectType;
 		for(PrismsChange ch : PrismsChange.values())
 			if(ch.name().equals(name))
 				return ch;

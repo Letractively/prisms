@@ -43,9 +43,12 @@ public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<
 		theValue = value;
 	}
 
+	@Override
 	public void configure(prisms.arch.PrismsApplication app, Element configEl)
 	{
 		super.configure(app, configEl);
+		if(theValue != null)
+			return;
 		Element persisterEl = configEl.element("persister");
 		Persister<T> persister;
 
@@ -94,6 +97,7 @@ public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<
 				+ getProperty());
 	}
 
+	@Override
 	public T getApplicationValue(prisms.arch.PrismsApplication app)
 	{
 		return theValue;

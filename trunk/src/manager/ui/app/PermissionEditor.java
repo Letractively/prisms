@@ -167,8 +167,8 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 			theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupPermissionsChanged",
 				"group", theGroup));
 			for(int u = 0; u < users.length; u++)
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("userPermissionsChanged",
-					"user", users[u]));
+				theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
+					users[u]));
 		} finally
 		{
 			theDataLock = false;

@@ -178,48 +178,78 @@ public class GovernedListManager<T> extends PersistingPropertyManager<T []>
 	@Override
 	public void changeValues(final PrismsSession session, PrismsPCE<T []> evt)
 	{
-		if(session != null && !Boolean.TRUE.equals(evt.get(GOVERNED)))
+		if(!Boolean.TRUE.equals(evt.get(GOVERNED)))
 		{
 			evt.set(GOVERNED, Boolean.TRUE);
-			theGlobalValue = ArrayUtils.adjust(theGlobalValue, session.getProperty(getProperty()),
-				new ArrayUtils.DifferenceListener<T, T>()
-				{
-					public boolean identity(T o1, T o2)
+			if(session != null)
+			{
+				theGlobalValue = ArrayUtils.adjust(theGlobalValue, evt.getNewValue(),
+					new ArrayUtils.DifferenceListener<T, T>()
 					{
-						return o1 == o2;
-					}
-
-					public T added(T o, int idx, int retIdx)
-					{
-						if(getGovernor().isShared(o)
-							&& !getGovernor().canEdit(session.getApp(), session.getUser(), o))
-							throw new IllegalStateException("User " + session.getUser()
-								+ " is not allowed to create value " + o + " in application "
-								+ session.getApp());
-						return o;
-					}
-
-					public T removed(T o, int idx, int incMod, int retIdx)
-					{
-						if(!getGovernor().isShared(o)
-							|| !getGovernor().canView(session.getApp(), session.getUser(), o))
-							return o; // User can't view it so of course it's not in their session
-						else if(getGovernor().canEdit(session.getApp(), session.getUser(), o))
-							return null; // User has deleted the object
-						else
+						public boolean identity(T o1, T o2)
 						{
-							log.error("User " + session.getUser()
-								+ " is not allowed to delete value " + o + " in application "
-								+ session.getApp());
+							return o1 == o2;
+						}
+
+						public T added(T o, int idx, int retIdx)
+						{
+							if(getGovernor().isShared(o)
+								&& !getGovernor().canEdit(session.getApp(), session.getUser(), o))
+								throw new IllegalStateException("User " + session.getUser()
+									+ " is not allowed to create value " + o + " in application "
+									+ session.getApp());
 							return o;
 						}
-					}
 
-					public T set(T o1, int idx1, int incMod, T o2, int idx2, int retIdx)
+						public T removed(T o, int idx, int incMod, int retIdx)
+						{
+							if(!getGovernor().isShared(o)
+								|| !getGovernor().canView(session.getApp(), session.getUser(), o))
+								return o; // User can't view it so of course it's not in their
+											// session
+							else if(getGovernor().canEdit(session.getApp(), session.getUser(), o))
+								return null; // User has deleted the object
+							else
+							{
+								log.error("User " + session.getUser()
+									+ " is not allowed to delete value " + o + " in application "
+									+ session.getApp());
+								return o;
+							}
+						}
+
+						public T set(T o1, int idx1, int incMod, T o2, int idx2, int retIdx)
+						{
+							return o1;
+						}
+					});
+			}
+			else
+			{
+				theGlobalValue = ArrayUtils.adjust(theGlobalValue, evt.getNewValue(),
+					new ArrayUtils.DifferenceListener<T, T>()
 					{
-						return o1;
-					}
-				});
+						public boolean identity(T o1, T o2)
+						{
+							return o1 == o2;
+						}
+
+						public T added(T o, int idx, int retIdx)
+						{
+							return o;
+						}
+
+						public T removed(T o, int idx, int incMod, int retIdx)
+						{
+							return null;
+						}
+
+						public T set(T o1, int idx1, int incMod, T o2, int idx2, int retIdx)
+						{
+							return o1;
+						}
+					});
+			}
 		}
 		super.changeValues(session, evt);
 	}
@@ -231,7 +261,9 @@ public class GovernedListManager<T> extends PersistingPropertyManager<T []>
 		if(!Boolean.TRUE.equals(evt.getProperty(GOVERNED)))
 		{
 			evt.setProperty(GOVERNED, Boolean.TRUE);
-			if(session != null)
+			if(session != null
+				&& !Boolean.TRUE.equals(evt
+					.getProperty(PrismsApplication.GLOBALIZED_EVENT_PROPERTY)))
 			{
 				if(!getGovernor().canView(session.getApp(), session.getUser(), (T) eventValue))
 					throw new IllegalArgumentException("User " + session.getUser()
@@ -250,8 +282,7 @@ public class GovernedListManager<T> extends PersistingPropertyManager<T []>
 						+ " not found in global value--cannot persist modification");
 			}
 			else
-				globalAdjustValues(session == null ? null : session.getApp(), session,
-					evt.getPropertyList());
+				globalAdjustValues(evt.getPropertyList());
 		}
 		super.eventOccurred(session, evt, eventValue);
 	}

@@ -13,9 +13,7 @@ import prisms.arch.PrismsSession;
 import prisms.arch.ds.ManageableUserSource;
 import prisms.arch.ds.User;
 
-/**
- * Allows the user to manage the association of a user with an application
- */
+/** Allows the user to manage the association of a user with an application */
 public class UserAppAssocEditor implements prisms.arch.AppPlugin
 {
 	private static final Logger log = Logger.getLogger(UserAppAssocEditor.class);
@@ -28,9 +26,6 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 
 	PrismsApplication theApp;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
 	{
 		theSession = session;
@@ -74,9 +69,6 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		});
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 		JSONObject evt = new JSONObject();
@@ -100,9 +92,6 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		theSession.postOutgoingEvent(evt);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		if("accessChanged".equals(evt.get("method")))
@@ -158,7 +147,8 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 				"Cannot modify user access--user source is not manageable");
 		try
 		{
-			((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible);
+			((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible,
+				new prisms.records2.RecordsTransaction(theSession.getUser()));
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not set user-application accessibility", e);

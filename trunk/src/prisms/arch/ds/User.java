@@ -10,7 +10,7 @@ import prisms.arch.PrismsApplication;
  * Represents a user of a {@link PrismsApplication}. Allows the application to restrict or deny
  * access based on a user's credentials and verifiability.
  */
-public class User implements Cloneable
+public class User implements prisms.records2.RecordUser, Cloneable
 {
 	private long theID;
 
@@ -79,7 +79,7 @@ public class User implements Cloneable
 	/** @param admin Whether this user is an admin or not */
 	public void setAdmin(boolean admin)
 	{
-		if(isReadOnly)
+		if(isReadOnly && admin != isAdmin)
 			throw new IllegalStateException("User " + theName + " is read-only");
 		isAdmin = admin;
 	}
@@ -97,7 +97,7 @@ public class User implements Cloneable
 	 */
 	public void setName(String name)
 	{
-		if(isReadOnly)
+		if(isReadOnly && !theName.equals(name))
 			throw new IllegalStateException("User " + theName + " is read-only");
 		theName = name;
 	}

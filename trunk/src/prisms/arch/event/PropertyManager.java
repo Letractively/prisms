@@ -111,35 +111,22 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 
 	/**
 	 * Adjusts the values of this property in every session of every application which this manager
-	 * manages, excluding the given session (if not null).
+	 * manages
 	 * 
-	 * @param app The application of the session to not fire the event in
-	 * @param session The session to not fire the event in
 	 * @param eventProps The properties of the event to fire
 	 */
-	protected void globalAdjustValues(PrismsApplication app, PrismsSession session,
-		Object... eventProps)
+	protected void globalAdjustValues(Object... eventProps)
 	{
-		if(app != null)
-			app.runSessionTask(session, new PrismsApplication.SessionTask()
+		for(PrismsApplication app : theApps)
+		{
+			app.runSessionTask(null, new PrismsApplication.SessionTask()
 			{
 				public void run(PrismsSession session2)
 				{
 					if(!isValueCorrect(session2, session2.getProperty(getProperty())))
 						session2.setProperty(getProperty(), getCorrectValue(session2));
 				}
-			}, true);
-		for(PrismsApplication app2 : theApps)
-		{
-			if(app2 != app)
-				app2.runSessionTask(null, new PrismsApplication.SessionTask()
-				{
-					public void run(PrismsSession session2)
-					{
-						if(!isValueCorrect(session2, session2.getProperty(getProperty())))
-							session2.setProperty(getProperty(), getCorrectValue(session2));
-					}
-				}, false);
+			}, false);
 		}
 	}
 

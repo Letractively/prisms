@@ -28,22 +28,19 @@ public final class PrismsProperty<T>
 		theClass = clazz;
 	}
 
-	/**
-	 * @return The name of this property
-	 */
+	/** @return The name of this property */
 	public String getName()
 	{
 		return theName;
 	}
 
-	/**
-	 * @return The type of this property
-	 */
+	/** @return The type of this property */
 	public Class<? extends T> getType()
 	{
 		return theClass;
 	}
 
+	@Override
 	public String toString()
 	{
 		return theName;

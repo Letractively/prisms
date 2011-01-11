@@ -3,14 +3,243 @@
  */
 package prisms.util;
 
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
+import java.util.concurrent.locks.Lock;
 
-/**
- * Contains database utility methods for general use
- */
+/** Contains database utility methods for general use */
 public class DBUtils
 {
 	private static final String HEX = "0123456789ABCDEF";
+
+	/**
+	 * An interface for performing modular transactions which can be rolled back in the event of a
+	 * failure. Used for {@link Transactor#performTransaction(TransactionOperation, String)}.
+	 * 
+	 * @param <T> The type of exception that this operation can throw
+	 */
+	public interface TransactionOperation<T extends Throwable>
+	{
+		/**
+		 * Performs an operation. The implementation of this method is responsible for all database
+		 * calls.
+		 * 
+		 * @param stmt The database statement to use for reading and writing database data
+		 * @return The object that should be returned from the calling method
+		 * @throws T If an error occurs accessing the data
+		 */
+		Object run(Statement stmt) throws T;
+	}
+
+	/**
+	 * Allows operations to be performed in transaction mode so that a particular operation either
+	 * occurs completely or else has no effect at all
+	 * 
+	 * @param <T> The type of exception that operations can throw
+	 */
+	public static abstract class Transactor<T extends Throwable>
+	{
+		private final org.apache.log4j.Logger theLog;
+
+		private final prisms.arch.PersisterFactory thePF;
+
+		private final org.dom4j.Element theConnEl;
+
+		private final java.util.concurrent.locks.ReentrantReadWriteLock theLock;
+
+		private java.sql.Connection theConn;
+
+		private String DBOWNER;
+
+		/**
+		 * Creates a transactor
+		 * 
+		 * @param log The logger to log errors with
+		 * @param factory The persister factory to use to generate the database connection
+		 * @param connEl The connection element to use to generate the database connection
+		 */
+		public Transactor(org.apache.log4j.Logger log, prisms.arch.PersisterFactory factory,
+			org.dom4j.Element connEl)
+		{
+			theLog = log;
+			thePF = factory;
+			theConnEl = connEl;
+			theLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
+		}
+
+		/**
+		 * @return The table prefix for this transactor's connection
+		 * @throws IllegalStateException If this transactor's connection has not been initiated or
+		 *         has been disconnected and the connection cannot be remade
+		 */
+		public String getDbOwner()
+		{
+			try
+			{
+				checkConnected();
+			} catch(Throwable e)
+			{
+				throw new IllegalStateException("Could not make initial connection to database", e);
+			}
+			return DBOWNER;
+		}
+
+		/**
+		 * @return This transactor's connection
+		 * @throws T If an error occurs connecting to the database
+		 */
+		public java.sql.Connection getConnection() throws T
+		{
+			checkConnected();
+			return theConn;
+		}
+
+		/** @return This transactor's synchronization lock */
+		public java.util.concurrent.locks.ReentrantReadWriteLock getLock()
+		{
+			return theLock;
+		}
+
+		/**
+		 * Throws an instance of this transactor's type of exception
+		 * 
+		 * @param message The message for the exception to throw
+		 * @throws T Always
+		 */
+		public abstract void error(String message) throws T;
+
+		/**
+		 * Throws an instance of this transactor's type of exception
+		 * 
+		 * @param message The message for the exception to throw
+		 * @param cause The cause for the exception to throw
+		 * @throws T Always
+		 */
+		public abstract void error(String message, Throwable cause) throws T;
+
+		/**
+		 * Checks the connection and attempts to renew it if it has timed out or otherwise become
+		 * invalid
+		 * 
+		 * @throws T If the connection has been lost and cannot be renewed
+		 */
+		public void checkConnected() throws T
+		{
+			try
+			{
+				if(theConn != null && theConn.isClosed())
+				{
+					theLog.warn("Connection closed!");
+					theConn = null;
+				}
+			} catch(SQLException e)
+			{
+				theLog.warn("Transactor could not check closed status of connection", e);
+			}
+			if(theConn != null)
+				return;
+			try
+			{
+				theConn = thePF.getConnection(theConnEl);
+				DBOWNER = thePF.getTablePrefix(theConn, theConnEl);
+			} catch(Exception e)
+			{
+				error("Transactor could not get connection!", e);
+			}
+		}
+
+		/**
+		 * Disconnects this transactor's connection
+		 * 
+		 * @throws T If an error occurs disconnecting
+		 */
+		public void disconnect() throws T
+		{
+			try
+			{
+				thePF.disconnect(theConn, theConnEl);
+			} catch(RuntimeException e)
+			{
+				error("Could not disconnect connection", e);
+			}
+		}
+
+		/**
+		 * Performs a modular operation. If an error occurs during the operation or when attempting
+		 * to commit the database changes, all database modifications will be rolled back to keep
+		 * the database in a consistent state.
+		 * 
+		 * @param <T2> The type of exception that the operation can throw
+		 * @param op The operation to perform
+		 * @param ifError The text for the error to throw if the commit statement fails
+		 * @return The result of the operation (see {@link TransactionOperation#run(Statement)} )
+		 * @throws T If an error occurs performing the transaction
+		 */
+		public <T2 extends T> Object performTransaction(TransactionOperation<T2> op, String ifError)
+			throws T
+		{
+			// lock before I write to db, modify cache or anything else as such.
+			Statement stmt = null;
+			checkConnected();
+			boolean oldAutoCommit = true;
+			boolean completed = false;
+			Lock lock = theLock.writeLock();
+			lock.lock();
+			try
+			{
+				try
+				{
+					oldAutoCommit = theConn.getAutoCommit();
+					theConn.setAutoCommit(false);
+					stmt = theConn.createStatement();
+				} catch(SQLException e)
+				{
+					error("Connection error: ", e);
+				}
+				Object ret = op.run(stmt);
+				try
+				{
+					theConn.commit();
+				} catch(SQLException e)
+				{
+					error(ifError, e);
+				}
+				completed = true;
+				return ret;
+			} finally
+			{
+				if(!completed)
+				{
+					try
+					{
+						theConn.rollback();
+					} catch(SQLException e)
+					{
+						theLog.error("Transactor could not perform rollback", e);
+					}
+				}
+				if(stmt != null)
+				{
+					try
+					{
+						stmt.close();
+					} catch(SQLException e)
+					{
+						theLog.error("Connection error", e);
+					}
+				}
+				try
+				{
+					theConn.setAutoCommit(oldAutoCommit);
+				} catch(SQLException e)
+				{
+					theLog.error("Connection error", e);
+				}
+				lock.unlock();
+			}
+		}
+	}
 
 	/**
 	 * Translates betwen an SQL character type and a boolean

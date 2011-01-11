@@ -929,7 +929,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					else
 						response.setContentType("image/" + wms.getFormat());
 					java.io.OutputStream out = response.getOutputStream();
-					plugin.drawMapOverlay(wms, event, out);
+					if(wms.getHeight() == 0 || wms.getWidth() == 0
+						|| wms.getBounds().minLat == wms.getBounds().maxLat
+						|| wms.getBounds().minLon == wms.getBounds().maxLon)
+						javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(1, 1,
+							java.awt.image.BufferedImage.TYPE_4BYTE_ABGR), wms.getFormat(), out);
+					else
+						plugin.drawMapOverlay(wms, event, out);
 					out.close();
 					break;
 				case GetFeatureInfo:
@@ -1274,11 +1280,58 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
+	private enum ConfigStage
+	{
+		/** Configuration has not started */
+		NEW,
+		/** Security is being configured */
+		SECURITY,
+		/** The default remote event serializer is being configured */
+		SERIALIZER,
+		/** The persister factory is being created and configured */
+		PERSISTER_FACTORY,
+		/** The user source is being created */
+		USER_SOURCE,
+		/** Global (cross-app) listeners are being created and configured */
+		GLOBAL_LISTENERS,
+		/** Applications are being loaded */
+		APPLICATIONS,
+		/** The user source is being configured */
+		CONFIG_USER_SOURCE,
+		/** Default content (users, groups, etc.) is being loaded */
+		LOAD_CONTENT,
+		/** The manager application is being configured */
+		LOAD_MANAGER,
+		/** Session authenticators are being loaded and configured */
+		AUTHENTICATORS,
+		/** This PRISMS server is completely configured */
+		CONFIGURED;
+
+		ConfigStage next()
+		{
+			return values()[ordinal() + 1];
+		}
+	}
+
+	private class ConfigProgress
+	{
+		ConfigStage theStage;
+
+		PersisterFactory thePF;
+
+		UserSource theUS;
+
+		Element theUsEl;
+
+		ConfigProgress()
+		{
+			theStage = ConfigStage.values()[0];
+		}
+	}
+
 	private PrismsEnv theEnv;
 
 	private java.util.HashMap<String, AppConfigurator> theConfigs;
-
-	private boolean isConfigured;
 
 	private final java.util.LinkedHashMap<String, PrismsApplication> theApps;
 
@@ -1295,6 +1348,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	private long theSecurityTimeout;
 
 	private long theSecurityRefresh;
+
+	private ConfigProgress theConfigProgress;
 
 	/** Creates a PRISMS server with default logging configuration */
 	public PrismsServer()
@@ -1318,6 +1373,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		theApps = new java.util.LinkedHashMap<String, PrismsApplication>();
 		theAuthenticators = new java.util.ArrayList<PrismsAuthenticator>();
 		theConfigs = new java.util.HashMap<String, AppConfigurator>();
+		theConfigProgress = new ConfigProgress();
 	}
 
 	/**
@@ -1430,220 +1486,278 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 */
 	protected synchronized void configurePRISMS()
 	{
-		if(isConfigured)
+		if(theConfigProgress.theStage == ConfigStage.CONFIGURED)
 			return;
 		log.info("Configuring PRISMS...");
 		Element configEl = getConfigXML();
 		String configXmlRef = getClass().getResource("PRISMSConfig.xml").toString();
 
-		Element securityEl = configEl.element("security");
-		Element timeoutEl = securityEl == null ? null : securityEl.element("timeout");
-		if(timeoutEl == null)
-			theSecurityTimeout = 5L * 60 * 6000;
-		else
+		if(theConfigProgress.theStage.compareTo(ConfigStage.NEW) <= 0)
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		if(theConfigProgress.theStage.compareTo(ConfigStage.SECURITY) <= 0)
 		{
-			int seconds = 0;
-			if(timeoutEl.attributeValue("seconds") != null)
-				seconds = Integer.parseInt(timeoutEl.attributeValue("seconds"));
-			int minutes = 0;
-			if(timeoutEl.attributeValue("minutes") != null)
-				minutes = Integer.parseInt(timeoutEl.attributeValue("minutes"));
-			int hours = 0;
-			if(timeoutEl.attributeValue("hours") != null)
-				hours = Integer.parseInt(timeoutEl.attributeValue("hours"));
-			if(seconds == 0 && minutes == 0 && hours == 0)
+			Element securityEl = configEl.element("security");
+			Element timeoutEl = securityEl == null ? null : securityEl.element("timeout");
+			if(timeoutEl == null)
+				theSecurityTimeout = 5L * 60 * 6000;
+			else
 			{
-				log.error("No security timeout specified");
-				minutes = 5;
-			}
-			theSecurityTimeout = ((hours * 60L + minutes) * 60 + seconds) * 1000;
-		}
-		Element refreshEl = securityEl == null ? null : securityEl.element("refresh");
-		if(refreshEl == null)
-			theSecurityRefresh = -1;
-		else
-		{
-			int seconds = 0;
-			if(refreshEl.attributeValue("seconds") != null)
-				seconds = Integer.parseInt(refreshEl.attributeValue("seconds"));
-			int minutes = 0;
-			if(refreshEl.attributeValue("minutes") != null)
-				minutes = Integer.parseInt(refreshEl.attributeValue("minutes"));
-			int hours = 0;
-			if(refreshEl.attributeValue("hours") != null)
-				hours = Integer.parseInt(refreshEl.attributeValue("hours"));
-			if(seconds == 0 && minutes == 0 && hours == 0)
-			{
-				log.error("No security refresh specified");
-				minutes = 5;
-			}
-			theSecurityRefresh = ((hours * 60L + minutes) * 60 + seconds) * 1000;
-		}
-
-		String serializerClass = configEl.elementTextTrim("serializer");
-		if(serializerClass != null)
-			try
-			{
-				theSerializer = (RemoteEventSerializer) Class.forName(serializerClass)
-					.newInstance();
-			} catch(Throwable e)
-			{
-				log.error("Could not instantiate serializer " + serializerClass, e);
-				throw new IllegalStateException("Could not instantiate serializer "
-					+ serializerClass, e);
-			}
-
-		PersisterFactory factory = null;
-		Element persisterFactoryEl = configEl.element("persisterFactory");
-		if(theEnv == null && persisterFactoryEl != null)
-		{
-			String className = persisterFactoryEl.elementTextTrim("class");
-			try
-			{
-				factory = (PersisterFactory) Class.forName(className).newInstance();
-			} catch(Throwable e)
-			{
-				log.error("Could not instantiate persister factory " + className, e);
-				throw new IllegalStateException("Could not instantiate persister factory "
-					+ className, e);
-			}
-			factory.configure(persisterFactoryEl);
-		}
-		if(factory == null)
-			throw new IllegalStateException("No PersisterFactory set--cannot configure PRISMS");
-
-		Element dsEl = configEl.element("datasource");
-		if(dsEl == null)
-		{
-			log.error("No datasource element in server config");
-			throw new IllegalStateException("No datasource element in server config");
-		}
-
-		UserSource userSource;
-		String dsClass = dsEl.elementTextTrim("class");
-		try
-		{
-			userSource = (UserSource) Class.forName(dsClass).newInstance();
-		} catch(Exception e)
-		{
-			log.error("Could not instantiate data source " + dsClass + e.getMessage());
-			throw new IllegalStateException("Could not instantiate data source " + dsClass, e);
-		}
-
-		theEnv = new PrismsEnv(userSource, factory);
-
-		// Add global listeners
-		Element globalListeners = configEl.element("global-listeners");
-		if(globalListeners != null)
-		{
-			for(Element listSetEl : (java.util.List<Element>) globalListeners
-				.elements("listener-set"))
-			{
-				String globalName = listSetEl.attributeValue("name");
-				if(globalName == null)
+				int seconds = 0;
+				if(timeoutEl.attributeValue("seconds") != null)
+					seconds = Integer.parseInt(timeoutEl.attributeValue("seconds"));
+				int minutes = 0;
+				if(timeoutEl.attributeValue("minutes") != null)
+					minutes = Integer.parseInt(timeoutEl.attributeValue("minutes"));
+				int hours = 0;
+				if(timeoutEl.attributeValue("hours") != null)
+					hours = Integer.parseInt(timeoutEl.attributeValue("hours"));
+				if(seconds == 0 && minutes == 0 && hours == 0)
 				{
-					log.error("No name attribute for listener-set");
-					continue;
+					log.error("No security timeout specified");
+					minutes = 5;
 				}
-				for(Element listEl : (java.util.List<Element>) listSetEl.elements("property"))
+				theSecurityTimeout = ((hours * 60L + minutes) * 60 + seconds) * 1000;
+			}
+			Element refreshEl = securityEl == null ? null : securityEl.element("refresh");
+			if(refreshEl == null)
+				theSecurityRefresh = -1;
+			else
+			{
+				int seconds = 0;
+				if(refreshEl.attributeValue("seconds") != null)
+					seconds = Integer.parseInt(refreshEl.attributeValue("seconds"));
+				int minutes = 0;
+				if(refreshEl.attributeValue("minutes") != null)
+					minutes = Integer.parseInt(refreshEl.attributeValue("minutes"));
+				int hours = 0;
+				if(refreshEl.attributeValue("hours") != null)
+					hours = Integer.parseInt(refreshEl.attributeValue("hours"));
+				if(seconds == 0 && minutes == 0 && hours == 0)
 				{
-					String mgrType = listEl.attributeValue("type");
-					prisms.arch.event.PropertyManager<?> mgr;
-					try
+					log.error("No security refresh specified");
+					minutes = 5;
+				}
+				theSecurityRefresh = ((hours * 60L + minutes) * 60 + seconds) * 1000;
+			}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.SERIALIZER) <= 0)
+		{
+			String serializerClass = configEl.elementTextTrim("serializer");
+			if(serializerClass != null)
+				try
+				{
+					theSerializer = (RemoteEventSerializer) Class.forName(serializerClass)
+						.newInstance();
+				} catch(Throwable e)
+				{
+					log.error("Could not instantiate serializer " + serializerClass, e);
+					throw new IllegalStateException("Could not instantiate serializer "
+						+ serializerClass, e);
+				}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.PERSISTER_FACTORY) <= 0)
+		{
+			Element persisterFactoryEl = configEl.element("persisterFactory");
+			if(persisterFactoryEl != null)
+			{
+				String className = persisterFactoryEl.elementTextTrim("class");
+				try
+				{
+					theConfigProgress.thePF = (PersisterFactory) Class.forName(className)
+						.newInstance();
+				} catch(Throwable e)
+				{
+					log.error("Could not instantiate persister factory " + className, e);
+					throw new IllegalStateException("Could not instantiate persister factory "
+						+ className, e);
+				}
+				theConfigProgress.thePF.configure(persisterFactoryEl);
+			}
+			if(theConfigProgress.thePF == null)
+				throw new IllegalStateException("No PersisterFactory set--cannot configure PRISMS");
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.USER_SOURCE) <= 0)
+		{
+			theConfigProgress.theUsEl = configEl.element("datasource");
+			if(theConfigProgress.theUsEl == null)
+			{
+				log.error("No datasource element in server config");
+				throw new IllegalStateException("No datasource element in server config");
+			}
+
+			String dsClass = theConfigProgress.theUsEl.elementTextTrim("class");
+			try
+			{
+				theConfigProgress.theUS = (UserSource) Class.forName(dsClass).newInstance();
+			} catch(Exception e)
+			{
+				log.error("Could not instantiate data source " + dsClass + e.getMessage());
+				throw new IllegalStateException("Could not instantiate data source " + dsClass, e);
+			}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theEnv == null)
+		{
+			theEnv = new PrismsEnv(theConfigProgress.theUS, theConfigProgress.thePF);
+			theConfigProgress.thePF = null;
+			theConfigProgress.theUS = null;
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.GLOBAL_LISTENERS) <= 0)
+		{
+			// Add global listeners
+			Element globalListeners = configEl.element("global-listeners");
+			if(globalListeners != null)
+			{
+				for(Element listSetEl : (java.util.List<Element>) globalListeners
+					.elements("listener-set"))
+				{
+					String globalName = listSetEl.attributeValue("name");
+					if(globalName == null)
 					{
-						mgr = (prisms.arch.event.PropertyManager<?>) Class.forName(mgrType)
-							.newInstance();
-					} catch(Throwable e)
-					{
-						log.error("Could not instantiate manager type " + mgrType, e);
-						return;
+						log.error("No name attribute for listener-set");
+						continue;
 					}
-					theEnv.addGlobalManager(globalName, mgr, listEl);
+					for(Element listEl : (java.util.List<Element>) listSetEl.elements("property"))
+					{
+						String mgrType = listEl.attributeValue("type");
+						prisms.arch.event.PropertyManager<?> mgr;
+						try
+						{
+							mgr = (prisms.arch.event.PropertyManager<?>) Class.forName(mgrType)
+								.newInstance();
+						} catch(Throwable e)
+						{
+							log.error("Could not instantiate manager type " + mgrType, e);
+							return;
+						}
+						theEnv.addGlobalManager(globalName, mgr, listEl);
+					}
 				}
 			}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
-		// Now we load default applications, one of which must be the manager application
-		Element appXml = getDefaultAppXML();
-		loadApps(appXml, PrismsServer.class.getResource("PrismsServer.class").getQuery());
+		if(theConfigProgress.theStage.compareTo(ConfigStage.APPLICATIONS) <= 0)
+		{
+			// Now we load default applications, one of which must be the manager application
+			Element appXml = getDefaultAppXML();
+			loadApps(appXml, PrismsServer.class.getResource("PrismsServer.class").getQuery());
 
-		// Now we load the custom applications
-		appXml = configEl.element("applications");
-		if(appXml == null)
-			log.warn("No custom applications found in "
-				+ getClass().getResource("PRISMSConfig.xml"));
-		else
-			loadApps(appXml, configXmlRef);
-		theEnv.setConfigured();
+			// Now we load the custom applications
+			appXml = configEl.element("applications");
+			if(appXml == null)
+				log.warn("No custom applications found in "
+					+ getClass().getResource("PRISMSConfig.xml"));
+			else
+				loadApps(appXml, configXmlRef);
+			theEnv.setConfigured();
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
 
 		PrismsApplication [] apps = theApps.values()
 			.toArray(new PrismsApplication [theApps.size()]);
-		// Now we can configure the user source
-		try
-		{
-			userSource.configure(dsEl, theEnv, apps);
-		} catch(Exception e)
-		{
-			log.error("Could not configure data source " + e.getMessage());
-			throw new IllegalStateException("Could not configure data source", e);
-		}
-		if(userSource.getIDs().isNewInstall())
-		{
-			String ref = configEl.elementTextTrim("default-users");
-			if(ref != null)
-			{
-				if(!(userSource instanceof prisms.arch.ds.ManageableUserSource))
-					log.error("Cannot load default users--user source is not manageable");
-				else
-				{
-					Element defaultUsers;
-					try
-					{
-						defaultUsers = PrismsUtils.getRootElement(ref, configXmlRef);
-						loadDefaultUsers(defaultUsers);
-					} catch(java.io.IOException e)
-					{
-						log.error("Could not load default users", e);
-					}
-				}
-			}
-			else
-				log.info("No default users to load");
-		}
-		for(PrismsApplication app : theApps.values())
-			if(theEnv.isManager(app))
-			{
-				app.addManager(new prisms.util.persisters.ReadOnlyManager<PrismsApplication []>(
-					app, prisms.arch.event.PrismsProperties.applications, apps));
-				theConfigs.get(app.getName()).configureApp();
-				log.info("Configured manager application \"" + app.getName() + "\"");
-				break;
-			}
 
-		// Load authenticators
-		for(Element authEl : (java.util.List<Element>) configEl.elements("authenticator"))
+		if(theConfigProgress.theStage.compareTo(ConfigStage.CONFIG_USER_SOURCE) <= 0)
 		{
-			String authClass = authEl.elementTextTrim("class");
-			if(authClass == null)
-			{
-				log.error("No class given for authenticator");
-				continue;
-			}
-			PrismsAuthenticator auth;
+			// Now we can configure the user source
 			try
 			{
-				auth = (PrismsAuthenticator) Class.forName(authClass).newInstance();
-			} catch(Throwable e)
+				theEnv.getUserSource().configure(theConfigProgress.theUsEl, theEnv, apps);
+			} catch(Exception e)
 			{
-				log.error("Could not load authenticator class " + authClass, e);
-				continue;
+				log.error("Could not configure data source " + e.getMessage());
+				throw new IllegalStateException("Could not configure data source", e);
 			}
-			auth.configure(authEl, userSource, apps);
-			theAuthenticators.add(auth);
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.LOAD_CONTENT) <= 0)
+		{
+			boolean loadContent;
+			try
+			{
+				loadContent = theEnv.getUserSource().getIDs().isNewInstall()
+					|| theEnv.getUserSource().getActiveUsers().length == 0;
+			} catch(PrismsException e)
+			{
+				log.error("Could not check user count", e);
+				loadContent = false;
+			}
+			if(loadContent)
+			{
+				String ref = configEl.elementTextTrim("default-users");
+				if(ref != null)
+				{
+					if(!(theEnv.getUserSource() instanceof prisms.arch.ds.ManageableUserSource))
+						log.error("Cannot load default users--user source is not manageable");
+					else
+					{
+						Element defaultUsers;
+						try
+						{
+							defaultUsers = PrismsUtils.getRootElement(ref, configXmlRef);
+							loadDefaultUsers(defaultUsers);
+						} catch(java.io.IOException e)
+						{
+							log.error("Could not load default users", e);
+						}
+					}
+				}
+				else
+					log.info("No default users to load");
+			}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.LOAD_MANAGER) <= 0)
+		{
+			for(PrismsApplication app : theApps.values())
+				if(theEnv.isManager(app))
+				{
+					app.addManager(new prisms.util.persisters.ReadOnlyManager<PrismsApplication []>(
+						app, prisms.arch.event.PrismsProperties.applications, apps));
+					theConfigs.get(app.getName()).configureApp();
+					log.info("Configured manager application \"" + app.getName() + "\"");
+					break;
+				}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.AUTHENTICATORS) <= 0)
+		{
+			// Load authenticators
+			for(Element authEl : (java.util.List<Element>) configEl.elements("authenticator"))
+			{
+				String authClass = authEl.elementTextTrim("class");
+				if(authClass == null)
+				{
+					log.error("No class given for authenticator");
+					continue;
+				}
+				PrismsAuthenticator auth;
+				try
+				{
+					auth = (PrismsAuthenticator) Class.forName(authClass).newInstance();
+				} catch(Throwable e)
+				{
+					log.error("Could not load authenticator class " + authClass, e);
+					continue;
+				}
+				auth.configure(authEl, theEnv.getUserSource(), apps);
+				theAuthenticators.add(auth);
+			}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
 		// Now we configure the applications
-		isConfigured = true;
 		log.info("PRISMS Configured");
 	}
 
@@ -1935,7 +2049,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				User user = us.getUser(userName);
 				if(user == null)
 				{
-					user = us.createUser(userName);
+					user = us.createUser(userName,
+						new prisms.records2.RecordsTransaction(us.getSystemUser()));
 					log.debug("Created user " + userName);
 				}
 				boolean changed = false;
@@ -1944,9 +2059,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					changed = true;
 					user.setAdmin("true".equalsIgnoreCase(userEl.elementTextTrim("admin")));
 				}
-				Boolean readOnly=null;
+				Boolean readOnly = null;
 				if(userEl.attributeValue("readonly") != null)
-					readOnly="true".equalsIgnoreCase(userEl.attributeValue("readonly"));
+					readOnly = Boolean.valueOf("true".equalsIgnoreCase(userEl
+						.attributeValue("readonly")));
 				String password = userEl.elementTextTrim("password");
 				if(password != null && us.getKey(user, us.getHashing()) == null)
 				{
@@ -1965,7 +2081,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					}
 					if(!us.canAccess(user, app))
 					{
-						us.setUserAccess(user, app, true);
+						us.setUserAccess(user, app, true,
+							new prisms.records2.RecordsTransaction(us.getSystemUser()));
 						log.debug("Granted user " + userName + " access to application " + appName);
 					}
 				}
@@ -2006,13 +2123,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 							+ groupName);
 					}
 				}
-				if(readOnly!=null)
+				if(readOnly != null)
 				{
 					changed = true;
-					user.setReadOnly(readOnly);
+					user.setReadOnly(readOnly.booleanValue());
 				}
 				if(changed)
-					us.putUser(user);
+					us.putUser(user, new prisms.records2.RecordsTransaction(us.getSystemUser()));
 			}
 	}
 
@@ -2057,7 +2174,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 		// Configure the server if it has not been yet
-		if(!isConfigured)
+		if(theConfigProgress.theStage != ConfigStage.CONFIGURED)
 		{
 			try
 			{
@@ -2225,8 +2342,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			else
 			{
 				/* The session has timed out or has been logged out.  We'll assume the former. */
-				events
-					.add(toEvent("restart", "message", "Session has timed out! Refresh required."));
+				events.add(toEvent("restart", "message", "Session has timed out! Refresh to use "
+					+ pReq.appName + "."));
 				pReq.send(events);
 				return;
 			}

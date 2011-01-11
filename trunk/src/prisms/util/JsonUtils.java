@@ -60,6 +60,21 @@ public class JsonUtils
 	}
 
 	/**
+	 * Serializes a color to its HTML markup <b>plus its alpha value</b> (e.g. "#ff000000" for red)
+	 * 
+	 * @param c The color to serialize
+	 * @return The HTML markup plus alpha of the color
+	 */
+	public static String toHTMLA(java.awt.Color c)
+	{
+		String ret = toHTML(c);
+		String hex = Integer.toHexString(c.getAlpha());
+		if(hex.length() < 2)
+			hex = "0" + hex;
+		return ret + hex;
+	}
+
+	/**
 	 * Parses a java.awt.Color from an HTML color string in the form '#RRGGBB' where RR, GG, and BB
 	 * are the red, green, and blue bytes in hexadecimal form
 	 * 
@@ -68,13 +83,20 @@ public class JsonUtils
 	 */
 	public static java.awt.Color fromHTML(String htmlColor)
 	{
-		int r, g, b;
-		if(htmlColor.length() != 7 || htmlColor.charAt(0) != '#')
+		if(htmlColor.charAt(0) != '#')
+			throw new IllegalArgumentException(htmlColor + " is not an HTML color string");
+		int r, g, b, a = -1;
+		if(htmlColor.length() == 9)
+			a = Integer.parseInt(htmlColor.substring(7, 9), 16);
+		else if(htmlColor.length() != 7)
 			throw new IllegalArgumentException(htmlColor + " is not an HTML color string");
 		r = Integer.parseInt(htmlColor.substring(1, 3), 16);
 		g = Integer.parseInt(htmlColor.substring(3, 5), 16);
 		b = Integer.parseInt(htmlColor.substring(5, 7), 16);
-		return new java.awt.Color(r, g, b);
+		if(a >= 0)
+			return new java.awt.Color(r, g, b, a);
+		else
+			return new java.awt.Color(r, g, b);
 	}
 
 	/**
@@ -166,7 +188,8 @@ public class JsonUtils
 	 * 
 	 * @param args <ol>
 	 *        <li>The path to the file to format</li>
-	 *        <li>(optional) -noformat</li> </ol?>
+	 *        <li>(optional) -noformat</li>
+	 *        </ol?>
 	 * @throws java.io.IOException If the file's contents could not be read or written
 	 */
 	public static void main(String [] args) throws java.io.IOException

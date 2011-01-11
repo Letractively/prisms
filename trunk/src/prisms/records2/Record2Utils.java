@@ -227,6 +227,33 @@ public class Record2Utils
 	}
 
 	/**
+	 * Makes sure a synchronizer's dependents have centers set up. Synchronization will fail if the
+	 * dependent centers are missing.
+	 * 
+	 * @param sync The synchronizer to check
+	 * @param center The center for the given synchronizer to sync with
+	 * @return An error message if one of the dependent synchronizer's does not have a parallel
+	 *         center to the given center; or null if all dependents are ready.
+	 * @throws PrismsRecordException If an error occurs getting a dependent center
+	 */
+	public static String areDependentsSetUp(PrismsSynchronizer2 sync, PrismsCenter center)
+		throws PrismsRecordException
+	{
+		for(PrismsSynchronizer2 depend : sync.getDepends())
+			if(sync.getDependCenter(depend, center) == null)
+			{
+				if(depend.getKeeper() instanceof DBRecordKeeper)
+					return "Synchronization for "
+						+ ((DBRecordKeeper) depend.getKeeper()).getNamespace()
+						+ " has not been initialized";
+				else
+					return "Synchronization dependency failed: "
+						+ depend.getImpl().getClass().getName();
+			}
+		return null;
+	}
+
+	/**
 	 * Retrieves and serializes the time of the latest change for each center that this center has
 	 * modifications from. This data is required by a remote center in order to receive
 	 * synchronization data.
@@ -260,6 +287,30 @@ public class Record2Utils
 			}
 		}
 		jsw.endArray();
+	}
+
+	/**
+	 * Serializes center changes with dependencies into JSON. If the synchronizer has no
+	 * dependencies, the result will be simply the serialized change array. If there are
+	 * dependencies, then these will be encapsulated in the JSONObject which is returned. The
+	 * complexity here is for the purpose of backward-compatibility.
+	 * 
+	 * @param synchronizer The synchronizer to serialize changes of
+	 * @return The serialized latest change structure needed to generate synchronization data
+	 * @throws PrismsRecordException If an error occurs
+	 */
+	public static Object serializeCenterChanges(PrismsSynchronizer2 synchronizer)
+		throws PrismsRecordException
+	{
+		if(synchronizer.getDepends().length == 0)
+			return serializeCenterChanges(synchronizer.getKeeper());
+		org.json.simple.JSONObject ret = new org.json.simple.JSONObject();
+		ret.put("changes", serializeCenterChanges(synchronizer.getKeeper()));
+		org.json.simple.JSONArray depends = new org.json.simple.JSONArray();
+		ret.put("depends", depends);
+		for(PrismsSynchronizer2 depend : synchronizer.getDepends())
+			depends.add(serializeCenterChanges(depend));
+		return ret;
 	}
 
 	/**

@@ -68,11 +68,11 @@ public class PreferencesPersister implements
 						.getUser(user));
 					ret.put(user, userPrefs);
 				}
-				String domain = rs.getString(2);
-				String propName = rs.getString(3);
-				Preference.Type type = Preference.Type.valueOf(rs.getString(4));
+				String domain = DBUtils.fromSQL(rs.getString(2));
+				String propName = DBUtils.fromSQL(rs.getString(3));
+				Preference.Type type = Preference.Type.valueOf(DBUtils.fromSQL(rs.getString(4)));
 				boolean displayed = prisms.util.DBUtils.boolFromSql(rs.getString(5));
-				String valueS = rs.getString(6);
+				String valueS = DBUtils.fromSQL(rs.getString(6));
 				Object value;
 				try
 				{

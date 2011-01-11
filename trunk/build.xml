@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project name="PRISMS" default="jar" basedir=".">
-	<property name="debuglevel"			value="lines,vars,source" />
-
 	<property name="project_name"				value="IWEDA" />
 	<property name="src"						value="./src" />
 	<property name="classes.dir"				value="./classes" />
@@ -54,8 +52,8 @@
 			srcdir="${src}"
 			destdir="${classes.dir}"
 			optimize="yes"
-			debug="${debug}"
-			debuglevel="${debuglevel}"
+			debug="true"
+			debuglevel="lines,vars,source"
 			fork="true"
 			memoryinitialsize="256m"
 			memorymaximumsize="512m">
@@ -75,6 +73,8 @@
 		<delete dir="${web.dir}/view" />
 
 		<delete file="${war.name}" />
+
+		<delete file="prisms.jar" />
 
 		<mkdir dir="${classes.dir}" />
 		<mkdir dir="${web.classes.dir}" />

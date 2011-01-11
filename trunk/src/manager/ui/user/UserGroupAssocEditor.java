@@ -9,7 +9,6 @@ import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
 import prisms.arch.PrismsSession;
-import prisms.arch.ds.ManageableUserSource;
 import prisms.arch.ds.User;
 import prisms.arch.ds.UserGroup;
 
@@ -52,18 +51,11 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 				User user2 = (User) evt.getProperty("user");
 				if(user2.equals(theUser))
 					setUserGroup(user2, theGroup);
+				if(theSession.getUser().getName()
+					.equals(((User) evt.getProperty("user")).getName()))
+					setUserGroup(theUser, theGroup);
 			}
 		});
-		session.addEventListener("userPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
-			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-				{
-					if(theSession.getUser().getName()
-						.equals(((User) evt.getProperty("user")).getName()))
-						setUserGroup(theUser, theGroup);
-				}
-			});
 		session.addPropertyChangeListener(ManagerProperties.userSelectedGroup,
 			new prisms.arch.event.PrismsPCL<UserGroup>()
 			{
@@ -163,10 +155,6 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			return;
 		if(theUser.isReadOnly())
 			throw new IllegalStateException("User " + theUser + " is read-only");
-		prisms.arch.ds.UserSource us = theSession.getApp().getEnvironment().getUserSource();
-		if(!(us instanceof ManageableUserSource))
-			throw new IllegalStateException(
-				"Cannot modify user group membership--user source is not manageable");
 		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
 			theUser.getPermissions(theSession.getApp())))
 			throw new IllegalArgumentException("User " + theSession.getUser()
@@ -179,20 +167,11 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			theUser.addTo(theGroup);
 		else
 			theUser.removeFrom(theGroup);
-		try
-		{
-			((ManageableUserSource) us).putUser(theUser);
-		} catch(prisms.arch.PrismsException e)
-		{
-			throw new IllegalStateException("Could not edit group membership", e);
-		}
 		theDataLock = true;
 		try
 		{
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userGroupsChanged", "user",
+			theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
 				theUser));
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("userPermissionsChanged",
-				"user", theUser));
 		} finally
 		{
 			theDataLock = false;

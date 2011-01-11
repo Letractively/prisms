@@ -18,6 +18,8 @@ public class SyncServiceClient
 
 	private String thePlugin;
 
+	private boolean requiresRecords;
+
 	private String theTrustStoreFile;
 
 	private String theTrustStorePassword;
@@ -43,6 +45,12 @@ public class SyncServiceClient
 		thePlugin = plugin;
 	}
 
+	/** @return The synchronizer that interprets the M2M data sent and received by this client */
+	public PrismsSynchronizer2 getSynchronizer()
+	{
+		return theSync;
+	}
+
 	/**
 	 * Sets the trust store information for an HTTPS connection
 	 * 
@@ -53,6 +61,24 @@ public class SyncServiceClient
 	{
 		theTrustStoreFile = trustStore;
 		theTrustStorePassword = trustPassword;
+	}
+
+	/**
+	 * @return Whether the local center keeps meticulous records at the expense of perhaps slower
+	 *         synchronization
+	 */
+	public boolean requiresRecords()
+	{
+		return requiresRecords;
+	}
+
+	/**
+	 * @param required Whether the local center should keep meticulous records at the expense of
+	 *        perhaps slower synchronization
+	 */
+	public void setRequiresRecords(boolean required)
+	{
+		requiresRecords = required;
 	}
 
 	/**
@@ -96,14 +122,12 @@ public class SyncServiceClient
 	 * 
 	 * @param center The center to check the synchronization status with
 	 * @param pi The progress informer to notify the user of the status of the operation
-	 * @param withRecords Whether the local center makes use of record-keeping and prefers to
-	 *        receive the remote changes rather than faster synchronization
 	 * @return The number of objects that must be sent to fulfill synchronization ([0]) and the
 	 *         number of changes that must be sent ([1])
 	 * @throws PrismsRecordException If an error occurs contacting the center or processing the data
 	 */
-	public int [] checkSync(PrismsCenter center, prisms.ui.UI.DefaultProgressInformer pi,
-		boolean withRecords) throws PrismsRecordException
+	public int [] checkSync(PrismsCenter center, prisms.ui.UI.DefaultProgressInformer pi)
+		throws PrismsRecordException
 	{
 		if(center.getServerURL() == null)
 			throw new PrismsRecordException("No server URL set for center " + center);
@@ -113,10 +137,10 @@ public class SyncServiceClient
 		JSONObject retEvt;
 		try
 		{
-			retEvt = conn.getResult(thePlugin, "checkSync", "changes",
-				Record2Utils.serializeCenterChanges(theSync.getKeeper()), "withRecords",
-				new Boolean(withRecords), "centerID", new Long(theSync.getKeeper().getCenterID()),
-				"syncPriority", new Integer(theSync.getKeeper().getLocalPriority()));
+			retEvt = conn.getResult(thePlugin, "checkSync", "changes", Record2Utils
+				.serializeCenterChanges(theSync), "withRecords", new Boolean(requiresRecords),
+				"centerID", new Long(theSync.getKeeper().getCenterID()), "syncPriority",
+				new Integer(theSync.getKeeper().getLocalPriority()));
 		} catch(prisms.util.PrismsServiceConnector.PrismsServiceException e)
 		{
 			pi.setDone();
@@ -136,20 +160,42 @@ public class SyncServiceClient
 	}
 
 	/**
+	 * Sets the center ID of the given center by contacting the center
+	 * 
+	 * @param center The center to get the center ID of
+	 * @throws PrismsRecordException If an error occurs accessing the server or getting the
+	 *         information
+	 */
+	public void setCenterID(PrismsCenter center) throws PrismsRecordException
+	{
+		if(center.getCenterID() >= 0)
+			return;
+		prisms.util.PrismsServiceConnector conn = connect(center);
+		JSONObject result;
+		try
+		{
+			result = conn.getResult(thePlugin, "getCenterID");
+		} catch(IOException e)
+		{
+			throw new PrismsRecordException("Could not get center ID", e);
+		}
+		center.setCenterID(((Number) result.get("centerID")).intValue());
+	}
+
+	/**
 	 * Synchronizes with a given center, pulling synchronization data from the remote center and
 	 * importing it locally
 	 * 
 	 * @param center The center to synchronize with
 	 * @param syncType The type of synchronization this represents (automatic or manual)
 	 * @param pi The progress informer to use to notify the user of the progress of synchronization
-	 * @param withRecords Whether the local center makes use of record-keeping and prefers to
-	 *        receive the remote changes rather than faster synchronization
 	 * @param storeSyncRecord Whether to store the sync record and associated changes
 	 * @throws PrismsRecordException If an error occurs connecting to the center or processing the
 	 *         data
 	 */
 	public void synchronize(PrismsCenter center, SyncRecord.Type syncType,
-		prisms.ui.UI.DefaultProgressInformer pi, boolean withRecords, boolean storeSyncRecord)
+		prisms.ui.UI.DefaultProgressInformer pi,
+		prisms.records2.PrismsSynchronizer2.PostIDSet pids, boolean storeSyncRecord)
 		throws PrismsRecordException
 	{
 		if(pi == null)
@@ -172,8 +218,8 @@ public class SyncServiceClient
 			pi.setDone();
 			throw new PrismsRecordException("File sync cannot be used with service client");
 		}
-		evt.put("changes", Record2Utils.serializeCenterChanges(theSync.getKeeper()));
-		evt.put("withRecords", new Boolean(withRecords));
+		evt.put("changes", Record2Utils.serializeCenterChanges(theSync));
+		evt.put("withRecords", new Boolean(requiresRecords));
 		evt.put("centerID", new Long(theSync.getKeeper().getCenterID()));
 		evt.put("syncPriority", new Integer(theSync.getKeeper().getLocalPriority()));
 		evt.put("storeSyncRecord", new Boolean(storeSyncRecord));
@@ -195,7 +241,7 @@ public class SyncServiceClient
 		try
 		{
 			record = theSync.doSyncInput(center, syncType, new java.io.InputStreamReader(
-				new java.io.BufferedInputStream(syncInput)), pi, storeSyncRecord);
+				new java.io.BufferedInputStream(syncInput)), pi, pids, storeSyncRecord);
 		} catch(Throwable e)
 		{
 			if(storeSyncRecord)
