@@ -50,18 +50,17 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				setGroup((UserGroup) evt.getProperty("group"));
 			}
 		});
-		session.addEventListener("userPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
+		{
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+				if(theSession.getUser().getName()
+					.equals(((User) evt.getProperty("user")).getName()))
 				{
-					if(theSession.getUser().getName()
-						.equals(((User) evt.getProperty("user")).getName()))
-					{
-						setGroup(theGroup);
-					}
+					setGroup(theGroup);
 				}
-			});
+			}
+		});
 	}
 
 	public void initClient()

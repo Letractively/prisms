@@ -242,7 +242,7 @@ public class UserShareKey implements ShareKey
 	public boolean canView(User user)
 	{
 		if(isViewPublic
-			|| user.getName().equals(theOwner.getName())
+			|| user.equals(theOwner)
 			|| ArrayUtils.contains(theAccessUsers, user)
 			|| (theViewAllPermission != null && user.getPermissions(theApp).has(
 				theViewAllPermission))
@@ -255,7 +255,7 @@ public class UserShareKey implements ShareKey
 	public boolean canEdit(User user)
 	{
 		if(isEditPublic
-			|| user.getName().equals(theOwner.getName())
+			|| user.equals(theOwner)
 			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
 				theEditAllPermission)))
 			return true;
@@ -267,7 +267,7 @@ public class UserShareKey implements ShareKey
 
 	public boolean canAdministrate(User user)
 	{
-		if(user.getName().equals(theOwner.getName())
+		if(user.equals(theOwner)
 			|| (theEditAllPermission != null && user.getPermissions(theApp).has(
 				theEditAllPermission)))
 			return true;

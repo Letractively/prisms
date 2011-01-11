@@ -92,13 +92,15 @@ public class ChangeRecord
 		data1 = _data1;
 		data2 = _data2;
 		if(!type.subjectType.getMajorType().isInstance(majorSubject))
-			throw new IllegalArgumentException("Major subject " + majorSubject
-				+ " is not valid for subject type " + type.subjectType);
+			throw new IllegalArgumentException("Major subject (" + majorSubject
+				+ (majorSubject == null ? "" : ", class " + majorSubject.getClass().getName())
+				+ ") is not valid for subject type " + type.subjectType);
 		if(type.subjectType.getMetadataType1() != null)
 		{
 			if(!type.subjectType.getMetadataType1().isInstance(data1))
-				throw new IllegalArgumentException("Metadata " + majorSubject
-					+ " is not valid for first metadata of subject type " + type.subjectType);
+				throw new IllegalArgumentException("Metadata (" + data1
+					+ (data1 == null ? "" : ", class " + data1.getClass().getName())
+					+ ") is not valid for first metadata of subject type " + type.subjectType);
 		}
 		else if(data1 != null)
 			throw new IllegalArgumentException("Subject type " + type.subjectType
@@ -106,8 +108,9 @@ public class ChangeRecord
 		if(type.subjectType.getMetadataType2() != null)
 		{
 			if(!type.subjectType.getMetadataType2().isInstance(data2))
-				throw new IllegalArgumentException("Metadata " + majorSubject
-					+ " is not valid for second metadata of subject type " + type.subjectType);
+				throw new IllegalArgumentException("Metadata (" + data2
+					+ (data2 == null ? "" : ", class " + data2.getClass().getName())
+					+ ") is not valid for second metadata of subject type " + type.subjectType);
 		}
 		else if(data2 != null)
 			throw new IllegalArgumentException("Subject type " + type.subjectType
@@ -118,8 +121,9 @@ public class ChangeRecord
 		if(type.changeType != null && type.changeType.getMinorType() != null)
 		{
 			if(!type.changeType.getMinorType().isInstance(minorSubject))
-				throw new IllegalArgumentException("Minor subject " + minorSubject
-					+ " is not valid for change type " + type.changeType);
+				throw new IllegalArgumentException("Minor subject (" + minorSubject
+					+ (minorSubject == null ? "" : ", class " + minorSubject.getClass().getName())
+					+ ") is not valid for change type " + type.changeType);
 		}
 		else if(minorSubject != null)
 			throw new IllegalArgumentException("Change type " + type.changeType
@@ -127,12 +131,14 @@ public class ChangeRecord
 		if(previousValue != null)
 		{
 			if(!type.changeType.getObjectType().isInstance(previousValue))
-				throw new IllegalArgumentException("Previous value (" + previousValue
-					+ ") is not valid for change type " + type.changeType + ": Not an instance of "
+				throw new IllegalArgumentException("Previous value (" + previousValue + ", class "
+					+ previousValue.getClass().getName() + ") is not valid for change type "
+					+ type.changeType + ": Not an instance of "
 					+ type.changeType.getObjectType().getName());
 		}
 	}
 
+	@Override
 	public String toString()
 	{
 		if(type.changeType == null)

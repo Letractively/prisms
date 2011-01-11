@@ -23,6 +23,23 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 
 	private static boolean DEBUG = false;
 
+	private static class SyncRequestMetadata
+	{
+		final long createTime;
+
+		PrismsSynchronizer2.PostIDSet thePIDS;
+
+		prisms.ui.UI.DefaultProgressInformer thePI;
+
+		SyncRequestMetadata(PrismsSynchronizer2.PostIDSet pids,
+			prisms.ui.UI.DefaultProgressInformer pi)
+		{
+			createTime = System.currentTimeMillis();
+			thePIDS = pids;
+			thePI = pi;
+		}
+	}
+
 	private PrismsSession theSession;
 
 	private String theName;
@@ -35,12 +52,13 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 
 	volatile String theDownloadText;
 
-	private prisms.ui.UI.DefaultProgressInformer thePI;
+	private java.util.Map<String, SyncRequestMetadata> theMetadatas;
 
 	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
 	{
 		theSession = session;
 		theName = pluginEl.elementTextTrim("name");
+		theMetadatas = new java.util.concurrent.ConcurrentHashMap<String, SyncRequestMetadata>();
 		theSession.addEventListener("downloadSyncRequest",
 			new prisms.arch.event.PrismsEventListener()
 			{
@@ -54,29 +72,27 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				startRequestUpload((PrismsCenter) evt.getProperty("center"));
+				startRequestUpload((PrismsCenter) evt.getProperty("center"),
+					(PrismsSynchronizer2.PostIDSet) evt.getProperty("pids"));
 			}
 		});
 		theSession.addEventListener("uploadSyncData", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				startSyncUpload((PrismsCenter) evt.getProperty("center"));
+				startSyncUpload((PrismsCenter) evt.getProperty("center"),
+					(PrismsSynchronizer2.PostIDSet) evt.getProperty("pids"));
 			}
 		});
 	}
 
-	/**
-	 * @return The session this plugin instance belongs to
-	 */
+	/** @return The session this plugin instance belongs to */
 	public PrismsSession getSession()
 	{
 		return theSession;
 	}
 
-	/**
-	 * @return This plugin's name
-	 */
+	/** @return This plugin's name */
 	public String getName()
 	{
 		return theName;
@@ -110,7 +126,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			else if(center.getCenterID() != centerID)
 				throw new IllegalStateException("This center is not mapped to user "
 					+ center.getClientUser());
-			LatestCenterChange [] changes = parseCenterChanges((JSONArray) evt.get("changes"));
+			ValueTree<LatestCenterChange []> changes = parseCenterChanges(evt.get("changes"));
 			int [] check;
 			try
 			{
@@ -118,7 +134,8 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 					!Boolean.FALSE.equals(evt.get("withRecords")));
 			} catch(PrismsRecordException e)
 			{
-				throw new IllegalStateException("Could not check synchronization status", e);
+				throw new IllegalStateException("Could not check synchronization status: "
+					+ e.getMessage(), e);
 			}
 			JSONObject ret = new JSONObject();
 			ret.put("plugin", theName);
@@ -131,6 +148,8 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		{
 			prisms.records2.PrismsSynchronizer2 sync = getSynchronizer();
 			String receipt = (String) evt.get("receipt");
+			if(DEBUG)
+				System.out.println(receipt);
 			try
 			{
 				sync.readSyncReceipt(new java.io.StringReader(receipt));
@@ -145,7 +164,15 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			JSONObject ret = new JSONObject();
 			ret.put("plugin", getName());
 			ret.put("method", "receiptReceived");
-			getSession().postOutgoingEvent(evt);
+			getSession().postOutgoingEvent(ret);
+		}
+		else if("getCenterID".equals(evt.get("method")))
+		{
+			JSONObject ret = new JSONObject();
+			ret.put("plugin", getName());
+			ret.put("method", "returnCenterID");
+			ret.put("centerID", Integer.valueOf(getSynchronizer().getKeeper().getCenterID()));
+			getSession().postOutgoingEvent(ret);
 		}
 		else
 			throw new IllegalArgumentException("Unrecognized " + theName + " event: " + evt);
@@ -188,6 +215,10 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 	 */
 	void generateSyncRequest(PrismsCenter center, boolean withRecords)
 	{
+		PrismsSynchronizer2 sync = getSynchronizer();
+		if(sync.getKeeper() instanceof DBRecordKeeper
+			&& !((DBRecordKeeper) sync.getKeeper()).getNamespace().equals(center.getNamespace()))
+			return;
 		isDownloadStarted = true;
 		isDownloadCanceled = false;
 		isDownloadFinished = false;
@@ -240,8 +271,16 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		}
 	}
 
-	void startRequestUpload(PrismsCenter center)
+	void startRequestUpload(PrismsCenter center, PrismsSynchronizer2.PostIDSet pids)
 	{
+		PrismsSynchronizer2 sync = getSynchronizer();
+		if(sync.getKeeper() instanceof DBRecordKeeper
+			&& !((DBRecordKeeper) sync.getKeeper()).getNamespace().equals(center.getNamespace()))
+			return;
+		SyncRequestMetadata metadata = new SyncRequestMetadata(pids, null);
+		String mdKey = Integer.toHexString(metadata.hashCode());
+		cleanMetadata();
+		theMetadatas.put(mdKey, metadata);
 		JSONObject evt = new JSONObject();
 		evt.put("uploadPlugin", theName);
 		evt.remove("plugin");
@@ -249,6 +288,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		evt.put("method", "doUpload");
 		evt.put("message", "Select the synchronization request file to upload");
 		evt.put("centerID", new Integer(center.getID()));
+		evt.put("mdKey", mdKey);
 		theSession.postOutgoingEvent(evt);
 	}
 
@@ -263,6 +303,9 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		if(center == null)
 			throw new IllegalArgumentException("No such center with ID " + params.get("centerID"));
 		PrismsSynchronizer2 sync = getSynchronizer();
+		if(sync.getKeeper() instanceof DBRecordKeeper
+			&& !((DBRecordKeeper) sync.getKeeper()).getNamespace().equals(center.getNamespace()))
+			return;
 		int remoteCenterID = -1;
 		if(params.containsKey("remoteCenterID"))
 			remoteCenterID = ((Number) params.get("remoteCenterID")).intValue();
@@ -300,10 +343,11 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		isDownloadCanceled = false;
 		isDownloadFinished = false;
 		theDownloadText = "Starting Synchronization Data Generation";
+		SyncRequestMetadata metadata = theMetadatas.get(params.get("mdKey"));
 		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		/* Here is where we would generate our download content--use a progress dialog if this
 		 * content takes a long time */
-		thePI = new prisms.ui.UI.DefaultProgressInformer()
+		metadata.thePI = new prisms.ui.UI.DefaultProgressInformer()
 		{
 			@Override
 			public boolean isTaskDone()
@@ -311,9 +355,9 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 				return super.isTaskDone() || (!isDownloadStarted && isCanceled());
 			}
 		};
-		thePI.setCancelable(true);
-		thePI.setProgressText("Generating synchronization data file");
-		ui.startTimedTask(thePI);
+		metadata.thePI.setCancelable(true);
+		metadata.thePI.setProgressText("Generating synchronization data file");
+		ui.startTimedTask(metadata.thePI);
 		if(!isDownloadCanceled)
 		{
 			JSONObject event = new JSONObject();
@@ -327,8 +371,12 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		}
 	}
 
-	void startSyncUpload(PrismsCenter center)
+	void startSyncUpload(PrismsCenter center, PrismsSynchronizer2.PostIDSet pids)
 	{
+		SyncRequestMetadata metadata = new SyncRequestMetadata(pids, null);
+		String mdKey = Integer.toHexString(metadata.hashCode());
+		cleanMetadata();
+		theMetadatas.put(mdKey, metadata);
 		JSONObject evt = new JSONObject();
 		evt.put("uploadPlugin", theName);
 		evt.remove("plugin");
@@ -336,7 +384,20 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		evt.put("method", "doUpload");
 		evt.put("message", "Select the synchronization data file to upload");
 		evt.put("centerID", new Integer(center.getID()));
+		evt.put("mdKey", mdKey);
 		theSession.postOutgoingEvent(evt);
+	}
+
+	private void cleanMetadata()
+	{
+		long now = System.currentTimeMillis();
+		java.util.Iterator<SyncRequestMetadata> iter = theMetadatas.values().iterator();
+		while(iter.hasNext())
+		{
+			SyncRequestMetadata metadata = iter.next();
+			if(metadata.createTime < now - 10L * 60 * 1000)
+				iter.remove();
+		}
 	}
 
 	void showSyncReceipt(SyncRecord syncRecord)
@@ -348,6 +409,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		throws java.io.IOException
 	{
 		isDownloadStarted = true;
+		prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
 		if("synchronizeM2M".equals(event.get("method")))
 		{
 			PrismsCenter center = getCenter();
@@ -366,13 +428,17 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			if(center.getCenterID() < 0)
 			{
 				center.setCenterID(centerID);
+				String dependError = null;
 				try
 				{
 					sync.getKeeper().putCenter(center, null, null);
+					dependError = Record2Utils.areDependentsSetUp(sync, center);
 				} catch(PrismsRecordException e)
 				{
 					log.error("Could not persist center ID", e);
 				}
+				if(dependError != null)
+					throw new IllegalStateException(dependError);
 			}
 			else if(center.getCenterID() != centerID)
 				throw new IllegalStateException("This center is not mapped to user "
@@ -389,12 +455,12 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 					log.error("Could not persist center's priority", e);
 				}
 			}
-			LatestCenterChange [] changes = parseCenterChanges((JSONArray) event.get("changes"));
+			ValueTree<LatestCenterChange []> changes = parseCenterChanges(event.get("changes"));
 			java.io.Writer writer = new java.io.OutputStreamWriter(
 				new java.io.BufferedOutputStream(stream));
 			if(DEBUG)
-				writer = new prisms.util.LoggingWriter(writer,
-					"C:\\Documents and Settings\\Andrew\\Desktop\\temp\\SyncData.json");
+				writer = new prisms.util.LoggingWriter(writer, null);
+			// "C:\\Documents and Settings\\Andrew\\Desktop\\temp\\SyncData.json");
 			try
 			{
 				sync.doSyncOutput(center, changes, syncType, writer, null,
@@ -413,13 +479,22 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			try
 			{
 				if(!canSynchronizeUI())
+				{
+					if(ui != null)
+						ui.error("User " + theSession.getUser() + " does not"
+							+ " have permission to generate synchronization data for other centers");
 					throw new IllegalArgumentException("User " + theSession.getUser() + " does not"
 						+ " have permission to generate synchronization data for other centers");
+				}
 
 				PrismsCenter center = getCenter(((Number) event.get("centerID")).intValue());
 				if(center == null)
+				{
+					if(ui != null)
+						ui.error("No such center with ID " + event.get("centerID"));
 					throw new IllegalArgumentException("No such center with ID "
 						+ event.get("centerID"));
+				}
 				PrismsSynchronizer2 sync = getSynchronizer();
 				stream = new prisms.util.ExportStream(stream);
 				java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(stream);
@@ -443,6 +518,8 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 					Record2Utils.serializeCenterChanges(sync.getKeeper(), jsw);
 				} catch(PrismsRecordException e)
 				{
+					if(ui != null)
+						ui.error("Could not get center changes: " + e.getMessage());
 					throw new IllegalStateException("Could not get center changes", e);
 				}
 				jsw.endObject();
@@ -455,23 +532,37 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 		}
 		else if("downloadSyncData".equals(event.get("method")))
 		{
+			JSONObject params = (JSONObject) event.get("syncParams");
+			SyncRequestMetadata metadata = theMetadatas.get(params.get("mdKey"));
 			try
 			{
 				if(!canSynchronizeUI())
+				{
+					if(ui != null)
+						ui.error("User " + theSession.getUser() + " does not"
+							+ " have permission to generate synchronization data for other centers");
 					throw new IllegalArgumentException("User " + theSession.getUser() + " does not"
 						+ " have permission to generate synchronization data for other centers");
+				}
 
-				JSONObject params = (JSONObject) event.get("syncParams");
 				PrismsCenter center = getCenter(((Number) event.get("centerID")).intValue());
 				if(center == null)
+				{
+					if(ui != null)
+						ui.error("No such center with ID " + params.get("centerID"));
 					throw new IllegalArgumentException("No such center with ID "
 						+ params.get("centerID"));
+				}
 				PrismsSynchronizer2 sync = getSynchronizer();
 				int remoteCenterID = -1;
 				if(params.containsKey("remoteCenterID"))
 					remoteCenterID = ((Number) params.get("remoteCenterID")).intValue();
 				if(remoteCenterID >= 0 && remoteCenterID != sync.getKeeper().getCenterID())
+				{
+					if(ui != null)
+						ui.error("Sync request is not for this center");
 					throw new IllegalArgumentException("Sync request is not for this center");
+				}
 				int localCenterID = ((Number) params.get("localCenterID")).intValue();
 				if(center.getCenterID() < 0)
 				{
@@ -483,11 +574,29 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 					{
 						log.error("Could not persist center ID", e);
 					}
+					if(metadata.thePIDS != null)
+						try
+						{
+							metadata.thePIDS.postIDSet(sync, center);
+						} catch(PrismsRecordException e)
+						{
+							if(ui != null)
+								ui.error(e.getMessage());
+							throw new IllegalArgumentException(e.getMessage(), e);
+						}
 				}
 				else if(center.getCenterID() != localCenterID)
+				{
+					if(ui != null)
+						ui.error("Sync request is not from center " + center);
 					throw new IllegalArgumentException("Sync request is not from center " + center);
+				}
 				if(localCenterID == remoteCenterID)
+				{
+					if(ui != null)
+						ui.error("A center cannot synchronize with itself");
 					throw new IllegalArgumentException("A center cannot synchronize with itself");
+				}
 				int remotePriority = ((Number) params.get("syncPriority")).intValue();
 				if(center.getPriority() != remotePriority)
 				{
@@ -500,8 +609,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 						log.error("Could not persist center's priority", e);
 					}
 				}
-				LatestCenterChange [] changes = parseCenterChanges((JSONArray) params
-					.get("changes"));
+				ValueTree<LatestCenterChange []> changes = parseCenterChanges(params.get("changes"));
 				stream = new prisms.util.ExportStream(stream);
 				java.io.Writer writer = new java.io.OutputStreamWriter(stream);
 				if(DEBUG)
@@ -509,11 +617,13 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 						"C:\\Documents and Settings\\Andrew\\Desktop\\temp\\SyncData.json");
 				try
 				{
-					sync.doSyncOutput(center, changes, SyncRecord.Type.FILE, writer, thePI,
-						!Boolean.FALSE.equals(params.get("withRecords")),
+					sync.doSyncOutput(center, changes, SyncRecord.Type.FILE, writer,
+						metadata.thePI, !Boolean.FALSE.equals(params.get("withRecords")),
 						!Boolean.FALSE.equals(params.get("storeSyncRecord")));
 				} catch(PrismsRecordException e)
 				{
+					if(ui != null)
+						ui.error("Could not output sync data: " + e.getMessage());
 					throw new IllegalStateException("Could not output sync data", e);
 				} finally
 				{
@@ -521,7 +631,7 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 				}
 			} finally
 			{
-				thePI.setDone();
+				metadata.thePI.setDone();
 			}
 		}
 		else
@@ -529,22 +639,36 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 				+ event);
 	}
 
-	private LatestCenterChange [] parseCenterChanges(JSONArray json)
+	private ValueTree<LatestCenterChange []> parseCenterChanges(Object json)
 	{
-		LatestCenterChange [] ret = new LatestCenterChange [json.size()];
-		for(int i = 0; i < ret.length; i++)
+		if(json instanceof JSONArray)
 		{
-			JSONObject jcc = (JSONObject) json.get(i);
-			ret[i] = new LatestCenterChange(((Number) jcc.get("centerID")).intValue(),
-				((Number) jcc.get("subjectCenter")).intValue(),
-				((Number) jcc.get("latestChange")).longValue());
+			JSONArray jsonA = (JSONArray) json;
+			LatestCenterChange [] ret = new LatestCenterChange [jsonA.size()];
+			for(int i = 0; i < ret.length; i++)
+			{
+				JSONObject jcc = (JSONObject) jsonA.get(i);
+				ret[i] = new LatestCenterChange(((Number) jcc.get("centerID")).intValue(),
+					((Number) jcc.get("subjectCenter")).intValue(),
+					((Number) jcc.get("latestChange")).longValue());
+			}
+			return new ValueTree<LatestCenterChange []>(ret);
 		}
-		return ret;
+		else
+		{
+			JSONObject jsonO = (JSONObject) json;
+			ValueTree<LatestCenterChange []> ret = parseCenterChanges(jsonO.get("changes"));
+			JSONArray depends = (JSONArray) jsonO.get("depends");
+			for(Object depend : depends)
+				ret.addChild(parseCenterChanges(depend));
+			return ret;
+		}
 	}
 
 	public void doUpload(JSONObject event, String fileName, String contentType,
 		java.io.InputStream input, long size) throws java.io.IOException
 	{
+		prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
 		if("receipt".equals(event.get("method")))
 		{
 			prisms.records2.PrismsSynchronizer2 sync = getSynchronizer();
@@ -554,7 +678,6 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			} catch(PrismsRecordException e)
 			{
 				log.error("Could not import sync receipt", e);
-				prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
 				if(ui != null)
 					ui.error("Could not import sync receipt: " + e.getMessage());
 			}
@@ -570,13 +693,17 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 					handler);
 			} catch(ParseException e)
 			{
+				if(ui != null)
+					ui.error("Could not parse sync request: " + e.getMessage());
 				throw new IllegalStateException("Could not parse sync request", e);
 			}
 			PrismsCenter center = getCenter(((Number) event.get("centerID")).intValue());
 			if(center == null)
 				throw new IllegalArgumentException("No such center with ID "
 					+ event.get("centerID"));
-			startSyncDownload(center, (JSONObject) handler.finalValue());
+			JSONObject fv = (JSONObject) handler.finalValue();
+			event.putAll(fv);
+			startSyncDownload(center, event);
 		}
 		else if("uploadSyncData".equals(event.get("method")))
 		{
@@ -588,22 +715,34 @@ public abstract class PrismsSyncService2 implements prisms.arch.DownloadPlugin,
 			try
 			{
 				if(!canSynchronizeUI())
+				{
+					if(ui != null)
+						ui.error("User " + theSession.getUser() + " does not"
+							+ " have permission to generate synchronization data for other centers");
 					throw new IllegalArgumentException("User " + theSession.getUser() + " does not"
 						+ " have permission to generate synchronization data for other centers");
+				}
 
 				PrismsCenter center = getCenter(((Number) event.get("centerID")).intValue());
 				if(center == null)
+				{
+					if(ui != null)
+						ui.error("No such center with ID " + event.get("centerID"));
 					throw new IllegalArgumentException("No such center with ID "
 						+ event.get("centerID"));
+				}
+				SyncRequestMetadata metadata = theMetadatas.get(event.get("mdKey"));
 				input = new prisms.util.ImportStream(input);
 				PrismsSynchronizer2 sync = getSynchronizer();
 				java.io.Reader reader = new java.io.InputStreamReader(input);
 				SyncRecord syncRecord = sync.doSyncInput(center, SyncRecord.Type.FILE, reader, pi,
-					!Boolean.FALSE.equals(event.get("storeSyncRecord")));
+					metadata.thePIDS, !Boolean.FALSE.equals(event.get("storeSyncRecord")));
 				if(syncRecord != null)
 					showSyncReceipt(syncRecord);
 			} catch(PrismsRecordException e)
 			{
+				if(ui != null)
+					ui.error(e.getMessage());
 				throw new IllegalArgumentException(e.getMessage(), e);
 			} finally
 			{

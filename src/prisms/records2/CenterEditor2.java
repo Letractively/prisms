@@ -9,6 +9,7 @@ import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
 import prisms.arch.PrismsSession;
+import prisms.arch.event.PrismsProperty;
 import prisms.ui.UI;
 import prisms.util.json.SAJParser.ParseException;
 import prisms.util.json.SAJParser.ParseState;
@@ -20,8 +21,6 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 {
 	static final Logger log = Logger.getLogger(CenterEditor2.class);
 
-	static prisms.util.preferences.Preference<Integer> theCountPref;
-
 	PrismsSession theSession;
 
 	private String theName;
@@ -30,11 +29,15 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 
 	PrismsCenter theCenter;
 
-	private String theAppName;
+	PrismsSynchronizer2 theSynchronizer;
 
-	private String theClientName;
+	SyncServiceClient theSyncClient;
 
-	private String theServicePluginName;
+	prisms.arch.event.PrismsProperty<? extends RecordUser []> theUserProp;
+
+	prisms.arch.event.PrismsProperty<PrismsCenter []> theCenterProp;
+
+	static prisms.util.preferences.Preference<Integer> theCountPref;
 
 	private int theNameLength;
 
@@ -59,12 +62,30 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 	{
 		theSession = session;
 		theName = pluginEl.elementText("name");
-		theAppName = pluginEl.elementTextTrim("service-app");
-		theClientName = pluginEl.elementTextTrim("service-client");
-		theServicePluginName = pluginEl.elementTextTrim("service-plugin");
-		if(theAppName == null || theClientName == null || theServicePluginName == null)
-			throw new IllegalStateException("service-app, service-client, and service-plugin"
-				+ " elements required for center editor");
+		String syncPropName = pluginEl.elementTextTrim("synchronizer");
+		if(syncPropName != null)
+		{
+			PrismsProperty<PrismsSynchronizer2> syncProp = PrismsProperty.get(syncPropName,
+				PrismsSynchronizer2.class);
+			theSynchronizer = session.getProperty(syncProp);
+		}
+		String syncClientPropName = pluginEl.elementTextTrim("sync-client");
+		if(syncClientPropName != null)
+		{
+			PrismsProperty<SyncServiceClient> syncClientProp = PrismsProperty.get(
+				syncClientPropName, SyncServiceClient.class);
+			theSyncClient = session.getProperty(syncClientProp);
+			if(theSynchronizer == null)
+				theSynchronizer = theSyncClient.getSynchronizer();
+			else if(!theSynchronizer.equals(theSyncClient.getSynchronizer()))
+				throw new IllegalStateException("Sync client is for a different synchronizer");
+		}
+		String userPropName = pluginEl.elementTextTrim("users");
+		if(userPropName != null)
+			theUserProp = PrismsProperty.get(userPropName, RecordUser [].class);
+		String centerPropName = pluginEl.elementTextTrim("centers");
+		if(centerPropName != null)
+			theCenterProp = PrismsProperty.get(centerPropName, PrismsCenter [].class);
 		theCountPref = new prisms.util.preferences.Preference<Integer>(theName,
 			"Displayed Records", prisms.util.preferences.Preference.Type.NONEG_INT, Integer.class,
 			true);
@@ -210,19 +231,6 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 					((UI) theSession.getPlugin("UI"))
 						.error("Could not generate synchronization receipt: " + e.getMessage());
 				}
-			}
-		});
-		/* This event can be fired periodically to automatically synchronize with configured centers
-		 * on a timer */
-		session.addEventListener("doAutoSynchronize", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-			{
-				String tag = "synchronized" + getSynchronizer().hashCode();
-				if(evt.getProperty(tag) != null)
-					return;
-				evt.setProperty(tag, Boolean.TRUE);
-				autoSync();
 			}
 		});
 	}
@@ -587,6 +595,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 			theRecord = record;
 		}
 
+		@Override
 		public boolean equals(Object o)
 		{
 			if(!(o instanceof RecordHolder))
@@ -693,10 +702,11 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		UI.DefaultProgressInformer pi = new UI.DefaultProgressInformer();
 		ui.startTimedTask(pi);
 		int [] items;
+		SyncServiceClient client;
 		try
 		{
-			items = new SyncServiceClient(getSynchronizer(), theAppName, theClientName,
-				theServicePluginName).checkSync(theCenter, pi, requiresRecords());
+			client = getSyncClient(theCenter);
+			items = client.checkSync(theCenter, pi);
 		} catch(prisms.records2.PrismsRecordException e)
 		{
 			log.error("URL test failed", e);
@@ -738,6 +748,14 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 				else
 					ui.info(items[0] + " items and " + items[1] + " modifications to synchronize");
 			}
+		}
+		try
+		{
+			if(Record2Utils.areDependentsSetUp(client.getSynchronizer(), theCenter) != null)
+				postIDSet(client.getSynchronizer(), theCenter);
+		} catch(PrismsRecordException e)
+		{
+			log.error("Could not generate dependent centers", e);
 		}
 	}
 
@@ -820,7 +838,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 			throw new IllegalArgumentException("User " + theSession.getUser() + " does not"
 				+ " have permission to generate synchronization data for other rules centers");
 		theSession.fireEvent("downloadSyncRequest", "center", theCenter, "withRecords",
-			new Boolean(requiresRecords()));
+			new Boolean(getSyncClient(theCenter).requiresRecords()));
 	}
 
 	void downloadSyncData()
@@ -828,7 +846,8 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		if(!isEditable())
 			throw new IllegalArgumentException("User " + theSession.getUser() + " does not"
 				+ " have permission to generate synchronization data for other rules centers");
-		theSession.fireEvent("downloadSyncData", "center", theCenter);
+		theSession.fireEvent("downloadSyncData", "center", theCenter, "pids",
+			new CenterEditorPIDS());
 	}
 
 	void uploadSyncData()
@@ -836,7 +855,7 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		if(!isEditable())
 			throw new IllegalArgumentException("User " + theSession.getUser()
 				+ " does not have permission to synchronize with other rules centers");
-		theSession.fireEvent("uploadSyncData", "center", theCenter);
+		theSession.fireEvent("uploadSyncData", "center", theCenter, "pids", new CenterEditorPIDS());
 	}
 
 	void genSyncReceipt()
@@ -1063,11 +1082,9 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 		String error = null;
 		try
 		{
-			SyncServiceClient syncClient = new SyncServiceClient(getSynchronizer(), theAppName,
-				theClientName, theServicePluginName);
-			syncClient.setSecurityInfo(getTrustStore(), getTrustPassword());
-			syncClient.synchronize(theCenter, SyncRecord.Type.MANUAL_REMOTE, pi, requiresRecords(),
-				true);
+			SyncServiceClient syncClient = getSyncClient(theCenter);
+			syncClient.synchronize(theCenter, SyncRecord.Type.MANUAL_REMOTE, pi,
+				new CenterEditorPIDS(), true);
 		} catch(prisms.records2.PrismsRecordException e)
 		{
 			log.error("Manual synchronization failed", e);
@@ -1393,86 +1410,88 @@ public abstract class CenterEditor2 implements prisms.arch.AppPlugin
 				+ " synchronization records?", cl);
 	}
 
-	void autoSync()
+	/** @return The synchronizer that this editor is to use for manual synchronization */
+	protected PrismsSynchronizer2 getSynchronizer()
 	{
-		prisms.records2.PrismsSynchronizer2 sync = getSynchronizer();
-		long time = System.currentTimeMillis();
-		PrismsCenter [] centers;
-		try
-		{
-			centers = sync.getKeeper().getCenters();
-		} catch(PrismsRecordException e)
-		{
-			throw new IllegalStateException("Could not get centers", e);
-		}
-		PrismsCenter [] toSync = new PrismsCenter [0];
-		for(int rc = 0; rc < centers.length; rc++)
-		{
-			long syncFreq = centers[rc].getServerSyncFrequency();
-			if(syncFreq <= 0)
-				continue;
-			long lastSync = centers[rc].getLastImport();
-			if(time - lastSync >= syncFreq)
-				toSync = prisms.util.ArrayUtils.add(toSync, centers[rc]);
-		}
-		if(toSync.length == 0)
-			return;
-		for(PrismsCenter center : toSync)
-		{
-			SyncServiceClient syncClient = new SyncServiceClient(getSynchronizer(), theAppName,
-				theClientName, theServicePluginName);
-			syncClient.setSecurityInfo(getTrustStore(), getTrustPassword());
-			try
-			{
-				syncClient.synchronize(center, SyncRecord.Type.AUTOMATIC, null, requiresRecords(),
-					true);
-			} catch(prisms.records2.PrismsRecordException e)
-			{
-				log.error("Automatic synchronization failed", e);
-			}
-		}
+		if(theSynchronizer == null)
+			throw new IllegalStateException("No synchronizer set for plugin " + theName);
+		return theSynchronizer;
 	}
 
-	/** @return The synchronizer that this editor is to use for manual synchronization */
-	protected abstract PrismsSynchronizer2 getSynchronizer();
+	/**
+	 * @param center The center that the client is to synchronize with
+	 * @return The synchronize client that this editor is to use for manual synchronization on the
+	 *         given center
+	 */
+	protected SyncServiceClient getSyncClient(PrismsCenter center)
+	{
+		if(theSyncClient == null)
+			throw new IllegalStateException("No synchronize client set for plugin " + theName);
+		return theSyncClient;
+	}
 
 	/** @return All users available to connect to a center */
-	protected abstract RecordUser [] getUsers();
+	protected RecordUser [] getUsers()
+	{
+		if(theUserProp == null)
+			throw new IllegalStateException("No users property set for plugin " + theName);
+		return getSession().getProperty(theUserProp);
+	}
 
 	/** @return All centers available for synchronization */
-	protected abstract PrismsCenter [] getCenters();
+	protected PrismsCenter [] getCenters()
+	{
+		if(theCenterProp == null)
+			throw new IllegalStateException("No centers property set for plugin " + theName);
+		return getSession().getProperty(theCenterProp);
+	}
+
+	/**
+	 * Performs operations on a center after its center ID is set, specifically creating any
+	 * dependent centers that need to be created
+	 * 
+	 * @param sync The synchronizer that is synchronizing with the center
+	 * @param center The center that the synchronizer is synchronizing with
+	 * @throws PrismsRecordException If the operation cannot be performed
+	 */
+	protected void postIDSet(PrismsSynchronizer2 sync, PrismsCenter center)
+		throws PrismsRecordException
+	{
+		for(PrismsSynchronizer2 depend : sync.getDepends())
+			if(sync.getDependCenter(depend, theCenter) == null)
+				createDependentCenter(depend, theCenter);
+	}
+
+	/**
+	 * In order for synchronization to be successful, the synchronizer's dependents must first
+	 * synchronize successfully. In order to do this, centers must be set up in each of the
+	 * dependents' record keepers. Since this operation might be regulated by permissions, this
+	 * method is provided to allow implementations to check the session user's permissions, create
+	 * the center, and perform any startup operations with it (such as setting the new center into a
+	 * property).
+	 * 
+	 * @param dependSync The synchronizer to create the center for
+	 * @param center The center for the synchronizer that this center editor edits centers for
+	 * @throws PrismsRecordException If the center cannot be created for any reason, including if
+	 *         the session user is not allowed to set up synchronization with the given server in
+	 *         the dependent synchronizer.
+	 */
+	protected abstract void createDependentCenter(PrismsSynchronizer2 dependSync,
+		PrismsCenter center) throws PrismsRecordException;
+
+	/** A {@link prisms.records2.PrismsSynchronizer2.PostIDSet} for this center editor */
+	protected class CenterEditorPIDS implements prisms.records2.PrismsSynchronizer2.PostIDSet
+	{
+		public void postIDSet(PrismsSynchronizer2 sync, PrismsCenter center)
+			throws PrismsRecordException
+		{
+			CenterEditor2.this.postIDSet(sync, center);
+		}
+	}
 
 	/** @return Whether the current session has authority to edit the selected center */
 	protected abstract boolean isEditable();
 
 	/** @return Whether the current session has authority to purge synchronization records */
 	protected abstract boolean canPurge();
-
-	/**
-	 * @return Whether accurate record-keeping is more important to this local center than speedy
-	 *         synchronization
-	 */
-	protected abstract boolean requiresRecords();
-
-	/**
-	 * Gets the location of the trust store to use for connecting to the selected center. Should be
-	 * overridden by subclasses in environments where secure connections will be needed.
-	 * 
-	 * @return The location of the trust store
-	 */
-	protected String getTrustStore()
-	{
-		return null;
-	}
-
-	/**
-	 * Gets the password to the trust store to use for connecting to the selected center. Should be
-	 * overridden by subclasses in environments where secure connections will be needed.
-	 * 
-	 * @return The password to use to access the trust store
-	 */
-	protected String getTrustPassword()
-	{
-		return null;
-	}
 }

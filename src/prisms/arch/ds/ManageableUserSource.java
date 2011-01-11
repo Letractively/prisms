@@ -4,6 +4,7 @@
 package prisms.arch.ds;
 
 import prisms.arch.PrismsException;
+import prisms.records2.RecordsTransaction;
 
 /**
  * An extension of {@link UserSource} that allows an application to configure users, applications,
@@ -38,6 +39,16 @@ public interface ManageableUserSource extends UserSource
 	 */
 	void removeListener(UserSetListener listener);
 
+	/** @return The record keeper that keeps track of changes to this user source */
+	prisms.records2.DBRecordKeeper getRecordKeeper();
+
+	/**
+	 * @return The system user that can be used in record-keeping when an operation is not caused
+	 *         directly by an actual user
+	 * @throws PrismsException If an error occurs getting the system user
+	 */
+	User getSystemUser() throws PrismsException;
+
 	/**
 	 * Sets the constraints that determine whether a password is allowable within this PRISMS user
 	 * source
@@ -67,33 +78,37 @@ public interface ManageableUserSource extends UserSource
 	 * Creates a new user in the user source
 	 * 
 	 * @param name The name for the new user
+	 * @param trans The transaction with which to record the data
 	 * @return The new user
 	 * @throws PrismsException If an error occurs accessing the data
 	 */
-	User createUser(String name) throws PrismsException;
+	User createUser(String name, RecordsTransaction trans) throws PrismsException;
 
 	/**
 	 * Modifies a user. This method is a catch-all for any kind of legal modification to a user,
 	 * including name, group membership, etc.
 	 * 
 	 * @param user The user to modify
+	 * @param trans The transaction with which to record the data
 	 * @throws PrismsException If an error occurs modifying the user
 	 */
-	void putUser(User user) throws PrismsException;
+	void putUser(User user, RecordsTransaction trans) throws PrismsException;
 
 	/**
 	 * Deletes a user from this user source
 	 * 
 	 * @param user The user to delete
+	 * @param trans The transaction with which to record the data
 	 * @throws PrismsException If an error occurs accessing the data
 	 */
-	void deleteUser(User user) throws PrismsException;
+	void deleteUser(User user, RecordsTransaction trans) throws PrismsException;
 
 	/**
 	 * Sets the password expiration time of a user
 	 * 
 	 * @param user The user to set the password expiration for
 	 * @param time The password expiration time for the user
+	 * @param trans The transaction with which to record the data
 	 * @throws PrismsException If an error occurs accessing the data
 	 */
 	void setPasswordExpiration(User user, long time) throws PrismsException;
@@ -104,10 +119,11 @@ public interface ManageableUserSource extends UserSource
 	 * @param user The user to determine access for
 	 * @param app The application to determine access for
 	 * @param accessible Whether the user should be able to access the application
+	 * @param trans The transaction with which to record the data
 	 * @throws PrismsException If an error occurs setting the data
 	 */
-	void setUserAccess(User user, prisms.arch.PrismsApplication app, boolean accessible)
-		throws PrismsException;
+	void setUserAccess(User user, prisms.arch.PrismsApplication app, boolean accessible,
+		RecordsTransaction trans) throws PrismsException;
 
 	/**
 	 * Creates a new user group

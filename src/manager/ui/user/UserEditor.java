@@ -52,14 +52,6 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 					initClient();
 			}
 		});
-		session.addEventListener("userPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
-			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-				{
-					setUser(theUser);
-				}
-			});
 		theUI = (prisms.ui.UI) theSession.getPlugin("UI");
 	}
 
@@ -113,18 +105,6 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			if(newName == null)
 				throw new IllegalArgumentException("No name to set");
 			theUser.setName(newName);
-			prisms.arch.ds.ManageableUserSource source;
-			source = (prisms.arch.ds.ManageableUserSource) theSession.getApp().getEnvironment()
-				.getUserSource();
-			try
-			{
-				source.putUser(theUser);
-			} catch(prisms.arch.PrismsException e)
-			{
-				log.error("Could not rename user", e);
-				ui.error("Could not rename user: " + e.getMessage());
-				return;
-			}
 			theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
 				theUser));
 		}

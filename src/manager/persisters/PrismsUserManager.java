@@ -26,7 +26,7 @@ public class PrismsUserManager extends prisms.util.persisters.PersistingProperty
 				public void userSetChanged(User [] users)
 				{
 					setValue(users);
-					globalAdjustValues(null, null);
+					globalAdjustValues();
 				}
 
 				public void userChanged(User user)
@@ -55,10 +55,9 @@ public class PrismsUserManager extends prisms.util.persisters.PersistingProperty
 	}
 
 	@Override
-	protected void globalAdjustValues(PrismsApplication app, prisms.arch.PrismsSession session,
-		Object... eventProps)
+	protected void globalAdjustValues(Object... eventProps)
 	{
-		super.globalAdjustValues(app, session, eventProps);
+		super.globalAdjustValues(eventProps);
 	}
 
 	@Override

@@ -47,9 +47,12 @@ public class InitialValueManager<T> extends PropertyManager<T>
 		theValue = value;
 	}
 
+	@Override
 	public void configure(prisms.arch.PrismsApplication app, Element configEl)
 	{
 		super.configure(app, configEl);
+		if(theValue != null)
+			return;
 		Persister<T> persister = app.getEnvironment().getPersisterFactory()
 			.create(configEl.element("persister"), app, getProperty());
 		if(persister != null)
@@ -82,6 +85,7 @@ public class InitialValueManager<T> extends PropertyManager<T>
 		// Do nothing
 	}
 
+	@Override
 	public T getApplicationValue(prisms.arch.PrismsApplication app)
 	{
 		return theValue;

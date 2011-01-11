@@ -584,6 +584,15 @@ public class DBRecordKeeper implements RecordKeeper2
 	public synchronized void putCenter(PrismsCenter center, RecordUser user, SyncRecord record)
 		throws PrismsRecordException
 	{
+		if(center.getNamespace() != null)
+		{
+			if(!center.getNamespace().equals(theNamespace))
+				throw new PrismsRecordException("Center " + center
+					+ " does not belong to this record keeper");
+		}
+		else
+			center.setNamespace(theNamespace);
+
 		Statement stmt = null;
 		checkConnection();
 		try
@@ -599,8 +608,8 @@ public class DBRecordKeeper implements RecordKeeper2
 				try
 				{
 					center.setID(prisms.arch.ds.IDGenerator.getNextIntID(stmt, DBOWNER
-						+ "prisms_center_view", "id"));
-				} catch(SQLException e)
+						+ "prisms_center_view", "id", "recordNS=" + toSQL(theNamespace)));
+				} catch(PrismsException e)
 				{
 					throw new PrismsRecordException("Could not get next center ID", e);
 				}
@@ -1086,8 +1095,8 @@ public class DBRecordKeeper implements RecordKeeper2
 				try
 				{
 					record.setID(prisms.arch.ds.IDGenerator.getNextIntID(stmt, DBOWNER
-						+ "prisms_sync_record", "id"));
-				} catch(SQLException e)
+						+ "prisms_sync_record", "id", "recordNS=" + toSQL(theNamespace)));
+				} catch(PrismsException e)
 				{
 					throw new PrismsRecordException("Could not get next record ID", e);
 				}
@@ -1506,6 +1515,8 @@ public class DBRecordKeeper implements RecordKeeper2
 	{
 		long itemID = getDataID(historyItem);
 		SubjectType [] types = getHistoryDomains(historyItem);
+		if(types.length == 0)
+			return new long [0];
 		String where = "";
 		for(int i = 0; i < types.length; i++)
 		{
@@ -2107,6 +2118,8 @@ public class DBRecordKeeper implements RecordKeeper2
 
 	SubjectType getType(String typeName) throws PrismsRecordException
 	{
+		if(ChangeRecordError.ErrorSubjectType.name().equals(typeName))
+			return ChangeRecordError.ErrorSubjectType;
 		for(PrismsChange ch : PrismsChange.values())
 			if(ch.name().equals(typeName))
 				return ch;
@@ -2183,8 +2196,32 @@ public class DBRecordKeeper implements RecordKeeper2
 			throw new PrismsRecordException("Unrecognized subjectType/changeType " + subjectType
 				+ "/" + changeType);
 		}
+		Object preValue;
+		if(serialPreValue != null)
+		{
+			if(serialPreValue.length() == 0)
+				preValue = null;
+			else if(changeType.getObjectType() == Long.class)
+				preValue = Long.valueOf(serialPreValue);
+			else if(changeType.getObjectType() == Integer.class)
+				preValue = Integer.valueOf(serialPreValue);
+			else if(changeType.getObjectType() == Short.class)
+				preValue = Short.valueOf(serialPreValue);
+			else if(changeType.getObjectType() == Byte.class)
+				preValue = Byte.valueOf(serialPreValue);
+			else if(changeType.getObjectType() == Float.class)
+				preValue = Float.valueOf(serialPreValue);
+			else if(changeType.getObjectType() == Double.class)
+				preValue = Double.valueOf(serialPreValue);
+			else if(changeType.getObjectType() == Boolean.class)
+				preValue = Boolean.valueOf("true".equals(serialPreValue));
+			else
+				preValue = serialPreValue;
+		}
+		else
+			preValue = preValueID;
 		return thePersister.getData(subjectType, changeType, new Long(majorSubjectID),
-			minorSubjectID, data1ID, data2ID, preValueID != null ? preValueID : serialPreValue);
+			minorSubjectID, data1ID, data2ID, preValue);
 	}
 
 	String serialize(Object obj) throws PrismsRecordException
@@ -2323,7 +2360,8 @@ public class DBRecordKeeper implements RecordKeeper2
 		try
 		{
 			stmt = theConn.createStatement();
-			id = theIDs.getNextID("prisms_change_record", "id", stmt, DBOWNER);
+			id = theIDs.getNextID("prisms_change_record", "id", stmt, DBOWNER, "recordNS="
+				+ toSQL(theNamespace));
 		} catch(SQLException e)
 		{
 			throw new PrismsRecordException("Could not persist " + subjectType + " change", e);

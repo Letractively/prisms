@@ -46,12 +46,12 @@ public class SharedObjectEditor
 	 * 
 	 * @param key The shared key to serialize
 	 * @param users All PRISMS users in the environment
-	 * @param localID The id of the local center TODO Needs PrismsCenter [] input for labeling the
-	 *        users' residence
+	 * @param centers For labeling the users' residences
+	 * @param localID The id of the local center
 	 * @param json The json object to serialize the key into
 	 */
 	public static void serializeKey(prisms.util.persisters.UserShareKey key, User [] users,
-		int localID, JSONObject json)
+		prisms.records2.PrismsCenter[] centers, int localID, JSONObject json)
 	{
 		json.put("isViewPublic", Boolean.valueOf(key.isViewPublic()));
 		json.put("isEditPublic", Boolean.valueOf(key.isEditPublic()));
@@ -68,14 +68,39 @@ public class SharedObjectEditor
 				serID = "-" + Long.toHexString(-u.getID());
 			jsonUser.put("id", serID);
 			jsonUser.put("userName", u.getName());
-			jsonUser.put("canView", Boolean.valueOf(key.canView(u)));
-			jsonUser.put("canEdit", Boolean.valueOf(key.canEdit(u)));
+			prisms.arch.ds.Permissions perms = u.getPermissions(key.getApp());
+			if(key.canView(u))
+			{
+				jsonUser.put("canView", Boolean.TRUE);
+				if(perms.has(key.getViewPermission()) || perms.has(key.getEditPermission()))
+					jsonUser.put("globalView", Boolean.TRUE);
+			}
+			else
+				jsonUser.put("canView", Boolean.FALSE);
+			if(key.canEdit(u))
+			{
+				jsonUser.put("canEdit", Boolean.TRUE);
+				if(perms.has(key.getEditPermission()))
+					jsonUser.put("globalEdit", Boolean.TRUE);
+			}
+			else
+				jsonUser.put("canEdit", Boolean.FALSE);
+			int cid = prisms.arch.ds.IDGenerator.getCenterID(u.getID());
+			if(cid == localID)
+				jsonUser.put("local", Boolean.TRUE);
+			else if(centers != null)
+				for(prisms.records2.PrismsCenter center : centers)
+					if(center.getCenterID() == cid)
+					{
+						jsonUser.put("center", center.getName());
+						break;
+					}
 		}
 	}
 
 	/**
 	 * Deserializes a key serialized with
-	 * {@link #serializeKey(prisms.util.persisters.UserShareKey, User[], int, JSONObject)}
+	 * {@link #serializeKey(prisms.util.persisters.UserShareKey, User[], prisms.records2.PrismsCenter [], int, JSONObject)}
 	 * 
 	 * @param key The key to modify. This key is not modified at all by the method itself, but may
 	 *        be modified by the interpreter
@@ -117,7 +142,7 @@ public class SharedObjectEditor
 		if(jsonUsers != null)
 		{
 			prisms.util.ArrayUtils.adjust(users,
-				(JSONObject []) jsonUsers.toArray(new JSONObject [json.size()]),
+				(JSONObject []) jsonUsers.toArray(new JSONObject [jsonUsers.size()]),
 				new prisms.util.ArrayUtils.DifferenceListener<User, JSONObject>()
 				{
 					public boolean identity(User o1, JSONObject o2)

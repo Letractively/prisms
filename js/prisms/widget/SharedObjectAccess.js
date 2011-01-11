@@ -76,7 +76,14 @@ __dojo.declare("prisms.widget.SharedObjectAccess", [__dijit._Widget, __dijit._Te
 			for(var u=0;u<users.length;u++)
 			{
 				var option=document.createElement("option");
-				option.text=users[u].userName;
+				var display=users[u].userName;
+				if(users[u].local)
+					display+=" (local)";
+				else if(users[u].center)
+					display+=" (from "+users[u].center+")";
+				else
+					display+=" (unknown origin)";
+				option.text=display;
 				if(users[u].canEdit)
 					option.style.backgroundColor=this.editColor;
 				else if(users[u].canView)
@@ -145,9 +152,11 @@ __dojo.declare("prisms.widget.SharedObjectAccess", [__dijit._Widget, __dijit._Te
 				this.userSelect.style.backgroundColor=color;
 				this.userSelect.options[selIdx].style.backgroundColor=color;
 
-				this.viewCheck.setAttribute("disabled", !this.enabled || this.allViewable);
+				var viewEnabled=this.enabled && !this.allViewable && !user.globalView;
+				this.viewCheck.setAttribute("disabled", !viewEnabled);
 				this.viewCheck.setAttribute("checked", canView);
-				this.editCheck.setAttribute("disabled", !this.enabled || this.allEditable);
+				var editEnabled=this.enabled && !this.allEditable && !user.globalEdit;
+				this.editCheck.setAttribute("disabled", !editEnabled);
 				this.editCheck.setAttribute("checked", canEdit);
 			}
 		} finally{

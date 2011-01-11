@@ -221,6 +221,8 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 
 	public final void eventOccurred(PrismsSession session, prisms.arch.event.PrismsEvent evt)
 	{
+		if(!applies(evt))
+			return;
 		if(Boolean.TRUE.equals(evt.getProperty(GLOBALIZED_PROPERTY)))
 			return;
 		evt.setProperty(GLOBALIZED_PROPERTY, Boolean.TRUE);
@@ -305,7 +307,18 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 				evt.set(CAUSE_USER, session.getUser());
 			if(evt.get(CAUSE_APP) == null)
 				evt.set(CAUSE_APP, evt.getApp());
-			globalAdjustValues(evt.getApp(), session, evt.getPropertyList());
+			globalAdjustValues(evt.getPropertyList());
 		}
+	}
+
+	/**
+	 * Allows subclasses to discriminate between events with the same name
+	 * 
+	 * @param evt the event to check
+	 * @return Whether the event applies to this property manager's data set
+	 */
+	protected boolean applies(PrismsEvent evt)
+	{
+		return true;
 	}
 }

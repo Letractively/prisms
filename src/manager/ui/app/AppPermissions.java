@@ -57,16 +57,15 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 					setListParams();
 			}
 		});
-		session.addEventListener("userPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
+		{
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-				{
-					if(getSession().getUser().getName()
-						.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
-						setApp(theApp);
-				}
-			});
+				if(getSession().getUser().getName()
+					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+					setApp(theApp);
+			}
+		});
 		session.addEventListener("groupPermissionsChanged",
 			new prisms.arch.event.PrismsEventListener()
 			{

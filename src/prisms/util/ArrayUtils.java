@@ -1152,11 +1152,57 @@ public final class ArrayUtils
 	/**
 	 * Gets the elements that are in array1, but not array 2.
 	 * 
+	 * @param <T> The type of the arrays
 	 * @param array1 The first array
 	 * @param array2 The second array
 	 * @return The elements in <code>array1</code> that do not occur in <code>array2</code>
 	 */
-	public static Object [] removedElements(Object array1, Object array2)
+	public static <T> T [] removedElements(T [] array1, T [] array2)
+	{
+		int count = 0;
+		if(array1 == null || array2 == null)
+			return array1;
+		int len1 = array1.length;
+		int len2 = array2.length;
+		int i, j;
+		for(i = 0; i < len1; i++)
+		{
+			count++;
+			for(j = 0; j < len2; j++)
+			{
+				if(equals(array1[i], array2[j]))
+				{
+					count--;
+					break;
+				}
+			}
+		}
+		T [] ret = (T []) Array.newInstance(array1.getClass().getComponentType(), count);
+		count = 0;
+		for(i = 0; i < len1; i++)
+		{
+			count++;
+			for(j = 0; j < len2; j++)
+			{
+				if(equals(array1[i], array2[j]))
+				{
+					count--;
+					break;
+				}
+				ret[count] = array1[i];
+			}
+		}
+		return ret;
+	}
+
+	/**
+	 * Gets the elements that are in array1, but not array 2.
+	 * 
+	 * @param array1 The first array
+	 * @param array2 The second array
+	 * @return The elements in <code>array1</code> that do not occur in <code>array2</code>
+	 */
+	public static Object [] removedElementsP(Object array1, Object array2)
 	{
 		int count = 0;
 		if(array1 == null || array2 == null)

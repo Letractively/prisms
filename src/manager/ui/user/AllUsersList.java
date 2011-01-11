@@ -47,16 +47,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 					{
 						if(!confirm)
 							return;
-						ManageableUserSource source = (ManageableUserSource) getSession().getApp()
-							.getEnvironment().getUserSource();
 						User [] users = getSession().getProperty(PrismsProperties.users);
-						try
-						{
-							source.deleteUser(user);
-						} catch(prisms.arch.PrismsException e)
-						{
-							throw new IllegalStateException("Could not delete user", e);
-						}
 						users = prisms.util.ArrayUtils.remove(users, user);
 						getSession().setProperty(PrismsProperties.users, users);
 					}
@@ -89,7 +80,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 							{
 								return userExists(name, users);
 							}
-						}));
+						}), new prisms.records2.RecordsTransaction(getSession().getUser()));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user", e);
@@ -100,7 +91,8 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 					try
 					{
 						if(source.canAccess(user, app))
-							source.setUserAccess(newUser, app, true);
+							source.setUserAccess(newUser, app, true,
+								new prisms.records2.RecordsTransaction(getSession().getUser()));
 					} catch(PrismsException e)
 					{
 						log.error("Could not give new user \"" + newUser.getName()
@@ -162,27 +154,20 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 						((ItemNode) getItem(i)).check();
 						break;
 					}
+				if(getSession().getPermissions().has("createUser") && getItemCount() == 0
+					|| !(getItem(0) instanceof prisms.ui.list.ActionListNode))
+				{
+					prisms.ui.list.ActionListNode action = new prisms.ui.list.ActionListNode(
+						AllUsersList.this, "createNewUser");
+					action.setText("*Create User*");
+					action.setIcon("manager/user");
+					addNode(action, 0);
+				}
+				else if(!getSession().getPermissions().has("createUser") && getItemCount() > 0
+					&& getItem(0) instanceof prisms.ui.list.ActionListNode)
+					removeNode(0);
 			}
 		});
-		session.addEventListener("userPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
-			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-				{
-					if(getSession().getPermissions().has("createUser") && getItemCount() == 0
-						|| !(getItem(0) instanceof prisms.ui.list.ActionListNode))
-					{
-						prisms.ui.list.ActionListNode action = new prisms.ui.list.ActionListNode(
-							AllUsersList.this, "createNewUser");
-						action.setText("*Create User*");
-						action.setIcon("manager/user");
-						addNode(action, 0);
-					}
-					else if(!getSession().getPermissions().has("createUser") && getItemCount() > 0
-						&& getItem(0) instanceof prisms.ui.list.ActionListNode)
-						removeNode(0);
-				}
-			});
 		session.addEventListener("createNewUser", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
@@ -203,7 +188,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 							{
 								return userExists(name, users);
 							}
-						}));
+						}), new prisms.records2.RecordsTransaction(getSession().getUser()));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user", e);

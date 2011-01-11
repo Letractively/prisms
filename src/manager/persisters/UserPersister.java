@@ -47,7 +47,7 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 	@Override
 	protected User clone(User toClone)
 	{
-		return toClone.clone();
+		return toClone;
 	}
 
 	@Override
@@ -95,17 +95,21 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 		if(!session.getUser().getPermissions(theManager).has("createUser"))
 			throw new IllegalArgumentException("User " + session.getUser()
 				+ " does not have permission to create users");
+		prisms.records2.RecordsTransaction trans = manager.app.ManagerUtils.getTransaction(session,
+			evt, theManager.getEnvironment().getUserSource());
+		if(trans == null)
+			return newValue;
 		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
 		if(ds instanceof prisms.arch.ds.ManageableUserSource)
 		{
 			try
 			{
-				((prisms.arch.ds.ManageableUserSource) ds).putUser(newValue);
+				((prisms.arch.ds.ManageableUserSource) ds).putUser(newValue, trans);
 			} catch(PrismsException e)
 			{
 				throw new IllegalStateException("Could not add user", e);
 			}
-			return newValue.clone();
+			return newValue;
 		}
 		return null;
 	}
@@ -120,12 +124,16 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 			removed.getPermissions(theManager)))
 			throw new IllegalArgumentException("User " + session.getUser()
 				+ " does not have permission to delete user " + removed);
+		prisms.records2.RecordsTransaction trans = manager.app.ManagerUtils.getTransaction(session,
+			evt, theManager.getEnvironment().getUserSource());
+		if(trans == null)
+			return;
 		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
 		if(ds instanceof prisms.arch.ds.ManageableUserSource)
 		{
 			try
 			{
-				((prisms.arch.ds.ManageableUserSource) ds).deleteUser(removed);
+				((prisms.arch.ds.ManageableUserSource) ds).deleteUser(removed, trans);
 			} catch(PrismsException e)
 			{
 				throw new IllegalStateException("Could not add user", e);
@@ -144,11 +152,15 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 			throw new IllegalArgumentException("User " + session.getUser()
 				+ " does not have permission to modify user " + availableValue);
 		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
+		prisms.records2.RecordsTransaction trans = manager.app.ManagerUtils.getTransaction(session,
+			evt, theManager.getEnvironment().getUserSource());
+		if(trans == null)
+			return;
 		if(ds instanceof prisms.arch.ds.ManageableUserSource)
 		{
 			try
 			{
-				((prisms.arch.ds.ManageableUserSource) ds).putUser(availableValue);
+				((prisms.arch.ds.ManageableUserSource) ds).putUser(availableValue, trans);
 			} catch(PrismsException e)
 			{
 				throw new IllegalStateException("Could not add user", e);

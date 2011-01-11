@@ -13,6 +13,7 @@ CREATE TABLE prisms_installation(
 
 CREATE TABLE prisms_auto_increment(
 	tableName VARCHAR(32) NOT NULL,
+	whereClause VARCHAR(64) NULL,
 	nextID	  NUMERIC(20) NOT NULL
 );
 
@@ -196,36 +197,57 @@ CREATE TABLE prisms_purge_record(
 --application
 
 CREATE TABLE prisms_message(
-	id INT NOT NULL PRIMARY KEY,
-	author INT NOT NULL,
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	author NUMERIC(20) NOT NULL,
 	time TIMESTAMP NOT NULL,
 	sent CHAR(1) NOT NULL,
 	priority INT NOT NULL,
-	predecessor INT NULL,
+	predecessor NUMERIC(20) NULL,
 	override CHAR(1) NOT NULL,
 	subject VARCHAR2 NOT NULL,
+	crcCode NUMERIC(12) NOT NULL,
 	content LONGVARCHAR NOT NULL,
 
-	FOREIGN KEY(author) REFERENCES prisms_user(id) ON DELETE CASCADE,
-	FOREIGN KEY(predecessor) REFERENCES prisms_message(id)
+	CONSTRAINT prisms_message_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_message_author_fk FOREIGN KEY(author) REFERENCES prisms_user(id) ON DELETE CASCADE,
+	CONSTRAINT prisms_message_pred_fk FOREIGN KEY(messageNS, predecessor) REFERENCES prisms_message(messageNS, id)
 );
 
 CREATE TABLE prisms_message_recipient(
-	message INT NOT NULL,
-	recipient INT NOT NULL,
+	messageNS VARCHAR(32) NOT NULL,
+	message NUMERIC(20) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	recipient NUMERIC(20) NOT NULL,
 	applicability INT NOT NULL,
 	readTime TIMESTAMP NULL,
+	deleted CHAR(1) NOT NULL,
 
-	FOREIGN KEY(message) REFERENCES prisms_message(ID) ON DELETE CASCADE,
-	FOREIGN KEY(recipient) REFERENCE prisms_user(id) ON DELETE CASCADE
+	CONSTRAINT prisms_recip_message_fk FOREIGN KEY(messageNS, message) REFERENCES prisms_message(messageNS, id) ON DELETE CASCADE,
+	CONSTRAINT prisms_recip_user_fk FOREIGN KEY(recipient) REFERENCE prisms_user(id) ON DELETE CASCADE
 );
 
 CREATE TABLE prisms_message_attachment(
-	id INT NOT NULL PRIMARY KEY,
-	message INT NOT NULL,
+	messageNS VARCHAR(32) NOT NULL,
+	message NUMERIC(20) NOT NULL,
+	id NUMERIC(20) NOT NULL,
 	name VARCHAR NOT NULL,
 	type VARCHAR NOT NULL,
-	data LONGVARBINARY NOT NULL,
+	crcCode NUMERIC(12) NOT NULL,
+	content LONGVARBINARY NOT NULL,
+	deleted CHAR(1) NOT NULL,
 
-	FOREIGN KEY(message) REFERENCES prisms_message(id) ON DELETE CASCADE
+	CONSTRAINT prisms_message_attach_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_attach_message_fk FOREIGN KEY(messageNS, message) REFERENCES prisms_message(messageNS, id) ON DELETE CASCADE
 );
+
+CREATE TABLE prisms_message_view (
+	messageNS VARCHAR(32) NOT NULL,
+	message NUMERIC(20) NOT NULL,
+	user NUMERIC(20) NOT NULL,
+	archived CHAR(1) NOT NULL,
+	starred CHAR(1) NOT NULL,
+	deleted CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_view_message_fk FOREIGN KEY(messageNS, message) REFERENCES prisms_message(messageNS, id) ON DELETE CASCASE,
+	CONSTRAINT prisms_message_view_user_fk FOREIGN KEY(user) REFERENCES prisms_user(id) ON DELETE CASCADE

@@ -32,17 +32,16 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 					setApp(evt.getNewValue());
 				}
 			});
-		session.addEventListener("userPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
+		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
+		{
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-				{
-					if(getSession().getUser().getName()
-						.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
-						// Refresh this tree to take new permissions changes into account
-						setApp(getSession().getProperty(ManagerProperties.selectedApp));
-				}
-			});
+				if(getSession().getUser().getName()
+					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
+					// Refresh this tree to take new permissions changes into account
+					setApp(getSession().getProperty(ManagerProperties.selectedApp));
+			}
+		});
 		session.addEventListener("createNewGroup", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
@@ -217,14 +216,9 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 								throw new IllegalStateException("Could not get user groups", e);
 							}
 							for(int u = 0; u < users.length; u++)
-							{
 								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("userGroupsChanged", "user",
+									new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
 										users[u]));
-								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("userPermissionsChanged",
-										"user", users[u]));
-							}
 						}
 					};
 					if(ui != null)

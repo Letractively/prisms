@@ -42,6 +42,8 @@ public class UserGroups extends SelectableList<UserGroup>
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 			{
 				User user2 = (User) evt.getProperty("user");
+				if(getSession().getUser().equals(user2))
+					initClient();// Refresh this tree to take new permissions changes into account
 				if(user2.equals(theUser))
 					setUserApp(user2, theApp);
 			}
@@ -71,25 +73,6 @@ public class UserGroups extends SelectableList<UserGroup>
 					setListData((UserGroup []) evt.getProperty("groups"));
 			}
 		});
-		session.addEventListener("userGroupsChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-			{
-				if(theUser != null && theUser.equals(evt.getProperty("user")))
-					setUserApp(theUser, theApp);
-			}
-		});
-		session.addEventListener("userPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
-			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-				{
-					if(getSession().getUser().getName()
-						.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
-						initClient();// Refresh this tree to take new permissions changes into
-					// account
-				}
-			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)

@@ -134,7 +134,7 @@ public interface RecordPersister2
 
 	/**
 	 * Serializes a change's object to a string. This method will only be called for change objects
-	 * (previous values) if the change's ChangeType reports true for
+	 * (previous values) if the change's ChangeType reports false for
 	 * {@link ChangeType#isObjectIdentifiable()}. This method will not be called for instances of
 	 * Boolean, Integer, Long, Float, Double, or String. Serialization of these types is handled
 	 * internally.

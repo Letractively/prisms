@@ -123,4 +123,11 @@ public abstract class PersistingPropertyManager<T> extends
 			return;
 		thePersister.setValue(session, getGlobalValue(), evt);
 	}
+
+	@Override
+	protected boolean applies(PrismsEvent evt)
+	{
+		return !(thePersister instanceof DiscriminatingPersister)
+			|| ((DiscriminatingPersister<T>) thePersister).applies(evt);
+	}
 }

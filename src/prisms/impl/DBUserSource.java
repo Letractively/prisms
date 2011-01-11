@@ -16,7 +16,10 @@ import org.dom4j.Element;
 
 import prisms.arch.*;
 import prisms.arch.ds.*;
+import prisms.impl.PrismsChangeTypes.UserChange;
+import prisms.records2.RecordsTransaction;
 import prisms.util.*;
+import prisms.util.DBUtils.TransactionOperation;
 
 /** A {@link prisms.arch.ds.ManageableUserSource} that obtains its information from a database */
 public class DBUserSource implements prisms.arch.ds.ManageableUserSource
@@ -34,69 +37,85 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		long thePasswordExpire;
 	}
 
-	private java.util.concurrent.locks.ReentrantReadWriteLock theLock;
-
-	private java.sql.Connection theConn;
-
-	String DBOWNER;
-
-	private org.dom4j.Element theConfigEl;
+	DBUtils.Transactor<PrismsException> theTransactor;
 
 	private PrismsEnv theEnv;
 
+	private prisms.records2.DBRecordKeeper theKeeper;
+
 	private final java.util.HashMap<String, PrismsApplication> theApps;
 
-	private ArrayList<UserSetListener> theListeners;
+	ArrayList<UserSetListener> theListeners;
 
-	private IDGenerator theIDs;
+	IDGenerator theIDs;
 
 	private String theAnonymousUserName;
 
 	private Hashing theHashing;
 
-	private User [] theUserCache;
+	User [] theUserCache;
 
 	private User theAnonymousUser;
 
-	private DBGroup [] theGroupCache;
+	private User theSystemUser;
+
+	DBGroup [] theGroupCache;
 
 	/** Creates a DBUserSource */
 	public DBUserSource()
 	{
-		theLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
 		theHashing = new Hashing();
 		theAnonymousUserName = "anonymous";
 		theApps = new java.util.HashMap<String, PrismsApplication>();
 		theListeners = new ArrayList<UserSetListener>();
 	}
 
+	public prisms.records2.DBRecordKeeper getRecordKeeper()
+	{
+		return theKeeper;
+	}
+
 	public void configure(Element configEl, PrismsEnv env, PrismsApplication [] apps)
 		throws PrismsException
 	{
-		theConfigEl = configEl;
+		Element connEl = configEl.element("connection");
+		theTransactor = new DBUtils.Transactor<PrismsException>(log, env.getPersisterFactory(),
+			connEl)
+		{
+			@Override
+			public void error(String message) throws PrismsException
+			{
+				throw new PrismsException(message);
+			}
+
+			@Override
+			public void error(String message, Throwable cause) throws PrismsException
+			{
+				throw new PrismsException(message, cause);
+			}
+		};
 		theEnv = env;
 		for(PrismsApplication app : apps)
 			theApps.put(app.getName(), app);
-		try
-		{
-			theConn = env.getPersisterFactory().getConnection(configEl.element("connection"));
-		} catch(Exception e)
-		{
-			throw new PrismsException("Could not connect to PRISMS configuration database", e);
-		}
-		DBOWNER = env.getPersisterFactory().getTablePrefix(theConn, configEl.element("connection"));
-		theIDs = new IDGenerator(theConn, DBOWNER);
+		theIDs = new DBIDGenerator(theTransactor.getConnection(), theTransactor.getDbOwner());
+		theKeeper = new prisms.records2.DBRecordKeeper("PRISMS", connEl,
+			theEnv.getPersisterFactory(), theIDs);
+		theKeeper.setPersister(new PrismsSyncImpl(this, theApps.values().toArray(
+			new PrismsApplication [theApps.size()])));
 		String anonUser = configEl.elementTextTrim("anonymous");
 		if(anonUser != null)
 			theAnonymousUserName = anonUser;
+		else
+			theAnonymousUserName = "anonymous";
 		// Set up hashing
 		String sql = null;
 		Statement stmt = null;
 		ResultSet rs = null;
 		try
 		{
-			stmt = theConn.createStatement();
-			sql = "SELECT multiple, modulus FROM " + DBOWNER + "PRISMS_HASHING ORDER BY id";
+			stmt = theTransactor.getConnection().createStatement();
+			sql = "SELECT multiple, modulus FROM " + theTransactor.getDbOwner()
+				+ "PRISMS_HASHING ORDER BY id";
 			rs = stmt.executeQuery(sql);
 			java.util.ArrayList<long []> hashing = new java.util.ArrayList<long []>();
 			while(rs.next())
@@ -111,6 +130,28 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				mods[h] = hashing.get(h)[1];
 			}
 			theHashing.setPrimaryHashing(mults, mods);
+			if(theHashing.getPrimaryMultiples() == null
+				|| theHashing.getPrimaryMultiples().length < 10)
+			{
+				theHashing.randomlyFillPrimary(10);
+
+				sql = null;
+				try
+				{
+					for(int i = 0; i < theHashing.getPrimaryMultiples().length; i++)
+					{
+						sql = "INSERT INTO " + theTransactor.getDbOwner()
+							+ "prisms_hashing (id, multiple, modulus) VALUES (" + i + ", "
+							+ theHashing.getPrimaryMultiples()[i] + ", "
+							+ theHashing.getPrimaryModulos()[i] + ")";
+						stmt.execute(sql);
+					}
+				} catch(SQLException e)
+				{
+					throw new PrismsException("Cannot commit hashing values"
+						+ "--passwords not persistable: SQL=" + sql, e);
+				}
+			}
 		} catch(SQLException e)
 		{
 			throw new PrismsException("Could not access hashing parameters", e);
@@ -133,38 +174,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					log.error("Connection error", e);
 				}
 			stmt = null;
-		}
-		if(theHashing.getPrimaryMultiples() == null || theHashing.getPrimaryMultiples().length < 10)
-		{
-			theHashing.randomlyFillPrimary(10);
-
-			sql = null;
-			try
-			{
-				stmt = theConn.createStatement();
-				for(int i = 0; i < theHashing.getPrimaryMultiples().length; i++)
-				{
-					sql = "INSERT INTO " + DBOWNER
-						+ "prisms_hashing (id, multiple, modulus) VALUES (" + i + ", "
-						+ theHashing.getPrimaryMultiples()[i] + ", "
-						+ theHashing.getPrimaryModulos()[i] + ")";
-					stmt.execute(sql);
-				}
-			} catch(SQLException e)
-			{
-				throw new PrismsException("Cannot commit hashing values"
-					+ "--passwords not persistable: SQL=" + sql, e);
-			} finally
-			{
-				if(stmt != null)
-					try
-					{
-						stmt.close();
-					} catch(SQLException e)
-					{
-						log.error("Connection error", e);
-					}
-			}
 		}
 	}
 
@@ -189,30 +198,20 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return theIDs;
 	}
 
-	/** @return The database connection that this user source is using */
-	public java.sql.Connection getConnection()
-	{
-		return theConn;
-	}
-
-	/** @return The XML element used to configure this user source's database connection */
-	public Element getConnectionConfig()
-	{
-		return theConfigEl.element("connection");
-	}
+	private boolean addingAnonymous;
 
 	private void fillUserCache(Statement stmt) throws PrismsException
 	{
-		if(theAnonymousUserName != null)
-			theAnonymousUser = new User(this, theAnonymousUserName, -theIDs.getCenterID());
+		theAnonymousUser = new User(this, theAnonymousUserName, IDGenerator.getMaxID(theIDs
+			.getCenterID()) - 1);
+		theAnonymousUser.setReadOnly(true);
 		boolean killStatement = false;
 		if(stmt == null)
 		{
 			killStatement = true;
-			checkConnection();
 			try
 			{
-				stmt = theConn.createStatement();
+				stmt = theTransactor.getConnection().createStatement();
 			} catch(SQLException e)
 			{
 				throw new PrismsException("Could not create statement", e);
@@ -220,7 +219,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 		ResultSet rs = null;
 		String sql = null;
-		Lock lock = theLock.writeLock();
+		Lock lock = theTransactor.getLock().writeLock();
 		lock.lock();
 		User [] users;
 		try
@@ -230,9 +229,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			if(theGroupCache == null)
 				fillGroupCache(stmt);
 			ArrayList<User> userList = new ArrayList<User>();
-			sql = "SELECT * FROM " + DBOWNER + "prisms_user WHERE deleted=" + boolToSql(false)
-				+ " AND id>=" + IDGenerator.getMinID(theIDs.getCenterID()) + " AND id<="
-				+ IDGenerator.getMaxID(theIDs.getCenterID()) + " ORDER BY id";
+			sql = "SELECT * FROM " + theTransactor.getDbOwner() + "prisms_user WHERE deleted="
+				+ boolToSql(false) + " AND id>=" + IDGenerator.getMinID(theIDs.getCenterID())
+				+ " AND id<=" + IDGenerator.getMaxID(theIDs.getCenterID()) + " ORDER BY id";
 			rs = stmt.executeQuery(sql);
 			java.util.HashSet<User> readOnlyUsers = new java.util.HashSet<User>();
 			while(rs.next())
@@ -251,8 +250,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			LongList userIDs = new LongList();
 			IntList groupIDs = new IntList();
 			ArrayList<String> appNames = new ArrayList<String>();
-			sql = "SELECT assocUser, id, groupApp FROM " + DBOWNER
-				+ "prisms_user_group_assoc INNER JOIN " + DBOWNER
+			sql = "SELECT assocUser, id, groupApp FROM " + theTransactor.getDbOwner()
+				+ "prisms_user_group_assoc INNER JOIN " + theTransactor.getDbOwner()
 				+ "prisms_user_group ON assocGroup=id WHERE deleted=" + boolToSql(false);
 			rs = stmt.executeQuery(sql);
 			while(rs.next())
@@ -312,6 +311,28 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				}
 		}
 		theUserCache = users;
+
+		long sysID = IDGenerator.getMaxID(theIDs.getCenterID());
+		for(int u = 0; u < theUserCache.length; u++)
+			if(theUserCache[u].getID() == sysID)
+			{
+				theSystemUser = theUserCache[u];
+				theUserCache = ArrayUtils.remove(theUserCache, u);
+				break;
+			}
+
+		if(!ArrayUtils.contains(theUserCache, theAnonymousUser))
+		{
+			addingAnonymous = true;
+			try
+			{
+				putUser(theAnonymousUser, new RecordsTransaction(getSystemUser()));
+			} finally
+			{
+				addingAnonymous = false;
+			}
+		}
+		theUserCache = ArrayUtils.remove(theUserCache, theAnonymousUser);
 	}
 
 	private void fillGroupCache(Statement stmt) throws PrismsException
@@ -320,10 +341,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(stmt == null)
 		{
 			killStatement = true;
-			checkConnection();
 			try
 			{
-				stmt = theConn.createStatement();
+				stmt = theTransactor.getConnection().createStatement();
 			} catch(SQLException e)
 			{
 				throw new PrismsException("Could not create statement", e);
@@ -331,7 +351,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 		ResultSet rs = null;
 		String sql = null;
-		Lock lock = theLock.writeLock();
+		Lock lock = theTransactor.getLock().writeLock();
 		lock.lock();
 		DBGroup [] groups;
 		try
@@ -339,8 +359,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			if(theGroupCache != null)
 				return; // Already filled before lock received
 			java.util.ArrayList<DBGroup> groupList = new ArrayList<DBGroup>();
-			sql = "SELECT * FROM " + DBOWNER + "prisms_user_group WHERE deleted="
-				+ boolToSql(false);
+			sql = "SELECT * FROM " + theTransactor.getDbOwner()
+				+ "prisms_user_group WHERE deleted=" + boolToSql(false);
 			rs = stmt.executeQuery(sql);
 			while(rs.next())
 			{
@@ -356,7 +376,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			ArrayList<Integer> groupIDs = new ArrayList<Integer>();
 			ArrayList<String> appNames = new ArrayList<String>();
 			ArrayList<String> permNames = new ArrayList<String>();
-			sql = "SELECT * FROM " + DBOWNER + "prisms_group_permissions";
+			sql = "SELECT * FROM " + theTransactor.getDbOwner() + "prisms_group_permissions";
 			rs = stmt.executeQuery(sql);
 			while(rs.next())
 			{
@@ -416,9 +436,30 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 
 	public prisms.arch.ds.PasswordConstraints getPasswordConstraints() throws PrismsException
 	{
-		checkConnection();
-		prisms.arch.ds.PasswordConstraints ret = new prisms.arch.ds.PasswordConstraints();
 		Statement stmt = null;
+		try
+		{
+			stmt = theTransactor.getConnection().createStatement();
+			return getPasswordConstraints(stmt);
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not create statement", e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
+	PasswordConstraints getPasswordConstraints(Statement stmt) throws PrismsException
+	{
+		prisms.arch.ds.PasswordConstraints ret = new prisms.arch.ds.PasswordConstraints();
 		ResultSet rs = null;
 		boolean locked;
 		Number minChars;
@@ -432,8 +473,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		String sql = null;
 		try
 		{
-			stmt = theConn.createStatement();
-			sql = "SELECT * FROM " + DBOWNER + "prisms_password_constraints";
+			sql = "SELECT * FROM " + theTransactor.getDbOwner() + "prisms_password_constraints";
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
 				return ret;
@@ -455,14 +495,6 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				try
 				{
 					rs.close();
-				} catch(SQLException e)
-				{
-					log.error("Connection error", e);
-				}
-			if(stmt != null)
-				try
-				{
-					stmt.close();
 				} catch(SQLException e)
 				{
 					log.error("Connection error", e);
@@ -492,18 +524,19 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	public void setPasswordConstraints(prisms.arch.ds.PasswordConstraints constraints)
 		throws PrismsException
 	{
-		checkConnection();
 		Statement stmt = null;
 		ResultSet rs = null;
 		String sql = null;
 		try
 		{
-			stmt = theConn.createStatement();
-			sql = "SELECT constraintsLocked FROM " + DBOWNER + "prisms_password_constraints";
+			stmt = theTransactor.getConnection().createStatement();
+			sql = "SELECT constraintsLocked FROM " + theTransactor.getDbOwner()
+				+ "prisms_password_constraints";
 			rs = stmt.executeQuery(sql);
 			if(rs.next())
 			{
-				sql = "UPDATE " + DBOWNER + "prisms_password_constraints SET constraintsLocked="
+				sql = "UPDATE " + theTransactor.getDbOwner()
+					+ "prisms_password_constraints SET constraintsLocked="
 					+ boolToSql(constraints.isLocked()) + ", minCharLength="
 					+ constraints.getMinCharacterLength() + ", minUpperCase="
 					+ constraints.getMinUpperCase() + ", minLowerCase="
@@ -515,7 +548,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			}
 			else
 			{
-				sql = "INSERT INTO " + DBOWNER + "prisms_password_constraints (constraintsLocked,"
+				sql = "INSERT INTO " + theTransactor.getDbOwner()
+					+ "prisms_password_constraints (constraintsLocked,"
 					+ " minCharLength, minUpperCase, minLowerCase, minDigits, minSpecialChars,"
 					+ " maxPasswordDuration, numPreviousUnique, minChangeInterval) VALUES ("
 					+ boolToSql(constraints.isLocked()) + ", "
@@ -553,6 +587,32 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 	}
 
+	private boolean addingSystem;
+
+	public User getSystemUser() throws PrismsException
+	{
+		if(theSystemUser != null)
+			return theSystemUser;
+		if(theUserCache == null)
+			fillUserCache(null);
+		if(theSystemUser != null)
+			return theSystemUser;
+		long sysID = IDGenerator.getMaxID(theIDs.getCenterID());
+		theSystemUser = new User(this, "System", sysID);
+		theSystemUser.setAdmin(false);
+		theSystemUser.setReadOnly(true);
+		addingSystem = true;
+		try
+		{
+			putUser(theSystemUser, new RecordsTransaction(theSystemUser));
+		} finally
+		{
+			addingSystem = false;
+		}
+		theUserCache = ArrayUtils.remove(theUserCache, theSystemUser);
+		return theSystemUser;
+	}
+
 	public User getUser(String name) throws PrismsException
 	{
 		if(theUserCache == null)
@@ -569,6 +629,10 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	{
 		if(theUserCache == null)
 			fillUserCache(null);
+		if(getSystemUser().getID() == id)
+			return getSystemUser();
+		if(theAnonymousUser.getID() == id)
+			return theAnonymousUser;
 		for(User user : theUserCache)
 			if(user.getID() == id)
 				return user;
@@ -579,14 +643,15 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	{
 		if(user.equals(theAnonymousUser))
 			return true;
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_user_app_assoc WHERE assocUser="
-			+ user.getID() + " AND assocApp=" + toSQL(app.getName());
+		String sql = null;
 		Statement stmt = null;
 		ResultSet rs = null;
 		try
 		{
-			checkConnection();
-			stmt = theConn.createStatement();
+			sql = "SELECT * FROM " + theTransactor.getDbOwner()
+				+ "prisms_user_app_assoc WHERE assocUser=" + user.getID() + " AND assocApp="
+				+ toSQL(app.getName());
+			stmt = theTransactor.getConnection().createStatement();
 			rs = stmt.executeQuery(sql);
 			return rs.next();
 		} catch(SQLException e)
@@ -621,19 +686,25 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return ret;
 	}
 
-	private PasswordData [] getPasswordData(User user, boolean latest)
+	PasswordData [] getPasswordData(User user, boolean latest, Statement stmt)
+		throws PrismsException
 	{
-		Statement stmt = null;
 		ResultSet rs = null;
-		checkConnection();
-		Lock lock = theLock.readLock();
+		Lock lock = theTransactor.getLock().readLock();
 		lock.lock();
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_user_password WHERE pwdUser="
-			+ user.getID() + " ORDER BY pwdTime DESC";
+		String sql = null;
+		boolean closeStmt = false;
 		java.util.ArrayList<PasswordData> data = new ArrayList<PasswordData>();
 		try
 		{
-			stmt = theConn.createStatement();
+			if(stmt == null)
+			{
+				closeStmt = true;
+				stmt = theTransactor.getConnection().createStatement();
+			}
+			sql = "SELECT * FROM " + theTransactor.getDbOwner()
+				+ "prisms_user_password WHERE pwdUser=" + user.getID() + " ORDER BY pwdTime DESC";
+			stmt = theTransactor.getConnection().createStatement();
 			rs = stmt.executeQuery(sql);
 			while(rs.next())
 			{
@@ -660,7 +731,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					rs.close();
 				} catch(SQLException e)
 				{}
-			if(stmt != null)
+			if(stmt != null && closeStmt)
 				try
 				{
 					stmt.close();
@@ -670,96 +741,98 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return data.toArray(new PasswordData [data.size()]);
 	}
 
-	public long [] getKey(User user, Hashing hashing)
+	public long [] getKey(User user, Hashing hashing) throws PrismsException
 	{
-		PasswordData [] password = getPasswordData(user, true);
+		PasswordData [] password = getPasswordData(user, true, null);
 		if(password.length == 0)
 			return null;
 		return hashing.generateKey(password[0].thePasswordHash);
 	}
 
-	public void setPassword(User user, long [] hash, boolean isAdmin) throws PrismsException
+	public void setPassword(final User user, final long [] hash, final boolean isAdmin)
+		throws PrismsException
 	{
-		prisms.arch.ds.PasswordConstraints constraints = getPasswordConstraints();
-		PasswordData [] password = getPasswordData(user, false);
-		for(int i = 0; i < constraints.getNumPreviousUnique() && i < password.length; i++)
+		theTransactor.performTransaction(new TransactionOperation<PrismsException>()
 		{
-			long [] oldHash = password[i].thePasswordHash;
-			if(oldHash == null)
-				continue;
-			if(oldHash.length != hash.length)
-				continue;
-			int h;
-			for(h = 0; h < oldHash.length; h++)
-				if(oldHash[h] != hash[h])
-					break;
-			if(h == oldHash.length)
+			public Object run(Statement stmt) throws PrismsException
 			{
-				String msg = "Password must not be the same as ";
-				if(constraints.getNumPreviousUnique() == 1)
-					throw new PrismsException(msg + "the current password");
-				else if(constraints.getNumPreviousUnique() == 2)
-					throw new PrismsException(msg + "either the current or the previous passwords");
-				else
-					throw new PrismsException(msg + "any of the previous "
-						+ constraints.getNumPreviousUnique() + " passwords");
-			}
-		}
-		long now = System.currentTimeMillis();
-		if(!isAdmin && password.length > 0)
-		{
-			if(now > password[0].thePasswordTime
-				&& (now - password[0].thePasswordTime) < constraints.getMinPasswordChangeInterval())
-				throw new PrismsException("Password cannot be changed more than every "
-					+ prisms.util.PrismsUtils.printTimeLength(constraints
-						.getMinPasswordChangeInterval())
-					+ "\nPassword can be changed at "
-					+ prisms.util.PrismsUtils.print(password[0].thePasswordTime
-						+ constraints.getMinPasswordChangeInterval()));
-		}
+				prisms.arch.ds.PasswordConstraints constraints = getPasswordConstraints(stmt);
+				PasswordData [] password = getPasswordData(user, false, stmt);
+				for(int i = 0; i < constraints.getNumPreviousUnique() && i < password.length; i++)
+				{
+					long [] oldHash = password[i].thePasswordHash;
+					if(oldHash == null)
+						continue;
+					if(oldHash.length != hash.length)
+						continue;
+					int h;
+					for(h = 0; h < oldHash.length; h++)
+						if(oldHash[h] != hash[h])
+							break;
+					if(h == oldHash.length)
+					{
+						String msg = "Password must not be the same as ";
+						if(constraints.getNumPreviousUnique() == 1)
+							throw new PrismsException(msg + "the current password");
+						else if(constraints.getNumPreviousUnique() == 2)
+							throw new PrismsException(msg
+								+ "either the current or the previous passwords");
+						else
+							throw new PrismsException(msg + "any of the previous "
+								+ constraints.getNumPreviousUnique() + " passwords");
+					}
+				}
+				long now = System.currentTimeMillis();
+				if(!isAdmin && password.length > 0)
+				{
+					if(now > password[0].thePasswordTime
+						&& (now - password[0].thePasswordTime) < constraints
+							.getMinPasswordChangeInterval())
+						throw new PrismsException("Password cannot be changed more than every "
+							+ prisms.util.PrismsUtils.printTimeLength(constraints
+								.getMinPasswordChangeInterval())
+							+ "\nPassword can be changed at "
+							+ prisms.util.PrismsUtils.print(password[0].thePasswordTime
+								+ constraints.getMinPasswordChangeInterval()));
+				}
 
-		Statement stmt = null;
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		String sql = null;
-		try
-		{
-			stmt = theConn.createStatement();
-			sql = "INSERT INTO " + DBOWNER + "prisms_user_password (id, pwdUser, pwdData,"
-				+ " pwdTime, pwdExpire) VALUES ("
-				+ IDGenerator.getNextIntID(stmt, DBOWNER + "prisms_user_password", "id") + ", "
-				+ user.getID() + ", " + DBUtils.toSQL(join(hash)) + ", " + now + ", ";
-			if(constraints.getMaxPasswordDuration() > 0)
-				sql += (now + constraints.getMaxPasswordDuration());
-			else
-				sql += "NULL";
-			sql += ")";
-			stmt.execute(sql);
-
-			for(int p = password.length - 1; p >= 0 && p >= constraints.getNumPreviousUnique(); p--)
-			{
-				sql = "DELETE FROM " + DBOWNER + "prisms_user_password WHERE id=" + password[p].id;
-				stmt.execute(sql);
-			}
-		} catch(SQLException e)
-		{
-			throw new PrismsException("Could not set password data for user " + user + ": SQL="
-				+ sql, e);
-		} finally
-		{
-			lock.unlock();
-			if(stmt != null)
+				String sql = null;
 				try
 				{
-					stmt.close();
+					sql = "INSERT INTO "
+						+ theTransactor.getDbOwner()
+						+ "prisms_user_password (id, pwdUser, pwdData,"
+						+ " pwdTime, pwdExpire) VALUES ("
+						+ IDGenerator.getNextIntID(stmt, theTransactor.getDbOwner()
+							+ "prisms_user_password", "id", null) + ", " + user.getID() + ", "
+						+ DBUtils.toSQL(join(hash)) + ", " + now + ", ";
+					if(constraints.getMaxPasswordDuration() > 0)
+						sql += (now + constraints.getMaxPasswordDuration());
+					else
+						sql += "NULL";
+					sql += ")";
+					stmt.execute(sql);
+
+					for(int p = password.length - 1; p >= 0
+						&& p >= constraints.getNumPreviousUnique(); p--)
+					{
+						sql = "DELETE FROM " + theTransactor.getDbOwner()
+							+ "prisms_user_password WHERE id=" + password[p].id;
+						stmt.execute(sql);
+					}
 				} catch(SQLException e)
-				{}
-		}
+				{
+					throw new PrismsException("Could not set password data for user " + user
+						+ ": SQL=" + sql, e);
+				}
+				return null;
+			}
+		}, "Could not set password for user " + user);
 	}
 
 	public long getPasswordExpiration(User user) throws PrismsException
 	{
-		PasswordData [] password = getPasswordData(user, true);
+		PasswordData [] password = getPasswordData(user, true, null);
 		if(password.length == 0)
 			return Long.MAX_VALUE;
 		return password[0].thePasswordExpire;
@@ -809,94 +882,125 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return ret;
 	}
 
-	public void setPasswordExpiration(User user, long time) throws PrismsException
+	public void setPasswordExpiration(final User user, final long time) throws PrismsException
 	{
-		prisms.arch.ds.PasswordConstraints constraints = getPasswordConstraints();
-		if(constraints.getMaxPasswordDuration() > 0
-			&& time - System.currentTimeMillis() > constraints.getMaxPasswordDuration())
-			throw new PrismsException("Password expiration cannot be set for more than "
-				+ prisms.util.PrismsUtils.printTimeLength(constraints.getMaxPasswordDuration())
-				+ " from current date");
-		PasswordData [] password = getPasswordData(user, true);
-		if(password.length == 0)
-			return;
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		Statement stmt = null;
-		String sql;
-		String toSet;
-		if(time < Long.MAX_VALUE)
-			toSet = "" + time;
-		else
-			toSet = "NULL";
-		sql = "UPDATE " + DBOWNER + "prisms_user_password SET pwdExpire=" + toSet + " WHERE id="
-			+ password[0].id;
-		try
+		theTransactor.performTransaction(new TransactionOperation<PrismsException>()
 		{
-			stmt = theConn.createStatement();
-			stmt.executeUpdate(sql);
-		} catch(SQLException e)
-		{
-			throw new PrismsException("Could not set password expiration for user " + user
-				+ ": SQL=" + sql, e);
-		} finally
-		{
-			lock.unlock();
-			if(stmt != null)
+			public Object run(Statement stmt) throws PrismsException
+			{
+				prisms.arch.ds.PasswordConstraints constraints = getPasswordConstraints();
+				if(constraints.getMaxPasswordDuration() > 0
+					&& time - System.currentTimeMillis() > constraints.getMaxPasswordDuration())
+					throw new PrismsException("Password expiration cannot be set for more than "
+						+ prisms.util.PrismsUtils.printTimeLength(constraints
+							.getMaxPasswordDuration()) + " from current date");
+				PasswordData [] password = getPasswordData(user, true, stmt);
+				if(password.length == 0)
+					return null;
+				String sql;
+				String toSet;
+				if(time < Long.MAX_VALUE)
+					toSet = "" + time;
+				else
+					toSet = "NULL";
+				sql = "UPDATE " + theTransactor.getDbOwner()
+					+ "prisms_user_password SET pwdExpire=" + toSet + " WHERE id=" + password[0].id;
 				try
 				{
-					stmt.close();
+					stmt.executeUpdate(sql);
 				} catch(SQLException e)
-				{}
+				{
+					throw new PrismsException("Could not set password expiration for user " + user
+						+ ": SQL=" + sql, e);
+				}
+				return null;
+			}
+		}, "Could not set password expiration for user " + user);
+	}
+
+	void addModification(RecordsTransaction trans, PrismsSubjectType subjectType,
+		prisms.records2.ChangeType changeType, int add, Object majorSubject, Object minorSubject,
+		Object previousValue, Object data1, Object data2) throws PrismsException
+	{
+		if(trans == null || theKeeper == null)
+			return;
+		if(!trans.shouldPersist())
+			return;
+		prisms.records2.ChangeRecord record;
+		try
+		{
+			record = theKeeper.persist(trans.getUser(), subjectType, changeType, add, majorSubject,
+				minorSubject, previousValue, data1, data2);
+		} catch(prisms.records2.PrismsRecordException e)
+		{
+			throw new PrismsException("Could not persist change record", e);
+		}
+		if(trans.getRecord() != null)
+		{
+			try
+			{
+				theKeeper.associate(record, trans.getRecord(), false);
+			} catch(prisms.records2.PrismsRecordException e)
+			{
+				log.error("Could not associate change record with sync record", e);
+			}
 		}
 	}
 
-	public void setUserAccess(User user, PrismsApplication app, boolean accessible)
-		throws PrismsException
+	public void setUserAccess(final User user, final PrismsApplication app,
+		final boolean accessible, final RecordsTransaction trans) throws PrismsException
 	{
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_user_app_assoc WHERE assocUser="
-			+ (user).getID() + " AND assocApp=" + toSQL(app.getName());
-		Statement stmt = null;
-		ResultSet rs = null;
-		try
+		theTransactor.performTransaction(new TransactionOperation<PrismsException>()
 		{
-			checkConnection();
-			stmt = theConn.createStatement();
-			rs = stmt.executeQuery(sql);
-			if(rs.next() == accessible)
-				return;
-			rs.close();
-			rs = null;
-
-			if(accessible)
-				sql = "INSERT INTO " + DBOWNER
-					+ "prisms_user_app_assoc (assocUser, assocApp) VALUES (" + (user).getID()
-					+ ", " + toSQL(app.getName()) + ")";
-			else
-				sql = "DELETE FROM " + DBOWNER + "prisms_user_app_assoc WHERE assocUser="
-					+ (user).getID() + " AND assocApp=" + toSQL(app.getName());
-			stmt.execute(sql);
-		} catch(SQLException e)
-		{
-			throw new PrismsException("Could not set user accessibility: SQL=" + sql, e);
-		} finally
-		{
-			if(rs != null)
+			public Object run(Statement stmt) throws PrismsException
+			{
+				String sql = "SELECT * FROM " + theTransactor.getDbOwner()
+					+ "prisms_user_app_assoc WHERE assocUser=" + (user).getID() + " AND assocApp="
+					+ toSQL(app.getName());
+				ResultSet rs = null;
 				try
 				{
+					rs = stmt.executeQuery(sql);
+					if(rs.next() == accessible)
+						return null;
 					rs.close();
+					rs = null;
+
+					if(accessible)
+					{
+						addModification(trans, PrismsSubjectType.user, UserChange.appAccess, 1,
+							user, app, null, null, null);
+						sql = "INSERT INTO " + theTransactor.getDbOwner()
+							+ "prisms_user_app_assoc (assocUser, assocApp) VALUES ("
+							+ (user).getID() + ", " + toSQL(app.getName()) + ")";
+					}
+					else
+					{
+						addModification(trans, PrismsSubjectType.user, UserChange.appAccess, -1,
+							user, app, null, null, null);
+						sql = "DELETE FROM " + theTransactor.getDbOwner()
+							+ "prisms_user_app_assoc WHERE assocUser=" + (user).getID()
+							+ " AND assocApp=" + toSQL(app.getName());
+					}
+					stmt.execute(sql);
 				} catch(SQLException e)
-				{}
-			if(stmt != null)
-				try
 				{
-					stmt.close();
-				} catch(SQLException e)
-				{}
-		}
-		for(UserSetListener listener : theListeners.toArray(new UserSetListener [theListeners
-			.size()]))
-			listener.userChanged(user);
+					throw new PrismsException("Could not set user accessibility: SQL=" + sql, e);
+				} finally
+				{
+					if(rs != null)
+						try
+						{
+							rs.close();
+						} catch(SQLException e)
+						{}
+				}
+				for(UserSetListener listener : theListeners
+					.toArray(new UserSetListener [theListeners.size()]))
+					listener.userChanged(user);
+				return null;
+			}
+		}, "Could not set user " + user + "'s access to " + app);
 	}
 
 	public User [] getAllUsers() throws PrismsException
@@ -906,15 +1010,14 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		Statement stmt = null;
 		ResultSet rs = null;
 		String sql = null;
-		Lock lock = theLock.writeLock();
+		Lock lock = theTransactor.getLock().writeLock();
 		lock.lock();
 		User [] users;
 		try
 		{
-			checkConnection();
-			stmt = theConn.createStatement();
+			stmt = theTransactor.getConnection().createStatement();
 			ArrayList<User> userList = new ArrayList<User>();
-			sql = "SELECT * FROM " + DBOWNER + "prisms_user ORDER BY id";
+			sql = "SELECT * FROM " + theTransactor.getDbOwner() + "prisms_user ORDER BY id";
 			rs = stmt.executeQuery(sql);
 			java.util.HashSet<User> readOnlyUsers = new java.util.HashSet<User>();
 			while(rs.next())
@@ -948,8 +1051,8 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			LongList userIDs = new LongList();
 			IntList groupIDs = new IntList();
 			ArrayList<String> appNames = new ArrayList<String>();
-			sql = "SELECT assocUser, id, groupApp FROM " + DBOWNER
-				+ "prisms_user_group_assoc INNER JOIN " + DBOWNER
+			sql = "SELECT assocUser, id, groupApp FROM " + theTransactor.getDbOwner()
+				+ "prisms_user_group_assoc INNER JOIN " + theTransactor.getDbOwner()
 				+ "prisms_user_group ON assocGroup=id WHERE deleted=" + boolToSql(false);
 			rs = stmt.executeQuery(sql);
 			while(rs.next())
@@ -1011,7 +1114,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		return users;
 	}
 
-	public User createUser(String name) throws PrismsException
+	public User createUser(String name, RecordsTransaction trans) throws PrismsException
 	{
 		if(getUser(name) != null)
 			throw new PrismsException("User " + name + " already exists");
@@ -1020,130 +1123,107 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(name.equals(theAnonymousUserName))
 			throw new PrismsException("Cannot create user with the same name as the anonymous user");
 		User ret = new User(this, name, -1);
-		putUser(ret);
+		putUser(ret, trans);
 		return ret;
 	}
 
-	public void putUser(User user) throws PrismsException
+	public void putUser(final User user, final RecordsTransaction trans) throws PrismsException
 	{
-		if(user.equals(theAnonymousUser))
+		if(user.equals(theSystemUser) && !addingSystem)
+			throw new PrismsException("Cannot modify the system user");
+		if(user.equals(theAnonymousUser) && !addingAnonymous)
 			throw new PrismsException("Cannot modify the anonymous user");
-		Statement stmt = null;
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
+		theTransactor.performTransaction(new TransactionOperation<PrismsException>()
 		{
-			checkConnection();
-			stmt = theConn.createStatement();
-
-			User dbUser = user.getID() < 0 ? null : dbGetUser(user.getID(), stmt);
-			if(dbUser == null)
+			public Object run(Statement stmt) throws PrismsException
 			{
-				if(theUserCache.length == 0)
-					user.setAdmin(true);
-				dbInsertUser(user, stmt);
-				if(theIDs.belongs(user.getID()))
+				User dbUser = user.getID() < 0 ? null : dbGetUser(user.getID(), stmt);
+				if(dbUser == null)
 				{
-					theUserCache = ArrayUtils.add(theUserCache, user);
+					dbInsertUser(user, stmt);
+					addModification(trans, PrismsSubjectType.user, null, 1, user, null, null, null,
+						null);
+					if(theIDs.belongs(user.getID()))
+					{
+						theUserCache = ArrayUtils.add(theUserCache, user);
+						for(UserSetListener listener : theListeners
+							.toArray(new UserSetListener [theListeners.size()]))
+							listener.userSetChanged(theUserCache.clone());
+					}
+				}
+				else
+				{
+					boolean recreate = dbUser.isDeleted() != user.isDeleted();
+					dbUpdateUser(dbUser, user, stmt, trans);
+					if(theIDs.belongs(user.getID()))
+					{
+						if(recreate)
+						{
+							for(UserSetListener listener : theListeners
+								.toArray(new UserSetListener [theListeners.size()]))
+								listener.userSetChanged(theUserCache);
+						}
+						else
+							for(UserSetListener listener : theListeners
+								.toArray(new UserSetListener [theListeners.size()]))
+								listener.userChanged(user);
+					}
+				}
+				return null;
+			}
+		}, "Could not add/modify user " + user);
+	}
+
+	public void deleteUser(final User user, final RecordsTransaction trans) throws PrismsException
+	{
+		theTransactor.performTransaction(new TransactionOperation<PrismsException>()
+		{
+			public Object run(Statement stmt) throws PrismsException
+			{
+				dbRemoveUser(user, stmt, trans);
+				int idx = ArrayUtils.indexOf(theUserCache, user);
+				if(idx >= 0)
+				{
+					theUserCache = ArrayUtils.remove(theUserCache, idx);
 					for(UserSetListener listener : theListeners
 						.toArray(new UserSetListener [theListeners.size()]))
 						listener.userSetChanged(theUserCache.clone());
 				}
+				return null;
 			}
-			else
-			{
-				boolean recreate = dbUser.isDeleted() != user.isDeleted();
-				dbUpdateUser(dbUser, user, stmt);
-				if(theIDs.belongs(user.getID()))
-				{
-					if(recreate)
-					{
-						for(UserSetListener listener : theListeners
-							.toArray(new UserSetListener [theListeners.size()]))
-							listener.userSetChanged(theUserCache);
-					}
-					else
-						for(UserSetListener listener : theListeners
-							.toArray(new UserSetListener [theListeners.size()]))
-							listener.userChanged(user);
-				}
-			}
-		} catch(SQLException e)
-		{
-			throw new PrismsException("Could not get create statement", e);
-		} finally
-		{
-			lock.unlock();
-			if(stmt != null)
-				try
-				{
-					stmt.close();
-				} catch(SQLException e)
-				{}
-		}
+		}, "Could not delete user " + user);
 	}
 
-	public void deleteUser(User user) throws PrismsException
-	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
-		{
-			checkConnection();
-			Statement stmt = null;
-			try
-			{
-				stmt = theConn.createStatement();
-				dbRemoveUser(user, stmt);
-			} catch(SQLException e)
-			{
-				throw new PrismsException("Could not delete user " + user.getName(), e);
-			} finally
-			{
-				if(stmt != null)
-					try
-					{
-						stmt.close();
-					} catch(SQLException e)
-					{}
-			}
-			int idx = ArrayUtils.indexOf(theUserCache, user);
-			if(idx >= 0)
-			{
-				theUserCache = ArrayUtils.remove(theUserCache, idx);
-				for(UserSetListener listener : theListeners
-					.toArray(new UserSetListener [theListeners.size()]))
-					listener.userSetChanged(theUserCache.clone());
-			}
-		} finally
-		{
-			lock.unlock();
-		}
-	}
-
-	public UserGroup createGroup(PrismsApplication app, String name) throws PrismsException
+	public UserGroup createGroup(final PrismsApplication app, final String name)
+		throws PrismsException
 	{
 		if(name == null)
 			throw new PrismsException("Cannot create group with no name");
-		if(hasGroup(app, name))
-			throw new PrismsException("Group " + name + " already exists for application " + app);
-		DBGroup group = new DBGroup(this, name, app, -1);
-		putGroup(group);
-		return group;
+		return (UserGroup) theTransactor.performTransaction(
+			new TransactionOperation<PrismsException>()
+			{
+				public Object run(Statement stmt) throws PrismsException
+				{
+					if(hasGroup(app, name, stmt))
+						throw new PrismsException("Group " + name
+							+ " already exists for application " + app);
+					DBGroup group = new DBGroup(DBUserSource.this, name, app, -1);
+					putGroup(group, stmt);
+					return group;
+				}
+			}, "Could not create group " + name);
 	}
 
-	private boolean hasGroup(PrismsApplication app, String groupName) throws PrismsException
+	boolean hasGroup(PrismsApplication app, String groupName, Statement stmt)
+		throws PrismsException
 	{
-		String sql = "SELECT id FROM " + DBOWNER + "prisms_user_group WHERE groupApp = "
-			+ toSQL(app.getName()) + " AND groupName=" + toSQL(groupName);
-		Statement stmt = null;
+		String sql = null;
 		ResultSet rs = null;
-		checkConnection();
-		Lock lock = theLock.readLock();
-		lock.lock();
 		try
 		{
-			stmt = theConn.createStatement();
+			sql = "SELECT id FROM " + theTransactor.getDbOwner()
+				+ "prisms_user_group WHERE groupApp = " + toSQL(app.getName()) + " AND groupName="
+				+ toSQL(groupName);
 			rs = stmt.executeQuery(sql);
 			return rs.next();
 		} catch(SQLException e)
@@ -1152,70 +1232,50 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 				+ ": SQL=" + sql, e);
 		} finally
 		{
-			lock.unlock();
 			if(rs != null)
 				try
 				{
 					rs.close();
 				} catch(SQLException e)
 				{}
-			if(stmt != null)
-				try
-				{
-					stmt.close();
-				} catch(SQLException e)
-				{}
 		}
 	}
 
-	public void putGroup(UserGroup group) throws PrismsException
+	public void putGroup(final UserGroup group) throws PrismsException
 	{
 		if(!(group instanceof DBGroup))
 			throw new PrismsException("Group " + group + " was not created by this user source");
-		DBGroup setGroup = (DBGroup) group;
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		Statement stmt = null;
-		try
+		theTransactor.performTransaction(new TransactionOperation<PrismsException>()
 		{
-			checkConnection();
-			stmt = theConn.createStatement();
-			DBGroup dbGroup = dbGetGroup(setGroup.getID(), setGroup.getApp(), stmt);
-			if(dbGroup == null)
+			public Object run(Statement stmt) throws PrismsException
 			{
-				dbInsertGroup(setGroup, stmt);
-				theGroupCache = ArrayUtils.add(theGroupCache, setGroup);
+				DBGroup setGroup = (DBGroup) group;
+				putGroup(setGroup, stmt);
+				return null;
 			}
-			else
-				dbUpdateGroup(dbGroup, setGroup, stmt);
-		} catch(SQLException e)
-		{
-			throw new PrismsException("Could not rename group " + group.getName(), e);
-		} finally
-		{
-			lock.unlock();
-			if(stmt != null)
-				try
-				{
-					stmt.close();
-				} catch(SQLException e)
-				{}
-		}
+		}, "Could not add/modify user group " + group);
 	}
 
-	public void deleteGroup(UserGroup group) throws PrismsException
+	void putGroup(DBGroup group, Statement stmt) throws PrismsException
+	{
+		DBGroup dbGroup = dbGetGroup(group.getID(), group.getApp(), stmt);
+		if(dbGroup == null)
+		{
+			dbInsertGroup(group, stmt);
+			theGroupCache = ArrayUtils.add(theGroupCache, group);
+		}
+		else
+			dbUpdateGroup(dbGroup, group, stmt);
+	}
+
+	public void deleteGroup(final UserGroup group) throws PrismsException
 	{
 		if(!(group instanceof DBGroup))
 			throw new PrismsException("Group " + group + " was not created by this user source");
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
+		theTransactor.performTransaction(new TransactionOperation<PrismsException>()
 		{
-			Statement stmt = null;
-			try
+			public Object run(Statement stmt) throws PrismsException
 			{
-				checkConnection();
-				stmt = theConn.createStatement();
 				dbRemoveGroup((DBGroup) group, stmt);
 				for(User user : theUserCache)
 				{
@@ -1228,55 +1288,47 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 					}
 				}
 				theGroupCache = ArrayUtils.remove(theGroupCache, (DBGroup) group);
-			} catch(SQLException e)
-			{
-				throw new PrismsException("Could not delete group " + group.getName(), e);
-			} finally
-			{
-				if(stmt != null)
-					try
-					{
-						stmt.close();
-					} catch(SQLException e)
-					{}
+				return null;
 			}
-		} finally
-		{
-			lock.unlock();
-		}
+		}, "Could not delete group " + group);
 	}
 
-	/** @see prisms.arch.ds.UserSource#disconnect() */
 	public void disconnect()
 	{
 		theAnonymousUser = null;
 		theUserCache = null;
 		theGroupCache = null;
 		theHashing = null;
-		if(theConn == null)
+		if(theTransactor == null)
 			return;
-		theEnv.getPersisterFactory().disconnect(theConn, theConfigEl);
-		theConn = null;
+		try
+		{
+			theTransactor.disconnect();
+		} catch(PrismsException e)
+		{
+			log.error("Could not disconnect from PRISMS data source", e);
+		}
+		theTransactor = null;
 	}
 
 	// Implementation methods here
 
-	private User dbGetUser(long id, Statement stmt) throws PrismsException
+	User dbGetUser(long id, Statement stmt) throws PrismsException
 	{
 		if(id == theAnonymousUser.getID())
 			return theAnonymousUser;
 		if(id < 0)
 			return null;
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_user WHERE id=" + id;
+		String sql = null;
 		boolean closeAfter = false;
 		ResultSet rs = null;
 		try
 		{
+			sql = "SELECT * FROM " + theTransactor.getDbOwner() + "prisms_user WHERE id=" + id;
 			if(stmt == null)
 			{
-				checkConnection();
 				closeAfter = true;
-				stmt = theConn.createStatement();
+				stmt = theTransactor.getConnection().createStatement();
 			}
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
@@ -1288,8 +1340,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			rs.close();
 			rs = null;
 
-			sql = "SELECT id, groupApp FROM " + DBOWNER + "prisms_user_group_assoc INNER JOIN "
-				+ DBOWNER + "prisms_user_group ON assocGroup=id WHERE assocUser=" + id;
+			sql = "SELECT id, groupApp FROM " + theTransactor.getDbOwner()
+				+ "prisms_user_group_assoc INNER JOIN " + theTransactor.getDbOwner()
+				+ "prisms_user_group ON assocGroup=id WHERE assocUser=" + id;
 			rs = stmt.executeQuery(sql);
 			ArrayList<Integer> groupIDs = new ArrayList<Integer>();
 			ArrayList<String> appNames = new ArrayList<String>();
@@ -1343,15 +1396,17 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 	}
 
-	private void dbInsertUser(User user, Statement stmt) throws PrismsException
+	void dbInsertUser(User user, Statement stmt) throws PrismsException
 	{
-		user.setID(theIDs.getNextID(stmt, "prisms_user", "id", null, null));
-		String sql = "INSERT INTO " + DBOWNER + "prisms_user (id, userName, isAdmin, isReadOnly,"
-			+ " deleted)" + " VALUES (" + user.getID() + ", " + toSQL(user.getName()) + ", "
-			+ boolToSql(user.isAdmin()) + ", " + boolToSql(user.isReadOnly()) + ", "
-			+ boolToSql(false) + ")";
+		if(user.getID() < 0)
+			user.setID(theIDs.getNextID(stmt, "prisms_user", "id", null, null, null));
+		String sql = null;
 		try
 		{
+			sql = "INSERT INTO " + theTransactor.getDbOwner()
+				+ "prisms_user (id, userName, isAdmin, isReadOnly," + " deleted)" + " VALUES ("
+				+ user.getID() + ", " + toSQL(user.getName()) + ", " + boolToSql(user.isAdmin())
+				+ ", " + boolToSql(user.isReadOnly()) + ", " + boolToSql(false) + ")";
 			stmt.execute(sql);
 		} catch(SQLException e)
 		{
@@ -1359,28 +1414,36 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		}
 	}
 
-	private void dbUpdateUser(final User dbUser, User setUser, final Statement stmt)
-		throws PrismsException
+	void dbUpdateUser(final User dbUser, User setUser, final Statement stmt,
+		RecordsTransaction trans) throws PrismsException
 	{
 		String update = "";
 		if(!dbUser.getName().equals(setUser.getName()))
 		{
 			update += "userName=" + toSQL(setUser.getName()) + ", ";
+			addModification(trans, PrismsSubjectType.user, UserChange.name, 0, setUser, null,
+				dbUser.getName(), null, null);
 			dbUser.setName(setUser.getName());
 		}
 		if(dbUser.isAdmin() != setUser.isAdmin())
 		{
 			update += "isAdmin=" + boolToSql(setUser.isAdmin()) + ", ";
+			addModification(trans, PrismsSubjectType.user, UserChange.admin, 0, setUser, null,
+				Boolean.valueOf(dbUser.isAdmin()), null, null);
 			dbUser.setAdmin(setUser.isAdmin());
 		}
 		if(dbUser.isReadOnly() != setUser.isReadOnly())
 		{
 			update += "isReadOnly=" + boolToSql(setUser.isReadOnly()) + ", ";
+			addModification(trans, PrismsSubjectType.user, UserChange.readOnly, 0, setUser, null,
+				Boolean.valueOf(dbUser.isReadOnly()), null, null);
 			dbUser.setReadOnly(setUser.isReadOnly());
 		}
 		if(dbUser.isDeleted() != setUser.isDeleted())
 		{
 			update += "deleted=" + boolToSql(setUser.isDeleted()) + ", ";
+			addModification(trans, PrismsSubjectType.user, null, setUser.isDeleted() ? -1 : 1,
+				setUser, null, null, null, null);
 			dbUser.setDeleted(setUser.isDeleted());
 			if(theIDs.belongs(dbUser.getID()))
 			{
@@ -1394,10 +1457,11 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(update.length() > 0)
 		{
 			update = update.substring(0, update.length() - 2);
-			String sql = "UPDATE " + DBOWNER + "prisms_user SET " + update + " WHERE id="
-				+ dbUser.getID();
+			String sql = null;
 			try
 			{
+				sql = "UPDATE " + theTransactor.getDbOwner() + "prisms_user SET " + update
+					+ " WHERE id=" + dbUser.getID();
 				stmt.executeUpdate(sql);
 			} catch(SQLException e)
 			{
@@ -1420,11 +1484,12 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 						log.error("Can't add group " + o + ": not correct implementation");
 						return null;
 					}
-					String sql = "INSERT INTO " + DBOWNER
-						+ "prisms_user_group_assoc (assocUser, assocGroup) VALUES ("
-						+ dbUser.getID() + ", " + ((DBGroup) o).getID() + ")";
+					String sql = null;
 					try
 					{
+						sql = "INSERT INTO " + theTransactor.getDbOwner()
+							+ "prisms_user_group_assoc (assocUser, assocGroup) VALUES ("
+							+ dbUser.getID() + ", " + ((DBGroup) o).getID() + ")";
 						stmt.execute(sql);
 					} catch(SQLException e)
 					{
@@ -1440,11 +1505,12 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 						log.error("Can't remove group " + o + ": not correct implementation");
 						return null;
 					}
-					String sql = "DELETE FROM " + DBOWNER
-						+ "prisms_user_group_assoc WHERE assocUser=" + dbUser.getID()
-						+ " AND assocGroup=" + ((DBGroup) o).getID();
+					String sql = null;
 					try
 					{
+						sql = "DELETE FROM " + theTransactor.getDbOwner()
+							+ "prisms_user_group_assoc WHERE assocUser=" + dbUser.getID()
+							+ " AND assocGroup=" + ((DBGroup) o).getID();
 						stmt.execute(sql);
 					} catch(SQLException e)
 					{
@@ -1461,18 +1527,21 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			});
 	}
 
-	private void dbRemoveUser(User user, Statement stmt) throws PrismsException
+	void dbRemoveUser(User user, Statement stmt, RecordsTransaction trans) throws PrismsException
 	{
-		// String sql = "DELETE FROM " + DBOWNER + "prisms_user WHERE id=" + user.getID();
-		String sql = "UPDATE " + DBOWNER + "prisms_user SET deleted=" + boolToSql(true)
-			+ " WHERE id=" + user.getID();
+		// String sql = "DELETE FROM " + theTransactor.getDbOwner() + "prisms_user WHERE id=" +
+		// user.getID();
+		String sql = null;
 		try
 		{
+			sql = "UPDATE " + theTransactor.getDbOwner() + "prisms_user SET deleted="
+				+ boolToSql(true) + " WHERE id=" + user.getID();
 			stmt.execute(sql);
 		} catch(SQLException e)
 		{
 			throw new PrismsException("Could not delete user: SQL=" + sql, e);
 		}
+		addModification(trans, PrismsSubjectType.user, null, -1, user, null, null, null, null);
 	}
 
 	private DBGroup getGroup(int id, PrismsApplication app, Statement stmt) throws PrismsException
@@ -1488,10 +1557,12 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	{
 		if(id < 0)
 			return null;
-		String sql = "SELECT * FROM " + DBOWNER + "prisms_user_group WHERE id=" + id;
+		String sql = null;
 		ResultSet rs = null;
 		try
 		{
+			sql = "SELECT * FROM " + theTransactor.getDbOwner() + "prisms_user_group WHERE id="
+				+ id;
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
 				return null;
@@ -1501,7 +1572,7 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 			rs.close();
 			rs = null;
 
-			sql = "SELECT assocPermission FROM " + DBOWNER
+			sql = "SELECT assocPermission FROM " + theTransactor.getDbOwner()
 				+ "prisms_group_permissions WHERE assocGroup=" + id + " AND pApp="
 				+ toSQL(app.getName());
 			rs = stmt.executeQuery(sql);
@@ -1539,8 +1610,9 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		String sql = null;
 		try
 		{
-			group.setID(IDGenerator.getNextIntID(stmt, "prisms_user_group", "id"));
-			sql = "INSERT INTO " + DBOWNER
+			group.setID(IDGenerator.getNextIntID(stmt, theTransactor.getDbOwner()
+				+ "prisms_user_group", "id", null));
+			sql = "INSERT INTO " + theTransactor.getDbOwner()
 				+ "prisms_user_group (id, groupApp, groupName, groupDescrip, deleted) VALUES ("
 				+ group.getID() + ", " + toSQL(group.getApp().getName()) + ", "
 				+ toSQL(group.getName()) + ", " + toSQL(group.getDescription()) + ", "
@@ -1572,10 +1644,11 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		if(update.length() > 0)
 		{
 			update = update.substring(0, update.length() - 2);
-			String sql = "UPDATE " + DBOWNER + "prisms_user_group SET " + update + " WHERE id="
-				+ dbGroup.getID();
+			String sql = null;
 			try
 			{
+				sql = "UPDATE " + theTransactor.getDbOwner() + "prisms_user_group SET " + update
+					+ " WHERE id=" + dbGroup.getID();
 				stmt.executeUpdate(sql);
 			} catch(SQLException e)
 			{
@@ -1593,12 +1666,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 
 			public Permission added(Permission o, int idx, int retIdx)
 			{
-				String sql = "INSERT INTO " + DBOWNER
-					+ "prisms_group_permissions (assocGroup, pApp, assocPermission) VALUES ("
-					+ dbGroup.getID() + ", " + toSQL(o.getApp().getName()) + ", "
-					+ toSQL(o.getName()) + ")";
+				String sql = null;
 				try
 				{
+					sql = "INSERT INTO " + theTransactor.getDbOwner()
+						+ "prisms_group_permissions (assocGroup, pApp, assocPermission) VALUES ("
+						+ dbGroup.getID() + ", " + toSQL(o.getApp().getName()) + ", "
+						+ toSQL(o.getName()) + ")";
 					stmt.execute(sql);
 				} catch(SQLException e)
 				{
@@ -1609,11 +1683,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 
 			public Permission removed(Permission o, int idx, int incMod, int retIdx)
 			{
-				String sql = "DELETE FROM " + DBOWNER
-					+ "prisms_group_permissions WHERE assocGroup=" + dbGroup.getID() + " AND pApp="
-					+ toSQL(o.getApp().getName()) + " AND assocPermission=" + toSQL(o.getName());
+				String sql = null;
 				try
 				{
+					sql = "DELETE FROM " + theTransactor.getDbOwner()
+						+ "prisms_group_permissions WHERE assocGroup=" + dbGroup.getID()
+						+ " AND pApp=" + toSQL(o.getApp().getName()) + " AND assocPermission="
+						+ toSQL(o.getName());
 					stmt.execute(sql);
 				} catch(SQLException e)
 				{
@@ -1630,11 +1706,13 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 		});
 	}
 
-	private void dbRemoveGroup(DBGroup group, Statement stmt) throws PrismsException
+	void dbRemoveGroup(DBGroup group, Statement stmt) throws PrismsException
 	{
-		String sql = "DELETE FROM " + DBOWNER + "prisms_user_group WHERE id=" + group.getID();
+		String sql = null;
 		try
 		{
+			sql = "DELETE FROM " + theTransactor.getDbOwner() + "prisms_user_group WHERE id="
+				+ group.getID();
 			stmt.execute(sql);
 		} catch(SQLException e)
 		{
@@ -1676,27 +1754,5 @@ public class DBUserSource implements prisms.arch.ds.ManageableUserSource
 	static boolean equal(Object o1, Object o2)
 	{
 		return o1 == null ? o2 == null : o1.equals(o2);
-	}
-
-	/**
-	 * Checks the database connection to ensure (if possible) that the database is accessible.
-	 * 
-	 * @throws IllegalStateException If the database is not accessible and the connection cannot be
-	 *         renewed
-	 */
-	public void checkConnection() throws IllegalStateException
-	{
-		try
-		{
-			if(theConn == null || theConn.isClosed())
-			{
-				theConn = theEnv.getPersisterFactory().getConnection(theConfigEl);
-				DBOWNER = theEnv.getPersisterFactory().getTablePrefix(theConn,
-					theConfigEl.element("connection"));
-			}
-		} catch(SQLException e)
-		{
-			throw new IllegalStateException("Could not renew connection ", e);
-		}
 	}
 }

@@ -106,16 +106,16 @@ public class DefaultPersisterFactory implements prisms.arch.PersisterFactory
 				return ret;
 		}
 
-		String url = el.elementText("url");
+		String url = el.elementTextTrim("url");
 		if(url != null)
 		{
-			String driver = el.elementText("driver");
+			String driver = el.elementTextTrim("driver");
 			try
 			{
 				if(driver != null)
 					Class.forName(driver);
-				String user = el.elementText("username");
-				String pwd = el.elementText("password");
+				String user = el.elementTextTrim("username");
+				String pwd = el.elementTextTrim("password");
 				if(user == null)
 				{
 					log.debug("Connecting to database at " + url);

@@ -90,14 +90,15 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 			}
 		}
 		prisms.arch.ds.ManageableUserSource mus = (prisms.arch.ds.ManageableUserSource) theUserSource;
-		ret = mus.createUser(userName);
+		ret = mus.createUser(userName, new prisms.records2.RecordsTransaction(mus.getSystemUser()));
 		ret.setName(userName);
 		for(prisms.arch.PrismsApplication app : theApps)
 			if(mus.canAccess(theTemplate, app))
-				mus.setUserAccess(ret, app, true);
+				mus.setUserAccess(ret, app, true,
+					new prisms.records2.RecordsTransaction(mus.getSystemUser()));
 		for(prisms.arch.ds.UserGroup group : theTemplate.getGroups())
 			ret.addTo(group);
-		mus.putUser(ret);
+		mus.putUser(ret, new prisms.records2.RecordsTransaction(mus.getSystemUser()));
 		return ret;
 	}
 
