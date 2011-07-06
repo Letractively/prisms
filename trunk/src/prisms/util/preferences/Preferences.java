@@ -3,40 +3,46 @@
  */
 package prisms.util.preferences;
 
-/**
- * A set of preferences for a user
- */
+/** A set of preferences for a user */
 public class Preferences implements prisms.util.persisters.OwnedObject
 {
+	private prisms.arch.PrismsApplication theApp;
+
 	private prisms.arch.ds.User theOwner;
 
 	private java.util.Map<Preference<?>, Object> thePrefs;
 
 	private Listener [] theListeners;
 
+	private java.util.HashSet<Preference<?>> theActivePrefs;
+
 	/**
 	 * Creates the preferences set
 	 * 
+	 * @param app The application that these preferences apply to
 	 * @param user The user whose preferences this is to represent
 	 */
-	public Preferences(prisms.arch.ds.User user)
+	public Preferences(prisms.arch.PrismsApplication app, prisms.arch.ds.User user)
 	{
+		theApp = app;
 		theOwner = user;
 		thePrefs = new java.util.TreeMap<Preference<?>, Object>();
+		theActivePrefs = new java.util.HashSet<Preference<?>>();
 		theListeners = new Listener [0];
 	}
 
-	/**
-	 * @return The user whose preferences this represents
-	 */
+	/** @return The application that these preferences apply to */
+	public prisms.arch.PrismsApplication getApp()
+	{
+		return theApp;
+	}
+
+	/** @return The user whose preferences this represents */
 	public prisms.arch.ds.User getOwner()
 	{
 		return theOwner;
 	}
 
-	/**
-	 * @see prisms.util.persisters.OwnedObject#isPublic()
-	 */
 	public boolean isPublic()
 	{
 		return false;
@@ -71,7 +77,10 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public <T> T get(Preference<T> pref)
 	{
-		return (T) thePrefs.get(pref);
+		T ret = (T) thePrefs.get(pref);
+		if(ret != null)
+			theActivePrefs.add(pref);
+		return ret;
 	}
 
 	/**
@@ -98,6 +107,8 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	public <T, V extends T> void set(Preference<T> pref, V value)
 	{
 		if(value != null)
+			theActivePrefs.add(pref);
+		if(value != null)
 			pref.getType().validate(value);
 		thePrefs.put(pref, value);
 		for(Listener L : theListeners)
@@ -123,18 +134,32 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public void removeDomain(String domain)
 	{
-		thePrefs.remove(domain);
+		java.util.Iterator<Preference<?>> keys = thePrefs.keySet().iterator();
+		while(keys.hasNext())
+		{
+			Preference<?> pref = keys.next();
+			if(pref.getDomain().equals(domain))
+				keys.remove();
+		}
 		for(Listener L : theListeners)
 			L.domainRemoved(this, domain);
 	}
 
-	/**
-	 * @return All domains contained in this set of preferences
-	 */
-	public String [] getDomains()
+	/** @return All domains contained in this set of preferences */
+	public String [] getAllDomains()
 	{
 		String [] ret = new String [0];
 		for(Preference<?> pref : thePrefs.keySet())
+			if(!prisms.util.ArrayUtils.contains(ret, pref.getDomain()))
+				ret = prisms.util.ArrayUtils.add(ret, pref.getDomain());
+		return ret;
+	}
+
+	/** @return All domains containing active preferences */
+	public String [] getActiveDomains()
+	{
+		String [] ret = new String [0];
+		for(Preference<?> pref : theActivePrefs)
 			if(!prisms.util.ArrayUtils.contains(ret, pref.getDomain()))
 				ret = prisms.util.ArrayUtils.add(ret, pref.getDomain());
 		return ret;
@@ -144,7 +169,7 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 * @param domain The domain to get preferences for
 	 * @return The names of all preferences for the given domain in this set of preferences
 	 */
-	public Preference<?> [] getPreferences(String domain)
+	public Preference<?> [] getAllPreferences(String domain)
 	{
 		java.util.ArrayList<Preference<?>> ret = new java.util.ArrayList<Preference<?>>();
 		for(Preference<?> pref : thePrefs.keySet())
@@ -154,8 +179,19 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	}
 
 	/**
-	 * A listener to listen for changes to a Preferences set
+	 * @param domain The domain to get preferences for
+	 * @return All active preferences for the given domain in this set of preferences
 	 */
+	public Preference<?> [] getActivePreferences(String domain)
+	{
+		java.util.ArrayList<Preference<?>> ret = new java.util.ArrayList<Preference<?>>();
+		for(Preference<?> pref : theActivePrefs)
+			if(pref.getDomain().equals(domain))
+				ret.add(pref);
+		return ret.toArray(new Preference<?> [ret.size()]);
+	}
+
+	/** A listener to listen for changes to a Preferences set */
 	public static interface Listener
 	{
 		/**

@@ -4,7 +4,6 @@
 package prisms.util.persisters;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 
 import prisms.arch.Persister;
 import prisms.arch.PrismsSession;
@@ -44,19 +43,18 @@ public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<
 	}
 
 	@Override
-	public void configure(prisms.arch.PrismsApplication app, Element configEl)
+	public void configure(prisms.arch.PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
+		super.configure(app, config);
 		if(theValue != null)
 			return;
-		Element persisterEl = configEl.element("persister");
+		prisms.arch.PrismsConfig persisterEl = config.subConfig("persister");
 		Persister<T> persister;
 
 		if(persisterEl == null)
 			persister = null;
 		else
-			persister = app.getEnvironment().getPersisterFactory()
-				.create(configEl.element("persister"), app, getProperty());
+			persister = PersistingPropertyManager.createPersister(persisterEl, app, getProperty());
 
 		if(persister != null)
 		{
@@ -103,19 +101,12 @@ public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<
 		return theValue;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#getCorrectValue(prisms.arch.PrismsSession)
-	 */
 	@Override
 	public T getCorrectValue(PrismsSession session)
 	{
 		return theValue;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession,
-	 *      java.lang.Object)
-	 */
 	@Override
 	public boolean isValueCorrect(PrismsSession session, Object val)
 	{
@@ -123,8 +114,8 @@ public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<
 	}
 
 	@Override
-	protected void eventOccurred(PrismsSession session, prisms.arch.event.PrismsEvent evt,
-		Object eventValue)
+	protected void eventOccurred(prisms.arch.PrismsApplication app, PrismsSession session,
+		prisms.arch.event.PrismsEvent evt, Object eventValue)
 	{
 	}
 }

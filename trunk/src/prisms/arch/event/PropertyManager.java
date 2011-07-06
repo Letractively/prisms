@@ -3,6 +3,8 @@
  */
 package prisms.arch.event;
 
+import org.apache.log4j.Logger;
+
 import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsSession;
 
@@ -13,9 +15,15 @@ import prisms.arch.PrismsSession;
  */
 public abstract class PropertyManager<T> implements PrismsPCL<T>
 {
+	private static final Logger log = Logger.getLogger(PropertyManager.class);
+
 	private PrismsProperty<T> theProperty;
 
+	private prisms.arch.PrismsEnv theEnv;
+
 	private java.util.ArrayList<PrismsApplication> theApps;
+
+	private DataInspector theInspector;
 
 	/**
 	 * Creates a PropertyManager that must be configured to get its application and target property
@@ -43,40 +51,57 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 * Configures this PropertyManager
 	 * 
 	 * @param app The application to manage the property in
-	 * @param configEl The XML element with potential subclass-specific settings
+	 * @param config The configuration with potential subclass-specific settings
 	 */
-	public void configure(PrismsApplication app, org.dom4j.Element configEl)
+	public synchronized void configure(PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
+		if(theEnv == null)
+			theEnv = app.getEnvironment();
 		synchronized(theApps)
 		{
 			theApps.add(app);
 		}
-		String propField = configEl.elementTextTrim("field");
-		if(propField != null)
+		if(theProperty == null)
 		{
-			int lastDot = propField.lastIndexOf('.');
-			try
+			String propField = config.get("field");
+			if(propField != null)
 			{
-				Class<?> clazz = Class.forName(propField.substring(0, lastDot));
-				theProperty = (PrismsProperty<T>) clazz.getField(propField.substring(lastDot + 1))
-					.get(null);
-			} catch(Throwable e)
+				int lastDot = propField.lastIndexOf('.');
+				try
+				{
+					Class<?> clazz = Class.forName(propField.substring(0, lastDot));
+					theProperty = (PrismsProperty<T>) clazz.getField(
+						propField.substring(lastDot + 1)).get(null);
+				} catch(Throwable e)
+				{
+					throw new IllegalArgumentException(
+						"Could not configure property manager--field configured incorrectly", e);
+				}
+			}
+			else
 			{
-				throw new IllegalArgumentException(
-					"Could not configure property manager--field configured incorrectly", e);
+				String propName = config.get("name");
+				try
+				{
+					theProperty = PrismsProperty.get(propName,
+						(Class<T>) config.getClass("type", Object.class));
+				} catch(Exception e)
+				{
+					throw new IllegalArgumentException(
+						"Could not configure property manager--name/type configured incorrectly", e);
+				}
 			}
 		}
-		else
+		prisms.arch.PrismsConfig inspectorConfig = config.subConfig("inspector");
+		if(theInspector == null && inspectorConfig != null)
 		{
-			String propName = configEl.elementText("name");
-			String className = configEl.elementText("type");
 			try
 			{
-				theProperty = PrismsProperty.get(propName, (Class<T>) Class.forName(className));
+				theInspector = inspectorConfig.getClass("class", DataInspector.class).newInstance();
+				theInspector.configure(theProperty, inspectorConfig);
 			} catch(Exception e)
 			{
-				throw new IllegalArgumentException(
-					"Could not configure property manager--name/type configured incorrectly", e);
+				log.error("Could not instantiate inspector for configuration " + inspectorConfig, e);
 			}
 		}
 	}
@@ -85,6 +110,21 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	public PrismsProperty<T> getProperty()
 	{
 		return theProperty;
+	}
+
+	/** @return The PRISMS environment that this manager is set in */
+	public prisms.arch.PrismsEnv getEnv()
+	{
+		return theEnv;
+	}
+
+	/**
+	 * @return This property manager's inspector that allows a manager to inspect the value(s) in
+	 *         this property
+	 */
+	public DataInspector getInspector()
+	{
+		return theInspector;
 	}
 
 	public void propertyChange(PrismsPCE<T> evt)
@@ -103,10 +143,22 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	{
 		if(session == null)
 			return;
-		if(!isValueCorrect(session, session.getProperty(getProperty())))
-		{
+		if(Boolean.TRUE.equals(evt.get("canceled")))
+			return;
+		checkValue(session, session.getProperty(getProperty()), evt);
+	}
+
+	/**
+	 * Ensures that the session's property is correct according to this manager
+	 * 
+	 * @param session The session to set the property of
+	 * @param value The session's current value of this manager's property
+	 * @param evt The event that caused this check
+	 */
+	protected void checkValue(PrismsSession session, T value, PrismsPCE<T> evt)
+	{
+		if(!isValueCorrect(session, value))
 			session.setProperty(getProperty(), getCorrectValue(session));
-		}
 	}
 
 	/**
@@ -119,14 +171,15 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	{
 		for(PrismsApplication app : theApps)
 		{
-			app.runSessionTask(null, new PrismsApplication.SessionTask()
-			{
-				public void run(PrismsSession session2)
-				{
-					if(!isValueCorrect(session2, session2.getProperty(getProperty())))
-						session2.setProperty(getProperty(), getCorrectValue(session2));
-				}
-			}, false);
+			app.setGlobalProperty(theProperty, getApplicationValue(app), eventProps);
+			// app.runSessionTask(null, new PrismsApplication.SessionTask()
+			// {
+			// public void run(PrismsSession session2)
+			// {
+			// if(!isValueCorrect(session2, session2.getProperty(getProperty())))
+			// session2.setProperty(getProperty(), getCorrectValue(session2));
+			// }
+			// }, false);
 		}
 	}
 
@@ -180,4 +233,12 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	 * @see #isValueCorrect(PrismsSession, Object)
 	 */
 	public abstract T getCorrectValue(PrismsSession session);
+
+	@Override
+	public String toString()
+	{
+		String className = getClass().getName();
+		int idx = className.lastIndexOf('.');
+		return className.substring(idx + 1) + " manager for property " + theProperty;
+	}
 }

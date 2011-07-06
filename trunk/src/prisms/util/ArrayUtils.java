@@ -88,12 +88,39 @@ public final class ArrayUtils
 			ret[0] = anElement;
 			return ret;
 		}
-		else
-			ret = (T []) Array.newInstance(anArray.getClass().getComponentType(),
-				anArray.length + 1);
+		ret = (T []) Array.newInstance(anArray.getClass().getComponentType(), anArray.length + 1);
 		System.arraycopy(anArray, 0, ret, 0, anIndex);
 		put(ret, anElement, anIndex);
 		System.arraycopy(anArray, anIndex, ret, anIndex + 1, anArray.length - anIndex);
+		return ret;
+	}
+
+	/**
+	 * Inserts new elements into an array
+	 * 
+	 * @param <T> The type of the array
+	 * @param anArray The array to insert into
+	 * @param anIndex The start index for the new elements
+	 * @param elements The elements to insert
+	 * @return The new array with all elements of <code>anArray</code>, but with
+	 *         <code>elements</code> inserted at index <code>anIndex</code>
+	 */
+	public static <T> T [] add(T [] anArray, int anIndex, T... elements)
+	{
+		T [] ret;
+		if(anArray == null)
+		{
+			if(anIndex != 0)
+				throw new ArrayIndexOutOfBoundsException("Cannot set " + anIndex
+					+ " element in a null array");
+			return elements;
+		}
+		ret = (T []) Array.newInstance(anArray.getClass().getComponentType(), anArray.length
+			+ elements.length);
+		System.arraycopy(anArray, 0, ret, 0, anIndex);
+		System.arraycopy(elements, 0, ret, anIndex, elements.length);
+		System
+			.arraycopy(anArray, anIndex, ret, anIndex + elements.length, anArray.length - anIndex);
 		return ret;
 	}
 
@@ -120,6 +147,19 @@ public final class ArrayUtils
 	{
 		int len = anArray == null ? 0 : Array.getLength(anArray);
 		return add(anArray, anElement, len);
+	}
+
+	/**
+	 * @param <T> The type of the array
+	 * @param anArray The array to extend
+	 * @param elements The elements to add into <code>anArray</code>
+	 * @return A new array of length <code>anArray.length+elements.length</code> whose contents are
+	 *         those of <code>anArray</code> followed by those of <code>elements</code>
+	 */
+	public static <T> T [] addAll(T [] anArray, T... elements)
+	{
+		int len = anArray == null ? 0 : Array.getLength(anArray);
+		return add(anArray, len, elements);
 	}
 
 	/**
@@ -414,6 +454,51 @@ public final class ArrayUtils
 			if(equals(anArray[i], anElement))
 				return i;
 		return -1;
+	}
+
+	/**
+	 * Searches an array using binary search. If the array is not sorted by the given comparator (or
+	 * by its natural order if <code>T</code> implements {@link Comparable}), this method will give
+	 * unpredictable results. By using binary search, this method can achieve much better
+	 * performance than {@link #indexOf(Object[], Object)}, especially for large arrays.
+	 * 
+	 * It should be noted that the compare method ({@link Comparable#compareTo(Object)} or
+	 * {@link java.util.Comparator#compare(Object, Object)}) is used for identity comparison, not
+	 * {@link Object#equals(Object)}. So the compare method may return 0 where equals returns false
+	 * or vice versa, this method may return a different result than
+	 * {@link #indexOf(Object[], Object)} even for sorted arrays.
+	 * 
+	 * @param <T> The type of array to search
+	 * @param array The array to search
+	 * @param anElement The element to search for
+	 * @param compare The comparator to use to compare the items. <code>T</code> implements
+	 *        {@link Comparable}, this may be null.
+	 * @return The index where the given item was found, or -1 if it was not found
+	 */
+	public static <T> int binaryIndexOf(T [] array, T anElement,
+		java.util.Comparator<? super T> compare)
+	{
+		int min = 0, max = array.length - 1;
+		while(min < max)
+		{
+			int mid = (min + max) >>> 1;
+			int comp = compare == null ? ((Comparable<T>) array[mid]).compareTo(anElement)
+				: compare.compare(array[mid], anElement);
+			if(comp > 0)
+				max = mid - 1;
+			else if(comp < 0)
+				min = mid + 1;
+			else
+				return mid;
+		}
+		if(min != max)
+			return -1;
+		int comp = compare == null ? ((Comparable<T>) array[min]).compareTo(anElement) : compare
+			.compare(array[min], anElement);
+		if(comp == 0)
+			return min;
+		else
+			return -1;
 	}
 
 	/**
@@ -1088,8 +1173,12 @@ public final class ArrayUtils
 	public static <T, T2 extends T> T [] commonElements(T [] array1, T2 [] array2)
 	{
 		int count = 0;
-		if(array1 == null || array2 == null)
+		if(array1 == null && array2 == null)
+			return null;
+		else if(array2 == null)
 			return (T []) Array.newInstance(array1.getClass().getComponentType(), 0);
+		else if(array1 == null)
+			return (T []) Array.newInstance(array2.getClass().getComponentType(), 0);
 		int i, j;
 		for(i = 0; i < array1.length; i++)
 			for(j = 0; j < array2.length; j++)
@@ -1860,9 +1949,7 @@ public final class ArrayUtils
 		return minIdx;
 	}
 
-	/**
-	 * Represents some statistical information calculated on a set of float data
-	 */
+	/** Represents some statistical information calculated on a set of float data */
 	public static class ArrayStatistics
 	{
 		/**
@@ -2017,7 +2104,7 @@ public final class ArrayUtils
 		}
 		if(!(array instanceof float []))
 			throw new IllegalArgumentException("Cannot statistically analyze a "
-				+ array.getClass().getName());
+				+ array.getClass().getName() + " array");
 		for(float f : (float []) array)
 			stats.inputValue(f);
 		return stats;
@@ -2041,7 +2128,7 @@ public final class ArrayUtils
 			int [] random = new int [10000];
 			int [] random2 = new int [random.length];
 			for(int i = 0; i < random.length; i++)
-				random[i] = (int) (Math.random() * Integer.MAX_VALUE);
+				random[i] = PrismsUtils.getRandomInt();
 			ArrayAdjuster.mergeSort(random2, random, 0, random.length);
 			boolean sorted = true;
 			for(int i = 0; i < random.length - 1; i++)
@@ -2056,14 +2143,14 @@ public final class ArrayUtils
 		{
 			final Integer [] start = new Integer [25];
 			for(int i = 0; i < start.length; i++)
-				start[i] = new Integer(i);
+				start[i] = Integer.valueOf(i);
 			Integer [] modifier = new Integer [start.length];
 			for(int i = 0; i < modifier.length; i++)
 			{
 				if(i % 5 != 0)
-					modifier[i] = new Integer(i);
+					modifier[i] = Integer.valueOf(i);
 				else
-					modifier[i] = new Integer(i / 5 * start.length);
+					modifier[i] = Integer.valueOf(i / 5 * start.length);
 			}
 			Integer [] result = adjust(start, modifier, new DifferenceListener<Integer, Integer>()
 			{

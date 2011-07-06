@@ -5,9 +5,7 @@ package prisms.util.json;
 
 import org.json.simple.JSONObject;
 
-/**
- * Contains fields and methods to cover some of the basic pieces of JSON validation
- */
+/** Contains fields and methods to cover some of the basic pieces of JSON validation */
 public abstract class DefaultJsonElement implements JsonElement
 {
 	private JsonSchemaParser theParser;
@@ -49,17 +47,13 @@ public abstract class DefaultJsonElement implements JsonElement
 		return theName;
 	}
 
-	/**
-	 * @return The schema constraints contained in this element's source
-	 */
+	/** @return The schema constraints contained in this element's source */
 	public JSONObject getConstraints()
 	{
 		return theConstraints;
 	}
 
-	/**
-	 * @return Whether this element's value may be null or missing
-	 */
+	/** @return Whether this element's value may be null or missing */
 	public boolean isNullable()
 	{
 		return isNullable;
@@ -78,16 +72,14 @@ public abstract class DefaultJsonElement implements JsonElement
 		{
 			if(!isNullable)
 				throw new JsonSchemaException("Null or missing value not allowed for JSON element "
-					+ this, this, jsonValue);
+					+ this, this, null);
 			else
 				return true;
 		}
 		return false;
 	}
 
-	/**
-	 * @return A string detailing the location of this element within the schema
-	 */
+	/** @return A string detailing the location of this element within the schema */
 	public String getPathString()
 	{
 		StringBuilder ret = new StringBuilder();
@@ -101,6 +93,7 @@ public abstract class DefaultJsonElement implements JsonElement
 		return ret.toString();
 	}
 
+	@Override
 	public String toString()
 	{
 		return getName() + "("

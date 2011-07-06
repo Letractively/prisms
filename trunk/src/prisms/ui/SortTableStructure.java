@@ -6,14 +6,10 @@ package prisms.ui;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-/**
- * A structure that allows for easier construction of the data content of a SortTable widget
- */
+/** A structure that allows for easier construction of the data content of a SortTable widget */
 public class SortTableStructure
 {
-	/**
-	 * Represents a row in the table
-	 */
+	/** Represents a row in the table */
 	public class TableRow
 	{
 		private boolean isSelected;
@@ -36,25 +32,19 @@ public class SortTableStructure
 			return theCells[cellIdx];
 		}
 
-		/**
-		 * @return Whether this row is selected or not
-		 */
+		/** @return Whether this row is selected or not */
 		public boolean isSelected()
 		{
 			return isSelected;
 		}
 
-		/**
-		 * @param s Whether this row is selected or not
-		 */
+		/** @param s Whether this row is selected or not */
 		public void setSelected(boolean s)
 		{
 			isSelected = s;
 		}
 
-		/**
-		 * Clears this row of all data (does not remove the rows)
-		 */
+		/** Clears this row of all data (does not remove the rows) */
 		public void clear()
 		{
 			isSelected = false;
@@ -62,13 +52,11 @@ public class SortTableStructure
 				cell.clear();
 		}
 
-		/**
-		 * @return An object representing this TableRow
-		 */
+		/** @return An object representing this TableRow */
 		public JSONObject serialize()
 		{
 			JSONObject ret = new JSONObject();
-			ret.put("selected", new Boolean(isSelected));
+			ret.put("selected", Boolean.valueOf(isSelected));
 			ret.put("cells", serializeCells());
 			return ret;
 		}
@@ -85,10 +73,8 @@ public class SortTableStructure
 		}
 	}
 
-	/**
-	 * Represents a cell in the table
-	 */
-	public class TableCell
+	/** Represents a cell in the table */
+	public static class TableCell
 	{
 		private String theLabel;
 
@@ -239,9 +225,9 @@ public class SortTableStructure
 				if(isBold)
 					style.put("bold", Boolean.TRUE);
 				if(theBGColor != null)
-					style.put("bgColor", prisms.util.JsonUtils.toHTML(theBGColor));
+					style.put("bgColor", prisms.util.ColorUtils.toHTML(theBGColor));
 				if(theFontColor != null)
-					style.put("fontColor", prisms.util.JsonUtils.toHTML(theFontColor));
+					style.put("fontColor", prisms.util.ColorUtils.toHTML(theFontColor));
 			}
 			return ret;
 		}
@@ -294,17 +280,13 @@ public class SortTableStructure
 		theColumnSortables[colIdx] = sortable;
 	}
 
-	/**
-	 * @return The number of rows in this table
-	 */
+	/** @return The number of rows in this table */
 	public int getRowCount()
 	{
 		return theRows.length;
 	}
 
-	/**
-	 * @param count The number of rows that this table should display
-	 */
+	/** @param count The number of rows that this table should display */
 	public void setRowCount(int count)
 	{
 		if(theRows.length == count)
@@ -345,18 +327,16 @@ public class SortTableStructure
 		JSONObject ret = new JSONObject();
 		JSONObject metadata = new JSONObject();
 		ret.put("metadata", metadata);
-		metadata.put("start", new Integer(start));
-		metadata.put("end", new Integer(end));
-		metadata.put("count", new Integer(count));
-		metadata.put("total", new Integer(total));
+		metadata.put("start", Integer.valueOf(start));
+		metadata.put("end", Integer.valueOf(end));
+		metadata.put("count", Integer.valueOf(count));
+		metadata.put("total", Integer.valueOf(total));
 		ret.put("columns", serializeColumns());
 		ret.put("content", serializeContent());
 		return ret;
 	}
 
-	/**
-	 * @return The serialized column headers of this table
-	 */
+	/** @return The serialized column headers of this table */
 	public JSONArray serializeColumns()
 	{
 		JSONArray ret = new JSONArray();
@@ -365,14 +345,12 @@ public class SortTableStructure
 			JSONObject col = new JSONObject();
 			ret.add(col);
 			col.put("label", theColumnNames[i]);
-			col.put("sortable", new Boolean(theColumnSortables[i]));
+			col.put("sortable", Boolean.valueOf(theColumnSortables[i]));
 		}
 		return ret;
 	}
 
-	/**
-	 * @return The serialized data content of this table
-	 */
+	/** @return The serialized data content of this table */
 	public JSONArray serializeContent()
 	{
 		JSONArray ret = new JSONArray();

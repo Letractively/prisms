@@ -27,36 +27,27 @@ public class SampleDownloadPlugin implements prisms.arch.DownloadPlugin
 
 	String theDownloadContent;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(final JSONObject evt)
 	{
-		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
-		ui.confirm("Are you sure you want to do a download?  This is just a sample, but"
-			+ " a download may be an expensive operation.", new prisms.ui.UI.ConfirmListener()
-		{
-			public void confirmed(boolean confirm)
+		theSession.getUI().confirm(
+			"Are you sure you want to do a download?  This is just a sample, but"
+				+ " a download may be an expensive operation.", new prisms.ui.UI.ConfirmListener()
 			{
-				if(confirm)
-					generateDownload(evt);
-			}
-		});
+				public void confirmed(boolean confirm)
+				{
+					if(confirm)
+						generateDownload(evt);
+				}
+			});
 	}
 
 	/**
@@ -72,10 +63,9 @@ public class SampleDownloadPlugin implements prisms.arch.DownloadPlugin
 		isCanceled = false;
 		isFinished = false;
 		theText = "Starting download generation";
-		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		/* Here is where we would generate our download content--use a progress dialog if this
 		 * content takes a long time */
-		ui.startTimedTask(new prisms.ui.UI.ProgressInformer()
+		theSession.getUI().startTimedTask(new prisms.ui.UI.ProgressInformer()
 		{
 			public void cancel() throws IllegalStateException
 			{
@@ -144,25 +134,16 @@ public class SampleDownloadPlugin implements prisms.arch.DownloadPlugin
 		isFinished = true;
 	}
 
-	/**
-	 * @see prisms.arch.DownloadPlugin#getContentType(org.json.simple.JSONObject)
-	 */
 	public String getContentType(JSONObject event)
 	{
 		return "text/json";
 	}
 
-	/**
-	 * @see prisms.arch.DownloadPlugin#getFileName(org.json.simple.JSONObject)
-	 */
 	public String getFileName(JSONObject event)
 	{
 		return "inputEvent.json";
 	}
 
-	/**
-	 * @see prisms.arch.DownloadPlugin#doDownload(org.json.simple.JSONObject, java.io.OutputStream)
-	 */
 	public void doDownload(JSONObject event, java.io.OutputStream stream)
 		throws java.io.IOException
 	{

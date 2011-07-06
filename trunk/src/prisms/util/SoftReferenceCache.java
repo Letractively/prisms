@@ -3,10 +3,7 @@
  */
 package prisms.util;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 
 /**
@@ -24,9 +21,7 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 
 	private java.lang.ref.ReferenceQueue<V> theRefQueue;
 
-	/**
-	 * Creates a SoftReferenceCache
-	 */
+	/** Creates a SoftReferenceCache */
 	public SoftReferenceCache()
 	{
 		theCache = new java.util.HashMap<K, KeyedSoftReference<V>>();
@@ -34,9 +29,6 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		theRefQueue = new java.lang.ref.ReferenceQueue<V>();
 	}
 
-	/**
-	 * @see java.util.Map#get(java.lang.Object)
-	 */
 	public V get(Object key)
 	{
 		Lock lock = theLock.readLock();
@@ -51,9 +43,6 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		}
 	}
 
-	/**
-	 * @see java.util.Map#put(java.lang.Object, java.lang.Object)
-	 */
 	public V put(K key, V value)
 	{
 		Lock lock = theLock.writeLock();
@@ -70,9 +59,6 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		}
 	}
 
-	/**
-	 * @see java.util.Map#remove(java.lang.Object)
-	 */
 	public V remove(Object key)
 	{
 		Lock lock = theLock.writeLock();
@@ -88,9 +74,6 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		}
 	}
 
-	/**
-	 * @see java.util.Map#clear()
-	 */
 	public void clear()
 	{
 		Lock lock = theLock.writeLock();
@@ -104,25 +87,16 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		}
 	}
 
-	/**
-	 * @see java.util.Map#size()
-	 */
 	public int size()
 	{
 		return theCache.size();
 	}
 
-	/**
-	 * @see java.util.Map#isEmpty()
-	 */
 	public boolean isEmpty()
 	{
 		return theCache.isEmpty();
 	}
 
-	/**
-	 * @see java.util.Map#containsKey(java.lang.Object)
-	 */
 	public boolean containsKey(Object key)
 	{
 		Lock lock = theLock.readLock();
@@ -137,18 +111,12 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		}
 	}
 
-	/**
-	 * @see java.util.Map#containsValue(java.lang.Object)
-	 */
 	public boolean containsValue(Object value)
 	{
 		throw new UnsupportedOperationException("The containsValue method is not supported by "
 			+ getClass().getName());
 	}
 
-	/**
-	 * @see java.util.Map#putAll(java.util.Map)
-	 */
 	public void putAll(Map<? extends K, ? extends V> m)
 	{
 		Lock lock = theLock.writeLock();
@@ -158,8 +126,8 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 			removeQueued();
 			for(java.util.Map.Entry<? extends K, ? extends V> entry : m.entrySet())
 			{
-				theCache.put(entry.getKey(), new KeyedSoftReference<V>(entry.getKey(), entry
-					.getValue(), theRefQueue));
+				theCache.put(entry.getKey(),
+					new KeyedSoftReference<V>(entry.getKey(), entry.getValue(), theRefQueue));
 			}
 		} finally
 		{
@@ -167,9 +135,6 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		}
 	}
 
-	/**
-	 * @see java.util.Map#keySet()
-	 */
 	public Set<K> keySet()
 	{
 		Lock lock = theLock.writeLock();
@@ -199,6 +164,8 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 
 					public K next()
 					{
+						if(index >= keys.length)
+							throw new java.util.NoSuchElementException();
 						index++;
 						return (K) keys[index - 1];
 					}
@@ -218,18 +185,12 @@ public class SoftReferenceCache<K, V> implements Map<K, V>
 		};
 	}
 
-	/**
-	 * @see java.util.Map#entrySet()
-	 */
 	public Set<java.util.Map.Entry<K, V>> entrySet()
 	{
 		throw new UnsupportedOperationException("The entrySet method is not supported by "
 			+ getClass().getName());
 	}
 
-	/**
-	 * @see java.util.Map#values()
-	 */
 	public Collection<V> values()
 	{
 		throw new UnsupportedOperationException("The values method is not supported by "

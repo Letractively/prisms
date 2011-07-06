@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<prisms>
+	<password-constraints>
+		<locked>true</locked>
+		<length>6</length>
+		<upper>1</upper>
+		<lower>1</lower>
+		<digit>1</digit>
+		<special>0</special>
+		<!--<duration>90</duration>-->
+		<!--<pre-unique>10</pre-unique>-->
+		<!--<change-interval>1440</change-interval>-->
+	</password-constraints>
+	<groups>
+		<!--Manager groups -->
+		<group app="MANAGER" name="userAdmin">
+			<description>Users can manage all users</description>
+			<permission>createUser</permission>
+			<permission>createGroup</permission>
+			<permission>userAdmin</permission>
+		</group>
+
+		<!--No Log4j groups -->
+	</groups>
+	<users>
+		<user name="admin" readonly="true">
+			<admin>true</admin>
+			<app-assoc>MANAGER</app-assoc>
+			<app-assoc>Log4j</app-assoc>
+			<group app="MANAGER" name="userAdmin" />
+			<password>admin</password>
+		</user>
+	</users>
+</prisms>

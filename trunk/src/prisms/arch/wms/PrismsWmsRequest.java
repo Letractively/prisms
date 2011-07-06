@@ -76,27 +76,25 @@ public class PrismsWmsRequest
 	/** Represents a WMS bounding box */
 	public static class BoundingBox
 	{
-		/**
-		 * The minimum latitude for the bounding box
-		 */
+		/** The minimum latitude for the bounding box */
 		public final float minLat;
 
-		/**
-		 * The maximum latitude for the bounding box
-		 */
+		/** The maximum latitude for the bounding box */
 		public final float maxLat;
 
-		/**
-		 * The minimum longitude for the bounding box
-		 */
+		/** The minimum longitude for the bounding box */
 		public final float minLon;
 
-		/**
-		 * The maximum longitude for the bounding box
-		 */
+		/** The maximum longitude for the bounding box */
 		public final float maxLon;
 
-		BoundingBox(float aMinLat, float aMaxLat, float aMinLon, float aMaxLon)
+		/**
+		 * @param aMinLat The minimum latitude for the box
+		 * @param aMaxLat The maximum latitude for the box
+		 * @param aMinLon The minimum longitude for the box
+		 * @param aMaxLon The maximum longitude for the box
+		 */
+		public BoundingBox(float aMinLat, float aMaxLat, float aMinLon, float aMaxLon)
 		{
 			minLat = aMinLat;
 			maxLat = aMaxLat;
@@ -104,33 +102,25 @@ public class PrismsWmsRequest
 			maxLon = aMaxLon;
 		}
 
-		/**
-		 * @return The center latitude for this bounding box
-		 */
+		/** @return The center latitude for this bounding box */
 		public float getCenterLat()
 		{
 			return (minLat + maxLat) / 2;
 		}
 
-		/**
-		 * @return The center longitude for this bounding box
-		 */
+		/** @return The center longitude for this bounding box */
 		public float getCenterLon()
 		{
 			return (minLon + maxLon) / 2;
 		}
 
-		/**
-		 * @return The latitude range for this bounding box
-		 */
+		/** @return The latitude range for this bounding box */
 		public float getLatRange()
 		{
 			return maxLat - minLat;
 		}
 
-		/**
-		 * @return The longitude range for this bounding box
-		 */
+		/** @return The longitude range for this bounding box */
 		public float getLonRange()
 		{
 			return maxLon - minLon;
@@ -208,6 +198,24 @@ public class PrismsWmsRequest
 	}
 
 	/**
+	 * Parses a WMS request from an HTTP request
+	 * 
+	 * @param request The HTTP request to parse the WMS request from
+	 * @return The WMS request represented by the given HTTP request
+	 */
+	public static PrismsWmsRequest parseWMS(HttpServletRequest request)
+	{
+		PrismsWmsRequest ret = parseWMS(request.getParameterMap());
+		ret.theServerName = request.getServerName();
+		ret.thePort = request.getServerPort();
+		ret.theContextPath = request.getContextPath();
+		ret.theRemoteAddress = request.getRemoteAddr();
+		ret.theScheme = request.getScheme();
+		ret.theServletPath = request.getServletPath();
+		return ret;
+	}
+
+	/**
 	 * Parses a WMS request from a set of parameters
 	 * 
 	 * @param paramMap The parameters from the HTTP request
@@ -245,7 +253,7 @@ public class PrismsWmsRequest
 			else
 				ret.theRequestParams.put(pName, entry.getValue()[0]);
 		}
-		String [] vSplit = version.split(".");
+		String [] vSplit = version.split("\\.");
 		ret.theVersion = new int [vSplit.length];
 		for(int v = 0; v < ret.theVersion.length; v++)
 			ret.theVersion[v] = Integer.parseInt(vSplit[v]);
@@ -304,6 +312,12 @@ public class PrismsWmsRequest
 		return theRemoteAddress;
 	}
 
+	/** @param ra The address from which this request was made */
+	public void setRemoteAddress(String ra)
+	{
+		theRemoteAddress = ra;
+	}
+
 	/**
 	 * @return The servlet path at which this request was made
 	 * @see HttpServletRequest#getServletPath()
@@ -311,6 +325,12 @@ public class PrismsWmsRequest
 	public String getServletPath()
 	{
 		return theServletPath;
+	}
+
+	/** @param sp The servlet path at which this request was made */
+	public void setServletPath(String sp)
+	{
+		theServletPath = sp;
 	}
 
 	/**
@@ -322,6 +342,12 @@ public class PrismsWmsRequest
 		return theScheme;
 	}
 
+	/** @param s The schem of the request */
+	public void setScheme(String s)
+	{
+		theScheme = s;
+	}
+
 	/**
 	 * @return The name of the server that was invoked for this request
 	 * @see HttpServletRequest#getServerName()
@@ -329,6 +355,12 @@ public class PrismsWmsRequest
 	public String getServerName()
 	{
 		return theServerName;
+	}
+
+	/** @param sn The name of the server that was invoked for this request */
+	public void setServerName(String sn)
+	{
+		theServerName = sn;
 	}
 
 	/**
@@ -340,6 +372,12 @@ public class PrismsWmsRequest
 		return theContextPath;
 	}
 
+	/** @param cp The context path of the request */
+	public void setContextPath(String cp)
+	{
+		theContextPath = cp;
+	}
+
 	/**
 	 * @return The port at which this request was invoked
 	 * @see HttpServletRequest#getServerPort()
@@ -347,6 +385,12 @@ public class PrismsWmsRequest
 	public int getPort()
 	{
 		return thePort;
+	}
+
+	/** @param port The port at which this request was invoked */
+	public void setPort(int port)
+	{
+		thePort = port;
 	}
 
 	/**

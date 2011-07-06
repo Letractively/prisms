@@ -5,11 +5,10 @@ package prisms.util.json;
 
 import org.json.simple.JSONObject;
 
-/**
- * Validates an element that could take one of several types of values
- */
+/** Validates an element that could take one of several types of values */
 public class EnumElement extends ContainerJsonElement
 {
+	@Override
 	public void configure(JsonSchemaParser parser, JsonElement parent, String name,
 		JSONObject schemaEl)
 	{

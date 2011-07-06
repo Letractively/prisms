@@ -60,9 +60,9 @@ __dojo.declare("manager.UserGroupAssocEditor", [__dijit._Widget, __dijit._Contai
 		this.setVisible(true);
 		this.dataLock=true;
 		try{
-			this.groupDescription.innerHTML=value.group.descrip;
-			this.groupHasUserText.innerHTML="&nbsp;&nbsp;&nbsp;User '"+value.user
-				+"' membership in group  '"+value.group.name+"':";
+			this.groupDescription.innerHTML=PrismsUtils.fixUnicodeString(value.group.descrip);
+			this.groupHasUserText.innerHTML=PrismsUtils.fixUnicodeString(
+				"&nbsp;&nbsp;&nbsp;User '"+value.user+"' membership in group  '"+value.group.name+"':");
 			this.groupHasUserCheck.setAttribute("checked", value.group.selected);
 		} finally{
 			this.dataLock=false;

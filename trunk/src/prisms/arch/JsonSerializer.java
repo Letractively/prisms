@@ -9,24 +9,16 @@ import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-/**
- * A very simple serializer that writes and reads JSON, performing a simple check on sent objects
- */
+/** A very simple serializer that writes and reads JSON, performing a simple check on sent objects */
 public class JsonSerializer implements RemoteEventSerializer
 {
 	private static final Logger log = Logger.getLogger(JsonSerializer.class);
 
-	/**
-	 * @see prisms.arch.RemoteEventSerializer#deserialize(java.lang.String)
-	 */
 	public JSONObject deserialize(String evtString) throws java.io.InvalidObjectException
 	{
 		String replaced = evtString.replaceAll("undefined", "null");
 		if(replaced != evtString)
-		{
-			log.warn("undefined found in JSON string");
 			evtString = replaced;
-		}
 		Object json;
 		try
 		{
@@ -46,9 +38,6 @@ public class JsonSerializer implements RemoteEventSerializer
 		return ret;
 	}
 
-	/**
-	 * @see prisms.arch.RemoteEventSerializer#serialize(org.json.simple.JSONArray)
-	 */
 	public String serialize(JSONArray evt) throws NotSerializableException
 	{
 		validate(evt);

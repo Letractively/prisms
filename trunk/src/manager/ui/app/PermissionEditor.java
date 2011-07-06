@@ -29,10 +29,10 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 
 	boolean theDataLock;
 
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		Permission p = session.getProperty(ManagerProperties.selectedAppPermission);
 		UserGroup group = session.getProperty(ManagerProperties.selectedAppGroup);
 		setPermissionGroup(p, group);
@@ -72,14 +72,16 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		evt.put("method", "setEnabled");
 		evt.put(
 			"enabled",
-			new Boolean(thePermission != null
+			Boolean.valueOf(thePermission != null
 				&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), thePermission)));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setGroupCheckEnabled");
-		evt.put("enabled", new Boolean(thePermission != null && theGroup != null
-			&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theGroup)));
+		evt.put(
+			"enabled",
+			Boolean.valueOf(thePermission != null && theGroup != null
+				&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(), theGroup)));
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setData");
@@ -95,7 +97,7 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 				group = new JSONObject();
 				group.put("name", theGroup.getName());
 				group.put("selected",
-					new Boolean(theGroup.getPermissions().has(thePermission.getName())));
+					Boolean.valueOf(theGroup.getPermissions().has(thePermission.getName())));
 			}
 			data.put("group", group);
 		}
@@ -156,7 +158,8 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 				theGroup.getPermissions().addPermission(thePermission);
 			else
 				theGroup.getPermissions().removePermission(thePermission.getName());
-			((ManageableUserSource) us).putGroup(theGroup);
+			((ManageableUserSource) us).putGroup(theGroup, new prisms.records.RecordsTransaction(
+				theSession.getUser()));
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not modify group-permission relationship", e);
@@ -164,11 +167,7 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 		theDataLock = true;
 		try
 		{
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupPermissionsChanged",
-				"group", theGroup));
-			for(int u = 0; u < users.length; u++)
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
-					users[u]));
+			theSession.fireEvent("groupChanged", "group", theGroup);
 		} finally
 		{
 			theDataLock = false;

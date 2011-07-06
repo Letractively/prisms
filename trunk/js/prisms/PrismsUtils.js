@@ -51,7 +51,7 @@ window.PrismsUtils =  {
 		}
 	},
 
-	fixUnicodeString: function(str){
+	fixUnicodeString: function(str, cleanTags){
 		if(str==null)
 			return str;
 		var idx=str.indexOf("\\u");
@@ -61,6 +61,15 @@ window.PrismsUtils =  {
 			str=str.substring(0, idx)+codeChar+str.substring(idx+6);
 			idx=str.indexOf("\\u");
 		}
+		if(cleanTags!=false)
+			return this.cleanTags(str);
+		else
+			return str;
+	},
+
+	cleanTags: function(str){
+		str=str.split('<').join("&lt;").split('>').join("&gt;");
+		str=str.split("\n").join("<br />").split("\t").join("&nbsp;&nbsp;&nbsp;&nbsp;");
 		return str;
 	},
 
@@ -89,6 +98,23 @@ window.PrismsUtils =  {
 			cell.style.display="table-cell";
 		else
 			cell.style.display="none";
+	},
+
+	printTime: function(time) {
+		time=new Date(time);
+		var day=""+time.getUTCDate();
+		if (day.length<2) 
+			day="0"+day;
+		var monthStrings=["Jan","Feb","Mar","Apr","May","Jun", "Jul","Aug","Sep","Oct","Nov","Dec"];
+		var month=monthStrings[time.getUTCMonth()];
+		var year=time.getUTCFullYear();
+		var hour=""+time.getUTCHours();
+		if (hour.length<2)
+			hour="0"+hour;
+		var minute=""+time.getUTCMinutes();
+		if (minute.length<2)
+			minute="0"+minute;
+		return day+month+year+" "+hour+minute+"Z";
 	},
 
 	setComboValue: function(select, value){
@@ -169,6 +195,25 @@ window.PrismsUtils =  {
 
 	/**
 	 * Ported from prisms.util.ArrayUtils.adjust(T1 [], T2 [], DifferenceListenerE<T1, T2, E>)
+	 * 
+	 * This listener sent as the dl parameter should look like
+	 * {
+	 *		identity: function(node, item){
+	 * 			...
+	 *		},
+	 *
+	 *		added: function(item, idx2, retIdx){
+	 * 			...
+	 *		},
+	 *
+	 *		removed: function(node, idx1, incMod, retIdx){
+	 * 			...
+	 *		},
+	 *
+	 *		set: function(node, idx1, incMod, item, idx2, retIdx){
+	 * 			...
+	 *		}
+	 * }
 	 */
 	adjust: function(original, modifier, dl)
 	{

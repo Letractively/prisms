@@ -1,4 +1,4 @@
-/**
+/*
  * AbstractSimpleTreeNode.java Created Oct 5, 2007 by Andrew Butler, PSL
  */
 package prisms.ui.tree;
@@ -17,16 +17,14 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 {
 	private final DataTreeManager theMgr;
 
+	private final String theID;
+
 	private Action [] theActions;
 
-	/**
-	 * This node's parent
-	 */
+	/** This node's parent */
 	protected DataTreeNode theParent;
 
-	/**
-	 * This node's children
-	 */
+	/** This node's children */
 	protected DataTreeNode [] theChildren;
 
 	private boolean isSelected;
@@ -42,6 +40,23 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 	public AbstractSimpleTreeNode(DataTreeManager mgr, DataTreeNode parent)
 	{
 		theMgr = mgr;
+		theID = Integer.toHexString(hashCode());
+		theParent = parent;
+		theChildren = new DataTreeNode [0];
+		theActions = new Action [0];
+	}
+
+	/**
+	 * Creates a tree node
+	 * 
+	 * @param mgr The manager managing this node and its relatives
+	 * @param id The ID for this node
+	 * @param parent This node's parent
+	 */
+	public AbstractSimpleTreeNode(DataTreeManager mgr, String id, DataTreeNode parent)
+	{
+		theMgr = mgr;
+		theID = id;
 		theParent = parent;
 		theChildren = new DataTreeNode [0];
 		theActions = new Action [0];
@@ -49,20 +64,16 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 
 	public final String getID()
 	{
-		return Integer.toHexString(hashCode());
+		return theID;
 	}
 
-	/**
-	 * @return Whether selecting this node changes its appearance
-	 */
+	/** @return Whether selecting this node changes its appearance */
 	public boolean selectionChangesNode()
 	{
 		return selectionChangesNode;
 	}
 
-	/**
-	 * @param change Whether selection changes this node's appearance
-	 */
+	/** @param change Whether selection changes this node's appearance */
 	public void setSelectionChangesNode(boolean change)
 	{
 		selectionChangesNode = change;
@@ -75,28 +86,52 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 	 */
 	public void setChildren(DataTreeNode [] children)
 	{
+		DataTreeNode [] oldCh = children;
 		theChildren = children;
+		prisms.util.ArrayUtils.adjust(oldCh, children,
+			new prisms.util.ArrayUtils.DifferenceListener<DataTreeNode, DataTreeNode>()
+			{
+				public boolean identity(DataTreeNode o1, DataTreeNode o2)
+				{
+					return o1.equals(o2);
+				}
+
+				public DataTreeNode added(DataTreeNode o, int mIdx, int retIdx)
+				{
+					if(o instanceof AbstractSimpleTreeNode && o.getParent() == null)
+						((AbstractSimpleTreeNode) o).theParent = AbstractSimpleTreeNode.this;
+					else if(o.getParent() != AbstractSimpleTreeNode.this)
+						throw new IllegalStateException("Child " + o.getText() + " of node "
+							+ getText() + " has a different parent");
+					return null;
+				}
+
+				public DataTreeNode removed(DataTreeNode o, int oIdx, int incMod, int retIdx)
+				{
+					if(o instanceof AbstractSimpleTreeNode)
+						((AbstractSimpleTreeNode) o).removed();
+					return null;
+				}
+
+				public DataTreeNode set(DataTreeNode o1, int idx1, int incMod, DataTreeNode o2,
+					int idx2, int retIdx)
+				{
+					return null;
+				}
+			});
 	}
 
-	/**
-	 * @return The tree manager managing this node and its relatives
-	 */
+	/** @return The tree manager managing this node and its relatives */
 	public DataTreeManager getManager()
 	{
 		return theMgr;
 	}
 
-	/**
-	 * @see prisms.ui.tree.DataTreeNode#getParent()
-	 */
 	public DataTreeNode getParent()
 	{
 		return theParent;
 	}
 
-	/**
-	 * @see prisms.ui.tree.DataTreeNode#getChildren()
-	 */
 	public DataTreeNode [] getChildren()
 	{
 		return theChildren;
@@ -110,6 +145,11 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 	 */
 	public void add(DataTreeNode node, int index)
 	{
+		if(node instanceof AbstractSimpleTreeNode && node.getParent() == null)
+			((AbstractSimpleTreeNode) node).theParent = AbstractSimpleTreeNode.this;
+		else if(node.getParent() != AbstractSimpleTreeNode.this)
+			throw new IllegalStateException("Child " + node.getText() + " of node " + getText()
+				+ " has a different parent");
 		theChildren = prisms.util.ArrayUtils.add(theChildren, node, index);
 		theMgr.nodeAdded(node, index);
 	}
@@ -124,6 +164,8 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 		DataTreeNode child = theChildren[index];
 		theChildren = prisms.util.ArrayUtils.remove(theChildren, index);
 		theMgr.nodeRemoved(child);
+		if(child instanceof AbstractSimpleTreeNode)
+			((AbstractSimpleTreeNode) child).removed();
 	}
 
 	/**
@@ -134,6 +176,10 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 	 */
 	public void changed(boolean recursive)
 	{
+		if(theParent == null && theMgr.getRoot() != this)
+			return;
+		if(theParent != null && !prisms.util.ArrayUtils.contains(theParent.getChildren(), this))
+			return;
 		theMgr.nodeChanged(this, recursive);
 	}
 
@@ -155,25 +201,26 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 		theMgr.nodeMoved(child, toIdx);
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#isSelected()
-	 */
+	/** Called just after this node is removed from its parent or from the tree as the root. */
+	protected void removed()
+	{
+		theParent = null;
+		for(DataTreeNode child : theChildren)
+			if(child instanceof AbstractSimpleTreeNode
+				&& ((AbstractSimpleTreeNode) child).theParent == this)
+				((AbstractSimpleTreeNode) child).removed();
+	}
+
 	public boolean isSelected()
 	{
 		return isSelected;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#setSelected(boolean)
-	 */
 	public void setSelected(boolean selected)
 	{
 		isSelected = selected;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#userSetSelected(boolean)
-	 */
 	public void userSetSelected(boolean selected)
 	{
 		boolean changed = isSelected != selected;
@@ -209,9 +256,7 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 		return idx >= 0;
 	}
 
-	/**
-	 * @return The actions available to the user for this node
-	 */
+	/** @return The actions available to the user for this node */
 	public Action [] getAvailableActions()
 	{
 		return theActions;
@@ -219,31 +264,44 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 
 	public NodeAction [] getActions()
 	{
-		NodeAction [] ret = new NodeAction [0];
-		for(int a = 0; a < theActions.length; a++)
+		Action [] actions = theActions;
+		int count = 0;
+		for(int i = 0; i < actions.length; i++)
+			if(actions[i].isEnabled())
+				count++;
+		NodeAction [] ret = new NodeAction [count];
+		count = 0;
+		for(int a = 0; a < actions.length; a++)
 		{
-			if(!theActions[a].isEnabled())
+			if(!actions[a].isEnabled())
 				continue;
 			boolean multi;
-			if(theActions[a].getValue("multiple") instanceof String)
-				multi = "true".equalsIgnoreCase((String) theActions[a].getValue("multiple"));
+			if(actions[a].getValue("multiple") instanceof String)
+				multi = "true".equalsIgnoreCase((String) actions[a].getValue("multiple"));
 			else if(theActions[a].getValue("multiple") instanceof Boolean)
-				multi = ((Boolean) theActions[a].getValue("multiple")).booleanValue();
+				multi = ((Boolean) actions[a].getValue("multiple")).booleanValue();
 			else
 				multi = false;
-			ret = prisms.util.ArrayUtils.add(ret,
-				new NodeAction((String) theActions[a].getValue(Action.NAME), multi));
+			if(count == ret.length)
+			{
+				ret = prisms.util.ArrayUtils.add(ret,
+					new NodeAction((String) actions[a].getValue(Action.NAME), multi));
+				count++;
+			}
+			else
+				ret[count++] = new NodeAction((String) actions[a].getValue(Action.NAME), multi);
 		}
 		return ret;
 	}
 
 	public void doAction(String action)
 	{
+		Action [] actions = theActions;
 		javax.swing.Action toDo = null;
-		for(int a = 0; a < theActions.length; a++)
-			if(action.equals(theActions[a].getValue(Action.NAME)))
+		for(int a = 0; a < actions.length; a++)
+			if(action.equals(actions[a].getValue(Action.NAME)))
 			{
-				toDo = theActions[a];
+				toDo = actions[a];
 				break;
 			}
 		if(toDo == null)
@@ -263,8 +321,8 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 		ret.put("text", getText());
 		ret.put("icon", getIcon());
 		ret.put("description", getDescription());
-		ret.put("bgColor", prisms.util.JsonUtils.toHTML(getBackground()));
-		ret.put("textColor", prisms.util.JsonUtils.toHTML(getForeground()));
+		ret.put("bgColor", prisms.util.ColorUtils.toHTML(getBackground()));
+		ret.put("textColor", prisms.util.ColorUtils.toHTML(getForeground()));
 		ret.put("actions", prisms.util.JsonUtils.serialize(getActions()));
 		return ret;
 	}

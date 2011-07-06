@@ -1,10 +1,10 @@
-/**
+/*
  * ManageableUserSource.java Created Jun 25, 2008 by Andrew Butler, PSL
  */
 package prisms.arch.ds;
 
 import prisms.arch.PrismsException;
-import prisms.records2.RecordsTransaction;
+import prisms.records.RecordsTransaction;
 
 /**
  * An extension of {@link UserSource} that allows an application to configure users, applications,
@@ -28,6 +28,29 @@ public interface ManageableUserSource extends UserSource
 		 * @param user The user that was modified
 		 */
 		void userChanged(User user);
+
+		/**
+		 * Called when a user is added or removed from a group or when a permission is added or
+		 * removed from a group that the user belongs to
+		 * 
+		 * @param user The user whose authority may have changed
+		 */
+		void userAuthorityChanged(User user);
+
+		/**
+		 * Called when groups are created or deleted
+		 * 
+		 * @param app The application whose group set changed
+		 * @param groups The new set of groups available to the user source
+		 */
+		void groupSetChanged(prisms.arch.PrismsApplication app, UserGroup [] groups);
+
+		/**
+		 * Called when a group is modified
+		 * 
+		 * @param group The group that was modified
+		 */
+		void groupChanged(UserGroup group);
 	}
 
 	/** @param listener The listener to listen for changes to this user source's user set */
@@ -40,7 +63,7 @@ public interface ManageableUserSource extends UserSource
 	void removeListener(UserSetListener listener);
 
 	/** @return The record keeper that keeps track of changes to this user source */
-	prisms.records2.DBRecordKeeper getRecordKeeper();
+	prisms.records.DBRecordKeeper getRecordKeeper();
 
 	/**
 	 * @return The system user that can be used in record-keeping when an operation is not caused
@@ -66,6 +89,15 @@ public interface ManageableUserSource extends UserSource
 	 * @throws PrismsException If an error occurs getting the data
 	 */
 	UserGroup [] getGroups(prisms.arch.PrismsApplication app) throws PrismsException;
+
+	/**
+	 * Gets a user group by ID
+	 * 
+	 * @param id The ID of the group to get
+	 * @return The group with the given ID
+	 * @throws PrismsException If an error occurs getting the data
+	 */
+	UserGroup getGroup(long id) throws PrismsException;
 
 	/**
 	 * @return All users registered in this user source, including those that have been deleted or
@@ -130,25 +162,29 @@ public interface ManageableUserSource extends UserSource
 	 * 
 	 * @param app The application that the new group is for
 	 * @param name The name for the new group
+	 * @param trans The transaction with which to record the data
 	 * @return The new group
 	 * @throws PrismsException If an error occurs accessing the data
 	 */
-	UserGroup createGroup(prisms.arch.PrismsApplication app, String name) throws PrismsException;
+	UserGroup createGroup(prisms.arch.PrismsApplication app, String name, RecordsTransaction trans)
+		throws PrismsException;
 
 	/**
 	 * Modifies a group. This method is a catch-all for any kind of legal modification to a user,
 	 * including name, description, permissions, etc.
 	 * 
 	 * @param group The group to modify
+	 * @param trans The transaction with which to record the data
 	 * @throws PrismsException If an error occurs modifying the group
 	 */
-	void putGroup(UserGroup group) throws PrismsException;
+	void putGroup(UserGroup group, RecordsTransaction trans) throws PrismsException;
 
 	/**
 	 * Deletes a group
 	 * 
 	 * @param group The group to delete
+	 * @param trans The transaction with which to record the data
 	 * @throws PrismsException If an error occurs accessing the data
 	 */
-	void deleteGroup(UserGroup group) throws PrismsException;
+	void deleteGroup(UserGroup group, RecordsTransaction trans) throws PrismsException;
 }

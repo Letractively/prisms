@@ -4,29 +4,23 @@
 package log4j.ui;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 
 import prisms.arch.PrismsSession;
-import prisms.ui.tree.DataTreeMgrPlugin;
 import prisms.ui.tree.DataTreeNode;
 
-/**
- * Displays the entire hierarchy of Log4j {@link Logger}s to the user
- */
-public class LoggerTree extends DataTreeMgrPlugin
+/** Displays the entire hierarchy of Log4j {@link Logger}s to the user */
+public class LoggerTree extends prisms.ui.tree.DataTreeMgrPlugin
 {
-	/**
-	 * @see prisms.ui.tree.DataTreeMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	@Override
-	public void initPlugin(PrismsSession session, Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		setSelectionMode(SelectionMode.SINGLE);
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		Logger rootlog = org.apache.log4j.Logger.getRootLogger();
 		setRoot(new LoggerNode(this, null, false, rootlog));
 	}
 
+	@Override
 	public void initClient()
 	{
 		java.util.Enumeration<Logger> logs = org.apache.log4j.LogManager.getCurrentLoggers();
@@ -35,9 +29,6 @@ public class LoggerTree extends DataTreeMgrPlugin
 		super.initClient();
 	}
 
-	/**
-	 * @see prisms.ui.tree.DataTreeMgrPlugin#setSelection(prisms.ui.tree.DataTreeNode[], boolean)
-	 */
 	@Override
 	public void setSelection(DataTreeNode [] nodes, boolean fromUser)
 	{
@@ -71,22 +62,21 @@ public class LoggerTree extends DataTreeMgrPlugin
 			if(toUse == null)
 			{
 				toUse = new LoggerNode(this, subtree, subtree.hasPublicActions(), log);
-				subtree
-					.setChildren(prisms.util.ArrayUtils.add(subtree.getChildren(), toUse));
+				subtree.setChildren(prisms.util.ArrayUtils.add(subtree.getChildren(), toUse));
 			}
 			return;
 		}
 		if(toUse == null)
 		{
 			Logger intermediateLog;
-			String name = "";
+			StringBuilder name = new StringBuilder();
 			for(int p = 0; p < pathIndex + 1; p++)
 			{
-				name += path[p];
+				name.append(path[p]);
 				if(p != pathIndex)
-					name += ".";
+					name.append(".");
 			}
-			intermediateLog = org.apache.log4j.Logger.getLogger(name);
+			intermediateLog = org.apache.log4j.Logger.getLogger(name.toString());
 			toUse = new LoggerNode(this, subtree, subtree.hasPublicActions(), intermediateLog);
 			subtree.setChildren(prisms.util.ArrayUtils.add(subtree.getChildren(), toUse));
 		}

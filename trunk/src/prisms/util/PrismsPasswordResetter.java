@@ -63,12 +63,20 @@ public class PrismsPasswordResetter
 		{
 			if(theCenterID < 0)
 			{
-				sql = "SELECT centerID FROM " + prefix + "prisms_installation";
+				sql = "SELECT * FROM " + prefix + "prisms_installation";
 				rs = stmt.executeQuery(sql);
 				if(!rs.next())
 					throw new IllegalStateException(
 						"PRISMS has not been installed--no users to reset passwords");
-				theCenterID = rs.getInt(1);
+				try
+				{
+					theCenterID = rs.getInt("centerID");
+				} catch(java.sql.SQLException e)
+				{
+					/* Probably means this is an older version of PRISMS with no centerID in the
+					 * prisms_installation table */
+					theCenterID = 0;
+				}
 				rs.close();
 				rs = null;
 			}
@@ -136,8 +144,8 @@ public class PrismsPasswordResetter
 			if(expireMinutes != null)
 				pwdExpire = System.currentTimeMillis() + expireMinutes.intValue() * 60L * 1000;
 			String pwdData = prisms.impl.DBUserSource.join(theHashing.partialHash(password));
-			int nextPwdID = prisms.arch.ds.IDGenerator.getNextIntID(stmt, prefix
-				+ "prisms_user_password", "id", null);
+			int nextPwdID = (int) prisms.arch.ds.IDGenerator.nextAvailableID(stmt, prefix
+				+ "prisms_user_password", "id", 0, null);
 			sql = "INSERT INTO " + prefix + "prisms_user_password (id, pwdUser, pwdData, pwdTime,"
 				+ " pwdExpire) VALUES (" + nextPwdID + ", " + userID + ", "
 				+ DBUtils.toSQL(pwdData) + ", " + System.currentTimeMillis() + ", "
@@ -174,36 +182,36 @@ public class PrismsPasswordResetter
 	 */
 	public static void main(String [] args)
 	{
-		org.dom4j.Element root;
+		prisms.arch.PrismsConfig root;
 		try
 		{
-			root = PrismsUtils.getRootElement("PasswordReset.xml",
-				PrismsUtils.getLocation(PrismsPasswordResetter.class));
+			root = prisms.arch.PrismsConfig.fromXml(null, "PasswordReset.xml",
+				prisms.arch.PrismsConfig.getLocation(PrismsPasswordResetter.class));
 		} catch(java.io.IOException e)
 		{
 			throw new IllegalArgumentException("No PasswordReset.xml", e);
 		}
-		prisms.impl.DefaultPersisterFactory factory = new prisms.impl.DefaultPersisterFactory();
-		factory.configure(root.element("persisterFactory"));
-		org.dom4j.Element connEl = root.element("connection");
-		java.sql.Connection conn = factory.getConnection(connEl);
-		String prefix = factory.getTablePrefix(conn, connEl);
+		prisms.arch.ConnectionFactory factory = new prisms.impl.DefaultConnectionFactory();
+		factory.configure(root.subConfig("connection-factory"));
+		prisms.arch.PrismsConfig connEl = root.subConfig("connection");
+		prisms.arch.ds.Transactor<java.sql.SQLException> trans = factory.getConnection(connEl, null,
+			null);
 		PrismsPasswordResetter resetter = new PrismsPasswordResetter();
 		java.sql.Statement stmt = null;
 		try
 		{
-			stmt = conn.createStatement();
+			stmt = trans.getConnection().createStatement();
 
-			for(org.dom4j.Element userEl : (java.util.List<org.dom4j.Element>) root
-				.elements("user"))
+			for(prisms.arch.PrismsConfig userEl : root.subConfigs("user"))
 			{
-				String userName = userEl.attributeValue("name");
-				String password = userEl.attributeValue("password");
-				Integer expireMinutes = userEl.attributeValue("expire") == null ? null
-					: new Integer(userEl.attributeValue("expire"));
+				String userName = userEl.get("name");
+				String password = userEl.get("password");
+				Integer expireMinutes = userEl.get("expire") == null ? null : new Integer(
+					userEl.get("expire"));
 				try
 				{
-					resetter.setPassword(stmt, prefix, userName, -1, password, expireMinutes);
+					resetter.setPassword(stmt, trans.getTablePrefix(), userName, -1, password,
+						expireMinutes);
 					System.out.println("Reset password of user " + userName);
 				} catch(PrismsException e)
 				{
@@ -221,7 +229,7 @@ public class PrismsPasswordResetter
 					stmt.close();
 				} catch(java.sql.SQLException e)
 				{}
-			factory.disconnect(conn, connEl);
+			trans.release();
 			factory.destroy();
 		}
 		System.out.println("Finished setting passwords");

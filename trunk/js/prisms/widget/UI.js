@@ -5,7 +5,7 @@ __dojo.require("dijit.ProgressBar");
 __dojo.provide("prisms.widget.UI");
 __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 
-	pluginName: "No pluginName specified",
+	pluginName: "UI",
 
 	prisms: null,
 
@@ -100,74 +100,131 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 			return;
 		if(event.message)
 		{
+			var leftAlign=event.message.indexOf('\t')>=0;
 			event.message=PrismsUtils.fixUnicodeString(event.message);
-			var msg=event.message.split("\n");
-			event.message=msg.join("<br />");
-			msg=event.message.split("\t");
-			var leftAlign=msg.length>1;
 			if(leftAlign)
 				this.labelNode.style.textAlign="left";
 			else
 				this.labelNode.style.textAlign="center";
-			event.message=msg.join("&nbsp;&nbsp;&nbsp;&nbsp;");
+
+			var spaces=0;
+			for(var c=0;c<event.message.length;c++)
+			{
+				if(event.message.charAt(c)==' ')
+					spaces++;
+				else if(spaces>1)
+				{
+					var newMsg=event.message.substring(0, c-spaces);
+					for(var s=0;s<spaces;s++)
+						newMsg+="&nbsp;";
+					newMsg+=event.message.substring(c);
+					spaces=0;
+					event.message=newMsg;
+				}
+				else if(spaces>0)
+					spaces=0;
+			}
 		}
 		if(event.method=="error")
-			this.showError(event.message);
+			this.showError(event.message, event);
 		else if(event.method=="warning")
-			this.showWarning(event.message);
+			this.showWarning(event.message, event);
 		else if(event.method=="info")
-			this.showInfo(event.message);
+			this.showInfo(event.message, event);
 		else if(event.method=="confirm")
-			this.showConfirm(event.message, event.messageID);
+			this.showConfirm(event.message, event.messageID, event);
 		else if(event.method=="input")
-			this.showInput(event.message, event.init, event.messageID);
+			this.showInput(event.message, event.init, event.messageID, event);
 		else if(event.method=="select")
-			this.showSelect(event.message, event.options, event.initSelection, event.messageID);
+			this.showSelect(event.message, event.options, event.initSelection, event.messageID, event);
 		else if(event.method=="progress")
 			this.showProgress(event.message, event.length, event.progress, event.cancelable,
-				event.messageID);
+				event.messageID, event);
 		else if(event.method=="close")
 			this.hide();
 		else
 			this.prisms.error("Unrecognized UI event: "+this.prisms.toJson(event));
 	},
 
-	showError: function(message){
+	showError: function(message, event){
 		this.containerNode.style.backgroundColor="#FF4040";
-		this.setTitle("Error");
+		if(event.title)
+			this.setTitle(event.title);
+		else
+			this.setTitle("Error");
+		if(event.okLabel)
+			this.okButton.setLabel(event.okLabel);
+		else
+			this.okButton.setLabel("OK");
 		this.labelNode.innerHTML=message;
 		this.returnType=null;
 		this.show();
 	},
 
-	showWarning: function(message){
+	showWarning: function(message, event){
 		this.containerNode.style.backgroundColor="#FFFF40";
-		this.setTitle("Warning");
+			if(event.title)
+			this.setTitle(event.title);
+		else
+			this.setTitle("Warning");
+		if(event.okLabel)
+			this.okButton.setLabel(event.okLabel);
+		else
+			this.okButton.setLabel("OK");
 		this.labelNode.innerHTML=message;
 		this.returnType=null;
 		this.show();
 	},
 
-	showInfo: function(message){
-		this.containerNode.style.backgroundColor="#8080FF";
-		this.setTitle("Information Message");
+	showInfo: function(message, event){
+		this.containerNode.style.backgroundColor="#B0B0FF";
+		if(event.title)
+			this.setTitle(event.title);
+		else
+			this.setTitle("Information Message");
+		if(event.okLabel)
+			this.okButton.setLabel(event.okLabel);
+		else
+			this.okButton.setLabel("OK");
 		this.labelNode.innerHTML=message;
 		this.returnType=null;
 		this.show();
 	},
 
-	showConfirm: function(message, messageID){
+	showConfirm: function(message, messageID, event){
 		this.containerNode.style.backgroundColor="#FFFFFF";
-		this.setTitle("Confirmation Required");
+		if(event.title)
+			this.setTitle(event.title);
+		else
+			this.setTitle("Confirmation Required");
+		if(event.okLabel)
+			this.okButton.setLabel(event.okLabel);
+		else
+			this.okButton.setLabel("OK");
+		if(event.cancelLabel)
+			this.cancelButton.setLabel(event.cancelLabel);
+		else
+			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
 		this.cancelDiv.style.display="block";
 		this.returnType="boolean";
 		this.show();
 	},
 
-	showInput: function(message, init, messageID){
+	showInput: function(message, init, messageID, event){
 		this.containerNode.style.backgroundColor="#FFFFFF";
-		this.setTitle("Input Required");
+		if(event.title)
+			this.setTitle(event.title);
+		else
+			this.setTitle("Input Required");
+		if(event.okLabel)
+			this.okButton.setLabel(event.okLabel);
+		else
+			this.okButton.setLabel("OK");
+		if(event.cancelLabel)
+			this.cancelButton.setLabel(event.cancelLabel);
+		else
+			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
 		this.cancelDiv.style.display="block";
 		this.inputDiv.style.display="block";
@@ -177,12 +234,25 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 		this.show();
 	},
 
-	showSelect: function(message, options, init, messageID){
+	showSelect: function(message, options, init, messageID, event){
 		this.containerNode.style.backgroundColor="#FFFFFF";
-		this.setTitle("Selection Required");
+		if(event.title)
+			this.setTitle(event.title);
+		else
+			this.setTitle("Selection Required");
+		if(event.okLabel)
+			this.okButton.setLabel(event.okLabel);
+		else
+			this.okButton.setLabel("OK");
+		if(event.cancelLabel)
+			this.cancelButton.setLabel(event.cancelLabel);
+		else
+			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
 		this.cancelDiv.style.display="block";
 		this.selectDiv.style.display="block";
+		for(var i=this.selectBox.options.length-1;i>=0;i--)
+			this.selectBox.remove(this.selectBox.options[i]);
 		for(var i=0;i<options.length;i++)
 		{
 			var y=document.createElement("option");
@@ -202,7 +272,7 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 		this.show();
 	},
 
-	showProgress: function(message, taskScale, taskProgress, cancelable, messageID){
+	showProgress: function(message, taskScale, taskProgress, cancelable, messageID, event){
 		if(!this.event.refreshed)
 		{ // Don't display the progress dialog initially--see if it's still active on the server
 			this.event.refreshed=true;
@@ -210,7 +280,14 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 			return;
 		}
 		this.containerNode.style.backgroundColor="#8080FF";
-		this.setTitle("Processing--Please Wait");
+		if(event.title)
+			this.setTitle(event.title);
+		else
+			this.setTitle("Processing--Please Wait");
+		if(event.cancelLabel)
+			this.cancelButton.setLabel(event.cancelLabel);
+		else
+			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
 		this.okDiv.style.display="none";
 		if(cancelable)
@@ -307,6 +384,6 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	},
 
 	setTitle: function(title){
-		this.titleNode.innerHTML=title;
+		this.titleNode.innerHTML=PrismsUtils.fixUnicodeString(title);
 	}
 });

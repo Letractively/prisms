@@ -24,10 +24,10 @@ public class AESEncryption implements Encryption
 		JSONObject ret = new JSONObject();
 		ret.put("type", "AES");
 		ret.put("mode", "CBC");
-		ret.put("bits", new Integer(theBits));
+		ret.put("bits", Integer.valueOf(theBits));
 		org.json.simple.JSONArray iv = new org.json.simple.JSONArray();
 		for(int i = 0; i < theParamSpec.getIV().length; i++)
-			iv.add(new Integer(theParamSpec.getIV()[i]));
+			iv.add(Integer.valueOf(theParamSpec.getIV()[i]));
 		ret.put("iv", iv);
 		return ret;
 	}
@@ -63,12 +63,17 @@ public class AESEncryption implements Encryption
 		}
 	}
 
-	public String encrypt(String text, java.nio.charset.Charset charSet) throws IOException
+	public String encrypt(String text) throws IOException
 	{
 		byte [] encrypted;
 		try
 		{
-			encrypted = theEncryptCipher.doFinal(text.getBytes(charSet.name()));
+			byte [] textBytes;
+			if(prisms.util.PrismsUtils.isJava6())
+				textBytes = text.getBytes(CHAR_SET);
+			else
+				textBytes = text.getBytes(CHAR_SET.name());
+			encrypted = theEncryptCipher.doFinal(textBytes);
 		} catch(java.security.GeneralSecurityException e)
 		{
 			throw new IllegalStateException("Could not perform AES encryption", e);
@@ -79,7 +84,7 @@ public class AESEncryption implements Encryption
 		return new org.apache.commons.codec.binary.Base64().encodeToString(encrypted);
 	}
 
-	public String decrypt(String encrypted, java.nio.charset.Charset charSet) throws IOException
+	public String decrypt(String encrypted) throws IOException
 	{
 		// byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
 		// Sun whines about BASE64 being proprietary. Use apache instead...
@@ -93,7 +98,10 @@ public class AESEncryption implements Encryption
 		{
 			throw new IllegalStateException("Could not perform AES decryption", e);
 		}
-		return new String(decrypted, charSet.name());
+		if(prisms.util.PrismsUtils.isJava6())
+			return new String(decrypted, CHAR_SET);
+		else
+			return new String(decrypted, CHAR_SET.name());
 	}
 
 	public void dispose()

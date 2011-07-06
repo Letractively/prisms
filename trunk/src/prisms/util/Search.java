@@ -1,0 +1,1295 @@
+/*
+ * SearchAPI.java Created Feb 22, 2011 by Andrew Butler, PSL
+ */
+package prisms.util;
+
+import java.util.Calendar;
+
+/**
+ * Implements an API for allowing containing APIs to provide greater retrieval functionality through
+ * very specific search structures
+ */
+public abstract class Search implements Cloneable
+{
+	/** Represents a type of search */
+	public static interface SearchType
+	{
+		/**
+		 * Creates a search of this type with the given query
+		 * 
+		 * @param search The search query
+		 * @return The compiled search object representing the given query
+		 */
+		public abstract Search create(String search);
+
+		/** @return All headers that may begin a search of this type */
+		public abstract String [] getHeaders();
+	}
+
+	private static class BaseSearchType implements SearchType
+	{
+		private final String theName;
+
+		BaseSearchType(String name)
+		{
+			theName = name;
+		}
+
+		public Search create(String search)
+		{
+			throw new IllegalStateException("Cannot create " + theName + "-type search like this");
+		}
+
+		public String [] getHeaders()
+		{
+			return new String [0];
+		}
+
+		@Override
+		public String toString()
+		{
+			return theName;
+		}
+	}
+
+	/** Represents a binary operator with which to compare two scalar values with a boolean result */
+	public enum Operator
+	{
+		/** The equality operator */
+		EQ("="),
+		/** The inequality operator */
+		NEQ("!="),
+		/** The greater than operator */
+		GT(">"),
+		/** The greater than or equal to operator */
+		GTE(">="),
+		/** The less than operator */
+		LT("<"),
+		/** The less than or equal to operator */
+		LTE("<=");
+
+		private final String name;
+
+		private Operator(String aName)
+		{
+			name = aName;
+		}
+
+		@Override
+		public String toString()
+		{
+			return name;
+		}
+
+		/**
+		 * Parses an operator out of a modifiable character sequence.
+		 * 
+		 * @param sb The character sequence to parse. The string representation of the operator will
+		 *        be removed from this sequence.
+		 * @param search The full search string (used for error throwing)
+		 * @return The operator represented at the beginning of the given character sequence
+		 */
+		public static Operator parse(StringBuilder sb, String search)
+		{
+			if(sb.charAt(0) == '<' || sb.charAt(0) == '>')
+			{
+				boolean gt = sb.charAt(0) == '>';
+				sb.delete(0, 1);
+				if(sb.charAt(1) == '=')
+				{
+					sb.delete(0, 1);
+					if(gt)
+						return GTE;
+					else
+						return LTE;
+				}
+				else
+				{
+					if(gt)
+						return GT;
+					else
+						return LT;
+				}
+			}
+			else if(sb.charAt(0) == '=')
+			{
+				sb.delete(0, 1);
+				if(sb.charAt(0) == '=')
+					sb.delete(0, 1);
+				return EQ;
+			}
+			else if(sb.charAt(0) == '!')
+			{
+				sb.delete(0, 1);
+				if(sb.charAt(0) != '=')
+					throw new IllegalArgumentException("Illegal size expression: " + search
+						+ "--operator unrecognized");
+				sb.delete(0, 1);
+				return NEQ;
+			}
+			else
+				/* If a header is used with a parseable value right after, the operator is equality */
+				return EQ;
+		}
+	}
+
+	/** Implements a searchable time range */
+	public static class SearchDate
+	{
+		private static final String [] MONTHS = new String [] {"january", "february", "march",
+			"april", "may", "june", "july", "august", "september", "october", "november",
+			"december"};
+
+		private static final String [] ABBREV_MONTHS;
+
+		private static final String [] WEEK_DAYS = new String [] {"sunday", "monday", "tuesday",
+			"wednesday", "thursday", "friday", "saturday"};
+
+		static
+		{
+			ABBREV_MONTHS = new String [MONTHS.length];
+			for(int m = 0; m < MONTHS.length; m++)
+				ABBREV_MONTHS[m] = MONTHS[m].substring(0, 3);
+		}
+
+		/** The day of month field, if specified in the search */
+		public final Integer monthDay;
+
+		/** The day of week field, if specified in the search */
+		public final Integer weekDay;
+
+		/** The month field, if specified in the search */
+		public final Integer month;
+
+		/** The year field, if specified in the search */
+		public final Integer year;
+
+		/** The hour field, if specified in the search */
+		public final Integer hour;
+
+		private final Integer minute;
+
+		private final Integer second;
+
+		private final Integer milli;
+
+		/** The minimum time that this search can be interpreted as */
+		public final long minTime;
+
+		/** The maximum time that this search can be interpreted as */
+		public final long maxTime;
+
+		/**
+		 * Creates a SearchDate. The input may be constrained to any single time range, but
+		 * combinations that create multiple ranges (e.g. h!=null, but md==null, meaning at a
+		 * particular time on some day) are not accommodated.
+		 * 
+		 * @param md The day of month field, if specified in the search
+		 * @param wd The day of week field, if specified in the search
+		 * @param m The month field, if specified in the search
+		 * @param y The year field, if specified in the search
+		 * @param h The hour field, if specified in the search
+		 * @throws IllegalArgumentException If the combination of parameters is invalid
+		 */
+		public SearchDate(Integer md, Integer wd, Integer m, Integer y, Integer h)
+		{
+			if(wd != null && (md != null || m != null || y != null))
+				throw new IllegalArgumentException(
+					"If the week day is specified, month day, month, and year cannot be");
+			monthDay = md;
+			weekDay = wd;
+			month = m;
+			year = y;
+			hour = h;
+			long [] times = calcTimes();
+			minTime = times[0];
+			maxTime = times[1];
+			minute = second = milli = null;
+		}
+
+		/**
+		 * Creates a SearchDate for a definite time.
+		 * 
+		 * @param time The millis-past-epoch time for this search date
+		 */
+		public SearchDate(long time)
+		{
+			Calendar cal = Calendar.getInstance();
+			cal.setTimeInMillis(time);
+			year = Integer.valueOf(cal.get(Calendar.YEAR));
+			month = Integer.valueOf(cal.get(Calendar.MONTH));
+			monthDay = Integer.valueOf(cal.get(Calendar.DAY_OF_MONTH));
+			hour = Integer.valueOf(cal.get(Calendar.HOUR_OF_DAY));
+			minute = Integer.valueOf(cal.get(Calendar.MINUTE));
+			second = Integer.valueOf(cal.get(Calendar.SECOND));
+			milli = Integer.valueOf(cal.get(Calendar.MILLISECOND));
+			minTime = maxTime = time;
+			weekDay = null;
+		}
+
+		/**
+		 * Parses a date from a search string, removing it from the string
+		 * 
+		 * @param sb The charater sequence to parse the date out of
+		 * @param srch The original search string (for error throwing)
+		 * @return The parsed date
+		 */
+		public static SearchDate parse(StringBuilder sb, String srch)
+		{
+			java.util.Calendar now = java.util.Calendar.getInstance();
+			Integer d, m, y, h;
+			int num = parseInt(sb);
+			if(num >= 0)
+			{ // num could be day, year, or hour
+				trim(sb);
+				int month = parseMonth(sb, srch);
+				if(month >= 0)
+				{ // num was the day. Now year and/or hour may be specified
+					d = Integer.valueOf(num);
+					m = Integer.valueOf(month);
+					int [] yh = parsePostMonth(sb, srch);
+					y = yh[0] < 0 ? null : Integer.valueOf(yh[0]);
+					h = yh[1] < 0 ? null : Integer.valueOf(yh[1]);
+				}
+				else if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
+				{ // num was the hour
+					if(num > 23)
+						throw new IllegalStateException("Illegal date value in search: " + srch);
+					sb.delete(0, 1);
+					h = Integer.valueOf(num);
+					d = null;
+					m = null;
+					y = null;
+				}
+				else
+				{ // num was the year
+					if(num < 100)
+					{
+						int nowYear = now.get(java.util.Calendar.YEAR);
+						num += (nowYear / 100) * 100;
+						if(num > nowYear)
+							num -= 100;
+					}
+					y = Integer.valueOf(num);
+					d = null;
+					m = null;
+					h = null;
+				}
+			}
+			else
+			{
+				d = null;
+				int month = parseMonth(sb, srch);
+				if(month < 0)
+				{
+					num = parseWeekDay(sb, srch);
+					if(num < 0)
+						throw new IllegalStateException("Illegal data value in search: " + srch);
+					trim(sb);
+					Integer wd = Integer.valueOf(num);
+					num = parseInt(sb);
+					if(num < 0)
+						h = null;
+					else
+					{
+						h = Integer.valueOf(num);
+						if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
+							sb.delete(0, 1);
+					}
+					return new SearchDate(null, wd, null, null, h);
+				}
+				m = Integer.valueOf(month);
+				int [] yh = parsePostMonth(sb, srch);
+				y = yh[0] < 0 ? null : Integer.valueOf(yh[0]);
+				h = yh[1] < 0 ? null : Integer.valueOf(yh[1]);
+			}
+			return new SearchDate(d, null, m, y, h);
+		}
+
+		private static int [] parsePostMonth(StringBuilder sb, String srch)
+		{
+			Calendar now = Calendar.getInstance();
+			Integer y, h;
+			trim(sb);
+			int num = parseInt(sb);
+			if(num >= 0)
+			{ // num could be year or hour
+				trim(sb);
+				if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
+				{ // num is the hour
+					if(num > 23)
+						throw new IllegalStateException("Illegal date value in search: " + srch);
+					y = null;
+					h = Integer.valueOf(num);
+					sb.delete(0, 1);
+				}
+				else
+				{ // num is the year
+					if(num < 100)
+					{
+						int nowYear = now.get(Calendar.YEAR);
+						num += (nowYear / 100) * 100;
+						if(num > nowYear)
+							num -= 100;
+					}
+					y = Integer.valueOf(num);
+					trim(sb);
+					num = parseInt(sb);
+					if(num >= 0)
+					{
+						if(num > 23)
+							throw new IllegalStateException("Illegal date value in search: " + srch);
+						h = Integer.valueOf(num);
+						if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
+							sb.delete(0, 1);
+					}
+					else
+						h = null;
+				}
+			}
+			else
+			{
+				y = null;
+				h = null;
+			}
+			return new int [] {y == null ? -1 : y.intValue(), h == null ? -1 : h.intValue()};
+		}
+
+		/**
+		 * Parses a positive integer and removes its representation from a modifiable character
+		 * sequence
+		 * 
+		 * @param sb The character sequence to parse the integer from
+		 * @return The parsed int, or -1 if the first item in the sequence is not an integer
+		 */
+		public static int parseInt(StringBuilder sb)
+		{
+			int numberChars = 0;
+			for(;; numberChars++)
+			{
+				if(numberChars >= sb.length())
+					break;
+				char ch = sb.charAt(numberChars);
+				if(ch >= '0' && ch <= '9')
+					continue;
+				else
+					break;
+			}
+			if(numberChars == 0)
+				return -1;
+			else
+			{
+				int ret = Integer.parseInt(sb.substring(0, numberChars));
+				sb.delete(0, numberChars);
+				return ret;
+			}
+		}
+
+		private static int parseMonth(StringBuilder sb, String srch)
+		{
+			if(sb.length() < 3)
+				return -1;
+			for(int m = 0; m < ABBREV_MONTHS.length; m++)
+			{
+				int i;
+				for(i = 0; i < 3; i++)
+				{
+					char ch = sb.charAt(i);
+					if(ch >= 'A' && ch <= 'Z')
+						ch = (char) (ch - 'A' + 'a');
+					if(ABBREV_MONTHS[m].charAt(i) != ch)
+						break;
+				}
+				if(i < 3)
+					continue;
+				if(sb.length() - i == 0)
+				{
+					sb.delete(0, i);
+					return m;
+				}
+				char ch = sb.charAt(i);
+				if(!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')))
+				{
+					sb.delete(0, i);
+					return m;
+				}
+				for(; i < MONTHS[m].length() && i < sb.length(); i++)
+				{
+					ch = sb.charAt(i);
+					if(ch >= 'A' && ch <= 'Z')
+						ch = (char) (ch - 'A' + 'a');
+					if(!(ch >= 'a' && ch <= 'z'))
+						break;
+					if(ch != MONTHS[m].charAt(i))
+						throw new IllegalStateException("Illegal date value in search " + srch);
+				}
+				sb.delete(0, i);
+				return m;
+			}
+			return -1;
+		}
+
+		private static int parseWeekDay(StringBuilder sb, String srch)
+		{
+			for(int d = 0; d < WEEK_DAYS.length; d++)
+			{
+				int i;
+				for(i = 0; i < sb.length(); i++)
+				{
+					int ch = sb.charAt(i);
+					if(ch >= 'A' && ch <= 'Z')
+						ch = (char) (ch - 'A' + 'a');
+					if(ch != WEEK_DAYS[d].charAt(i))
+						break;
+				}
+				if(i >= 2)
+				{
+					sb.delete(0, i);
+					switch(d)
+					{
+					case 0:
+						return Calendar.SUNDAY;
+					case 1:
+						return Calendar.MONDAY;
+					case 2:
+						return Calendar.TUESDAY;
+					case 3:
+						return Calendar.WEDNESDAY;
+					case 4:
+						return Calendar.THURSDAY;
+					case 5:
+						return Calendar.FRIDAY;
+					case 6:
+						return Calendar.SATURDAY;
+					}
+				}
+			}
+			return -1;
+		}
+
+		private long [] calcTimes()
+		{
+			long now = System.currentTimeMillis();
+			long min, max;
+			Calendar cal = Calendar.getInstance();
+			cal.set(Calendar.MINUTE, 0);
+			cal.set(Calendar.SECOND, 0);
+			cal.set(Calendar.MILLISECOND, 0);
+			if(weekDay != null)
+			{
+				cal.set(Calendar.DAY_OF_WEEK, weekDay.intValue());
+				if(hour != null)
+				{
+					cal.set(Calendar.HOUR_OF_DAY, hour.intValue());
+					if(cal.getTimeInMillis() > now)
+						cal.add(Calendar.DAY_OF_MONTH, -7);
+					min = cal.getTimeInMillis();
+					cal.add(Calendar.HOUR_OF_DAY, 1);
+					max = cal.getTimeInMillis();
+				}
+				else
+				{
+					cal.set(Calendar.HOUR_OF_DAY, 0);
+					if(cal.getTimeInMillis() > now)
+						cal.add(Calendar.DAY_OF_MONTH, -7);
+					min = cal.getTimeInMillis();
+					cal.add(Calendar.DAY_OF_MONTH, 1);
+					max = cal.getTimeInMillis();
+				}
+			}
+			else if(year != null)
+			{
+				cal.set(Calendar.YEAR, year.intValue());
+				if(month != null)
+				{
+					cal.set(Calendar.MONTH, month.intValue());
+					if(monthDay != null)
+					{
+						cal.set(Calendar.DAY_OF_MONTH, monthDay.intValue());
+						if(hour != null)
+						{
+							cal.set(Calendar.HOUR_OF_DAY, hour.intValue());
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.HOUR_OF_DAY, 1);
+							max = cal.getTimeInMillis();
+						}
+						else
+						{
+							cal.set(Calendar.HOUR_OF_DAY, 0);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.DAY_OF_MONTH, 1);
+							max = cal.getTimeInMillis();
+						}
+					}
+					else
+					{
+						cal.set(Calendar.DAY_OF_MONTH, 1);
+						if(hour != null)
+							throw new IllegalArgumentException("Hour cannot be specified"
+								+ " if monthDay is not specified but year is");
+						else
+						{
+							cal.set(Calendar.HOUR_OF_DAY, 0);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.MONTH, 1);
+							max = cal.getTimeInMillis();
+						}
+					}
+				}
+				else
+				{
+					cal.set(Calendar.MONTH, Calendar.JANUARY);
+					if(monthDay != null)
+						throw new IllegalArgumentException("monthDay cannot be specified"
+							+ " if month is not specified but year is");
+					else
+					{
+						cal.set(Calendar.DAY_OF_MONTH, 1);
+						if(hour != null)
+							throw new IllegalArgumentException("Hour cannot be specified"
+								+ " if monthDay is not specified but year is");
+						else
+						{
+							cal.set(Calendar.HOUR_OF_DAY, 0);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.YEAR, 1);
+							max = cal.getTimeInMillis();
+						}
+					}
+				}
+			}
+			else
+			{
+				// Use current year
+				if(month != null)
+				{
+					cal.set(Calendar.MONTH, month.intValue());
+					if(monthDay != null)
+					{
+						cal.set(Calendar.DAY_OF_MONTH, monthDay.intValue());
+						if(hour != null)
+						{
+							cal.set(Calendar.HOUR_OF_DAY, hour.intValue());
+							if(cal.getTimeInMillis() > now)
+								cal.add(Calendar.YEAR, -1);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.HOUR_OF_DAY, 1);
+							max = cal.getTimeInMillis();
+						}
+						else
+						{
+							cal.set(Calendar.HOUR_OF_DAY, 0);
+							if(cal.getTimeInMillis() > now)
+								cal.add(Calendar.YEAR, -1);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.DAY_OF_MONTH, 1);
+							max = cal.getTimeInMillis();
+						}
+					}
+					else
+					{
+						cal.set(Calendar.DAY_OF_MONTH, 1);
+						if(hour != null)
+							throw new IllegalArgumentException("Hour cannot be specified"
+								+ " if monthDay is not specified but month is");
+						else
+						{
+							cal.set(Calendar.HOUR_OF_DAY, 0);
+							if(cal.getTimeInMillis() > now)
+								cal.add(Calendar.YEAR, -1);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.MONTH, 1);
+							max = cal.getTimeInMillis();
+						}
+					}
+				}
+				else
+				{
+					if(monthDay != null)
+					{
+						cal.set(Calendar.DAY_OF_MONTH, monthDay.intValue());
+						if(hour != null)
+						{
+							cal.set(Calendar.HOUR_OF_DAY, hour.intValue());
+							if(cal.getTimeInMillis() > now)
+								cal.add(Calendar.MONTH, -1);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.HOUR_OF_DAY, 1);
+							max = cal.getTimeInMillis();
+						}
+						else
+						{
+							cal.set(Calendar.HOUR_OF_DAY, 0);
+							if(cal.getTimeInMillis() > now)
+								cal.add(Calendar.MONTH, -1);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.DAY_OF_MONTH, 1);
+							max = cal.getTimeInMillis();
+						}
+					}
+					else
+					{
+						if(hour != null)
+						{
+							cal.set(Calendar.HOUR_OF_DAY, hour.intValue());
+							if(cal.getTimeInMillis() > now)
+								cal.add(Calendar.DAY_OF_MONTH, -1);
+							min = cal.getTimeInMillis();
+							cal.add(Calendar.HOUR_OF_DAY, 1);
+							max = cal.getTimeInMillis();
+						}
+						else
+							throw new IllegalArgumentException("No date constraints at all!");
+					}
+				}
+			}
+			return new long [] {min, max - 1};
+		}
+
+		/**
+		 * @param op The operator to use to check the time
+		 * @param time The time to check
+		 * @return Whether a given time matches this search date
+		 */
+		public boolean matches(Operator op, long time)
+		{
+			switch(op)
+			{
+			case EQ:
+				return minTime <= time && time <= maxTime;
+			case NEQ:
+				return time < minTime || time > maxTime;
+			case GT:
+				return time > maxTime;
+			case GTE:
+				return time >= minTime;
+			case LT:
+				return time < minTime;
+			case LTE:
+				return time <= maxTime;
+			}
+			throw new IllegalStateException("Unrecognized operator: " + op);
+		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			if(monthDay != null)
+				ret.append(monthDay);
+			if(month != null)
+				ret.append(ABBREV_MONTHS[month.intValue()]);
+			if(year != null)
+				ret.append(year);
+			if(hour != null)
+			{
+				if(ret.length() > 0)
+					ret.append(' ');
+				if(hour.intValue() < 10)
+					ret.append('0');
+				ret.append(hour);
+				if(minute != null)
+				{
+					if(minute.intValue() < 10)
+						ret.append('0');
+					ret.append(minute);
+					ret.append(':');
+					if(second.intValue() < 10)
+						ret.append('0');
+					ret.append(second);
+					ret.append('.');
+					if(milli.intValue() < 100)
+						ret.append('0');
+					if(milli.intValue() < 10)
+						ret.append('0');
+					ret.append(milli);
+				}
+				else
+					ret.append("00Z");
+			}
+			return ret.toString();
+		}
+	}
+
+	/** Iterates through a {@link CompoundSearch}'s children */
+	public static class SearchIterator implements java.util.Iterator<Search>
+	{
+		private final Search [] theSearches;
+
+		private int theIndex;
+
+		/**
+		 * Creates a search iterator
+		 * 
+		 * @param searches The searches to iterate through
+		 */
+		public SearchIterator(Search... searches)
+		{
+			theSearches = searches;
+		}
+
+		public boolean hasNext()
+		{
+			return theIndex < theSearches.length;
+		}
+
+		public Search next()
+		{
+			return theSearches[theIndex++];
+		}
+
+		public void remove()
+		{
+			throw new UnsupportedOperationException("remove() not supported by search iterator");
+		}
+	}
+
+	/**
+	 * A compound search is a search that may be a logical combination of one or more other searches
+	 * and may have a parent search
+	 */
+	public static abstract class CompoundSearch extends Search implements Iterable<Search>
+	{
+		private CompoundSearch theParent;
+
+		/** @return This search's parent search--may be null if this is the root expression */
+		public CompoundSearch getParent()
+		{
+			return theParent;
+		}
+
+		/** @param search The search that contains this search */
+		public void setParent(CompoundSearch search)
+		{
+			theParent = search;
+		}
+	}
+
+	/** Searches for messages NOT matching a given search */
+	public static class NotSearch extends CompoundSearch
+	{
+		/** The type of this search */
+		public static final SearchType type = new BaseSearchType("NOT");
+
+		private Search operand;
+
+		/** Creates an empty NOT search */
+		public NotSearch()
+		{
+		}
+
+		/** @param op The search whose results will NOT be returned from this search */
+		public NotSearch(Search op)
+		{
+			operand = op;
+		}
+
+		@Override
+		public SearchType getType()
+		{
+			return type;
+		}
+
+		/** @return The search whose results will NOT be returned from this search */
+		public Search getOperand()
+		{
+			return operand;
+		}
+
+		/** @param srch The search whose results should NOT be returned from this search */
+		public void setOperand(Search srch)
+		{
+			operand = srch;
+		}
+
+		public java.util.Iterator<Search> iterator()
+		{
+			return new SearchIterator(operand);
+		}
+
+		@Override
+		public NotSearch clone()
+		{
+			return this; // Immutable
+		}
+
+		@Override
+		public String toString()
+		{
+			return "!" + operand.toString();
+		}
+	}
+
+	/**
+	 * A compound message search that combines one or more simpler searches (any of which may also
+	 * be an ExpressionSearch) with an AND or OR operation
+	 */
+	public static class ExpressionSearch extends CompoundSearch
+	{
+		/** The type of this search */
+		public static final SearchType type = new BaseSearchType("NOT");
+
+		private Search [] theOperands;
+
+		/** Whether the operation of the search is AND or OR */
+		public final boolean and;
+
+		/** @param _and Whether the expression is AND'ed or OR'ed */
+		public ExpressionSearch(boolean _and)
+		{
+			and = _and;
+			theOperands = new Search [0];
+		}
+
+		/** @return The number of operands in this search */
+		public int getOperandCount()
+		{
+			return theOperands.length;
+		}
+
+		/**
+		 * @param index The index of the operand to get
+		 * @return The operand at this given index
+		 */
+		public Search getOperand(int index)
+		{
+			return theOperands[index];
+		}
+
+		/**
+		 * Adds an operand to this expression
+		 * 
+		 * @param search The search to add as an operand to this expression
+		 */
+		public void add(Search search)
+		{
+			if(search instanceof CompoundSearch)
+				((CompoundSearch) search).setParent(this);
+			theOperands = ArrayUtils.add(theOperands, search);
+		}
+
+		/**
+		 * Removes an operand from this expression
+		 * 
+		 * @param search The search to remove as an operand from this expression
+		 * @return Whether the operand was found in this expression
+		 */
+		public boolean remove(Search search)
+		{
+			int index = ArrayUtils.indexOf(theOperands, search);
+			if(index >= 0)
+			{
+				remove(index);
+				return true;
+			}
+			else
+				return false;
+		}
+
+		/**
+		 * Removes an operand from this expression
+		 * 
+		 * @param index The index of the operand to remove
+		 * @return The operand that was removed
+		 */
+		public Search remove(int index)
+		{
+			Search ret = theOperands[index];
+			theOperands = ArrayUtils.remove(theOperands, index);
+			if(ret instanceof CompoundSearch)
+				((CompoundSearch) ret).setParent(null);
+			return ret;
+		}
+
+		public java.util.Iterator<Search> iterator()
+		{
+			return new SearchIterator(theOperands);
+		}
+
+		/**
+		 * A shorthand, chaining-enabled method
+		 * 
+		 * @param ops The operands to add to this search
+		 * @return this
+		 */
+		public ExpressionSearch addOps(Search... ops)
+		{
+			for(Search op : ops)
+				add(op);
+			return this;
+		}
+
+		@Override
+		public SearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public ExpressionSearch or(Search srch)
+		{
+			if(and)
+				return super.or(srch);
+			else
+			{
+				add(srch);
+				return this;
+			}
+		}
+
+		@Override
+		public ExpressionSearch and(Search srch)
+		{
+			if(and)
+			{
+				add(srch);
+				return this;
+			}
+			else
+				return super.and(srch);
+		}
+
+		/** Recursively simplifies this expression if possible */
+		public void simplify()
+		{
+			for(int o = 0; o < theOperands.length; o++)
+			{
+				if(!(theOperands[o] instanceof ExpressionSearch))
+					continue;
+				ExpressionSearch exp = (ExpressionSearch) theOperands[o];
+				exp.simplify();
+				if(exp.getOperandCount() == 0)
+				{
+					remove(o);
+					o--;
+				}
+				if(exp.and == and)
+				{
+					Search [] newOps = new Search [theOperands.length + exp.theOperands.length - 1];
+					System.arraycopy(theOperands, 0, newOps, 0, o);
+					System.arraycopy(exp.theOperands, 0, newOps, o, exp.theOperands.length);
+					System.arraycopy(theOperands, o + 1, newOps, o + exp.theOperands.length,
+						theOperands.length - o - 1);
+					for(Search op : exp.theOperands)
+						if(op instanceof CompoundSearch)
+							((CompoundSearch) op).setParent(this);
+					o += exp.theOperands.length - 1;
+				}
+			}
+		}
+
+		@Override
+		public ExpressionSearch clone()
+		{
+			ExpressionSearch ret = (ExpressionSearch) super.clone();
+			for(int o = 0; o < theOperands.length; o++)
+			{
+				theOperands[o] = theOperands[o].clone();
+				if(theOperands[o] instanceof CompoundSearch)
+					((CompoundSearch) theOperands[o]).setParent(ret);
+			}
+			return ret;
+		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			for(int i = 0; i < theOperands.length; i++)
+			{
+				if(i > 0)
+					ret.append(and ? " " : " OR ");
+				ret.append(theOperands[i].toString());
+			}
+			if(getParent() != null)
+			{
+				ret.insert(0, '(');
+				ret.append(')');
+			}
+			return ret.toString();
+		}
+	}
+
+	/** @return This search's type */
+	public abstract SearchType getType();
+
+	/**
+	 * Short-hand for creating expressions
+	 * 
+	 * @param srch The search to or with this search
+	 * @return The or expression search
+	 */
+	public ExpressionSearch or(Search srch)
+	{
+		return new ExpressionSearch(false).addOps(this, srch);
+	}
+
+	/**
+	 * Short-hand for creating expressions
+	 * 
+	 * @param srch The search to and with this search
+	 * @return The and expression search
+	 */
+	public ExpressionSearch and(Search srch)
+	{
+		return new ExpressionSearch(true).addOps(this, srch);
+	}
+
+	@Override
+	public Search clone()
+	{
+		Search ret;
+		try
+		{
+			ret = (Search) super.clone();
+		} catch(CloneNotSupportedException e)
+		{
+			throw new IllegalStateException(e.getMessage(), e);
+		}
+		return ret;
+	}
+
+	@Override
+	public abstract String toString();
+
+	/** Builds a search from a string representation */
+	protected static abstract class SearchBuilder
+	{
+		/**
+		 * Compiles a search structure from a search string
+		 * 
+		 * @param searchText The search text
+		 * @return The compiled search structure
+		 */
+		public Search createSearch(String searchText)
+		{
+			StringBuilder sb = new StringBuilder(searchText);
+			trim(sb);
+			Search current = null;
+			while(sb.length() > 0)
+			{
+				if(sb.length() > 1 && lower(sb.charAt(0)) == 'o' && lower(sb.charAt(1)) == 'r')
+				{ // OR operator
+					sb.delete(0, 2);
+					ExpressionSearch exp = exp(false);
+					exp.add(current);
+					current = exp;
+					trim(sb);
+					continue;
+				}
+				else if(sb.length() > 2 && lower(sb.charAt(0)) == 'a' && lower(sb.charAt(1)) == 'n'
+					&& lower(sb.charAt(2)) == 'd')
+				{
+					sb.delete(0, 3);
+					trim(sb);
+				}
+				else if(sb.length() > 1 && sb.charAt(0) == '!')
+				{
+					sb.delete(0, 1);
+					trim(sb);
+					current = not();
+				}
+
+				Search next;
+				if(sb.charAt(0) == '(')
+				{
+					int c = goPastParen(sb, 0);
+					String nextExpr = sb.substring(1, c).trim();
+					if(nextExpr.length() == 0)
+						throw new IllegalArgumentException("Empty parenthetical expression");
+					next = createSearch(nextExpr);
+					sb.delete(0, c + 1);
+				}
+				else
+					next = parseNext(sb);
+
+				if(current instanceof ExpressionSearch
+					&& ((ExpressionSearch) current).getOperandCount() == 1)
+					((ExpressionSearch) current).add(next);
+				else if(current instanceof NotSearch && ((NotSearch) current).getOperand() != null)
+					((NotSearch) current).setOperand(next);
+				else if(current != null)
+				{
+					ExpressionSearch exp = exp(true);
+					exp.addOps(current, next);
+					current = exp;
+				}
+				else
+					current = next;
+
+				trim(sb);
+			}
+			if(current instanceof ExpressionSearch)
+				((ExpressionSearch) current).simplify();
+			return current;
+		}
+
+		/**
+		 * Creates an expression search for this builder
+		 * 
+		 * @param and Whether the expression should be an AND or an OR
+		 * @return the expression
+		 */
+		public ExpressionSearch exp(boolean and)
+		{
+			return new ExpressionSearch(and);
+		}
+
+		/**
+		 * Creates a not search for this builder
+		 * 
+		 * @return The not search
+		 */
+		public NotSearch not()
+		{
+			return new NotSearch();
+		}
+
+		/**
+		 * @return All search types that may be parsed out of this search builder
+		 */
+		public abstract SearchType [] getAllTypes();
+
+		/**
+		 * Parses the next non-expression search
+		 * 
+		 * @param sb The character sequence to parse the search out of
+		 * @return The parsed search
+		 */
+		public Search parseNext(StringBuilder sb)
+		{
+			for(SearchType type : getAllTypes())
+			{
+				for(String header : type.getHeaders())
+				{
+					if(sb.length() < header.length())
+						continue;
+					boolean hasHeader = true;
+					int c;
+					for(c = 0; c < header.length(); c++)
+						if(lower(sb.charAt(c)) != header.charAt(c))
+						{
+							hasHeader = false;
+							break;
+						}
+					if(hasHeader)
+					{
+						trim(sb);
+						for(; c < sb.length(); c++)
+						{
+							if(Character.isWhitespace(sb.charAt(c)))
+								break;
+							else if(sb.charAt(c) == '\"')
+								c = goPastQuote(sb, c);
+							else if(sb.charAt(c) == '(')
+								c = goPastParen(sb, c);
+						}
+						Search ret = type.create(sb.substring(0, c));
+						sb.delete(0, c + 1);
+						return ret;
+					}
+				}
+			}
+			return defaultSearch(sb);
+		}
+
+		/**
+		 * Parses a search without a header
+		 * 
+		 * @param sb The character sequence to parse the search out of
+		 * @return The search
+		 */
+		public abstract Search defaultSearch(StringBuilder sb);
+
+		/**
+		 * Gets the position of the close parenthesis matching the open parenthesis at the given
+		 * index
+		 * 
+		 * @param sb The character sequence to find the parenthesis in
+		 * @param c The position of the open parenthesis
+		 * @return The position of the closing parenthesis to match the given open one
+		 */
+		public int goPastParen(StringBuilder sb, int c)
+		{
+			boolean esc = false;
+			int depth = 1;
+			for(c++; c < sb.length(); c++)
+			{
+				if(!esc)
+				{
+					if(sb.charAt(c) == '(')
+						depth++;
+					else if(sb.charAt(c) == ')')
+					{
+						depth--;
+						if(depth == 0)
+							break;
+					}
+					else if(sb.charAt(c) == '\\')
+						esc = true;
+				}
+				else
+					esc = false;
+			}
+			if(depth == 0)
+				return c;
+			else
+				throw new IllegalArgumentException("Unclosed parenthesis!");
+		}
+
+		/**
+		 * Gets the position of the closing quote matching the open quote at the given index
+		 * 
+		 * @param sb The character sequence to find the quote in
+		 * @param c The position of the open quote
+		 * @return The position of the closing quote to match the given open one
+		 */
+		public int goPastQuote(StringBuilder sb, int c)
+		{
+			boolean esc = false;
+			for(c++; c < sb.length(); c++)
+			{
+				if(!esc && sb.charAt(c) == '"')
+					break;
+				else if(!esc && sb.charAt(c) == '\\')
+					esc = true;
+				else
+					esc = false;
+			}
+			if(!esc && sb.charAt(c) == '\"')
+				return c;
+			else
+				throw new IllegalArgumentException("Unterminated end quote");
+		}
+	}
+
+	/**
+	 * Forces a character to be lower-case
+	 * 
+	 * @param c The character
+	 * @return The lower-case character
+	 */
+	public static char lower(char c)
+	{
+		if(c >= 'A' && c <= 'Z')
+			return (char) (c - 'A' + 'a');
+		else
+			return c;
+	}
+
+	/**
+	 * Trims white space off of a string builder on both ends
+	 * 
+	 * @param sb The string builder to trim
+	 */
+	public static void trim(StringBuilder sb)
+	{
+		int i;
+		for(i = 0; i < sb.length() && Character.isWhitespace(sb.charAt(i)); i++);
+		if(i > 0)
+			sb.delete(0, i);
+		for(i = sb.length() - 1; i >= 0 && Character.isWhitespace(sb.charAt(i)); i--);
+		if(i < sb.length() - 1)
+			sb.delete(i + 1, sb.length());
+	}
+}

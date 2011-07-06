@@ -24,17 +24,11 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 	 */
 	public static enum SelectionMode
 	{
-		/**
-		 * Selection not supported on the server
-		 */
+		/** Selection not supported on the server */
 		NONE,
-		/**
-		 * Single node selection supported
-		 */
+		/** Single node selection supported */
 		SINGLE,
-		/**
-		 * Multiple node selection supported
-		 */
+		/** Multiple node selection supported */
 		MULTIPLE;
 	}
 
@@ -48,19 +42,25 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 
 	java.util.ArrayList<DataTreeNode> theSelection;
 
-	boolean isClientInitialized;
+	private boolean isClientInitialized;
 
-	/**
-	 * Creates a DataTreeMgrPlugin
-	 */
+	private DataTreeListener theListener;
+
+	/** Creates a DataTreeMgrPlugin */
 	public DataTreeMgrPlugin()
 	{
 		theSelection = new java.util.ArrayList<DataTreeNode>();
 		theSelectionMode = SelectionMode.NONE;
-		addListener(new DataTreeListener()
+		theListener = new DataTreeListener()
 		{
 			public void changeOccurred(DataTreeEvent evt)
 			{
+				prisms.arch.PrismsTransaction trans = getSession().getApp().getEnvironment()
+					.getTransaction();
+				if(trans != null
+					&& trans.getStage() != prisms.arch.PrismsTransaction.Stage.processEvent)
+					return;
+
 				JSONObject ret = new JSONObject();
 				ret.put("plugin", getName());
 				String method;
@@ -70,23 +70,25 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 				case ADD:
 					method = "nodeAdded";
 					ret.put("path", jsonPath);
-					ret.put("index", new Integer(evt.getIndex()));
+					ret.put("index", Integer.valueOf(evt.getIndex()));
 					break;
 				case REMOVE:
 					method = "nodeRemoved";
 					ret.put("path", jsonPath);
+					((JSONObject) jsonPath.get(jsonPath.size() - 1)).remove("children");
 					break;
 				case CHANGE:
 					method = "nodeChanged";
 					ret.put("path", jsonPath);
 					if(!evt.isRecursive())
 						((JSONObject) jsonPath.get(jsonPath.size() - 1)).remove("children");
-					ret.put("recursive", new Boolean(evt.isRecursive()));
+					ret.put("recursive", Boolean.valueOf(evt.isRecursive()));
 					break;
 				case MOVE:
 					method = "nodeMoved";
 					ret.put("path", jsonPath);
-					ret.put("index", new Integer(evt.getIndex()));
+					ret.put("index", Integer.valueOf(evt.getIndex()));
+					((JSONObject) jsonPath.get(jsonPath.size() - 1)).remove("children");
 					break;
 				case REFRESH:
 					method = "refresh";
@@ -98,36 +100,43 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 				ret.put("method", method);
 				getSession().postOutgoingEvent(ret);
 			}
-		});
+		};
+		addListener(theListener);
 	}
 
-	/**
-	 * @return This plugin's session
-	 */
+	/** @return This plugin's session */
 	public PrismsSession getSession()
 	{
 		return theSession;
 	}
 
-	/**
-	 * @return This plugin's name
-	 */
+	/** @return This plugin's name */
 	public String getName()
 	{
 		return theName;
 	}
 
-	/**
-	 * @return This tree's selection mode
-	 */
+	/** @return This tree's selection mode */
 	public SelectionMode getSelectionMode()
 	{
 		return theSelectionMode;
 	}
 
 	/**
-	 * @param mode The selection mode for this tree
+	 * Causes this tree to stop pumping events to the client in the normal fashion. This should only
+	 * be done if the clients of this plugin are stateless or if the events are handled by the
+	 * subclass.
 	 */
+	protected void stopListening()
+	{
+		if(theListener != null)
+		{
+			removeListener(theListener);
+			theListener = null;
+		}
+	}
+
+	/** @param mode The selection mode for this tree */
 	public synchronized void setSelectionMode(SelectionMode mode)
 	{
 		theSelectionMode = mode;
@@ -159,9 +168,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 		}
 	}
 
-	/**
-	 * @return All selected tree nodes in this manager
-	 */
+	/** @return All selected tree nodes in this manager */
 	public DataTreeNode [] getSelection()
 	{
 		return theSelection.toArray(new DataTreeNode [theSelection.size()]);
@@ -286,11 +293,15 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 		isLazyLoading = lazyLoading;
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
+		prisms.arch.PrismsTransaction trans = getSession().getApp().getEnvironment()
+			.getTransaction();
+		if(trans != null
+			&& trans.getStage().ordinal() < prisms.arch.PrismsTransaction.Stage.initSession
+				.ordinal())
+			return;
+
 		isClientInitialized = true;
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", getName());
@@ -305,7 +316,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 	}
 
 	/**
-	 * Creates a JSONArray from a java array
+	 * Creates a JSONArray full path from a tree node
 	 * 
 	 * @param node The node to get the path of
 	 * @return The path as a JSONArray
@@ -322,6 +333,25 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 				pathArr.add(0, new JSONObject());
 		}
 		return pathArr;
+	}
+
+	/**
+	 * Creates a JSONArray ID path from a tree node
+	 * 
+	 * @param node The data node to get the path of
+	 * @return The JSON path to the node
+	 */
+	public static org.json.simple.JSONArray treePath(DataTreeNode node)
+	{
+		org.json.simple.JSONArray ret = new org.json.simple.JSONArray();
+		while(node != null)
+		{
+			ret.add(node.getID());
+			node = node.getParent();
+		}
+		ret.trimToSize();
+		java.util.Collections.reverse(ret);
+		return ret;
 	}
 
 	private JSONObject serializeRecursive(DataTreeNode node)
@@ -345,13 +375,10 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 		return ret;
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 	}
 
 	/**
@@ -366,9 +393,6 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 			node.doAction(action);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		if("loadChildren".equals(evt.get("method")))

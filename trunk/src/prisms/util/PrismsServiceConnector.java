@@ -4,11 +4,15 @@
 package prisms.util;
 
 import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.locks.Lock;
 
 import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import prisms.arch.Encryption;
 import prisms.arch.ds.Hashing;
 
 /**
@@ -19,6 +23,9 @@ import prisms.arch.ds.Hashing;
 public class PrismsServiceConnector
 {
 	static final Logger log = Logger.getLogger(PrismsServiceConnector.class);
+
+	/** A version indicator sent to the service--may enable version-specific code */
+	public static final String PRISMS_SERVICE_VERSION = "2.1.2";
 
 	/** The name of the system property to set the SSL handler package in */
 	public static final String SSL_HANDLER_PROP = "java.protocol.handler.pkgs";
@@ -85,6 +92,16 @@ public class PrismsServiceConnector
 		 * @return The new password to use
 		 */
 		String getNewPassword(String message, prisms.arch.ds.PasswordConstraints constraints);
+
+		/**
+		 * Called when the password is changed externally (not as a result of the connector's
+		 * session). This allows the calling software the opportunity to query or generate the
+		 * password that was set.
+		 * 
+		 * @param setTime The time at which the password was set
+		 * @return The new password to use for encryption
+		 */
+		String getChangedPassword(long setTime);
 	}
 
 	/** The different server methods that may be used */
@@ -138,6 +155,24 @@ public class PrismsServiceConnector
 		void doError(IOException e);
 	}
 
+	/** Allows the service to be called asynchronously for multiple return values */
+	public static interface AsyncReturns
+	{
+		/**
+		 * Called when the service call finishes successfully
+		 * 
+		 * @param returnVals The return values of the service call
+		 */
+		void doReturn(JSONArray returnVals);
+
+		/**
+		 * Called when an error occurs invoking the service
+		 * 
+		 * @param e The exception that occurred
+		 */
+		void doError(IOException e);
+	}
+
 	/** A structure that holds version information returned from the service */
 	public static class VersionInfo
 	{
@@ -164,12 +199,40 @@ public class PrismsServiceConnector
 	{
 		final java.io.InputStream input;
 
-		final java.nio.charset.Charset charSet;
+		final Encryption encryption;
 
-		ResponseStream(java.io.InputStream in, java.nio.charset.Charset chars)
+		ResponseStream(java.io.InputStream in, Encryption enc)
 		{
 			input = in;
-			charSet = chars;
+			encryption = enc;
+		}
+	}
+
+	private static class SecurityRetriever implements javax.net.ssl.X509TrustManager
+	{
+		private java.security.cert.X509Certificate[] theCerts;
+
+		SecurityRetriever()
+		{
+		}
+
+		public java.security.cert.X509Certificate[] getAcceptedIssuers()
+		{
+			return new java.security.cert.X509Certificate [0];
+		}
+
+		public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType)
+		{
+		}
+
+		public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType)
+		{
+			theCerts = certs;
+		}
+
+		java.security.cert.X509Certificate[] getCerts()
+		{
+			return theCerts;
 		}
 	}
 
@@ -183,7 +246,13 @@ public class PrismsServiceConnector
 
 	private final String theUserName;
 
-	private prisms.arch.Encryption theEncryption;
+	private prisms.arch.Worker theWorker;
+
+	private java.util.concurrent.locks.ReentrantReadWriteLock theCredentialLock;
+
+	private Encryption theEncryption;
+
+	private String theSessionID;
 
 	private String thePassword;
 
@@ -193,13 +262,9 @@ public class PrismsServiceConnector
 
 	private prisms.arch.ds.UserSource theUserSource;
 
-	private Validator theValidator;
+	private javax.net.ssl.X509TrustManager theTrustManager;
 
-	private int theValidationTries;
-
-	private String theTrustStoreFile;
-
-	private String theTrustStorePassword;
+	private javax.net.ssl.SSLSocketFactory theSocketFactory;
 
 	private boolean logRequestsResponses;
 
@@ -219,6 +284,9 @@ public class PrismsServiceConnector
 		theServiceName = serviceName;
 		theUserName = userName;
 		isPost = true;
+		theCredentialLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
+		theWorker = new prisms.impl.ThreadPoolWorker("PRISMS Service Connector: " + serviceURL,
+			Runtime.getRuntime().availableProcessors());
 	}
 
 	/**
@@ -229,10 +297,16 @@ public class PrismsServiceConnector
 	 */
 	public void setPassword(String password)
 	{
-		thePassword = password;
-		if(theEncryption != null)
-			theEncryption.dispose();
-		theEncryption = null;
+		Lock lock = theCredentialLock.writeLock();
+		lock.lock();
+		try
+		{
+			thePassword = password;
+			theEncryption = null;
+		} finally
+		{
+			lock.unlock();
+		}
 	}
 
 	/**
@@ -251,20 +325,33 @@ public class PrismsServiceConnector
 	 */
 	public void setUserSource(prisms.arch.ds.UserSource source)
 	{
-		theUserSource = source;
-		if(theEncryption != null)
-			theEncryption.dispose();
-		theEncryption = null;
+		Lock lock = theCredentialLock.writeLock();
+		lock.lock();
+		try
+		{
+			theUserSource = source;
+			theEncryption = null;
+		} finally
+		{
+			lock.unlock();
+		}
 	}
 
 	/**
-	 * The validator to use if the server requires validation
-	 * 
-	 * @param validator The validator to be notified when the server requests validation
+	 * @return The worker that this connector uses for asynchronous requests. It is an instance of
+	 *         {@link prisms.impl.ThreadPoolWorker} by default
 	 */
-	public void setValidator(Validator validator)
+	public prisms.arch.Worker getWorker()
 	{
-		theValidator = validator;
+		return theWorker;
+	}
+
+	/** @param worker the worker that this connector will use for asynchronous requests. */
+	public void setWorker(prisms.arch.Worker worker)
+	{
+		if(worker == null)
+			throw new NullPointerException();
+		theWorker = worker;
 	}
 
 	/**
@@ -286,15 +373,22 @@ public class PrismsServiceConnector
 	}
 
 	/**
-	 * Sets the security parameters for an HTTPS connection
+	 * Sets the trust manager that this connector uses with HTTPS connections
 	 * 
-	 * @param trustStore The file location of the trust store containing client certificates to use
-	 * @param trustPwd The password to the trust store
+	 * @param trustManager The trust manager to validate HTTPS connections
+	 * @throws NoSuchAlgorithmException If the "SSL" algorithm cannot be found in the environment
+	 * @throws KeyManagementException If the SSL context cannot be initialized with the given trust
+	 *         manager
 	 */
-	public void setSecureInfo(String trustStore, String trustPwd)
+	public void setTrustManager(javax.net.ssl.X509TrustManager trustManager)
+		throws NoSuchAlgorithmException, KeyManagementException
 	{
-		theTrustStoreFile = trustStore;
-		theTrustStorePassword = trustPwd;
+		theTrustManager = trustManager;
+		javax.net.ssl.SSLContext sc;
+		sc = javax.net.ssl.SSLContext.getInstance("SSL");
+		sc.init(null, new javax.net.ssl.TrustManager [] {theTrustManager},
+			new java.security.SecureRandom());
+		theSocketFactory = sc.getSocketFactory();
 	}
 
 	/**
@@ -399,6 +493,28 @@ public class PrismsServiceConnector
 	}
 
 	/**
+	 * Calls the service where any number of return values may be expected
+	 * 
+	 * @param plugin The plugin to call
+	 * @param method The method to call
+	 * @param params The parameters to send to the method
+	 * @return The method's results
+	 * @throws AuthenticationFailedException If this connector is unable to log in to the PRISMS
+	 *         server
+	 * @throws PrismsServiceException If a PRISMS error occurs
+	 * @throws IOException If any other problem occurs calling the server
+	 */
+	public JSONArray getResults(String plugin, String method, Object... params) throws IOException
+	{
+		JSONObject rEventProps = PrismsUtils.rEventProps(params);
+		if(rEventProps == null)
+			rEventProps = new JSONObject();
+		rEventProps.put("plugin", plugin);
+		rEventProps.put("method", method);
+		return callServer(ServerMethod.processEvent, rEventProps);
+	}
+
+	/**
 	 * Calls the service expecting no return value
 	 * 
 	 * @param plugin The plugin to call
@@ -449,9 +565,18 @@ public class PrismsServiceConnector
 		}
 		else
 		{
-			Thread thread = new Thread(run, "PRISMS Service Connector Thread");
-			thread.setDaemon(true);
-			thread.start();
+			theWorker.run(run, new prisms.arch.Worker.ErrorListener()
+			{
+				public void error(Error error)
+				{
+					log.error("Remote procedure call threw exception", error);
+				}
+
+				public void runtime(RuntimeException ex)
+				{
+					log.error("Remote procedure call threw exception", ex);
+				}
+			});
 		}
 	}
 
@@ -499,9 +624,69 @@ public class PrismsServiceConnector
 				aRet.doReturn(ret);
 			}
 		};
-		Thread thread = new Thread(run, "PRISMS Service Connector Thread");
-		thread.setDaemon(true);
-		thread.start();
+		theWorker.run(run, new prisms.arch.Worker.ErrorListener()
+		{
+			public void error(Error error)
+			{
+				log.error("Remote service call threw exception", error);
+			}
+
+			public void runtime(RuntimeException ex)
+			{
+				log.error("Remote service call threw exception", ex);
+			}
+		});
+	}
+
+	/**
+	 * Calls the service asynchronously, expecting a return value
+	 * 
+	 * @param plugin The plugin to call
+	 * @param method The method to call
+	 * @param aRet The interface to receive the return values of the service call or the error that
+	 *        occurred
+	 * @param params The parameters to send to the method
+	 */
+	public void getResultsAsync(String plugin, String method, final AsyncReturns aRet,
+		Object... params)
+	{
+		final JSONObject rEventProps;
+		{
+			JSONObject propTemp = PrismsUtils.rEventProps(params);
+			if(propTemp == null)
+				propTemp = new JSONObject();
+			rEventProps = propTemp;
+		}
+		rEventProps.put("plugin", plugin);
+		rEventProps.put("method", method);
+		Runnable run = new Runnable()
+		{
+			public void run()
+			{
+				JSONArray serverReturn;
+				try
+				{
+					serverReturn = callServer(ServerMethod.processEvent, rEventProps);
+				} catch(IOException e)
+				{
+					aRet.doError(e);
+					return;
+				}
+				aRet.doReturn(serverReturn);
+			}
+		};
+		theWorker.run(run, new prisms.arch.Worker.ErrorListener()
+		{
+			public void error(Error error)
+			{
+				log.error("Remote service call threw exception", error);
+			}
+
+			public void runtime(RuntimeException ex)
+			{
+				log.error("Remote service call threw exception", ex);
+			}
+		});
 	}
 
 	JSONArray callServer(ServerMethod serverMethod, JSONObject event) throws IOException
@@ -511,6 +696,8 @@ public class PrismsServiceConnector
 		JSONArray ret = new JSONArray();
 		if(serverReturn == null)
 			return ret;
+		if(theEncryption == null)
+			tryEncryptionAgain = true;
 		for(int i = 0; i < serverReturn.size(); i++)
 		{
 			JSONObject json = (JSONObject) serverReturn.get(i);
@@ -535,24 +722,29 @@ public class PrismsServiceConnector
 					{
 						if(tryEncryptionAgain)
 						{
-							tryEncryptionAgain = false;
-							theEncryption = null;
+							Lock lock = theCredentialLock.writeLock();
+							lock.lock();
+							try
+							{
+								tryEncryptionAgain = false;
+								theEncryption = null;
+							} finally
+							{
+								lock.unlock();
+							}
 						}
 						else
 							throw new AuthenticationFailedException("Invalid security info--"
 								+ "encryption failed with encryption:" + theEncryption
 								+ " for request " + event);
 					}
+					Number authID = (Number) json.get("authID");
 					serverReturn.addAll(
 						i + 1,
 						startEncryption(
 							prisms.arch.ds.Hashing.fromJson((JSONObject) json.get("hashing")),
 							(JSONObject) json.get("encryption"), (String) json.get("postAction"),
-							serverMethod, event));
-				}
-				else if("validate".equals(json.get("method")))
-				{
-					serverReturn.addAll(i + 1, validate((JSONObject) json.get("params"), event));
+							serverMethod, event, authID != null ? authID.longValue() : -1));
 				}
 				else if("login".equals(json.get("method")) && json.get("error") != null)
 				{
@@ -562,18 +754,23 @@ public class PrismsServiceConnector
 				else if("changePassword".equals(json.get("method")))
 				{
 					Hashing hashing = Hashing.fromJson((JSONObject) json.get("hashing"));
-					prisms.arch.ds.PasswordConstraints constraints = prisms.arch.service.PrismsSerializer
+					prisms.arch.ds.PasswordConstraints constraints = prisms.util.PrismsUtils
 						.deserializeConstraints((JSONObject) json.get("constraints"));
 					String message = (String) (json.get("error") == null ? json.get("message")
 						: json.get("error"));
 					serverReturn.addAll(callChangePassword(hashing, constraints, message));
 				}
 				else if("restart".equals(json.get("method")))
+				{
+					theSessionID = null;
 					return callServer(serverMethod, event);
+				}
 				else if("init".equals(json.get("method")))
 				{
 					// Do nothing here--connection successful
 				}
+				else if("setSessionID".equals(json.get("method")))
+					theSessionID = (String) json.get("sessionID");
 				else
 					log.warn("Server message: " + json);
 			}
@@ -582,6 +779,8 @@ public class PrismsServiceConnector
 			serverReturn.remove(i);
 			i--;
 		}
+		if(ret.size() > 0)
+			tryEncryptionAgain = true;
 		return ret;
 	}
 
@@ -599,13 +798,29 @@ public class PrismsServiceConnector
 				read = reader.read();
 			}
 			String retStr = ret.toString();
-			if(theEncryption != null && isEncrypted(retStr))
-				retStr = theEncryption.decrypt(retStr, response.charSet);
+			if(response.encryption != null && isEncrypted(retStr))
+			{
+				retStr = response.encryption.decrypt(retStr);
+				if(!retStr.startsWith("["))
+					throw new IOException("Decryption failed: " + retStr);
+			}
 			if(logRequestsResponses)
 				log.info(retStr);
-			return (JSONArray) org.json.simple.JSONValue.parse(retStr);
+			JSONArray retJson;
+			try
+			{
+				retJson = (JSONArray) org.json.simple.JSONValue.parse(retStr);
+			} catch(Error e)
+			{
+				log.error("Parsing failed", e);
+				retJson = null;
+			}
+			if(retJson == null)
+				throw new IOException("Could not parse json response:\n" + retStr);
+			return retJson;
 		} catch(Throwable e)
 		{
+			log.error("Service call failed", e);
 			IOException toThrow = new IOException("Could not perform PRISMS service call: "
 				+ e.getMessage());
 			toThrow.setStackTrace(e.getStackTrace());
@@ -624,13 +839,25 @@ public class PrismsServiceConnector
 	private ResponseStream getResultStream(ServerMethod serverMethod, JSONObject request)
 		throws IOException
 	{
-		String dataStr = getEncodedDataString(request);
+		String dataStr;
+		Encryption enc;
+		Lock lock = theCredentialLock.readLock();
+		lock.lock();
 		try
 		{
-			java.net.HttpURLConnection conn = getURL(serverMethod, dataStr);
+			enc = theEncryption;
+			dataStr = getEncodedDataString(request);
+		} finally
+		{
+			lock.unlock();
+		}
+		try
+		{
+			java.net.HttpURLConnection conn = getURL(serverMethod, dataStr, enc);
 			conn.setRequestProperty("Accept-Encoding", "gzip");
 			conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset()
 				.name());
+			conn.setRequestProperty("User-Agent", "PRISMS-Service/" + PRISMS_SERVICE_VERSION);
 			if(isPost && dataStr != null)
 			{
 				conn.setDoOutput(true);
@@ -646,8 +873,7 @@ public class PrismsServiceConnector
 			String encoding = conn.getContentEncoding();
 			if(encoding != null && encoding.equalsIgnoreCase("gzip"))
 				is = new java.util.zip.GZIPInputStream(is);
-			java.nio.charset.Charset charSet = getCharset(conn);
-			return new ResponseStream(is, charSet);
+			return new ResponseStream(is, enc);
 		} catch(ClassCastException e)
 		{
 			IOException toThrow = new IOException("PRISMS Service return value was not an array: "
@@ -656,55 +882,92 @@ public class PrismsServiceConnector
 			throw toThrow;
 		} catch(Throwable e)
 		{
-			IOException toThrow = new IOException("Could not perform PRISMS service call: "
-				+ e.getMessage());
+			IOException toThrow = new IOException("Could not perform PRISMS service call to "
+				+ theServiceURL + ": " + e);
 			toThrow.setStackTrace(e.getStackTrace());
 			throw toThrow;
 		}
 	}
 
-	private java.net.HttpURLConnection getURL(ServerMethod serverMethod, String dataStr)
-		throws IOException
+	private java.net.HttpURLConnection getURL(ServerMethod serverMethod, String dataStr,
+		Encryption enc) throws IOException
 	{
 		String callURL = theServiceURL;
 		callURL += "?app=" + encode(theAppName);
 		callURL += "&client=" + encode(theServiceName);
 		callURL += "&method=" + encode(serverMethod.toString());
+		callURL += "&version=" + PRISMS_SERVICE_VERSION;
+		if(theSessionID != null)
+			callURL += "&sessionID=" + encode(theSessionID);
 		if(theUserName != null)
 			callURL += "&user=" + encode(theUserName);
-		if(theEncryption != null)
+		if(enc != null)
 			callURL += "&encrypted=true";
 		if(dataStr != null && !isPost)
 			callURL += "&data=" + dataStr;
 
 		java.net.HttpURLConnection conn;
-		boolean propsSet = false;
-		String preTrustStore = null;
-		String preTrustPwd = null;
-		try
+		java.net.URL url = new java.net.URL(callURL);
+		conn = (java.net.HttpURLConnection) url.openConnection();
+		if(conn instanceof javax.net.ssl.HttpsURLConnection && theSocketFactory != null)
 		{
-			if(theTrustStoreFile != null && callURL.startsWith("https"))
+			javax.net.ssl.HttpsURLConnection sConn = (javax.net.ssl.HttpsURLConnection) conn;
+			((javax.net.ssl.HttpsURLConnection) conn).setSSLSocketFactory(theSocketFactory);
+			sConn.setHostnameVerifier(new javax.net.ssl.HostnameVerifier()
 			{
-				preTrustStore = System.getProperty(TRUST_STORE_PROP);
-				preTrustPwd = System.getProperty(TRUST_STORE_PWD_PROP);
-				propsSet = true;
-				System.setProperty(TRUST_STORE_PROP, theTrustStoreFile);
-				System.setProperty(TRUST_STORE_PWD_PROP, theTrustStorePassword);
-			}
-			java.net.URL url = new java.net.URL(callURL);
-			conn = (java.net.HttpURLConnection) url.openConnection();
-		} finally
-		{
-			if(propsSet && theTrustStoreFile != null
-				&& theTrustStoreFile.equals(System.getProperty(TRUST_STORE_PROP)))
-				System.setProperty(TRUST_STORE_PROP, preTrustStore);
-			if(propsSet && theTrustStorePassword != null
-				&& theTrustStorePassword.equals(System.getProperty(TRUST_STORE_PWD_PROP)))
-				System.setProperty(TRUST_STORE_PWD_PROP, preTrustPwd);
+				public boolean verify(String hostname, javax.net.ssl.SSLSession session)
+				{
+					return true;
+				}
+			});
 		}
+		if(isPost)
+			conn.setRequestMethod("POST");
 		conn.setRequestProperty("Accept-Encoding", "gzip");
 		conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset().name());
 		return conn;
+	}
+
+	/**
+	 * Contacts the server and retrieves the security certificate information provided by the SSL
+	 * server.
+	 * 
+	 * @return The SSL certificates provided by the server, or null if the connection is not over
+	 *         SSL
+	 * @throws IOException If the connection cannot be made
+	 * @throws NoSuchAlgorithmException If the "SSL" algorithm cannot be found in the environment
+	 * @throws KeyManagementException If the SSL context cannot be initialized with the given trust
+	 *         manager
+	 */
+	public java.security.cert.X509Certificate[] getServerCerts() throws IOException,
+		NoSuchAlgorithmException, KeyManagementException
+	{
+		String callURL = theServiceURL;
+		callURL += "?method=test";
+		java.net.HttpURLConnection conn;
+		java.net.URL url = new java.net.URL(callURL);
+		conn = (java.net.HttpURLConnection) url.openConnection();
+		if(conn instanceof javax.net.ssl.HttpsURLConnection)
+		{
+			SecurityRetriever retriever = new SecurityRetriever();
+			javax.net.ssl.SSLContext sc;
+			sc = javax.net.ssl.SSLContext.getInstance("SSL");
+			sc.init(null, new javax.net.ssl.TrustManager [] {retriever},
+				new java.security.SecureRandom());
+			javax.net.ssl.HttpsURLConnection sConn = (javax.net.ssl.HttpsURLConnection) conn;
+			((javax.net.ssl.HttpsURLConnection) conn).setSSLSocketFactory(sc.getSocketFactory());
+			sConn.setHostnameVerifier(new javax.net.ssl.HostnameVerifier()
+			{
+				public boolean verify(String hostname, javax.net.ssl.SSLSession session)
+				{
+					return true;
+				}
+			});
+			conn.connect();
+			return retriever.getCerts();
+		}
+		else
+			return null;
 	}
 
 	private String getEncodedDataString(JSONObject params) throws IOException
@@ -723,26 +986,20 @@ public class PrismsServiceConnector
 			else if(logRequestsResponses)
 				log.info("Calling service with data " + dataStr);
 			if(theEncryption != null)
-				dataStr = theEncryption.encrypt(dataStr, java.nio.charset.Charset.defaultCharset());
+			{
+				Lock lock = theCredentialLock.readLock();
+				lock.lock();
+				try
+				{
+					dataStr = theEncryption.encrypt(dataStr);
+				} finally
+				{
+					lock.unlock();
+				}
+			}
 			dataStr = encode(dataStr);
 		}
 		return dataStr;
-	}
-
-	private static java.nio.charset.Charset getCharset(java.net.URLConnection conn)
-	{
-		String contentType = conn.getContentType();
-		if(contentType == null)
-			return java.nio.charset.Charset.forName("Cp1252");
-		contentType = contentType.toLowerCase();
-		int idx = contentType.indexOf("charset=");
-		if(idx < 0)
-			return java.nio.charset.Charset.forName("Cp1252");
-		contentType = contentType.substring(idx + "charset=".length());
-		idx = contentType.indexOf(";");
-		if(idx >= 0)
-			contentType = contentType.substring(0, idx);
-		return java.nio.charset.Charset.forName(contentType);
 	}
 
 	private static String encode(String toEncode) throws IOException
@@ -798,7 +1055,7 @@ public class PrismsServiceConnector
 		return getResultStream(ServerMethod.getDownload, params).input;
 	}
 
-	static String BOUNDARY = Long.toHexString((long) (Math.random() * Long.MAX_VALUE));
+	String BOUNDARY = Long.toHexString((long) (Math.random() * Long.MAX_VALUE));
 
 	/**
 	 * Uploads data to the service TODO This does not currently work
@@ -821,7 +1078,18 @@ public class PrismsServiceConnector
 		jsonParams.put("method", method);
 		jsonParams.put("uploadFile", fileName);
 		String dataStr = getEncodedDataString(jsonParams);
-		final java.net.HttpURLConnection conn = getURL(ServerMethod.doUpload, dataStr);
+		Encryption enc;
+		final java.net.HttpURLConnection conn;
+		Lock lock = theCredentialLock.readLock();
+		lock.lock();
+		try
+		{
+			enc = theEncryption;
+			conn = getURL(ServerMethod.doUpload, dataStr, enc);
+		} finally
+		{
+			lock.unlock();
+		}
 		conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset().name());
 		conn.setDoOutput(true);
 		conn.setDoInput(true);
@@ -863,6 +1131,7 @@ public class PrismsServiceConnector
 		}
 		out.write("\r\n");
 		out.flush();
+		// TODO Outgoing data is not encrypted. Should it be?
 		return new java.io.OutputStream()
 		{
 			@Override
@@ -918,30 +1187,65 @@ public class PrismsServiceConnector
 	}
 
 	private synchronized JSONArray startEncryption(Hashing hashing, JSONObject encryptionParams,
-		String postAction, ServerMethod postServerMethod, JSONObject postRequest)
+		String postAction, ServerMethod postServerMethod, JSONObject postRequest, long authID)
 		throws IOException
 	{
-		if(theEncryption != null)
-			theEncryption.dispose();
-		theEncryption = null;
-		long [] key;
-		if(thePassword != null)
+		Lock lock = theCredentialLock.writeLock();
+		lock.lock();
+		try
 		{
-			long [] partialHash = hashing.partialHash(thePassword);
-			key = hashing.generateKey(partialHash);
-		}
-		else if(theUserSource != null)
+			theEncryption = null;
+			long [] key;
+			if(theUserSource != null)
+			{
+				prisms.arch.ds.User user = theUserSource.getUser(theUserName);
+				if(user == null)
+					throw new IOException("No such user " + theUserName + " in data source");
+				prisms.arch.ds.UserSource.Password pwd = theUserSource.getPassword(user, hashing);
+				if(pwd == null)
+					throw new IOException("No password set for user " + theUserName);
+				if(authID < 0 || pwd.setTime == authID)
+					key = theUserSource.getPassword(user, hashing).key;
+				else
+				{
+					System.out.println("Changed passwords");
+					key = null;
+					prisms.arch.ds.UserSource.Password[] pwds = theUserSource.getOldPasswords(user,
+						hashing);
+					for(prisms.arch.ds.UserSource.Password p : pwds)
+						if(p.setTime == authID)
+						{
+							key = p.key;
+							break;
+						}
+					if(key == null)
+						throw new IOException("Password set at " + PrismsUtils.print(authID)
+							+ " not found");
+				}
+			}
+			else if(authID >= 0)
+			{
+				if(thePasswordChanger == null)
+					throw new IOException("Password changed externally and no password"
+						+ " changer configured");
+				thePassword = thePasswordChanger.getChangedPassword(authID);
+				long [] partialHash = hashing.partialHash(thePassword);
+				key = hashing.generateKey(partialHash);
+			}
+			else if(thePassword != null)
+			{
+				long [] partialHash = hashing.partialHash(thePassword);
+				key = hashing.generateKey(partialHash);
+			}
+			else
+				throw new IOException("Encryption required for access to application " + theAppName
+					+ " by user " + theUserName);
+			theEncryption = createEncryption((String) encryptionParams.get("type"));
+			theEncryption.init(key, encryptionParams);
+		} finally
 		{
-			prisms.arch.ds.User user = theUserSource.getUser(theUserName);
-			if(user == null)
-				throw new IOException("No such user " + theUserName + " in data source");
-			key = theUserSource.getKey(user, hashing);
+			lock.unlock();
 		}
-		else
-			throw new IOException("Encryption required for access to application " + theAppName
-				+ " by user " + theUserName);
-		theEncryption = createEncryption((String) encryptionParams.get("type"));
-		theEncryption.init(key, encryptionParams);
 		if("callInit".equals(postAction))
 		{
 			// No need to call this--this is accomplished by the postRequest
@@ -954,7 +1258,7 @@ public class PrismsServiceConnector
 			return null;
 	}
 
-	private prisms.arch.Encryption createEncryption(String type)
+	private Encryption createEncryption(String type)
 	{
 		if(type.equals("blowfish"))
 			return new prisms.arch.BlowfishEncryption();
@@ -962,29 +1266,6 @@ public class PrismsServiceConnector
 			return new prisms.arch.AESEncryption();
 		else
 			throw new IllegalArgumentException("Unrecognized encryption type: " + type);
-	}
-
-	private synchronized JSONArray validate(JSONObject params, JSONObject request)
-		throws IOException
-	{
-		if(theValidationTries > 0)
-			throw new IOException("Validation failed");
-		if(theValidator == null)
-			throw new IOException("Validation required for access to application " + theAppName
-				+ " by user " + theUserName);
-		JSONObject validated = theValidator.validate(params);
-		theValidationTries++;
-		try
-		{
-			callServer(ServerMethod.validate, validated);
-			if(request != null)
-				return callServer(ServerMethod.processEvent, request);
-			else
-				return null;
-		} finally
-		{
-			theValidationTries--;
-		}
 	}
 
 	private JSONArray callChangePassword(Hashing hashing,
@@ -1005,7 +1286,7 @@ public class PrismsServiceConnector
 		long [] hash = hashing.partialHash(newPwd);
 		JSONArray pwdData = new JSONArray();
 		for(int h = 0; h < hash.length; h++)
-			pwdData.add(new Long(hash[h]));
+			pwdData.add(Long.valueOf(hash[h]));
 		JSONObject changeEvt = new JSONObject();
 		changeEvt.put("method", "changePassword");
 		changeEvt.put("passwordData", pwdData);
@@ -1018,7 +1299,37 @@ public class PrismsServiceConnector
 
 	private String checkPassword(String pwd, prisms.arch.ds.PasswordConstraints constraints)
 	{
-		// TODO check against constraints
+		if(pwd.length() < constraints.getMinCharacterLength())
+			return "Password must be at least " + constraints.getMinCharacterLength()
+				+ " character" + (constraints.getMinCharacterLength() > 1 ? "s" : "") + " long";
+		int lc = 0;
+		int uc = 0;
+		int dig = 0;
+		int special = 0;
+		for(int c = 0; c < pwd.length(); c++)
+		{
+			char ch = pwd.charAt(c);
+			if(Character.isLowerCase(ch))
+				lc++;
+			else if(Character.isUpperCase(ch))
+				uc++;
+			else if(Character.isDigit(ch))
+				dig++;
+			else
+				special++;
+		}
+		if(lc < constraints.getMinLowerCase())
+			return "Password must contain at least " + constraints.getMinLowerCase()
+				+ " lower-case letter" + (constraints.getMinLowerCase() > 1 ? "s" : "");
+		if(lc < constraints.getMinUpperCase())
+			return "Password must contain at least " + constraints.getMinUpperCase()
+				+ " upper-case letter" + (constraints.getMinUpperCase() > 1 ? "s" : "");
+		if(lc < constraints.getMinDigits())
+			return "Password must contain at least " + constraints.getMinDigits()
+				+ " numeric digit" + (constraints.getMinDigits() > 1 ? "s" : "");
+		if(lc < constraints.getMinLowerCase())
+			return "Password must contain at least " + constraints.getMinSpecialChars()
+				+ " special character" + (constraints.getMinSpecialChars() > 1 ? "s" : "");
 		return null;
 	}
 }

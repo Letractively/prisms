@@ -4,9 +4,7 @@ import java.io.IOException;
 
 import org.json.simple.JSONObject;
 
-/**
- * The blowfish encryption implementation. Uses blowfishj.
- */
+/** The blowfish encryption implementation. Uses blowfishj. */
 public class BlowfishEncryption implements Encryption
 {
 	private static String BASE_64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -17,9 +15,7 @@ public class BlowfishEncryption implements Encryption
 
 	private blowfishj.BlowfishECB theCipher;
 
-	/**
-	 * Creates a blowfish encryption implementation
-	 */
+	/** Creates a blowfish encryption implementation */
 	public BlowfishEncryption()
 	{
 		theMaxKeyLength = 448 / 8;
@@ -45,10 +41,10 @@ public class BlowfishEncryption implements Encryption
 			keyStringEls[h] = toKeyString(longKey[h]);
 		while(isTooBig(keyStringEls))
 			keyStringEls = downsize(keyStringEls);
-		String ret = "";
+		StringBuilder ret = new StringBuilder();
 		for(int k = 0; k < keyStringEls.length; k++)
-			ret += keyStringEls[k];
-		return ret;
+			ret.append(keyStringEls[k]);
+		return ret.toString();
 	}
 
 	private boolean isTooBig(String [] keys)
@@ -77,37 +73,44 @@ public class BlowfishEncryption implements Encryption
 
 	private static String toKeyString(long value)
 	{
-		String ret = "";
+		if(value < 0)
+			value = -value;
+		StringBuilder ret = new StringBuilder();
 		while(value > 0)
 		{
-			ret += BASE_64.charAt((int) (value % 64));
+			ret.append(BASE_64.charAt((int) (value % 64)));
 			value /= 64;
 		}
-		return ret;
+		return ret.toString();
 	}
 
-	public String encrypt(String text, java.nio.charset.Charset charSet) throws IOException
+	public String encrypt(String text) throws IOException
 	{
-		int size = text.length();
+		byte [] textBytes;
+		if(prisms.util.PrismsUtils.isJava6())
+			textBytes = text.getBytes(CHAR_SET);
+		else
+			textBytes = text.getBytes(CHAR_SET.name());
+		int size = textBytes.length;
 		int blockSize = blowfishj.BlowfishECB.BLOCKSIZE;
 		if(size % blockSize > 0)
 			size += (blockSize - size % blockSize);
 		byte [] input = new byte [size];
-		System.arraycopy(text.getBytes(charSet.name()), 0, input, 0, text.length());
+		System.arraycopy(textBytes, 0, input, 0, textBytes.length);
 		byte [] ret = new byte [size];
 		theCipher.encrypt(input, 0, ret, 0, size);
 
-		//return new sun.misc.BASE64Encoder().encode(ret);
+		// return new sun.misc.BASE64Encoder().encode(ret);
 		// Sun whines about BASE64 being proprietary. Use apache instead...
 		return new org.apache.commons.codec.binary.Base64().encodeToString(ret);
 	}
 
-	public String decrypt(String encrypted, java.nio.charset.Charset charSet) throws IOException
+	public String decrypt(String encrypted) throws IOException
 	{
-		//byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
+		// byte [] data = new sun.misc.BASE64Decoder().decodeBuffer(encrypted);
 		// Sun whines about BASE64 being proprietary. Use apache instead...
-		byte[] data = org.apache.commons.codec.binary.Base64.decodeBase64(encrypted);
-		
+		byte [] data = org.apache.commons.codec.binary.Base64.decodeBase64(encrypted);
+
 		byte [] ret = new byte [data.length];
 		theCipher.decrypt(data, 0, ret, 0, ret.length);
 		int retSize = ret.length;
@@ -119,7 +122,10 @@ public class BlowfishEncryption implements Encryption
 			System.arraycopy(ret, 0, realRet, 0, retSize);
 			ret = realRet;
 		}
-		return new String(ret, charSet.name());
+		if(prisms.util.PrismsUtils.isJava6())
+			return new String(ret, CHAR_SET);
+		else
+			return new String(ret, CHAR_SET.name());
 	}
 
 	public void dispose()
@@ -127,8 +133,15 @@ public class BlowfishEncryption implements Encryption
 		theCipher.cleanUp();
 	}
 
+	@Override
+	protected void finalize()
+	{
+		dispose();
+	}
+
+	@Override
 	public String toString()
 	{
-		return "Blowfish ECB with key " + theKey;
+		return "Blowfish ECB " + (theKey == null ? "null" : Integer.toHexString(theKey.hashCode()));
 	}
 }

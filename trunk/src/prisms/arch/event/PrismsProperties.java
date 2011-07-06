@@ -9,6 +9,10 @@ import prisms.arch.ds.User;
 /** Properties not specific to an application implementation */
 public class PrismsProperties
 {
+	/** The user preferences */
+	public static final PrismsProperty<prisms.util.preferences.Preferences> preferences = PrismsProperty
+		.create("prisms/preferences", prisms.util.preferences.Preferences.class);
+
 	/** All PRISMS users that can access the application */
 	public static final PrismsProperty<User []> users = PrismsProperty.create("prisms/users",
 		User [].class);

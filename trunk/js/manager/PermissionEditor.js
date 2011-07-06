@@ -61,13 +61,13 @@ __dojo.declare("manager.PermissionEditor", [__dijit._Widget, __dijit._Container,
 		this.setVisible(true);
 		this.dataLock=true;
 		try{
-			this.nameText.innerHTML=value.name;
-			this.descripField.innerHTML=value.description;
+			this.nameText.innerHTML=PrismsUtils.fixUnicodeString(value.name);
+			this.descripField.innerHTML=PrismsUtils.fixUnicodeString(value.description);
 			if(value.group)
 			{
 				PrismsUtils.setTableRowVisible(this.groupHasPermissionsRow, true);
-				this.groupHasPermissionText.innerHTML="Group "+value.group.name+" has permission "
-					+value.name;
+				this.groupHasPermissionText.innerHTML=PrismsUtils.fixUnicodeString(
+					"Group "+value.group.name+" has permission "+value.name);
 				this.groupHasPermissionCheck.setAttribute("checked", value.group.selected);
 			}
 			else

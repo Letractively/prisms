@@ -25,9 +25,9 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 	boolean theDataLock;
 
 	@Override
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setCompareByIdentity(false);
 		setSelectionMode(SelectionMode.MULTIPLE);
 		setDisplaySelectedOnly(false);
@@ -55,6 +55,9 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 			{
 				if(evt.getProperty("group") == theGroup)
 					setListParams();
+				if(theDataLock)
+					return;
+				setGroup(theGroup);
 			}
 		});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
@@ -66,18 +69,6 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 					setApp(theApp);
 			}
 		});
-		session.addEventListener("groupPermissionsChanged",
-			new prisms.arch.event.PrismsEventListener()
-			{
-				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
-				{
-					if(evt.getProperty("group") != theGroup)
-						return;
-					if(theDataLock)
-						return;
-					setGroup(theGroup);
-				}
-			});
 	}
 
 	String createNewPermissionName(String aTry)
@@ -184,7 +175,8 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 		theGroup.getPermissions().removePermission(item.getName());
 		try
 		{
-			((ManageableUserSource) theApp.getEnvironment().getUserSource()).putGroup(theGroup);
+			((ManageableUserSource) theApp.getEnvironment().getUserSource()).putGroup(theGroup,
+				new prisms.records.RecordsTransaction(getSession().getUser()));
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not remove permission from group", e);
@@ -192,8 +184,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 		theDataLock = true;
 		try
 		{
-			getSession().fireEvent(
-				new prisms.arch.event.PrismsEvent("groupPermissionsChanged", "group", theGroup));
+			getSession().fireEvent("groupChanged", "group", theGroup);
 		} finally
 		{
 			theDataLock = false;
@@ -206,7 +197,8 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 		theGroup.getPermissions().addPermission(item);
 		try
 		{
-			((ManageableUserSource) theApp.getEnvironment().getUserSource()).putGroup(theGroup);
+			((ManageableUserSource) theApp.getEnvironment().getUserSource()).putGroup(theGroup,
+				new prisms.records.RecordsTransaction(getSession().getUser()));
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not add permission to group", e);
@@ -214,8 +206,7 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 		theDataLock = true;
 		try
 		{
-			getSession().fireEvent(
-				new prisms.arch.event.PrismsEvent("groupPermissionsChanged", "group", theGroup));
+			getSession().fireEvent("groupChanged", "group", theGroup);
 		} finally
 		{
 			theDataLock = false;

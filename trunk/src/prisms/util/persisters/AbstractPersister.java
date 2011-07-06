@@ -3,10 +3,8 @@
  */
 package prisms.util.persisters;
 
-import org.dom4j.Element;
-
-import prisms.arch.PrismsApplication;
 import prisms.arch.Persister;
+import prisms.arch.PrismsApplication;
 
 /**
  * Implements some of the linking functionality needed by persisters
@@ -19,7 +17,7 @@ public abstract class AbstractPersister<T> implements Persister<T>
 
 	// private LinkHelper theLinker;
 
-	public void configure(Element configEl, PrismsApplication app,
+	public void configure(prisms.arch.PrismsConfig config, PrismsApplication app,
 		prisms.arch.event.PrismsProperty<T> property)
 	{
 		theApp = app;
@@ -29,17 +27,12 @@ public abstract class AbstractPersister<T> implements Persister<T>
 		// theLinker.configure(linkConfig);
 	}
 
-	/**
-	 * @return The application that this persister stores and retrieves data for
-	 */
+	/** @return The application that this persister stores and retrieves data for */
 	public PrismsApplication getApp()
 	{
 		return theApp;
 	}
 
-	/**
-	 * @see prisms.arch.Persister#link(java.lang.Object)
-	 */
 	public T link(T value)
 	{
 		return value;

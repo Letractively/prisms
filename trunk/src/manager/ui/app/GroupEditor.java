@@ -25,10 +25,10 @@ public class GroupEditor implements prisms.arch.AppPlugin
 
 	boolean theDataLock;
 
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		prisms.arch.ds.UserSource us = session.getApp().getEnvironment().getUserSource();
 		if(!(us instanceof prisms.arch.ds.ManageableUserSource))
 			log.warn("User source is not manageable");
@@ -69,14 +69,14 @@ public class GroupEditor implements prisms.arch.AppPlugin
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setVisible");
-		evt.put("visible", new Boolean(visible));
+		evt.put("visible", Boolean.valueOf(visible));
 		theSession.postOutgoingEvent(evt);
 		if(!visible)
 			return;
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setEnabled");
-		evt.put("enabled", new Boolean(isEditable()));
+		evt.put("enabled", Boolean.valueOf(isEditable()));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -104,7 +104,8 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			theGroup.setName(newName);
 			try
 			{
-				source.putGroup(theGroup);
+				source.putGroup(theGroup,
+					new prisms.records.RecordsTransaction(theSession.getUser()));
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify group", e);
@@ -133,7 +134,8 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			theGroup.setDescription(newDescrip);
 			try
 			{
-				source.putGroup(theGroup);
+				source.putGroup(theGroup,
+					new prisms.records.RecordsTransaction(theSession.getUser()));
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not modify group", e);

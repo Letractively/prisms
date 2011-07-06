@@ -70,9 +70,7 @@ public class GroupShareKey implements ShareKey
 		return theOwner;
 	}
 
-	/**
-	 * @return The number of groups with permission to view this key's object
-	 */
+	/** @return The number of groups with permission to view this key's object */
 	public int getGroupCount()
 	{
 		return theAccessGroups.length;
@@ -121,17 +119,13 @@ public class GroupShareKey implements ShareKey
 		return theEditGroups[idx];
 	}
 
-	/**
-	 * @return The names of all this key's access groups
-	 */
+	/** @return The names of all this key's access groups */
 	public String [] getGroups()
 	{
 		return theAccessGroups;
 	}
 
-	/**
-	 * @param group The name of the group to add access to this key's object to
-	 */
+	/** @param group The name of the group to add access to this key's object to */
 	public void addAccessGroup(String group)
 	{
 		if(ArrayUtils.contains(theAccessGroups, group))
@@ -142,9 +136,7 @@ public class GroupShareKey implements ShareKey
 		theEditGroups = editGroups;
 	}
 
-	/**
-	 * @param group The name of the group to remove access to this key's object from
-	 */
+	/** @param group The name of the group to remove access to this key's object from */
 	public void removeAccessGroup(String group)
 	{
 		int idx = ArrayUtils.indexOf(theAccessGroups, group);
@@ -182,17 +174,13 @@ public class GroupShareKey implements ShareKey
 		theEditGroups[idx] = canEdit;
 	}
 
-	/**
-	 * @return Whether this key's object may be viewed by any user
-	 */
+	/** @return Whether this key's object may be viewed by any user */
 	public boolean isViewPublic()
 	{
 		return isViewPublic;
 	}
 
-	/**
-	 * @param viewPublic Whether this key's object should be viewable by any user
-	 */
+	/** @param viewPublic Whether this key's object should be viewable by any user */
 	public void setViewPublic(boolean viewPublic)
 	{
 		isViewPublic = viewPublic;
@@ -200,17 +188,13 @@ public class GroupShareKey implements ShareKey
 			isEditPublic = false;
 	}
 
-	/**
-	 * @return Whether this key's object may be viewed and modified by any user
-	 */
+	/** @return Whether this key's object may be viewed and modified by any user */
 	public boolean isEditPublic()
 	{
 		return isEditPublic;
 	}
 
-	/**
-	 * @param editPublic Whether this key's object should be viewable and modifieable by any user
-	 */
+	/** @param editPublic Whether this key's object should be viewable and modifieable by any user */
 	public void setEditPublic(boolean editPublic)
 	{
 		isEditPublic = editPublic;
@@ -262,6 +246,7 @@ public class GroupShareKey implements ShareKey
 		return false;
 	}
 
+	@Override
 	public GroupShareKey clone()
 	{
 		GroupShareKey ret;
@@ -293,6 +278,7 @@ public class GroupShareKey implements ShareKey
 		return ret;
 	}
 
+	@Override
 	public boolean equals(Object o)
 	{
 		if(o == this)
@@ -318,6 +304,7 @@ public class GroupShareKey implements ShareKey
 		return true;
 	}
 
+	@Override
 	public int hashCode()
 	{
 		int groupHash = 0;
@@ -334,9 +321,7 @@ public class GroupShareKey implements ShareKey
 		return s1 == null ? s2 == null : s1.equals(s2);
 	}
 
-	/**
-	 * @return A JSON-array containing this share key's groups and their accessibility
-	 */
+	/** @return A JSON-array containing this share key's groups and their accessibility */
 	public JSONArray getGroupJSON()
 	{
 		JSONArray ret = new JSONArray();
@@ -344,8 +329,8 @@ public class GroupShareKey implements ShareKey
 		{
 			JSONObject jsonG = new JSONObject();
 			jsonG.put("groupName", theAccessGroups[g]);
-			jsonG.put("canView", new Boolean(true));
-			jsonG.put("canEdit", new Boolean(canEdit(g)));
+			jsonG.put("canView", Boolean.TRUE);
+			jsonG.put("canEdit", Boolean.valueOf(canEdit(g)));
 			ret.add(jsonG);
 		}
 		return ret;

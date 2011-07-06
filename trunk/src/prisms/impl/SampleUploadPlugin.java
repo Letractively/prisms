@@ -28,24 +28,15 @@ public class SampleUploadPlugin implements prisms.arch.UploadPlugin
 
 	volatile boolean isFinished;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		startUpload(evt);
@@ -65,16 +56,15 @@ public class SampleUploadPlugin implements prisms.arch.UploadPlugin
 		theSession.postOutgoingEvent(evt);
 	}
 
-
-	public void doUpload(JSONObject event, String fileName, String contentType, java.io.InputStream input, long size)
-		throws java.io.IOException
+	public void doUpload(JSONObject event, String fileName, String contentType,
+		java.io.InputStream input, long size) throws java.io.IOException
 	{
 		theProgress = 0;
 		theScale = 10;
 		isCanceled = false;
 		isFinished = false;
 		theText = "Uploading file " + fileName;
-		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
+		prisms.ui.UI ui = theSession.getUI();
 		/* Here we start the progress bar that will run after the upload. This works to do it here
 		 * for the upload but not the download*/
 		ui.startTimedTask(new prisms.ui.UI.ProgressInformer()

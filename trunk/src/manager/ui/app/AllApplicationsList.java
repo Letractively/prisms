@@ -10,9 +10,9 @@ import prisms.arch.PrismsApplication;
 public class AllApplicationsList extends prisms.ui.list.SelectableList<PrismsApplication>
 {
 	@Override
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setDisplaySelectedOnly(false);
 		setSelectionMode(SelectionMode.SINGLE);
 		setListData(session.getProperty(prisms.arch.event.PrismsProperties.applications));

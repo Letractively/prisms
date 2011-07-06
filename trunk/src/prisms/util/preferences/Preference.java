@@ -10,14 +10,10 @@ package prisms.util.preferences;
  */
 public class Preference<T> implements Comparable<Preference<?>>
 {
-	/**
-	 * The preference type
-	 */
+	/** The preference type */
 	public static enum Type
 	{
-		/**
-		 * A simple boolean-type preference
-		 */
+		/** A simple boolean-type preference */
 		BOOLEAN(Boolean.class) {
 			@Override
 			public Object deserialize(String serialized)
@@ -25,9 +21,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 				return Boolean.valueOf(serialized);
 			}
 		},
-		/**
-		 * A simple integer-type preference
-		 */
+		/** A simple integer-type preference */
 		INT(Integer.class) {
 			@Override
 			public Object deserialize(String serialized)
@@ -35,9 +29,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 				return new Integer(serialized);
 			}
 		},
-		/**
-		 * An integer-type preference that cannot be negative
-		 */
+		/** An integer-type preference that cannot be negative */
 		NONEG_INT(Integer.class) {
 			@Override
 			public Object deserialize(String serialized)
@@ -54,9 +46,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 						"Cannot set a negative value for this preference");
 			}
 		},
-		/**
-		 * A simple floating point-type preference
-		 */
+		/** A simple floating point-type preference */
 		FLOAT(Float.class) {
 			@Override
 			public Object deserialize(String serialized)
@@ -64,9 +54,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 				return new Float(serialized);
 			}
 		},
-		/**
-		 * A floating point-type preference that cannot be negative
-		 */
+		/** A floating point-type preference that cannot be negative */
 		NONEG_FLOAT(Float.class) {
 			@Override
 			public Object deserialize(String serialized)
@@ -74,9 +62,6 @@ public class Preference<T> implements Comparable<Preference<?>>
 				return new Float(serialized);
 			}
 
-			/**
-			 * @see prisms.util.preferences.Preference.Type#validate(java.lang.Object)
-			 */
 			@Override
 			public void validate(Object value)
 			{
@@ -86,9 +71,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 						"Cannot set a negative value for this preference");
 			}
 		},
-		/**
-		 * A simple string-type preference
-		 */
+		/** A simple string-type preference */
 		STRING(String.class) {
 			@Override
 			public Object deserialize(String serialized)
@@ -96,9 +79,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 				return serialized;
 			}
 		},
-		/**
-		 * A preference that represents a choice between several possible values
-		 */
+		/** A preference that represents a choice between several possible values */
 		ENUM(Enum.class) {
 			@Override
 			@SuppressWarnings("rawtypes")
@@ -121,25 +102,21 @@ public class Preference<T> implements Comparable<Preference<?>>
 				return o.getClass().getName() + ":" + ((Enum<?>) o).name();
 			}
 		},
-		/**
-		 * A color-type preference
-		 */
+		/** A color-type preference */
 		COLOR(java.awt.Color.class) {
 			@Override
 			public Object deserialize(String serialized)
 			{
-				return prisms.util.JsonUtils.fromHTML(serialized);
+				return prisms.util.ColorUtils.fromHTML(serialized);
 			}
 
 			@Override
 			public String serialize(Object o)
 			{
-				return prisms.util.JsonUtils.toHTML((java.awt.Color) o);
+				return prisms.util.ColorUtils.toHTML((java.awt.Color) o);
 			}
 		},
-		/**
-		 * A proportion-type preference, representing a value between 0 and 1
-		 */
+		/** A proportion-type preference, representing a value between 0 and 1 */
 		PROPORTION(Float.class) {
 			@Override
 			public Object deserialize(String serialized)
@@ -147,9 +124,6 @@ public class Preference<T> implements Comparable<Preference<?>>
 				return new Float(serialized);
 			}
 
-			/**
-			 * @see prisms.util.preferences.Preference.Type#validate(java.lang.Object)
-			 */
 			@Override
 			public void validate(Object value)
 			{
@@ -191,9 +165,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 			theType = type;
 		}
 
-		/**
-		 * @return The java type that a preference of this type can hold
-		 */
+		/** @return The java type that a preference of this type can hold */
 		public Class<?> getType()
 		{
 			return theType;
@@ -237,6 +209,8 @@ public class Preference<T> implements Comparable<Preference<?>>
 
 	private final String theName;
 
+	private String theDescrip;
+
 	private final boolean isDisplayed;
 
 	/**
@@ -263,43 +237,49 @@ public class Preference<T> implements Comparable<Preference<?>>
 				"Cannot create a displayed preference of arbitrary type");
 	}
 
-	/**
-	 * @return This preference's domain
-	 */
+	/** @return This preference's domain */
 	public String getDomain()
 	{
 		return theDomain;
 	}
 
-	/**
-	 * @return This preference's name
-	 */
+	/** @return This preference's name */
 	public String getName()
 	{
 		return theName;
 	}
 
-	/**
-	 * @return This preference's type
-	 */
+	/** @return A description of what this preference affects. May be null. */
+	public String getDescription()
+	{
+		return theDescrip;
+	}
+
+	/** @param descrip A description of what this preference affects */
+	public void setDescription(String descrip)
+	{
+		theDescrip = descrip;
+	}
+
+	/** @return This preference's type */
 	public Type getType()
 	{
 		return theType;
 	}
 
-	/**
-	 * @return Whether this preference can be directly edited by the user
-	 */
+	/** @return Whether this preference can be directly edited by the user */
 	public boolean isDisplayed()
 	{
 		return isDisplayed;
 	}
 
+	@Override
 	public int hashCode()
 	{
 		return theDomain.hashCode() * 31 + theName.hashCode() * 17;
 	}
 
+	@Override
 	public boolean equals(Object o)
 	{
 		if(!(o instanceof Preference<?>))
@@ -320,6 +300,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 		return ret;
 	}
 
+	@Override
 	public String toString()
 	{
 		return "Preference " + theDomain + "/" + theName + "(type " + theType + ")";

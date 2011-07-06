@@ -4,7 +4,7 @@ __dojo.require("dojox.widget.Toaster");
 __dojo.provide("prisms.widget.StatusToaster");
 __dojo.declare("prisms.widget.StatusToaster", __dojox.widget.Toaster, {
 
-	pluginName: "No pluginName specified",
+	pluginName: "Status",
 
 	prisms: null,
 

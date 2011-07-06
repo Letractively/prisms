@@ -1,26 +1,113 @@
-/**
+/*
  * UserSource.java Created Oct 31, 2007 by Andrew Butler, PSL
  */
 package prisms.arch.ds;
 
+import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsException;
 
 /** Provides access to a set of users */
 public interface UserSource
 {
+	/** Represents a password set for a user */
+	public static class Password
+	{
+		/** The password's key. See {@link Hashing#generateKey(long[])} */
+		public final long [] key;
+
+		/** The time at which the password was set */
+		public final long setTime;
+
+		/**
+		 * The time at which the password will or has expired. May be -1 for a password that does
+		 * not expire
+		 */
+		public final long expire;
+
+		/**
+		 * Creates a password
+		 * 
+		 * @param k The key for the password
+		 * @param time The time the password was set
+		 * @param ex The expire time for the password
+		 */
+		public Password(long [] k, long time, long ex)
+		{
+			key = k;
+			setTime = time;
+			expire = ex;
+		}
+	}
+
+	/** Status of an application in the PRISMS environment */
+	public static class ApplicationStatus
+	{
+		/** The application lock applying to the application */
+		public final PrismsApplication.ApplicationLock lock;
+
+		/** The ID of the most recent command to reload the application's properties */
+		public final int reloadPropsCommand;
+
+		/** The ID of the most recent command to reload the application's sessions */
+		public final int reloadSessionsCommand;
+
+		/**
+		 * @param aLock The lock for the application
+		 * @param reloadProps The command to reload application properties
+		 * @param reloadSessions The command to reload application sessions
+		 */
+		public ApplicationStatus(PrismsApplication.ApplicationLock aLock, int reloadProps,
+			int reloadSessions)
+		{
+			lock = aLock;
+			reloadPropsCommand = reloadProps;
+			reloadSessionsCommand = reloadSessions;
+		}
+	}
+
 	/**
 	 * Sets this user source's data source
 	 * 
-	 * @param configEl The XML element to configure this data source with
+	 * @param configEl The configuration to configure this data source with
 	 * @param env The PRISMS environment that this user source will be used in
 	 * @param apps All applications configured in the PRISMS environment
 	 * @throws PrismsException If the user source could not be configured correctly
 	 */
-	void configure(org.dom4j.Element configEl, prisms.arch.PrismsEnv env,
-		prisms.arch.PrismsApplication[] apps) throws PrismsException;
+	void configure(prisms.arch.PrismsConfig configEl, prisms.arch.PrismsEnv env,
+		PrismsApplication [] apps) throws PrismsException;
 
-	/** @return The ID generator used to configure IDs in this PRISMS environment */
-	prisms.arch.ds.IDGenerator getIDs();
+	/**
+	 * @param app The application to get the lock for
+	 * @return The lock on the application, or null if the application is not locked
+	 * @throws PrismsException If an error occurs retrieving the data
+	 */
+	ApplicationStatus getApplicationStatus(PrismsApplication app) throws PrismsException;
+
+	/**
+	 * Sets or releases the lock on an application
+	 * 
+	 * @param app The application to lock or unlock
+	 * @param lock The lock to set for the application
+	 * @throws PrismsException If an error occurs setting the lock
+	 */
+	void setApplicationLock(PrismsApplication app, PrismsApplication.ApplicationLock lock)
+		throws PrismsException;
+
+	/**
+	 * Causes the given application to reload its properties on all other servers in the enterprise
+	 * 
+	 * @param app The application to reload the properties of
+	 * @throws PrismsException If an error occurs propagating the command
+	 */
+	void reloadProperties(PrismsApplication app) throws PrismsException;
+
+	/**
+	 * Causes the given application to reload its sessions on all other servers in the enterprise
+	 * 
+	 * @param app The application to reload the sessions of
+	 * @throws PrismsException If an error occurs propagating the command
+	 */
+	void reloadSessions(PrismsApplication app) throws PrismsException;
 
 	/**
 	 * @return The PRISMS user source's password constraints
@@ -52,7 +139,7 @@ public interface UserSource
 	 * @return Whether the user has permission to access the given application
 	 * @throws PrismsException If an error occurs accessing the data
 	 */
-	boolean canAccess(User user, prisms.arch.PrismsApplication app) throws PrismsException;
+	boolean canAccess(User user, PrismsApplication app) throws PrismsException;
 
 	/**
 	 * Gets a set of password hashing data to generate an encryption key from
@@ -70,7 +157,18 @@ public interface UserSource
 	 * @return An encryption key
 	 * @throws PrismsException If an error occurs getting the data
 	 */
-	long [] getKey(User user, Hashing hashing) throws PrismsException;
+	Password getPassword(User user, Hashing hashing) throws PrismsException;
+
+	/**
+	 * Gets all a user's stored passwords, sorted from the most recently set. The first element of
+	 * the return value should be the user's current password.
+	 * 
+	 * @param user The user to get the passwords for
+	 * @param hashing The hashing to use to interpret the passwords from the raw data
+	 * @return All a user's passwords
+	 * @throws PrismsException If an error occurs retrieving the data
+	 */
+	Password [] getOldPasswords(User user, Hashing hashing) throws PrismsException;
 
 	/**
 	 * Sets a user's password
@@ -78,9 +176,10 @@ public interface UserSource
 	 * @param user The user to set the password for
 	 * @param hash The hashed password information
 	 * @param isAdmin Whether this password change is being performed by an admin user
+	 * @return The password set as a result of this call
 	 * @throws PrismsException If an error occurs writing the data
 	 */
-	void setPassword(User user, long [] hash, boolean isAdmin) throws PrismsException;
+	Password setPassword(User user, long [] hash, boolean isAdmin) throws PrismsException;
 
 	/**
 	 * Checks to see when a user's password expires and must be reset

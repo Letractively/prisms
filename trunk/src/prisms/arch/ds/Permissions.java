@@ -1,4 +1,4 @@
-/**
+/*
  * Permissions.java Created Oct 5, 2007 by Andrew Butler, PSL
  */
 package prisms.arch.ds;
@@ -25,8 +25,6 @@ public interface Permissions
 	 */
 	Permission getPermission(String capability);
 
-	/**
-	 * @return All permissions associated with this Permissions object
-	 */
+	/** @return All permissions associated with this Permissions object */
 	Permission [] getAllPermissions();
 }

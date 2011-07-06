@@ -34,17 +34,16 @@ public class UnlLoader
 	public static void insertUNL(java.sql.Connection con, java.sql.PreparedStatement stmt,
 		java.io.Reader in, int columnCount) throws IOException, SQLException
 	{
-		String nextArg;
 		int nextChar = in.read();
 		int row, col;
 		for(row = 0; nextChar >= 0; row++)
 		{
 			for(col = 0; col < columnCount; col++)
 			{
-				nextArg = "";
+				StringBuilder nextArg = new StringBuilder();
 				while(nextChar >= 0 && nextChar != '|' && nextChar != '\n' && nextChar != '\r')
 				{
-					nextArg += (char) nextChar;
+					nextArg.append((char) nextChar);
 					nextChar = in.read();
 				}
 				try
@@ -53,8 +52,8 @@ public class UnlLoader
 					{
 						try
 						{
-							stmt.setDate(col + 1, new java.sql.Date(DATE_FORMAT.parse(nextArg)
-								.getTime()));
+							stmt.setDate(col + 1,
+								new java.sql.Date(DATE_FORMAT.parse(nextArg.toString()).getTime()));
 						} catch(java.text.ParseException e)
 						{
 							log.error("Could not parse date properly", e);
@@ -65,7 +64,7 @@ public class UnlLoader
 						// stmt.setNull(col + 1, java.sql.Types.NULL);
 						stmt.setNull(col + 1, java.sql.Types.FLOAT);
 					else
-						stmt.setString(col + 1, nextArg);
+						stmt.setString(col + 1, nextArg.toString());
 				} catch(SQLException e)
 				{
 					log.error("Row " + row + ", Column " + (col + 1) + "; arg=" + nextArg);

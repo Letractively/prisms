@@ -3,9 +3,7 @@
  */
 package prisms.ui.list;
 
-/**
- * Represents an action that can be performed on a {@link DataListNode} by the user
- */
+/** Represents an action that can be performed on a {@link DataListNode} by the user */
 public class NodeAction
 {
 	private String theText;
@@ -25,9 +23,7 @@ public class NodeAction
 		theMultiple = multiple;
 	}
 
-	/**
-	 * @return The text to use to represent this action
-	 */
+	/** @return The text to use to represent this action */
 	public String getText()
 	{
 		return theText;
@@ -42,6 +38,14 @@ public class NodeAction
 		return theMultiple;
 	}
 
+	@Override
+	public int hashCode()
+	{
+		assert false : "hashCode not designed";
+		return 42; // any arbitrary constant will do
+	}
+
+	@Override
 	public boolean equals(Object o)
 	{
 		if(!(o instanceof NodeAction))

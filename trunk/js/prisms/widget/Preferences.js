@@ -13,7 +13,7 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 
 	prisms: null,
 
-	pluginName: "No pluginName specified",
+	pluginName: "Preferences",
 
 	connectors: [],
 
@@ -43,7 +43,7 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 
 	setPrisms: function(prisms){
 		this.prisms=prisms;
-		this.titleNode.innerHTML=this.prisms.application+" Preferences";
+		this.titleNode.innerHTML=PrismsUtils.fixUnicodeString(this.prisms.application)+" Preferences";
 		this.prisms.loadPlugin(this);
 	},
 
@@ -59,6 +59,8 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 				return;
 			this.setDatum(event.domain, event.prefName, event.value);
 		}
+		else if(event.method=="setVisible")
+			this.setVisible(event.visible);
 		else
 			throw new Error("unrecognized "+this.pluginName+" event: "+this.prisms.toJson(event));
 	},
@@ -66,6 +68,9 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 	shutdown: function(){
 		this.hide();
 		this.clearTabs();
+	},
+
+	setVisible: function(visible){
 	},
 
 	setData: function(data){
@@ -82,11 +87,23 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 			for(var p=0;p<data[domain].length;p++)
 			{
 				var pref=data[domain][p].name;
+				var descrip=data[domain][p].descrip;
 				var prefRow=domainTable.insertRow(-1);
-				var prefNameCell=prefRow.insertCell(0);
-				var prefValCell=prefRow.insertCell(1);
+				var prefDescripCell=prefRow.insertCell(0);
+				prefDescripCell.style.width="16px";
+				var prefDescDiv=document.createElement("div");
+				prefDescripCell.appendChild(prefDescDiv);
+				prefDescDiv.style.width="16px";
+				prefDescDiv.style.height="16px";
+				var prefNameCell=prefRow.insertCell(1);
+				var prefValCell=prefRow.insertCell(2);
 				prefNameCell.style.fontWeight="bold";
-				prefNameCell.innerHTML=pref;
+				if(descrip)
+				{
+					prefDescDiv.style.backgroundImage="url(__webContentRoot/rsrc/icons/prisms/help.png)";
+					prefDescDiv.title=PrismsUtils.fixUnicodeString(descrip);
+				}
+				prefNameCell.innerHTML=PrismsUtils.fixUnicodeString(pref);
 				var editor=this.createEditor(domain, pref, data[domain][p]);
 				if(editor.domNode)
 					prefValCell.appendChild(editor.domNode);
@@ -117,7 +134,7 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 			}
 			else if(value.type=="COLOR")
 			{}
-			else
+			else if(editor.getValue()!=value.value)
 				editor.setValue(value.value);
 		} finally{
 			this.dataLock=false;

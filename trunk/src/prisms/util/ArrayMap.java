@@ -3,10 +3,8 @@
  */
 package prisms.util;
 
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * An ArrayMap is a very inefficient map type that is more robust in dealing with changes to its
@@ -25,34 +23,23 @@ public class ArrayMap<K, V> implements Map<K, V>
 
 	private Object [] theValues;
 
-	/**
-	 * Creates an ArrayMap
-	 */
+	/** Creates an ArrayMap */
 	public ArrayMap()
 	{
 		theKeys = new Object [0];
 		theValues = new Object [0];
 	}
 
-	/**
-	 * @see java.util.Map#size()
-	 */
 	public int size()
 	{
 		return theKeys.length;
 	}
 
-	/**
-	 * @see java.util.Map#isEmpty()
-	 */
 	public boolean isEmpty()
 	{
 		return theKeys.length == 0;
 	}
 
-	/**
-	 * @see java.util.Map#get(java.lang.Object)
-	 */
 	public V get(Object key)
 	{
 		for(int i = 0; i < theKeys.length; i++)
@@ -66,9 +53,6 @@ public class ArrayMap<K, V> implements Map<K, V>
 		return o1 == null ? o2 == null : o1.equals(o2);
 	}
 
-	/**
-	 * @see java.util.Map#containsKey(java.lang.Object)
-	 */
 	public boolean containsKey(Object key)
 	{
 		for(int i = 0; i < theKeys.length; i++)
@@ -77,9 +61,6 @@ public class ArrayMap<K, V> implements Map<K, V>
 		return false;
 	}
 
-	/**
-	 * @see java.util.Map#containsValue(java.lang.Object)
-	 */
 	public boolean containsValue(Object value)
 	{
 		for(int i = 0; i < theValues.length; i++)
@@ -88,9 +69,6 @@ public class ArrayMap<K, V> implements Map<K, V>
 		return false;
 	}
 
-	/**
-	 * @see java.util.Map#put(java.lang.Object, java.lang.Object)
-	 */
 	public V put(K key, V value)
 	{
 		for(int i = 0; i < theKeys.length; i++)
@@ -110,18 +88,12 @@ public class ArrayMap<K, V> implements Map<K, V>
 		return null;
 	}
 
-	/**
-	 * @see java.util.Map#putAll(java.util.Map)
-	 */
 	public void putAll(Map<? extends K, ? extends V> t)
 	{
 		for(Map.Entry<? extends K, ? extends V> entry : t.entrySet())
 			put(entry.getKey(), entry.getValue());
 	}
 
-	/**
-	 * @see java.util.Map#remove(java.lang.Object)
-	 */
 	public V remove(Object key)
 	{
 		for(int i = 0; i < theKeys.length; i++)
@@ -139,19 +111,13 @@ public class ArrayMap<K, V> implements Map<K, V>
 		return null;
 	}
 
-	/**
-	 * @see java.util.Map#clear()
-	 */
 	public void clear()
 	{
 		theKeys = new Object [0];
 		theValues = new Object [0];
 	}
 
-	/**
-	 * @see java.util.Map#keySet()
-	 */
-	public Set<K> keySet()
+	public java.util.Set<K> keySet()
 	{
 		final Object [] iterKeys = theKeys;
 		return new java.util.AbstractSet<K>()
@@ -176,6 +142,8 @@ public class ArrayMap<K, V> implements Map<K, V>
 
 					public K next()
 					{
+						if(index >= iterKeys.length)
+							throw new java.util.NoSuchElementException();
 						K ret = (K) iterKeys[index];
 						index++;
 						return ret;
@@ -190,10 +158,7 @@ public class ArrayMap<K, V> implements Map<K, V>
 		};
 	}
 
-	/**
-	 * @see java.util.Map#values()
-	 */
-	public Collection<V> values()
+	public java.util.Collection<V> values()
 	{
 		final Object [] iterKeys = theKeys;
 		final Object [] iterVals = theValues;
@@ -219,6 +184,8 @@ public class ArrayMap<K, V> implements Map<K, V>
 
 					public V next()
 					{
+						if(index >= iterVals.length)
+							throw new java.util.NoSuchElementException();
 						V ret = (V) iterVals[index];
 						index++;
 						return ret;
@@ -233,10 +200,7 @@ public class ArrayMap<K, V> implements Map<K, V>
 		};
 	}
 
-	/**
-	 * @see java.util.Map#entrySet()
-	 */
-	public Set<Map.Entry<K, V>> entrySet()
+	public java.util.Set<Map.Entry<K, V>> entrySet()
 	{
 		final Object [] iterKeys = theKeys;
 		final Object [] iterVals = theValues;
@@ -262,6 +226,8 @@ public class ArrayMap<K, V> implements Map<K, V>
 
 					public Map.Entry<K, V> next()
 					{
+						if(index >= iterKeys.length)
+							throw new java.util.NoSuchElementException();
 						final K entryKey = (K) iterKeys[index];
 						final V [] entryVal = (V []) new Object [] {iterVals[index]};
 						Map.Entry<K, V> ret = new Map.Entry<K, V>()

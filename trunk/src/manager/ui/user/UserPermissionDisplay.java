@@ -10,9 +10,7 @@ import org.json.simple.JSONObject;
 import prisms.arch.Permission;
 import prisms.arch.PrismsSession;
 
-/**
- * Displays the description of the selected permission in the user editor
- */
+/** Displays the description of the selected permission in the user editor */
 public class UserPermissionDisplay implements prisms.arch.AppPlugin
 {
 	private PrismsSession theSession;
@@ -21,13 +19,10 @@ public class UserPermissionDisplay implements prisms.arch.AppPlugin
 
 	Permission thePermission;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		Permission perm = session.getProperty(ManagerProperties.userSelectedPermission);
 		setPermission(perm);
 		session.addPropertyChangeListener(ManagerProperties.userSelectedPermission,
@@ -49,9 +44,6 @@ public class UserPermissionDisplay implements prisms.arch.AppPlugin
 		});
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 		JSONObject evt = new JSONObject();
@@ -68,9 +60,6 @@ public class UserPermissionDisplay implements prisms.arch.AppPlugin
 		theSession.postOutgoingEvent(evt);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		throw new IllegalStateException("Unrecognized " + theName + " event " + evt);

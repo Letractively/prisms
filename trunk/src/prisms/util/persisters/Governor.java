@@ -16,9 +16,9 @@ public interface Governor<T>
 	/**
 	 * Configures this governor
 	 * 
-	 * @param configEl The XML to use to configure this governor
+	 * @param config The configuration to use to configure this governor
 	 */
-	void configure(org.dom4j.Element configEl);
+	void configure(prisms.arch.PrismsConfig config);
 
 	/**
 	 * @param item The item to test

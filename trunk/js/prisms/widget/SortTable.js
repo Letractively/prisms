@@ -266,7 +266,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 			text.style.fontSize="large";
 		else
 			text.style.fontSize=this.columnHeaderSize;
-		text.innerHTML=column.label;
+		text.innerHTML=PrismsUtils.fixUnicodeString(column.label);
 		if(column.sortable)
 		{
 			var cellTable=document.createElement("table");
@@ -325,7 +325,8 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		dataCell.label=PrismsUtils.fixUnicodeString(dataCell.label);
 		if(dataCell.linkID)
 		{
-			td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">"+dataCell.label+"</a>";
+			td.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">"
+				+PrismsUtils.fixUnicodeString(dataCell.label)+"</a>";
 			labelCell=td.childNodes[0];
 			this.dojoConnects.push(__dojo.connect(labelCell, "onclick", this, function(){
 				this.goToLink(dataCell.linkID);
@@ -335,7 +336,7 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 		{
 			labelCell=document.createElement("span");
 			if(dataCell.label.length>0)
-				labelCell.innerHTML=dataCell.label;
+				labelCell.innerHTML=PrismsUtils.fixUnicodeString(dataCell.label);
 			else
 				labelCell.innerHTML="&nbsp;"
 		}
@@ -444,8 +445,10 @@ __dojo.declare("prisms.widget.SortTable", __dijit._Widget, {
 	},
 
 	_lastClicked: function(){
-		var start=Math.round(this.tableData.metadata.total/this.tableData.metadata.count)
+		var start=(Math.round(this.tableData.metadata.total/this.tableData.metadata.count))
 			*this.tableData.metadata.count+1;
+		if(start>this.tableData.metadata.total)
+			start-=this.tableData.metadata.count;
 		this.navTo(start);
 	},
 

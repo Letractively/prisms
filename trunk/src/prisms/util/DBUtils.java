@@ -4,242 +4,43 @@
 package prisms.util;
 
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Types;
-import java.util.concurrent.locks.Lock;
+
+import prisms.arch.PrismsException;
 
 /** Contains database utility methods for general use */
 public class DBUtils
 {
+	/** An enumeration of database flavors */
+	public static enum ConnType
+	{
+		/** Oracle */
+		ORACLE("oracle"),
+		/** HyperSQL */
+		HSQL("hsqldb"),
+		/** Microsoft SQL Server */
+		MSSQL("sqlserver"),
+		/** IBM Informix */
+		INFORMIX("informix"),
+		/** MySQL */
+		MYSQL("mysql"),
+		/** SyBase */
+		SYBASE("sybase"),
+		/** PostgreSQL */
+		POSTGRES("postgres"),
+		/** Unknown type */
+		UNKNOWN("unknown database flavor");
+
+		/** The identifier that identifies a database connection's classname as this type */
+		public final String identifier;
+
+		ConnType(String id)
+		{
+			identifier = id.toLowerCase();
+		}
+	}
+
 	private static final String HEX = "0123456789ABCDEF";
-
-	/**
-	 * An interface for performing modular transactions which can be rolled back in the event of a
-	 * failure. Used for {@link Transactor#performTransaction(TransactionOperation, String)}.
-	 * 
-	 * @param <T> The type of exception that this operation can throw
-	 */
-	public interface TransactionOperation<T extends Throwable>
-	{
-		/**
-		 * Performs an operation. The implementation of this method is responsible for all database
-		 * calls.
-		 * 
-		 * @param stmt The database statement to use for reading and writing database data
-		 * @return The object that should be returned from the calling method
-		 * @throws T If an error occurs accessing the data
-		 */
-		Object run(Statement stmt) throws T;
-	}
-
-	/**
-	 * Allows operations to be performed in transaction mode so that a particular operation either
-	 * occurs completely or else has no effect at all
-	 * 
-	 * @param <T> The type of exception that operations can throw
-	 */
-	public static abstract class Transactor<T extends Throwable>
-	{
-		private final org.apache.log4j.Logger theLog;
-
-		private final prisms.arch.PersisterFactory thePF;
-
-		private final org.dom4j.Element theConnEl;
-
-		private final java.util.concurrent.locks.ReentrantReadWriteLock theLock;
-
-		private java.sql.Connection theConn;
-
-		private String DBOWNER;
-
-		/**
-		 * Creates a transactor
-		 * 
-		 * @param log The logger to log errors with
-		 * @param factory The persister factory to use to generate the database connection
-		 * @param connEl The connection element to use to generate the database connection
-		 */
-		public Transactor(org.apache.log4j.Logger log, prisms.arch.PersisterFactory factory,
-			org.dom4j.Element connEl)
-		{
-			theLog = log;
-			thePF = factory;
-			theConnEl = connEl;
-			theLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
-		}
-
-		/**
-		 * @return The table prefix for this transactor's connection
-		 * @throws IllegalStateException If this transactor's connection has not been initiated or
-		 *         has been disconnected and the connection cannot be remade
-		 */
-		public String getDbOwner()
-		{
-			try
-			{
-				checkConnected();
-			} catch(Throwable e)
-			{
-				throw new IllegalStateException("Could not make initial connection to database", e);
-			}
-			return DBOWNER;
-		}
-
-		/**
-		 * @return This transactor's connection
-		 * @throws T If an error occurs connecting to the database
-		 */
-		public java.sql.Connection getConnection() throws T
-		{
-			checkConnected();
-			return theConn;
-		}
-
-		/** @return This transactor's synchronization lock */
-		public java.util.concurrent.locks.ReentrantReadWriteLock getLock()
-		{
-			return theLock;
-		}
-
-		/**
-		 * Throws an instance of this transactor's type of exception
-		 * 
-		 * @param message The message for the exception to throw
-		 * @throws T Always
-		 */
-		public abstract void error(String message) throws T;
-
-		/**
-		 * Throws an instance of this transactor's type of exception
-		 * 
-		 * @param message The message for the exception to throw
-		 * @param cause The cause for the exception to throw
-		 * @throws T Always
-		 */
-		public abstract void error(String message, Throwable cause) throws T;
-
-		/**
-		 * Checks the connection and attempts to renew it if it has timed out or otherwise become
-		 * invalid
-		 * 
-		 * @throws T If the connection has been lost and cannot be renewed
-		 */
-		public void checkConnected() throws T
-		{
-			try
-			{
-				if(theConn != null && theConn.isClosed())
-				{
-					theLog.warn("Connection closed!");
-					theConn = null;
-				}
-			} catch(SQLException e)
-			{
-				theLog.warn("Transactor could not check closed status of connection", e);
-			}
-			if(theConn != null)
-				return;
-			try
-			{
-				theConn = thePF.getConnection(theConnEl);
-				DBOWNER = thePF.getTablePrefix(theConn, theConnEl);
-			} catch(Exception e)
-			{
-				error("Transactor could not get connection!", e);
-			}
-		}
-
-		/**
-		 * Disconnects this transactor's connection
-		 * 
-		 * @throws T If an error occurs disconnecting
-		 */
-		public void disconnect() throws T
-		{
-			try
-			{
-				thePF.disconnect(theConn, theConnEl);
-			} catch(RuntimeException e)
-			{
-				error("Could not disconnect connection", e);
-			}
-		}
-
-		/**
-		 * Performs a modular operation. If an error occurs during the operation or when attempting
-		 * to commit the database changes, all database modifications will be rolled back to keep
-		 * the database in a consistent state.
-		 * 
-		 * @param <T2> The type of exception that the operation can throw
-		 * @param op The operation to perform
-		 * @param ifError The text for the error to throw if the commit statement fails
-		 * @return The result of the operation (see {@link TransactionOperation#run(Statement)} )
-		 * @throws T If an error occurs performing the transaction
-		 */
-		public <T2 extends T> Object performTransaction(TransactionOperation<T2> op, String ifError)
-			throws T
-		{
-			// lock before I write to db, modify cache or anything else as such.
-			Statement stmt = null;
-			checkConnected();
-			boolean oldAutoCommit = true;
-			boolean completed = false;
-			Lock lock = theLock.writeLock();
-			lock.lock();
-			try
-			{
-				try
-				{
-					oldAutoCommit = theConn.getAutoCommit();
-					theConn.setAutoCommit(false);
-					stmt = theConn.createStatement();
-				} catch(SQLException e)
-				{
-					error("Connection error: ", e);
-				}
-				Object ret = op.run(stmt);
-				try
-				{
-					theConn.commit();
-				} catch(SQLException e)
-				{
-					error(ifError, e);
-				}
-				completed = true;
-				return ret;
-			} finally
-			{
-				if(!completed)
-				{
-					try
-					{
-						theConn.rollback();
-					} catch(SQLException e)
-					{
-						theLog.error("Transactor could not perform rollback", e);
-					}
-				}
-				if(stmt != null)
-				{
-					try
-					{
-						stmt.close();
-					} catch(SQLException e)
-					{
-						theLog.error("Connection error", e);
-					}
-				}
-				try
-				{
-					theConn.setAutoCommit(oldAutoCommit);
-				} catch(SQLException e)
-				{
-					theLog.error("Connection error", e);
-				}
-				lock.unlock();
-			}
-		}
-	}
 
 	/**
 	 * Translates betwen an SQL character type and a boolean
@@ -263,6 +64,18 @@ public class DBUtils
 		return b ? "'t'" : "'f'";
 	}
 
+	/**
+	 * Same as {@link #boolToSql(boolean)} but for prepared statements where the bounding ticks are
+	 * not needed
+	 * 
+	 * @param b The boolean to be represented by a character
+	 * @return The SQL character representing the boolean
+	 */
+	public static String boolToSqlP(boolean b)
+	{
+		return b ? "t" : "f";
+	}
+
 	private static final String EMPTY = "*-{EMPTY}-*";
 
 	/**
@@ -277,6 +90,7 @@ public class DBUtils
 			return "NULL";
 		else if(str.length() == 0)
 			return toSQL(EMPTY);
+		str = PrismsUtils.encodeUnicode(str);
 		return "'" + str.replaceAll("'", "''") + "'";
 	}
 
@@ -293,7 +107,7 @@ public class DBUtils
 		else if(dbString.equals(EMPTY))
 			return "";
 		else
-			return dbString;
+			return PrismsUtils.decodeUnicode(dbString);
 	}
 
 	/**
@@ -308,6 +122,75 @@ public class DBUtils
 		return new java.sql.Timestamp(time);
 		// java.util.TimeZone here = java.util.Calendar.getInstance().getTimeZone();
 		// return new java.sql.Timestamp(time - here.getOffset(time));
+	}
+
+	/**
+	 * @param conn The JDBC connection to get the type of
+	 * @return The JDBC connection type of the connection
+	 */
+	public static ConnType getType(java.sql.Connection conn)
+	{
+		String connClass = conn.getClass().getName().toLowerCase();
+		for(ConnType type : ConnType.values())
+			if(connClass.contains(type.identifier))
+				return type;
+		return ConnType.UNKNOWN;
+	}
+
+	/**
+	 * Gets the name of the lower-case function that causes a string to take its all lower-case form
+	 * in SQL
+	 * 
+	 * @param type The connection type
+	 * @return The lower-case function for the given connection type
+	 */
+	public static String getLowerFn(ConnType type)
+	{
+		switch(type)
+		{
+		case ORACLE:
+		case MSSQL:
+		case POSTGRES:
+		case INFORMIX:
+		case SYBASE:
+			return "LOWER";
+		case HSQL:
+		case MYSQL:
+			return "LCASE";
+		case UNKNOWN:
+			throw new IllegalArgumentException(
+				"Unknown connection type: no lower case function available");
+		}
+		throw new IllegalArgumentException("Unrecognized connection type: " + type);
+	}
+
+	/**
+	 * Gets the name of the function that retrieves the length of a large object (LOB) in SQL
+	 * 
+	 * @param type The connection type
+	 * @return The LOB-length function for the given connection type
+	 */
+	public static String getLobLengthFn(ConnType type)
+	{
+		switch(type)
+		{
+		case ORACLE:
+			return "dbms_lob.getlength";
+		case MSSQL:
+		case SYBASE:
+			return "datalength";
+		case MYSQL:
+		case HSQL:
+			return "octet_length";
+		case INFORMIX:
+			return "length";
+		case POSTGRES:
+			throw new IllegalArgumentException("LOB length function unknown for PostgreSQL");
+		case UNKNOWN:
+			throw new IllegalArgumentException(
+				"Unknown connection type: no lob length function available");
+		}
+		throw new IllegalArgumentException("Unrecognized connection type: " + type);
 	}
 
 	/**
@@ -332,12 +215,236 @@ public class DBUtils
 	}
 
 	/**
+	 * Constructs a query that retrieves only a specified number of rows, offset by a given value
+	 * 
+	 * @param connType The connection type to construct the query for
+	 * @param columns The columns to select
+	 * @param tables The tables to select from
+	 * @param where The where selector (without "WHERE")
+	 * @param order The order by clause (without "ORDER BY")
+	 * @param offset The number of rows to skip (may be <=0 to skip no rows)
+	 * @param limit The number of rows to retrieve (may be <=0 to not enforce a limit. Beware that
+	 *        specifying an offset without a limit may not work with some databases.)
+	 * @return The constructed query
+	 */
+	public static String addLimit(ConnType connType, String columns, String tables, String where,
+		String order, int offset, int limit)
+	{
+		String baseQuery = "SELECT " + columns;
+		baseQuery += " FROM " + tables;
+		if(where != null)
+			baseQuery += " WHERE " + where;
+		if(order != null)
+			baseQuery += " ORDER BY " + order;
+		if(offset <= 0 && limit <= 0)
+			return baseQuery;
+		switch(connType)
+		{
+		case HSQL:
+			String ret = baseQuery;
+			if(limit > 0)
+			{
+				ret += " LIMIT " + limit;
+				if(offset > 0)
+					ret += " OFFSET " + offset;
+			}
+			else if(offset > 0)
+				System.err.println("Offset requires limit in HSQL");
+			return ret;
+		case ORACLE:
+			ret = "SELECT " + columns + ", ROWNUM FROM (" + baseQuery + ") WHERE ROWNUM";
+			if(limit > 0)
+			{
+				if(offset > 0)
+					ret += " BETWEEN " + (offset + 1) + " AND " + (offset + limit + 1);
+				else
+					ret += "<=" + limit;
+			}
+			else
+				ret += ">" + offset;
+			return ret;
+		case MSSQL:
+			int rsID = (int) Math.round(Math.random() * Integer.MAX_VALUE);
+			if(order != null)
+			{
+				ret = "SELECT " + columns + " FROM (\n\tSELECT " + columns
+					+ ", ROW_NUMBER() OVER (" + order + ") AS RowNumber FROM " + tables
+					+ ") AS ResultSet" + rsID + " WHERE ResultSet" + rsID;
+				if(limit > 0)
+				{
+					if(offset > 0)
+						ret += " BETWEEN " + (offset + 1) + " AND " + (offset + limit + 1);
+					else
+						ret += "<=" + limit;
+				}
+				else
+					ret += ">" + offset;
+			}
+			else
+			{
+				ret = "SELECT " + columns + " FROM " + tables + " INTO #ResultSet" + rsID;
+				if(where != null)
+					ret += "WHERE " + where;
+				ret += ";\n\nSELECT * FROM (\n\tSELECT *, ROW_NUMBER() OVER"
+					+ " (ORDER BY SortConst ASC) As RowNumber FROM (\n\t\tSELECT *, 1"
+					+ " As SortConst FROM #ResultSet" + rsID + "\n\t) AS ResultSet\n)"
+					+ " AS Page WHERE RowNumber";
+
+				if(limit > 0)
+				{
+					if(offset > 0)
+						ret += " BETWEEN " + (offset + 1) + " AND " + (offset + limit + 1);
+					else
+						ret += "<=" + limit;
+				}
+				else
+					ret += ">" + offset;
+
+				ret += ";\n\nDROP TABLE #ResultSet" + rsID + ";";
+			}
+			return ret;
+		default:
+			// TODO Implement for more DBMS's
+			throw new IllegalStateException("offset/limit not implemented for " + connType);
+		}
+	}
+
+	/**
 	 * @param conn The connection to test
 	 * @return Whether the connection is to an oracle database
 	 */
 	public static boolean isOracle(java.sql.Connection conn)
 	{
-		return conn.getClass().getName().toLowerCase().contains("ora");
+		return getType(conn) == ConnType.ORACLE;
+	}
+
+	/**
+	 * Gets the maximum length of data for a field
+	 * 
+	 * @param conn The connection to get information from
+	 * @param tableName The name of the table
+	 * @param fieldName The name of the field to get the length for
+	 * @return The maximum length that data in the given field can be
+	 * @throws PrismsException If an error occurs retrieving the information, such as the table or
+	 *         field not existing
+	 */
+	public static int getFieldSize(java.sql.Connection conn, String tableName, String fieldName)
+		throws PrismsException
+	{
+		if(DBUtils.isOracle(conn))
+			throw new PrismsException("Accessing Oracle metadata is unsafe--cannot get field size");
+		java.sql.ResultSet rs = null;
+		try
+		{
+			String schema = null;
+			tableName = tableName.toUpperCase();
+			int dotIdx = tableName.indexOf('.');
+			if(dotIdx >= 0)
+			{
+				schema = tableName.substring(0, dotIdx).toUpperCase();
+				tableName = tableName.substring(dotIdx + 1).toUpperCase();
+			}
+			rs = conn.getMetaData().getColumns(null, schema, tableName, null);
+			while(rs.next())
+			{
+				String name = rs.getString("COLUMN_NAME");
+				if(name.equalsIgnoreCase(fieldName))
+					return rs.getInt("COLUMN_SIZE");
+			}
+
+			throw new PrismsException("No such field " + fieldName + " in table "
+				+ (schema != null ? schema + "." : "") + tableName);
+
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not get field length of " + tableName + "."
+				+ fieldName, e);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					System.err.println("Connection error");
+					e.printStackTrace(System.err);
+				}
+		}
+	}
+
+	/**
+	 * Puts binary data into a prepared statement as a BLOB
+	 * 
+	 * @param stmt The prepared statement
+	 * @param index The index that the binary data goes in
+	 * @param type The SQL type of the data
+	 * @param input The binary data to put in the blob
+	 * @throws SQLException If the data cannot be set for the statement
+	 */
+	public static void setBlob(java.sql.PreparedStatement stmt, int index, int type,
+		java.io.InputStream input) throws SQLException
+	{
+		if(PrismsUtils.isJava6())
+			throw new SQLException("Cannot set binary data in <JDK 6 machine");
+		if(input == null)
+			stmt.setNull(index, type);
+		else
+		{
+			java.sql.Blob blob = stmt.getConnection().createBlob();
+			java.io.OutputStream stream = blob.setBinaryStream(1);
+			try
+			{
+				int read = input.read();
+				while(read >= 0)
+				{
+					stream.write(read);
+					read = input.read();
+				}
+				stream.close();
+			} catch(java.io.IOException e)
+			{
+				throw new SQLException(e.getMessage(), e);
+			}
+			stmt.setBlob(index, blob);
+		}
+	}
+
+	/**
+	 * Puts character stream data into a prepared statement as a CLOB
+	 * 
+	 * @param stmt The prepared statement
+	 * @param index The index that the character data goes in
+	 * @param type The SQL type of the data
+	 * @param input The character data to put in the blob
+	 * @throws SQLException If the data cannot be set for the statement
+	 */
+	public static void setClob(java.sql.PreparedStatement stmt, int index, int type,
+		java.io.Reader input) throws SQLException
+	{
+		if(PrismsUtils.isJava6())
+			throw new SQLException("Cannot set CLOB in <JDK 6 machine");
+		if(input == null)
+			stmt.setNull(index, type);
+		else
+		{
+			java.sql.Clob clob = stmt.getConnection().createClob();
+			java.io.Writer stream = clob.setCharacterStream(1);
+			try
+			{
+				int read = input.read();
+				while(read >= 0)
+				{
+					stream.write(read);
+					read = input.read();
+				}
+				stream.close();
+			} catch(java.io.IOException e)
+			{
+				throw new SQLException(e.getMessage(), e);
+			}
+			stmt.setClob(index, clob);
+		}
 	}
 
 	private static final String XOR_KEY = "PrIsMs_sYnC_xOr_EnCrYpT_kEy_769465";
@@ -407,7 +514,7 @@ public class DBUtils
 	private static String xorEnc(String toEnc, int encKey)
 	{
 		int t = 0;
-		String tog = "";
+		StringBuilder tog = new StringBuilder();
 		if(encKey > 0)
 		{
 			while(t < toEnc.length())
@@ -415,11 +522,11 @@ public class DBUtils
 				int a = toEnc.charAt(t);
 				int c = (a ^ encKey) % 256;
 				char d = (char) c;
-				tog = tog + d;
+				tog.append(d);
 				t++;
 			}
 		}
-		return tog;
+		return tog.toString();
 	}
 
 	private static String toHex(String str)
@@ -548,21 +655,24 @@ public class DBUtils
 
 		public String toSQL(String column)
 		{
-			String ret = column;
+			StringBuilder ret = new StringBuilder(column);
 			if(theValues.length == 1)
-				ret += "=" + theValues[0];
+			{
+				ret.append('=');
+				ret.append(theValues[0]);
+			}
 			else
 			{
-				ret += " IN (";
+				ret.append(" IN (");
 				for(int v = 0; v < theValues.length; v++)
 				{
-					ret += theValues[v];
+					ret.append(theValues[v]);
 					if(v < theValues.length - 1)
-						ret += ", ";
+						ret.append(", ");
 				}
-				ret += ")";
+				ret.append(')');
 			}
-			return ret;
+			return ret.toString();
 		}
 	}
 
@@ -617,15 +727,15 @@ public class DBUtils
 
 		public String toSQL(String column)
 		{
-			String ret = "(";
+			StringBuilder ret = new StringBuilder("(");
 			for(int i = 0; i < exprs.length; i++)
 			{
-				ret += exprs[i].toSQL(column);
+				ret.append(exprs[i].toSQL(column));
 				if(i < exprs.length - 1)
-					ret += " OR ";
+					ret.append(" OR ");
 			}
-			ret += ")";
-			return ret;
+			ret.append(')');
+			return ret.toString();
 		}
 	}
 
@@ -650,7 +760,7 @@ public class DBUtils
 		java.util.ArrayList<Integer> duplicates = new java.util.ArrayList<Integer>();
 		for(int i = 1; i < ids.length; i++)
 			if(ids[i] == ids[i - 1])
-				duplicates.add(new Integer(i));
+				duplicates.add(Integer.valueOf(i));
 		if(duplicates.size() > 0)
 		{
 			long [] newIDs = new long [ids.length - duplicates.size()];
@@ -687,7 +797,7 @@ public class DBUtils
 			{
 				if(i - start <= 2)
 					for(int j = start; j < i; j++)
-						solos.add(new Long(ids[j]));
+						solos.add(Long.valueOf(ids[j]));
 				else
 					ors.add(new CompareExpression(ids[start], ids[i - 1]));
 				start = i;
@@ -695,7 +805,7 @@ public class DBUtils
 		}
 		if(ids.length - start < 2)
 			for(int j = start; j < ids.length; j++)
-				solos.add(new Long(ids[j]));
+				solos.add(Long.valueOf(ids[j]));
 		else
 			ors.add(new CompareExpression(ids[start], ids[ids.length - 1]));
 		KeyExpression ret;
@@ -825,22 +935,24 @@ public class DBUtils
 					throw new IllegalStateException("Unrecognized type " + typeName);
 			}
 			rs.close();
-			String sql = "INSERT INTO " + table + " (";
+			StringBuilder sql = new StringBuilder("INSERT INTO ");
+			sql.append(table);
+			sql.append('(');
 			for(int i = 0; i < columns.size(); i++)
 			{
-				sql += columns.get(i);
+				sql.append(columns.get(i));
 				if(i < columns.size() - 1)
-					sql += ", ";
+					sql.append(", ");
 			}
-			sql += ") VALUES (";
+			sql.append(") VALUES (");
 			for(int i = 0; i < columns.size(); i++)
 			{
-				sql += "?";
+				sql.append('?');
 				if(i < columns.size() - 1)
-					sql += ", ";
+					sql.append(", ");
 			}
-			sql += ")";
-			java.sql.PreparedStatement pStmt = destConn.prepareStatement(sql);
+			sql.append(')');
+			java.sql.PreparedStatement pStmt = destConn.prepareStatement(sql.toString());
 			rs = srcStmt.executeQuery("SELECT * FROM " + table);
 			if(clearFirst)
 				destStmt.execute("DELETE FROM " + table);

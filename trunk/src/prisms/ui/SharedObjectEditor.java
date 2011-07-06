@@ -51,7 +51,7 @@ public class SharedObjectEditor
 	 * @param json The json object to serialize the key into
 	 */
 	public static void serializeKey(prisms.util.persisters.UserShareKey key, User [] users,
-		prisms.records2.PrismsCenter[] centers, int localID, JSONObject json)
+		prisms.records.PrismsCenter[] centers, int localID, JSONObject json)
 	{
 		json.put("isViewPublic", Boolean.valueOf(key.isViewPublic()));
 		json.put("isEditPublic", Boolean.valueOf(key.isEditPublic()));
@@ -68,11 +68,13 @@ public class SharedObjectEditor
 				serID = "-" + Long.toHexString(-u.getID());
 			jsonUser.put("id", serID);
 			jsonUser.put("userName", u.getName());
-			prisms.arch.ds.Permissions perms = u.getPermissions(key.getApp());
+			prisms.arch.ds.Permissions perms = key.getApp() == null ? null : u.getPermissions(key
+				.getApp());
 			if(key.canView(u))
 			{
 				jsonUser.put("canView", Boolean.TRUE);
-				if(perms.has(key.getViewPermission()) || perms.has(key.getEditPermission()))
+				if(perms != null
+					&& (perms.has(key.getViewPermission()) || perms.has(key.getEditPermission())))
 					jsonUser.put("globalView", Boolean.TRUE);
 			}
 			else
@@ -80,7 +82,7 @@ public class SharedObjectEditor
 			if(key.canEdit(u))
 			{
 				jsonUser.put("canEdit", Boolean.TRUE);
-				if(perms.has(key.getEditPermission()))
+				if(perms != null && perms.has(key.getEditPermission()))
 					jsonUser.put("globalEdit", Boolean.TRUE);
 			}
 			else
@@ -89,7 +91,7 @@ public class SharedObjectEditor
 			if(cid == localID)
 				jsonUser.put("local", Boolean.TRUE);
 			else if(centers != null)
-				for(prisms.records2.PrismsCenter center : centers)
+				for(prisms.records.PrismsCenter center : centers)
 					if(center.getCenterID() == cid)
 					{
 						jsonUser.put("center", center.getName());
@@ -100,7 +102,7 @@ public class SharedObjectEditor
 
 	/**
 	 * Deserializes a key serialized with
-	 * {@link #serializeKey(prisms.util.persisters.UserShareKey, User[], prisms.records2.PrismsCenter [], int, JSONObject)}
+	 * {@link #serializeKey(prisms.util.persisters.UserShareKey, User[], prisms.records.PrismsCenter [], int, JSONObject)}
 	 * 
 	 * @param key The key to modify. This key is not modified at all by the method itself, but may
 	 *        be modified by the interpreter
@@ -148,10 +150,10 @@ public class SharedObjectEditor
 					public boolean identity(User o1, JSONObject o2)
 					{
 						if(o2.containsKey("id"))
-							return o1.getID() == Long.valueOf((String) o2.get("id"), 16)
-								.longValue();
+							return o1.getID() == Long.parseLong((String) o2.get("id"), 16);
 						else
-							return o1.getName().equals(o2.get("userName"));
+							return prisms.arch.ds.IDGenerator.getCenterID(key.getOwner().getID()) == prisms.arch.ds.IDGenerator
+								.getCenterID(o1.getID()) && o1.getName().equals(o2.get("userName"));
 					}
 
 					public User added(JSONObject o, int idx, int retIdx)
@@ -162,8 +164,7 @@ public class SharedObjectEditor
 						if(createUsers)
 						{
 							User ret = new User(null, (String) o.get("userName"), o
-								.containsKey("id") ? Long.valueOf((String) o.get("id"), 16)
-								.longValue() : -1);
+								.containsKey("id") ? Long.parseLong((String) o.get("id"), 16) : -1);
 							boolean edit = Boolean.TRUE.equals(o.get("canEdit"));
 							interpreter.setUserAccess(ret, true, edit);
 							return ret;

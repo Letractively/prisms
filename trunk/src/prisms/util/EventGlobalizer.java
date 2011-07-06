@@ -12,7 +12,7 @@ public class EventGlobalizer implements prisms.arch.event.ConfiguredPEL
 
 	private prisms.arch.PrismsSession theSession;
 
-	public void configure(prisms.arch.PrismsSession session, org.dom4j.Element configEl)
+	public void configure(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
 	}
@@ -22,7 +22,7 @@ public class EventGlobalizer implements prisms.arch.event.ConfiguredPEL
 		if(evt.getProperty("globalEventID") != null
 			|| Boolean.TRUE.equals(evt.getProperty("globalEvent")))
 			return;
-		evt.setProperty("globalEventID", new Integer(id));
+		evt.setProperty("globalEventID", Integer.valueOf(id));
 		id++;
 		theSession.getApp().runSessionTask(theSession,
 			new prisms.arch.PrismsApplication.SessionTask()

@@ -3,11 +3,7 @@
  */
 package prisms.impl;
 
-import javax.servlet.http.HttpServletRequest;
-
-import org.dom4j.Element;
-
-import prisms.arch.ds.UserSource;
+import prisms.arch.PrismsServer.PrismsRequest;
 
 /**
  * Authenticates within the IKN architecture. Within IKN, no request may be received by the servlet
@@ -20,30 +16,32 @@ public class IKNAuthenticator extends AutoCreateAuthenticator
 {
 	private java.util.ArrayList<String> theUserAttrs;
 
-	public void configure(Element configEl, UserSource userSource,
+	@Override
+	public void configure(prisms.arch.PrismsConfig config, prisms.arch.ds.UserSource userSource,
 		prisms.arch.PrismsApplication[] apps)
 	{
-		super.configure(configEl, userSource, apps);
+		super.configure(config, userSource, apps);
 		theUserAttrs = new java.util.ArrayList<String>();
-		for(Element uaEl : (java.util.List<Element>) configEl.elements("user-attr"))
-			theUserAttrs.add(uaEl.getTextTrim());
+		for(String user : config.getAll("user-attr"))
+			theUserAttrs.add(user);
 	}
 
-	public boolean recognized(HttpServletRequest request)
+	public boolean recognized(PrismsRequest request)
 	{
 		for(String ua : theUserAttrs)
-			if(request.getHeader(ua) != null)
+			if(request.httpRequest.getHeader(ua) != null)
 				return true;
 		return false;
 	}
 
-	public String getUserName(HttpServletRequest request)
+	@Override
+	public String getUserName(PrismsRequest request)
 	{
 		String userName = null;
 		for(String ua : theUserAttrs)
-			if(request.getHeader(ua) != null)
+			if(request.httpRequest.getHeader(ua) != null)
 			{
-				userName = request.getHeader(ua);
+				userName = request.httpRequest.getHeader(ua);
 				break;
 			}
 		if(userName == null)

@@ -26,10 +26,10 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 	}
 
 	@Override
-	public void configure(org.dom4j.Element configEl, PrismsApplication app,
+	public void configure(prisms.arch.PrismsConfig config, PrismsApplication app,
 		prisms.arch.event.PrismsProperty<User []> property)
 	{
-		super.configure(configEl, app, property);
+		super.configure(config, app, property);
 		theApps = prisms.util.ArrayUtils.add(theApps, app);
 		if(app.getEnvironment().isManager(app))
 			theManager = app;
@@ -82,24 +82,32 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 		if(prisms.util.ArrayUtils.equals(oldVal, newVal))
 			return;
 		for(PrismsApplication app : theApps)
-			if(app != session.getApp())
+			if(session != null && app != session.getApp())
 				app.setGlobalProperty(getProperty(), newVal);
 	}
 
 	@Override
 	protected User add(PrismsSession session, User newValue, PrismsPCE<User []> evt)
 	{
+		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
+		try
+		{
+			if(newValue.getID() >= 0 && ds.getUser(newValue.getID()) != null)
+				return newValue; // User is already added
+		} catch(PrismsException e)
+		{
+			throw new IllegalStateException("Could not query for new user", e);
+		}
 		if(session == null)
 			throw new IllegalArgumentException("Users cannot be modified through"
 				+ " a global operation");
 		if(!session.getUser().getPermissions(theManager).has("createUser"))
 			throw new IllegalArgumentException("User " + session.getUser()
 				+ " does not have permission to create users");
-		prisms.records2.RecordsTransaction trans = manager.app.ManagerUtils.getTransaction(session,
-			evt, theManager.getEnvironment().getUserSource());
+		prisms.records.RecordsTransaction trans = prisms.records.RecordUtils.getTransaction(
+			session, evt, theManager.getEnvironment().getUserSource());
 		if(trans == null)
 			return newValue;
-		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
 		if(ds instanceof prisms.arch.ds.ManageableUserSource)
 		{
 			try
@@ -117,6 +125,16 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 	@Override
 	protected void remove(PrismsSession session, User removed, PrismsPCE<User []> evt)
 	{
+		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
+		try
+		{
+			User check = ds.getUser(removed.getID());
+			if(check == null || check.isDeleted())
+				return;
+		} catch(PrismsException e)
+		{
+			throw new IllegalStateException("Could not query for deleted user", e);
+		}
 		if(session == null)
 			throw new IllegalArgumentException("Users cannot be modified through"
 				+ " a global operation");
@@ -124,11 +142,10 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 			removed.getPermissions(theManager)))
 			throw new IllegalArgumentException("User " + session.getUser()
 				+ " does not have permission to delete user " + removed);
-		prisms.records2.RecordsTransaction trans = manager.app.ManagerUtils.getTransaction(session,
-			evt, theManager.getEnvironment().getUserSource());
+		prisms.records.RecordsTransaction trans = prisms.records.RecordUtils.getTransaction(
+			session, evt, theManager.getEnvironment().getUserSource());
 		if(trans == null)
 			return;
-		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
 		if(ds instanceof prisms.arch.ds.ManageableUserSource)
 		{
 			try
@@ -147,13 +164,14 @@ public class UserPersister extends prisms.util.persisters.ListPersister<User>
 		if(session == null)
 			throw new IllegalArgumentException("Users cannot be modified through"
 				+ " a global operation");
-		if(!manager.app.ManagerUtils.canEdit(session.getUser().getPermissions(theManager),
-			availableValue.getPermissions(theManager)))
+		if(!Boolean.TRUE.equals(evt.getProperty(PrismsApplication.GLOBALIZED_EVENT_PROPERTY))
+			&& !manager.app.ManagerUtils.canEdit(session.getUser().getPermissions(theManager),
+				availableValue.getPermissions(theManager)))
 			throw new IllegalArgumentException("User " + session.getUser()
 				+ " does not have permission to modify user " + availableValue);
 		prisms.arch.ds.UserSource ds = getApp().getEnvironment().getUserSource();
-		prisms.records2.RecordsTransaction trans = manager.app.ManagerUtils.getTransaction(session,
-			evt, theManager.getEnvironment().getUserSource());
+		prisms.records.RecordsTransaction trans = prisms.records.RecordUtils.getTransaction(
+			session, evt, theManager.getEnvironment().getUserSource());
 		if(trans == null)
 			return;
 		if(ds instanceof prisms.arch.ds.ManageableUserSource)

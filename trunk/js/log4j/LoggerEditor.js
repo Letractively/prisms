@@ -9,25 +9,14 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 	pluginName: "No pluginName specified",
 
 	templatePath: "__webContentRoot/view/log4j/templates/loggerEditor.html",
-	
+
 	userEnabledStatus: false,
 
 	widgetsInTemplate: true,
 
-	searchPrisms: true,
-
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
 		this.enabled=true;
-
-		if(!this.prisms && this.searchPrisms)
-		{
-			var prisms=PrismsUtils.getPrisms(this);
-			if(prisms)
-				this.setPrisms(prisms);
-			else
-				console.error("No prisms parent for plugin "+this.pluginName);
-		}
 	},
 
 	setPrisms: function(prisms){
@@ -49,9 +38,8 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 	shutdown: function(){
 		this.setVisible(false);
 	},
-	
-	setLevels: function(levels)
-	{
+
+	setLevels: function(levels){
 		while(this.levelCombo.options.length>0)
 			this.levelCombo.remove(this.levelCombo.options.length-1);
 		for(var level=0;level<levels.length;level++)
@@ -64,21 +52,19 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 				this.levelCombo.add(option, null);
 		}
 	},
-	
-	setEnabled: function(enabled)
-	{
+
+	setEnabled: function(enabled){
 		this.enabled=enabled;
 		this.levelCheck.setAttribute("disabled", !enabled);
 		if(this.levelCheck.checked)
 			this.levelCombo.disabled = !enabled;
 		this.additivity.setAttribute("disabled", !enabled);
 	},
-	
-	setVisible: function(visible)
-	{
+
+	setVisible: function(visible){
 		this.domNode.style.display = visible ? "block" : "none";
 	},
-	
+
 	setLogger: function(logger){
 		this.logger=logger;
 		this.dataLock=true;
@@ -89,7 +75,7 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 				return;
 			}
 			this.setVisible(true);
-			this.loggerName.innerHTML=logger.name;
+			this.loggerName.innerHTML=PrismsUtils.fixUnicodeString(logger.name);
 			if(logger.level)
 			{
 				this.levelCheck.setAttribute("checked", true);
@@ -109,7 +95,7 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 				this.levelCombo.disabled=true;
 				this.levelCombo.selectedIndex=-1;
 			}
-			this.effectiveLevel.innerHTML=logger.effectiveLevel;
+			this.effectiveLevel.innerHTML=PrismsUtils.fixUnicodeString(logger.effectiveLevel);
 			this.additivity.setAttribute("checked", logger.additivity);
 		} finally{
 			this.dataLock=false;
@@ -120,7 +106,7 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 		this.prisms.callApp(this.pluginName, "clear");
 	},
 
-	_levelChanged: function() {
+	_levelChanged: function(){
 		if(this.dataLock)
 			return;
 		var level;
@@ -148,8 +134,8 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 		}
 		this.prisms.callApp(this.pluginName, "levelChanged", {level: level});
 	},
-	
-	_additivityChanged: function() {
+
+	_additivityChanged: function(){
 		if(this.dataLock)
 			return;
 		this.prisms.callApp(this.pluginName, "additivityChanged", {additivity: this.additivity.checked});

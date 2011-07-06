@@ -3,11 +3,11 @@ __dojo.require("dijit.form.CheckBox");
 __dojo.require("prisms.widget.TimeAmountEditor");
 
 __dojo.provide("manager.ClientEditor");
-__dojo.declare("manager.ClientEditor", [__dijit._Widget, __dijit._Templated, __dijit._Container],
+__dojo.declare("manager.ClientEditor", [prisms.widget.TabWidget, __dijit._Templated],
 {
 	templatePath: "__webContentRoot/view/manager/templates/clientEditor.html",
 
-	widgetsInTemplate: true,
+	widgetsInTemplate: false,
 
 	prisms: null,
 
@@ -24,12 +24,6 @@ __dojo.declare("manager.ClientEditor", [__dijit._Widget, __dijit._Templated, __d
 			else
 				console.error("No prisms parent for plugin "+this.pluginName);
 		}
-		this.dataLock=true;
-		try{
-			this.timeoutEditor.setValue(15*60);
-		} finally{
-			this.dataLock=false;
-		}
 	},
 
 	setPrisms: function(prisms){
@@ -39,7 +33,7 @@ __dojo.declare("manager.ClientEditor", [__dijit._Widget, __dijit._Templated, __d
 
 	processEvent: function(event){
 		if(event.method=="setVisible")
-			this.setVisible(event.visible);
+			this.setVisible(event.visible, event.show);
 		else if(event.method=="setValue")
 			this.setValue(event.value);
 		else
@@ -50,34 +44,32 @@ __dojo.declare("manager.ClientEditor", [__dijit._Widget, __dijit._Templated, __d
 		this.setVisible(false);
 	},
 
-	setVisible: function(visible){
+	setVisible: function(visible, show){
 		PrismsUtils.setTableVisible(this.domNode, visible);
+		if(show)
+			this.setSelected(true, true);
 	},
 
 	setValue: function(value){
 		this.dataLock=true;
 		this.value = value;
-		try{
-			this.nameField.innerHTML=value.name;
-			if(typeof value.descrip=="undefined")
-			{
-				this.descripLabel.style.visibility="hidden";
-				this.descripField.parentNode.style.visibility="hidden";
-			}
-			else
-			{
-				this.descripLabel.style.visiblity="visible";
-				this.descripField.parentNode.style.visibility="visible";
-				if(value.descrip)
-					this.descripField.innerHTML=value.descrip;
-				else
-					this.descripField.innerHTML="";
-			}
-			this.serviceCheck.setAttribute("checked", value.isService);
-			this.timeoutEditor.setValue(value.sessionTimeout);
-			this.allowAnonymousCheck.setAttribute("checked", value.allowAnonymous);
-		} finally{
-			this.dataLock=false;
+		this.nameField.innerHTML=PrismsUtils.fixUnicodeString(value.name);
+		if(typeof value.descrip=="undefined")
+		{
+			this.descripLabel.style.visibility="hidden";
+			this.descripField.parentNode.style.visibility="hidden";
 		}
+		else
+		{
+			this.descripLabel.style.visiblity="visible";
+			this.descripField.parentNode.style.visibility="visible";
+			if(value.descrip)
+				this.descripField.innerHTML=PrismsUtils.fixUnicodeString(value.descrip);
+			else
+				this.descripField.innerHTML="";
+		}
+		this.serviceCell.innerHTML=value.isService ? "Yes" : "No";
+		this.timeoutCell.innerHTML=value.sessionTimeout;
+		this.allowAnonymousCell.innerHTML=value.allowAnonymous ? "Yes" : "No";
 	}
 });

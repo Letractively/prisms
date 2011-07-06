@@ -25,9 +25,9 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 	private javax.swing.Action CLONE_USER_ACTION;
 
 	@Override
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setDisplaySelectedOnly(false);
 		DELETE_USER_ACTION = new javax.swing.AbstractAction("Delete")
 		{
@@ -41,22 +41,19 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 					user.getPermissions(getSession().getApp())))
 					throw new IllegalArgumentException("User " + getSession().getUser()
 						+ " does not have permission to delete a user");
-				prisms.ui.UI.ConfirmListener cl = new prisms.ui.UI.ConfirmListener()
-				{
-					public void confirmed(boolean confirm)
+				getSession().getUI().confirm(
+					"Are you sure you want to delete user " + user.getName(),
+					new prisms.ui.UI.ConfirmListener()
 					{
-						if(!confirm)
-							return;
-						User [] users = getSession().getProperty(PrismsProperties.users);
-						users = prisms.util.ArrayUtils.remove(users, user);
-						getSession().setProperty(PrismsProperties.users, users);
-					}
-				};
-				prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
-				if(ui == null)
-					cl.confirmed(true);
-				else
-					ui.confirm("Are you sure you want to delete user " + user.getName(), cl);
+						public void confirmed(boolean confirm)
+						{
+							if(!confirm)
+								return;
+							User [] users = getSession().getProperty(PrismsProperties.users);
+							users = prisms.util.ArrayUtils.remove(users, user);
+							getSession().setProperty(PrismsProperties.users, users);
+						}
+					});
 			}
 		};
 		CLONE_USER_ACTION = new javax.swing.AbstractAction("Clone")
@@ -80,7 +77,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 							{
 								return userExists(name, users);
 							}
-						}), new prisms.records2.RecordsTransaction(getSession().getUser()));
+						}), new prisms.records.RecordsTransaction(getSession().getUser()));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user", e);
@@ -92,7 +89,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 					{
 						if(source.canAccess(user, app))
 							source.setUserAccess(newUser, app, true,
-								new prisms.records2.RecordsTransaction(getSession().getUser()));
+								new prisms.records.RecordsTransaction(getSession().getUser()));
 					} catch(PrismsException e)
 					{
 						log.error("Could not give new user \"" + newUser.getName()
@@ -188,7 +185,7 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 							{
 								return userExists(name, users);
 							}
-						}), new prisms.records2.RecordsTransaction(getSession().getUser()));
+						}), new prisms.records.RecordsTransaction(getSession().getUser()));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user", e);
@@ -292,15 +289,14 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 			final java.util.ArrayList<User> deletedUsers = new java.util.ArrayList<User>();
 			for(User u : allUsers)
 			{
-				if(!getSession().getApp().getEnvironment().getUserSource().getIDs()
-					.belongs(u.getID()))
+				if(!getSession().getApp().getEnvironment().getIDs().belongs(u.getID()))
 					continue;
 				if(prisms.util.ArrayUtils.contains(
 					getSession().getProperty(PrismsProperties.users), u))
 					continue;
 				deletedUsers.add(u);
 			}
-			prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
+			prisms.ui.UI ui = getSession().getUI();
 			if(deletedUsers.size() == 0)
 			{
 				if(restore)

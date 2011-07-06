@@ -4,101 +4,14 @@
 package manager.app;
 
 import prisms.arch.Permission;
-import prisms.arch.PrismsException;
 import prisms.arch.ds.Permissions;
-import prisms.arch.ds.User;
 import prisms.arch.ds.UserGroup;
-import prisms.records2.RecordsTransaction;
-import prisms.records2.SyncRecord;
 
 /** A utility class for determining a user's permissions to edit manager objects */
 public class ManagerUtils
 {
 	private ManagerUtils()
 	{
-	}
-
-	/**
-	 * Creates a transaction to be used for persisting changes caused by events
-	 * 
-	 * @param session The session in which the event occurred
-	 * @param evt The event that occurred
-	 * @param userSource The user source for the PRISMS environment
-	 * @return The transaction to use for the change
-	 */
-	public static RecordsTransaction getTransaction(prisms.arch.PrismsSession session,
-		prisms.arch.event.PrismsPCE<?> evt, prisms.arch.ds.UserSource userSource)
-	{
-		if(evt.get("no-prisms-persist") != null)
-			return null;
-		RecordsTransaction ret = (RecordsTransaction) evt.get("transaction");
-		if(ret != null)
-			return ret;
-		User user = (User) evt.get("trans-user");
-		if(user == null && session != null)
-			user = session.getUser();
-		if(user == null && userSource instanceof prisms.arch.ds.ManageableUserSource)
-			try
-			{
-				user = ((prisms.arch.ds.ManageableUserSource) userSource).getSystemUser();
-			} catch(PrismsException e)
-			{
-				throw new IllegalStateException("Could not get system user", e);
-			}
-		if(user == null)
-			throw new IllegalStateException("PRISMS data must be changed from inside a session");
-		SyncRecord record = (SyncRecord) evt.get("syncRecord");
-		boolean shouldRecord = true;
-		if(Boolean.TRUE.equals(evt.get("no-persist")))
-			shouldRecord = false;
-		if(record != null)
-			ret = new RecordsTransaction(user, record);
-		else
-			ret = new RecordsTransaction(user, shouldRecord);
-		return ret;
-	}
-
-	/**
-	 * Creates a transaction to be used for persisting changes caused by events
-	 * 
-	 * @param session The session in which the event occurred
-	 * @param evt The event that occurred
-	 * @param userSource The user source for the PRISMS environment
-	 * @return The transaction to use for the change
-	 */
-	public static RecordsTransaction getTransaction(prisms.arch.PrismsSession session,
-		prisms.arch.event.PrismsEvent evt, prisms.arch.ds.UserSource userSource)
-	{
-		if(evt.getProperty("no-prisms-persist") != null)
-			return null;
-		RecordsTransaction ret = (RecordsTransaction) evt.getProperty("transaction");
-		if(ret != null)
-			return ret;
-		User user = (User) evt.getProperty("trans-user");
-		if(user == null && session != null)
-			user = session.getUser();
-		if(user == null && userSource instanceof prisms.arch.ds.ManageableUserSource)
-			try
-			{
-				user = ((prisms.arch.ds.ManageableUserSource) userSource).getSystemUser();
-			} catch(PrismsException e)
-			{
-				throw new IllegalStateException("Could not get system user", e);
-			}
-		if(user == null)
-			throw new IllegalStateException("PRISMS data must be changed from inside a session");
-		SyncRecord record = (SyncRecord) evt.getProperty("syncRecord");
-		boolean shouldRecord = true;
-		if(Boolean.TRUE.equals(evt.getProperty("db-persisted")))
-			shouldRecord = false;
-		if(Boolean.TRUE.equals(evt.getProperty("no-persist")))
-			shouldRecord = false;
-		evt.setProperty("db-persisted", Boolean.TRUE);
-		if(record != null)
-			ret = new RecordsTransaction(user, record);
-		else
-			ret = new RecordsTransaction(user, shouldRecord);
-		return ret;
 	}
 
 	/**

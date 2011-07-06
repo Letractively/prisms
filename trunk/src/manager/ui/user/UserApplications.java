@@ -4,22 +4,15 @@
 package manager.ui.user;
 
 import manager.app.ManagerProperties;
-
-import org.dom4j.Element;
-
 import prisms.arch.PrismsApplication;
-import prisms.arch.PrismsSession;
-import prisms.ui.list.SelectableList;
 
-/**
- * A list of applications that a user might access
- */
-public class UserApplications extends SelectableList<PrismsApplication>
+/** A list of applications that a user might access */
+public class UserApplications extends prisms.ui.list.SelectableList<PrismsApplication>
 {
 	@Override
-	public void initPlugin(PrismsSession session, Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setSelectionMode(SelectionMode.SINGLE);
 		setDisplaySelectedOnly(false);
 		PrismsApplication [] apps = session
@@ -45,17 +38,19 @@ public class UserApplications extends SelectableList<PrismsApplication>
 			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(prisms.arch.PrismsSession session2,
+				prisms.arch.event.PrismsEvent evt)
 			{
 				for(int i = 0; i < getItemCount(); i++)
-					if(getItem(i) instanceof SelectableList<?>.ItemNode
+					if(getItem(i) instanceof prisms.ui.list.SelectableList<?>.ItemNode
 						&& ((ItemNode) getItem(i)).getObject().equals(evt.getProperty("app")))
 						((ItemNode) getItem(i)).check();
 			}
 		});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
-			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(prisms.arch.PrismsSession session2,
+				prisms.arch.event.PrismsEvent evt)
 			{
 				if(getSession().getUser().getName()
 					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
@@ -64,72 +59,48 @@ public class UserApplications extends SelectableList<PrismsApplication>
 		});
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getTitle()
-	 */
 	@Override
 	public String getTitle()
 	{
 		return "Applications";
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getIcon()
-	 */
 	@Override
 	public String getIcon()
 	{
 		return "manager/application";
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getItemName(java.lang.Object)
-	 */
 	@Override
 	public String getItemName(PrismsApplication item)
 	{
 		return item.getName();
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#getItemIcon(java.lang.Object)
-	 */
 	@Override
 	public String getItemIcon(PrismsApplication item)
 	{
 		return "manager/application";
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#canSelect(java.lang.Object)
-	 */
 	@Override
 	public boolean canSelect(PrismsApplication item)
 	{
 		return true;
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#doSelect(java.lang.Object)
-	 */
 	@Override
 	public void doSelect(PrismsApplication item)
 	{
 		getSession().setProperty(ManagerProperties.userApplication, item);
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#canDeselect(java.lang.Object)
-	 */
 	@Override
 	public boolean canDeselect(PrismsApplication item)
 	{
 		return true;
 	}
 
-	/**
-	 * @see prisms.ui.list.SelectableList#doDeselect(java.lang.Object)
-	 */
 	@Override
 	public void doDeselect(PrismsApplication item)
 	{

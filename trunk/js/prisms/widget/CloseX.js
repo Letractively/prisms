@@ -3,10 +3,16 @@ __dojo.provide("prisms.widget.CloseX");
 __dojo.declare("prisms.widget.CloseX", [__dijit._Widget, __dijit._Contained], {
 
 	blurredSrc: "__webContentRoot/rsrc/icons/windowsXBlur.png",
-	
+	blurredSrcAlt: "__webContentRoot/rsrc/icons/windowsXSmall.png",
+
 	focusedSrc: "__webContentRoot/rsrc/icons/windowsXFocus.png",
 
+	useSmall: false,
+
 	postCreate: function(){
+		this.inherited(arguments);
+		if(this.useSmall)
+			this.blurredSrc=this.blurredSrcAlt;
 		this.domNode.style.position="absolute";
 		this.img=document.createElement("img");
 		this.img.src=this.blurredSrc;
@@ -19,15 +25,9 @@ __dojo.declare("prisms.widget.CloseX", [__dijit._Widget, __dijit._Contained], {
 
 	_mouseEnter: function(){
 		this.img.src=this.focusedSrc;
-//		this.imageChanged=true;
 	},
 
 	_mouseOut: function(){
-//		if(this.imageChanged)
-//		{
-//			this.imageChanged=false;
-//			return;
-//		}
 		this.img.src=this.blurredSrc;
 		this.isPressed=false;
 	},
@@ -38,9 +38,7 @@ __dojo.declare("prisms.widget.CloseX", [__dijit._Widget, __dijit._Contained], {
 
 	_mouseUp: function(){
 		if(this.isPressed)
-		{
 			this.onClick();
-		}
 		this.isPressed=false;
 	},
 

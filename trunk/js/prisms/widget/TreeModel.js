@@ -131,7 +131,7 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 	},
 
 	getLabel: function(item){
-		return PrismsUtils.fixUnicodeString(item.text);
+		return PrismsUtils.fixUnicodeString(item.text, false);
 	},
 
 	newItem: function(args, parent){
@@ -185,7 +185,10 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 
 	navigateNode: function(valueNode, path, pathIdx, depth)
 	{
+		var ch=path[pathIdx].children;
+		delete path[pathIdx]["children"];
 		__dojo.mixin(valueNode, path[pathIdx]);
+		path[pathIdx].children=ch;
 		this.onChange(valueNode);
 		if(pathIdx==depth)
 			return valueNode;
@@ -234,7 +237,7 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 		{
 			if(parent.children[c].id==path[path.length-1].id)
 			{
-				var child=parent.children[c];
+				this.destroyNode(parent.children[c]);
 				parent.children.splice(c, 1);
 				break;
 			}
@@ -248,17 +251,46 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 			return;
 		this.onChange(path[path.length-1]);
 		if(recursive)
-			this.changeRecursive(path[path.length-1]);
+			this.changeRecursive(node, path[path.length-1]);
 	},
 
-	changeRecursive: function(node){
-		if(!node.children)
+	changeRecursive: function(node, pathNode){
+		if(!pathNode.children)
 			return;
-		for(var c=0;c<node.children.length;c++)
+		if(!node.children || node.children.length==0)
 		{
-			this.onChange(node.children[c]);
-			this.changeRecursive(node.children[c]);
+			node.children=pathNode.children;
+			if(pathNode.children.length>0)
+				this.onChildrenChange(node, node.children);
+			return;
 		}
+		var self=this;
+		var childrenChanged=false;
+		node.children=PrismsUtils.adjust(node.children, pathNode.children, {
+	 		identity: function(node, item){
+	 			return self.itemsEqual(node, item);
+	 		},
+	 
+	 		added: function(item, idx2, retIdx){
+	 			childrenChanged=true;
+	 			return item;
+	 		},
+	 
+	 		removed: function(node, idx1, incMod, retIdx){
+	 			self.destroyNode(node);
+	 			childrenChanged=true;
+	 			return null;
+	 		},
+	 
+	 		set: function(node, idx1, incMod, item, idx2, retIdx){
+				__dojo.mixin(node, item);
+	 			self.onChange(node);
+	 			self.changeRecursive(node, item);
+	 			return node;
+	 		}
+		});
+		if(childrenChanged)
+			this.onChildrenChange(node, node.children);
 	},
 
 	moveFromData: function(path, index){
@@ -273,11 +305,19 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 			{
 				var child=parent.children[c];
 				parent.children.splice(c, 1);
-				parent.children.splice(index, 0, path[path.length-1]);
+				parent.children.splice(index, 0, child);
 				break;
 			}
 		}
 		this.onChildrenChange(parent, parent.children);
+	},
+
+	destroyNode: function(value){
+		if(!value.children)
+			return;
+		for(var c=0;c<value.children.length;c++)
+			this.destroyNode(value.children[c]);
+		this.onChildrenChange(value, []);
 	},
 
 	_loadCallbacks: {},

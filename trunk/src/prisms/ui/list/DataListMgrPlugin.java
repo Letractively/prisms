@@ -9,9 +9,7 @@ import org.json.simple.JSONObject;
 
 import prisms.arch.PrismsSession;
 
-/**
- * An PRISMS plugin that manages a list of data
- */
+/** An PRISMS plugin that manages a list of data */
 public class DataListMgrPlugin extends DataListManager implements prisms.arch.AppPlugin
 {
 	private static final Logger log = Logger.getLogger(DataListMgrPlugin.class);
@@ -43,16 +41,21 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 
 	private SelectionMode theSelectionMode;
 
-	/**
-	 * Creates a data list manager plugin
-	 */
+	private DataListListener theListener;
+
+	/** Creates a data list manager plugin */
 	public DataListMgrPlugin()
 	{
 		theSelectionMode = SelectionMode.NONE;
-		addListener(new DataListListener()
+		theListener = new DataListListener()
 		{
 			public void changeOccurred(DataListEvent evt)
 			{
+				prisms.arch.PrismsTransaction trans = getSession().getApp().getEnvironment()
+					.getTransaction();
+				if(trans != null
+					&& trans.getStage() != prisms.arch.PrismsTransaction.Stage.processEvent)
+					return;
 				JSONObject ret = new JSONObject();
 				ret.put("plugin", getName());
 				String method;
@@ -62,7 +65,7 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 				case ADD:
 					method = "addItem";
 					ret.put("item", jsonNode);
-					ret.put("index", new Integer(evt.getIndex()));
+					ret.put("index", Integer.valueOf(evt.getIndex()));
 					break;
 				case REMOVE:
 					method = "removeItem";
@@ -74,7 +77,7 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 					for(int i = 0; i < getItemCount(); i++)
 						if(getItem(i) == evt.getNode())
 						{
-							ret.put("index", new Integer(i));
+							ret.put("index", Integer.valueOf(i));
 							break;
 						}
 					break;
@@ -88,7 +91,18 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 				ret.put("method", method);
 				getSession().postOutgoingEvent(ret);
 			}
-		});
+		};
+		addListener(theListener);
+	}
+
+	/** Clears out the listener that monitors this data set to send UI events */
+	protected void clearListener()
+	{
+		if(theListener != null)
+		{
+			removeListener(theListener);
+			theListener = null;
+		}
 	}
 
 	@Override
@@ -98,36 +112,33 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 		initClient();
 	}
 
-	/**
-	 * @return This plugin's session
-	 */
+	/** @return This plugin's session */
 	public PrismsSession getSession()
 	{
 		return theSession;
 	}
 
-	/**
-	 * @return This plugin's name
-	 */
+	/** @return This plugin's name */
 	public String getName()
 	{
 		return theName;
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
+		prisms.arch.PrismsTransaction trans = getSession().getApp().getEnvironment()
+			.getTransaction();
+		if(trans != null
+			&& trans.getStage().ordinal() < prisms.arch.PrismsTransaction.Stage.initSession
+				.ordinal())
+			return;
+
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", getName());
 		evt.put("method", "setItems");
@@ -136,66 +147,64 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 			items.add(serialize(getItem(i)));
 		evt.put("items", items);
 		getSession().postOutgoingEvent(evt);
+
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setSelectionMode");
 		evt.put("selectionMode", getSelectionMode().toString().toLowerCase());
 		getSession().postOutgoingEvent(evt);
+
 		setListParams();
 	}
 
-	/**
-	 * Sends a list of parameters to the client to represent that list as a whole
-	 */
+	/** Sends list of parameters to the client to represent this list as a whole */
 	public void setListParams()
 	{
+		if(getSession() == null)
+			return;
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", getName());
 		evt.put("method", "setListParams");
+		evt.put("params", getListParams());
+		getSession().postOutgoingEvent(evt);
+	}
+
+	/** @return A list of parameters to the client to represent this list as a whole */
+	protected JSONObject getListParams()
+	{
 		JSONObject params = new JSONObject();
 		params.put("title", getTitle());
 		params.put("icon", getIcon());
 		params.put("description", getDescription());
 		params.put("actions", prisms.util.JsonUtils.serialize(getActions()));
-		evt.put("params", params);
-		getSession().postOutgoingEvent(evt);
+		return params;
 	}
 
-	/**
-	 * @return This list's title
-	 */
+	/** @return This list's title */
 	public String getTitle()
 	{
 		return getName();
 	}
 
-	/**
-	 * @return The icon to represent this list
-	 */
+	/** @return The icon to represent this list */
 	public String getIcon()
 	{
 		return null;
 	}
 
-	/**
-	 * @return A description for this list
-	 */
+	/** @return A description for this list */
 	public String getDescription()
 	{
 		return null;
 	}
 
-	/**
-	 * @return This list's selection mode
-	 */
+	/** @return This list's selection mode */
 	public SelectionMode getSelectionMode()
 	{
 		return theSelectionMode;
 	}
 
-	/**
-	 * @param mode The selection mode for this list
-	 */
+	/** @param mode The selection mode for this list */
 	public synchronized void setSelectionMode(SelectionMode mode)
 	{
 		theSelectionMode = mode;
@@ -227,9 +236,7 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 		}
 	}
 
-	/**
-	 * @return All selected nodes in this manager
-	 */
+	/** @return All selected nodes in this manager */
 	public DataListNode [] getSelection()
 	{
 		java.util.ArrayList<DataListNode> ret = new java.util.ArrayList<DataListNode>();
@@ -313,9 +320,7 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 		}
 	}
 
-	/**
-	 * @return Actions that may be done on the list as a whole
-	 */
+	/** @return Actions that may be done on the list as a whole */
 	public NodeAction [] getActions()
 	{
 		return new NodeAction [0];
@@ -357,9 +362,6 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 			item.doAction(action);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		if("actionPerformed".equals(evt.get("method")))

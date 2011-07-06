@@ -13,9 +13,9 @@ public class AppClients extends prisms.ui.list.SelectableList<ClientConfig>
 	PrismsApplication theApp;
 
 	@Override
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setDisplaySelectedOnly(false);
 		setSelectionMode(SelectionMode.SINGLE);
 		theApp = getSession().getProperty(ManagerProperties.selectedApp);

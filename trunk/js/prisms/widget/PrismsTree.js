@@ -6,30 +6,60 @@ __dojo.require("dijit.Menu");
 __dojo.require("dijit.Tooltip");
 
 __dojo.declare("prisms.widget._PrismsTreeNode", __dijit._TreeNode, {
+
+	_itemIcon: "/none/",
+
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
 		this.selected=false;
+		this.labelNode.style.whiteSpace="nowrap";
+		this.contentNode.style.whiteSpace="nowrap";
 	},
 
 	_updateItemClasses: function(item){
 		this.item=item;
 		this.inherited("_updateItemClasses", arguments);
-		if(typeof item.icon == "string" && item.icon!="")
+		var changed=false;
+		if(this.itemText!=item.text)
 		{
-			if(item.icon.charAt(0)=='{')
-				item.icon=__dojo.eval("["+item.icon+"]")[0];
+			changed=true;
+			this.itemText=item.text;
 		}
-		if(typeof item.icon=="string")
-			this.iconNode.style.backgroundImage="url(__webContentRoot/rsrc/icons/"+item.icon+".png)";
-		else if(typeof item.icon=="object" && item.icon!=null)
-			this.iconNode.style.backgroundImage="url("
-				+this.tree.model.prisms.getDynamicImageSource(item.icon.plugin, item.icon.method,
-					0, 0, 16, 16, 16, 16)+")";
-		this.iconNode.style.backgroundRepeat="no-repeat";
+		if(this._itemIcon!=item.icon)
+		{
+			changed=true;
+			if(typeof item.icon == "string" && item.icon!="")
+			{
+				if(item.icon.charAt(0)=='{')
+					item.icon=__dojo.eval("["+item.icon+"]")[0];
+			}
+			if(typeof item.icon=="string")
+			{
+				this.iconNode.style.display="";
+				this.iconNode.style.backgroundImage="url(__webContentRoot/rsrc/icons/"+item.icon+".png)";
+			}
+			else if(typeof item.icon=="object" && item.icon!=null)
+			{
+				this.iconNode.style.display="";
+				this.iconNode.style.backgroundImage="url("
+					+this.tree.model.prisms.getDynamicImageSource(item.icon.plugin, item.icon.method,
+						0, 0, 16, 16, 16, 16)+")";
+			}
+			else
+				this.iconNode.style.display="none";
+			this.iconNode.style.backgroundRepeat="no-repeat";
+			this._itemIcon=item.icon;
+		}
 		if(typeof item.bgColor != "undefined")
 			this.labelNode.style.backgroundColor=item.bgColor;
 		if(typeof item.textColor != "undefined")
 			this.labelNode.style.color=item.textColor;
+		if(item.description)
+			this.domNode.title=item.description;
+		else
+			this.domNode.title="";
+		if(changed)
+			this._checkWidths(true);
 	},
 
 	setSelected: function(sel){
@@ -38,6 +68,66 @@ __dojo.declare("prisms.widget._PrismsTreeNode", __dijit._TreeNode, {
 			this.labelNode.style.fontWeight="bold";
 		else
 			this.labelNode.style.fontWeight="normal";
+		this.contentNode.style.width=this.labelNode.offsetWidth;
+		this._checkWidths(false);
+	},
+
+	_checkWidths: function(force){
+		if(force)
+			delete this["widthChecked"];
+		if(this.labelNode.offsetWidth==0 || this.widthChecked)
+			return;
+		this.widthChecked=true;
+		this.rowNode.style.whiteSpace="nowrap";
+		var w=this.labelNode.offsetWidth;
+		if(!this.selected)
+			w=Math.round(w*1.25);
+		if(this.item.icon)
+		{
+			w+=this.iconNode.offsetWidth+4;
+			w+=this.iconNode.offsetLeft-this.contentNode.offsetLeft;
+		}
+		else
+			w+=this.labelNode.offsetLeft-this.contentNode.offsetLeft;
+		this.contentNode.style.width=w+"px";
+		var pw=w+this.contentNode.offsetLeft-this.rowNode.offsetLeft;
+		if(this.isExpanded)
+		{
+			var children=this.getChildren();
+			for(var c=0;c<children.length;c++)
+				children[c]._checkWidths(false);
+			if(children.length>0 && pw<children[0].domNode.parentNode.offsetWidth)
+				pw=children[0].domNode.parentNode.offsetWidth;
+		}
+		pw++;
+		this.domNode.style.width=pw+"px";
+		this.rowNode.style.width=pw+"px";
+		pw+=this.domNode.offsetLeft-this.domNode.parentNode.offsetLeft;
+		if(this.domNode.parentNode && this.domNode.parentNode.offsetWidth<pw)
+			this.domNode.parentNode.style.width=pw+"px";
+		if(this.getParent() && typeof this.getParent()._checkWidths == "function")
+			this.getParent()._checkWidths(true);
+	},
+
+	expand: function(){
+		this.inherited("expand", arguments);
+		this._checkWidths(true);
+	},
+
+	collapse: function(){
+		this.inherited("collapse", arguments);
+		this._checkWidths(true);
+	},
+
+	setChildItems: function(){
+		this.inherited("setChildItems", arguments);
+		if(this._wipeOut)
+			this.expand();
+	},
+
+	removeChild: function(){
+		this.inherited("removeChild", arguments);
+		this._checkWidths(true);
 	}
 });
 
@@ -50,7 +140,7 @@ __dojo.declare("prisms.widget._PrismsTreeMenuItem", __dijit.MenuItem, {
 
 	setLabel: function(label){
 		this.label=label;
-		this.containerNode.innerHTML=label;
+		this.containerNode.innerHTML=PrismsUtils.fixUnicodeString(label);
 	},
 
 	onClick: function(){
@@ -117,8 +207,8 @@ __dojo.declare("prisms.widget.PrismsTree", __dijit.Tree, {
 			var prisms=PrismsUtils.getPrisms(this);
 			if(prisms)
 				this.setPrisms(prisms);
-			else
-				console.error("No prisms parent for plugin "+this.model.pluginName);
+//			else
+//				console.error("No prisms parent for plugin "+this.model.pluginName);
 		}
 	},
 

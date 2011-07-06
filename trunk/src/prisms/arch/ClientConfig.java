@@ -6,7 +6,6 @@ package prisms.arch;
 import java.util.ArrayList;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 
 import prisms.arch.event.PrismsEventListener;
 import prisms.arch.event.SessionMonitor;
@@ -22,14 +21,14 @@ public class ClientConfig
 
 		final Class<? extends PrismsEventListener> theListenerType;
 
-		final org.dom4j.Element theConfigEl;
+		final PrismsConfig theConfig;
 
 		EventListenerType(String eventName, Class<? extends PrismsEventListener> listenerType,
-			Element configEl)
+			PrismsConfig config)
 		{
 			theEventName = eventName;
 			theListenerType = listenerType;
-			theConfigEl = configEl;
+			theConfig = config;
 		}
 	}
 
@@ -37,12 +36,12 @@ public class ClientConfig
 	{
 		final Class<? extends SessionMonitor> theMonitorType;
 
-		final Element theConfigEl;
+		final PrismsConfig theConfig;
 
-		MonitorType(Class<? extends SessionMonitor> monitorType, Element configEl)
+		MonitorType(Class<? extends SessionMonitor> monitorType, PrismsConfig config)
 		{
 			theMonitorType = monitorType;
-			theConfigEl = configEl;
+			theConfig = config;
 		}
 	}
 
@@ -52,13 +51,13 @@ public class ClientConfig
 
 		final Class<? extends AppPlugin> thePluginType;
 
-		final Element theConfigEl;
+		final PrismsConfig theConfig;
 
-		PluginType(String eventName, Class<? extends AppPlugin> listenerType, Element configEl)
+		PluginType(String eventName, Class<? extends AppPlugin> listenerType, PrismsConfig config)
 		{
 			thePluginName = eventName;
 			thePluginType = listenerType;
-			theConfigEl = configEl;
+			theConfig = config;
 		}
 	}
 
@@ -69,6 +68,8 @@ public class ClientConfig
 	private final String theDescrip;
 
 	private final boolean isService;
+
+	private final boolean isCommonSession;
 
 	private final boolean allowsAnonymous;
 
@@ -93,16 +94,19 @@ public class ClientConfig
 	 * @param name This client config's name
 	 * @param descrip A description for this client config
 	 * @param service Whether this client config is for a web service as opposed to a UI client
+	 * @param commonSession Whether this client config uses a common session per user for all
+	 *        clients accessing it
 	 * @param allowAnonymous Whether this client config allows anonymous users
 	 * @param configurator The object that is responsible for configuring this client
 	 */
 	public ClientConfig(PrismsApplication app, String name, String descrip, boolean service,
-		boolean allowAnonymous, Object configurator)
+		boolean commonSession, boolean allowAnonymous, Object configurator)
 	{
 		theApp = app;
 		theName = name;
 		theDescrip = descrip;
 		isService = service;
+		isCommonSession = commonSession;
 		allowsAnonymous = allowAnonymous;
 		theTimeout = -1;
 		theConfigurator = configurator;
@@ -161,6 +165,15 @@ public class ClientConfig
 		return isService;
 	}
 
+	/**
+	 * @return Whether this client configuration should only have a single session per user shared
+	 *         by all clients accessing the client config through each user
+	 */
+	public boolean isCommonSession()
+	{
+		return isCommonSession;
+	}
+
 	/** @return Whether this client allows anonymous access without authentication */
 	public boolean allowsAnonymous()
 	{
@@ -203,29 +216,29 @@ public class ClientConfig
 	 * 
 	 * @param eventName The name of the event to listen for
 	 * @param type The listener class to instantiate
-	 * @param configEl The XML element to configure the instantiated listener
+	 * @param config The configuration to configure the instantiated listener
 	 */
 	public void addEventListenerType(String eventName, Class<? extends PrismsEventListener> type,
-		Element configEl)
+		PrismsConfig config)
 	{
 		if(isConfigured)
 			throw new IllegalStateException("Event listener types cannot be added after the client"
 				+ " has been completely configured");
-		theEventTypes.add(new EventListenerType(eventName, type, configEl));
+		theEventTypes.add(new EventListenerType(eventName, type, config));
 	}
 
 	/**
 	 * Adds a monitor type to add to sessions created (in the future) with this client config
 	 * 
 	 * @param type The monitor class to instantiate
-	 * @param configEl The XML element to configure the instantiated monitor
+	 * @param config The configuration to configure the instantiated monitor
 	 */
-	public void addMonitorType(Class<? extends SessionMonitor> type, Element configEl)
+	public void addMonitorType(Class<? extends SessionMonitor> type, PrismsConfig config)
 	{
 		if(isConfigured)
 			throw new IllegalStateException("Monitor types cannot be added after the client"
 				+ " has been completely configured");
-		theMonitorTypes.add(new MonitorType(type, configEl));
+		theMonitorTypes.add(new MonitorType(type, config));
 	}
 
 	/**
@@ -233,14 +246,15 @@ public class ClientConfig
 	 * 
 	 * @param pluginName The name of the plugin
 	 * @param type The plugin class to instantiate
-	 * @param configEl The XML element to configure the instantiated plugin
+	 * @param config The configuration for the instantiated plugin
 	 */
-	public void addPluginType(String pluginName, Class<? extends AppPlugin> type, Element configEl)
+	public void addPluginType(String pluginName, Class<? extends AppPlugin> type,
+		PrismsConfig config)
 	{
 		if(isConfigured)
 			throw new IllegalStateException("Plugin types cannot be added after the client"
 				+ " has been completely configured");
-		thePluginTypes.put(pluginName, new PluginType(pluginName, type, configEl));
+		thePluginTypes.put(pluginName, new PluginType(pluginName, type, config));
 	}
 
 	/**
@@ -252,7 +266,7 @@ public class ClientConfig
 	{
 		for(EventListenerType elt : theEventTypes)
 		{
-			log.debug("Adding event listener:\n" + elt.theConfigEl.asXML());
+			log.debug("Adding event listener:\n" + elt.theConfig);
 			PrismsEventListener pel;
 			try
 			{
@@ -264,12 +278,12 @@ public class ClientConfig
 				return;
 			}
 			if(pel instanceof prisms.arch.event.ConfiguredPEL)
-				((prisms.arch.event.ConfiguredPEL) pel).configure(session, elt.theConfigEl);
+				((prisms.arch.event.ConfiguredPEL) pel).configure(session, elt.theConfig);
 			session.addEventListener(elt.theEventName, pel);
 		}
 		for(MonitorType mt : theMonitorTypes)
 		{
-			log.debug("Adding session monitor:\n" + mt.theConfigEl.asXML());
+			log.debug("Adding session monitor:\n" + mt.theConfig);
 			SessionMonitor sm;
 			try
 			{
@@ -279,7 +293,7 @@ public class ClientConfig
 				log.error("Could not instantiate session monitor " + mt.theMonitorType.getName(), e);
 				return;
 			}
-			sm.register(session, mt.theConfigEl);
+			sm.register(session, mt.theConfig);
 		}
 		for(PluginType pt : thePluginTypes.values())
 		{
@@ -294,7 +308,7 @@ public class ClientConfig
 			}
 			try
 			{
-				plugin.initPlugin(session, pt.theConfigEl);
+				plugin.initPlugin(session, pt.theConfig);
 				session.removeOutgoingEvents(pt.thePluginName);
 			} catch(Exception e)
 			{
@@ -304,12 +318,14 @@ public class ClientConfig
 		}
 	}
 
+	@Override
 	public boolean equals(Object o)
 	{
 		return o instanceof ClientConfig && ((ClientConfig) o).theApp.equals(theApp)
 			&& ((ClientConfig) o).theName.equals(theName);
 	}
 
+	@Override
 	public int hashCode()
 	{
 		return theApp.hashCode() * 13 + theName.hashCode();

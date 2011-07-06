@@ -3,7 +3,6 @@
  */
 package prisms.arch;
 
-
 /** Represents a permission in the PRISMS architecture */
 public class Permission
 {
@@ -45,6 +44,20 @@ public class Permission
 		return theDescrip;
 	}
 
+	@Override
+	public boolean equals(Object o)
+	{
+		return o instanceof Permission && ((Permission) o).theApp.equals(theApp)
+			&& ((Permission) o).theName.equals(theName);
+	}
+
+	@Override
+	public int hashCode()
+	{
+		return theName.hashCode();
+	}
+
+	@Override
 	public String toString()
 	{
 		return theName;

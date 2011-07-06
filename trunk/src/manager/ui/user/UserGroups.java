@@ -4,9 +4,6 @@
 package manager.ui.user;
 
 import manager.app.ManagerProperties;
-
-import org.dom4j.Element;
-
 import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsSession;
 import prisms.arch.ds.User;
@@ -21,9 +18,9 @@ public class UserGroups extends SelectableList<UserGroup>
 	PrismsApplication theApp;
 
 	@Override
-	public void initPlugin(PrismsSession session, Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setSelectionMode(SelectionMode.MULTIPLE);
 		setDisplaySelectedOnly(false);
 		User user = session.getProperty(ManagerProperties.selectedUser);

@@ -201,7 +201,7 @@ __dojo.declare("prisms.widget._ImageMapMenuItem",
 		setLabel: function(label)
 		{
 			this.label=label;
-			this.containerNode.innerHTML=label;
+			this.containerNode.innerHTML=PrismsUtils.fixUnicodeString(label);
 		},
 
 		onClick: function()

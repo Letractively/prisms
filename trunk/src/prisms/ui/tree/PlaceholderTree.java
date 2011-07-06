@@ -1,13 +1,7 @@
-/**
+/*
  * PlaceholderTree.java Created Feb 5, 2009 by Andrew Butler, PSL
  */
 package prisms.ui.tree;
-
-import java.awt.Color;
-
-import org.dom4j.Element;
-
-import prisms.arch.PrismsSession;
 
 /**
  * A simple tree plugin with sample nodes, intended as a UI placeholder to show a tree widget when
@@ -15,13 +9,10 @@ import prisms.arch.PrismsSession;
  */
 public class PlaceholderTree extends DataTreeMgrPlugin
 {
-	/**
-	 * @see prisms.ui.tree.DataTreeMgrPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
 	@Override
-	public void initPlugin(PrismsSession session, Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		PlaceholderTreeNode root = new PlaceholderTreeNode(null, "Root");
 		setRoot(root);
 		PlaceholderTreeNode child1 = new PlaceholderTreeNode(root, "A Node");
@@ -50,44 +41,29 @@ public class PlaceholderTree extends DataTreeMgrPlugin
 			theName = name;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getText()
-		 */
 		public String getText()
 		{
 			return theName;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getDescription()
-		 */
 		public String getDescription()
 		{
 			return "A simple placeholder node named " + theName;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getIcon()
-		 */
 		public String getIcon()
 		{
 			return "asset";
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getBackground()
-		 */
-		public Color getBackground()
+		public java.awt.Color getBackground()
 		{
-			return Color.white;
+			return java.awt.Color.white;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getForeground()
-		 */
-		public Color getForeground()
+		public java.awt.Color getForeground()
 		{
-			return Color.black;
+			return java.awt.Color.black;
 		}
 	}
 }

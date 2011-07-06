@@ -37,6 +37,7 @@ public class CommonValueManager<T> extends PersistingPropertyManager<T>
 		return theValue;
 	}
 
+	@Override
 	public T getApplicationValue(prisms.arch.PrismsApplication app)
 	{
 		return theValue;

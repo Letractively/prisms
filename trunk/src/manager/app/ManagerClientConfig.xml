@@ -10,10 +10,6 @@
 	</monitors>
 	<plugins>
 		<plugin>
-			<name>UI</name>
-			<class>prisms.ui.UI</class>
-		</plugin>
-		<plugin>
 			<name>All Users</name>
 			<class>manager.ui.user.AllUsersList</class>
 		</plugin>
@@ -47,15 +43,14 @@
 		</plugin>
 		<plugin>
 			<name>All Applications</name>
-			<class>manager.ui.app.AllApplicationsList</class>
+			<class>manager.ui.app.inspect.AppSessionClientTree</class>
+			<service-name>sessions</service-name>
+			<service-plugin>Session Tree</service-plugin>
+			<heart-beat>15</heart-beat>
 		</plugin>
 		<plugin>
 			<name>Application Editor</name>
 			<class>manager.ui.app.ApplicationEditor</class>
-		</plugin>
-		<plugin>
-			<name>Application Clients</name>
-			<class>manager.ui.app.AppClients</class>
 		</plugin>
 		<plugin>
 			<name>Client Editor</name>
@@ -76,6 +71,14 @@
 		<plugin>
 			<name>Permission Editor</name>
 			<class>manager.ui.app.PermissionEditor</class>
+		</plugin>
+		<plugin>
+			<name>Performance Display</name>
+			<class>manager.ui.app.inspect.PerformanceDisplay</class>
+		</plugin>
+		<plugin>
+			<name>Performance Data</name>
+			<class>manager.ui.app.inspect.PerformanceDisplayTree</class>
 		</plugin>
 	</plugins>
 </client>

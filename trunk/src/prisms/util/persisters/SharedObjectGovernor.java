@@ -3,8 +3,6 @@
  */
 package prisms.util.persisters;
 
-import org.dom4j.Element;
-
 import prisms.arch.PrismsApplication;
 import prisms.arch.ds.User;
 
@@ -15,10 +13,10 @@ public class SharedObjectGovernor implements Governor<SharedObject>
 
 	private String theEditAllPermission;
 
-	public void configure(Element configEl)
+	public void configure(prisms.arch.PrismsConfig config)
 	{
-		theViewAllPermission = configEl.elementTextTrim("view-all");
-		theEditAllPermission = configEl.elementTextTrim("edit-all");
+		theViewAllPermission = config.get("view-all");
+		theEditAllPermission = config.get("edit-all");
 	}
 
 	public boolean isShared(SharedObject item)

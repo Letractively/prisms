@@ -12,11 +12,8 @@ import java.lang.reflect.Array;
  */
 public class ListenerManager<L>
 {
-	/**
-	 * The key for listeners to all properties or all events
-	 */
-	private static final String ALL_KEY = "All"
-		+ Integer.toHexString((int) (Math.random() * Integer.MAX_VALUE));
+	/** The key for listeners to all properties or all events */
+	private static final String ALL_KEY = "All" + prisms.util.PrismsUtils.getRandomString(8);
 
 	private Class<L> theType;
 

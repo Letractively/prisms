@@ -1,4 +1,4 @@
-/**
+/*
  * Hashing.java Created Aug 20, 2008 by Andrew Butler, PSL
  */
 package prisms.arch.ds;
@@ -179,22 +179,22 @@ public class Hashing implements Cloneable
 
 		array = new JSONArray();
 		for(int i = 0; i < thePrimaryMultiples.length; i++)
-			array.add(new Long(thePrimaryMultiples[i]));
+			array.add(Long.valueOf(thePrimaryMultiples[i]));
 		ret.put("primaryMultiples", array);
 
 		array = new JSONArray();
 		for(int i = 0; i < thePrimaryModulos.length; i++)
-			array.add(new Long(thePrimaryModulos[i]));
+			array.add(Long.valueOf(thePrimaryModulos[i]));
 		ret.put("primaryModulos", array);
 
 		array = new JSONArray();
 		for(int i = 0; i < theSecondaryMultiples.length; i++)
-			array.add(new Long(theSecondaryMultiples[i]));
+			array.add(Long.valueOf(theSecondaryMultiples[i]));
 		ret.put("secondaryMultiples", array);
 
 		array = new JSONArray();
 		for(int i = 0; i < theSecondaryModulos.length; i++)
-			array.add(new Long(theSecondaryModulos[i]));
+			array.add(Long.valueOf(theSecondaryModulos[i]));
 		ret.put("secondaryModulos", array);
 
 		return ret;
@@ -233,6 +233,7 @@ public class Hashing implements Cloneable
 		return ret;
 	}
 
+	@Override
 	public Hashing clone()
 	{
 		Hashing ret;

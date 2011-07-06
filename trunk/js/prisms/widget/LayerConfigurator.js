@@ -148,7 +148,7 @@ __dojo.declare("prisms.widget.LayerConfigurator", prisms.widget.PrismsDialog, {
 	setLayerRow: function(tableRow, layer, isBottom, isTop){
 		while(tableRow.cells.length<6)
 			tableRow.insertCell(-1);
-		tableRow.cells[0].innerHTML=layer.name;
+		tableRow.cells[0].innerHTML=PrismsUtils.fixUnicodeString(layer.name);
 		if(layer.enabled)
 		{
 			this.addLink(tableRow.cells[1], "Disable", function(){
@@ -194,7 +194,7 @@ __dojo.declare("prisms.widget.LayerConfigurator", prisms.widget.PrismsDialog, {
 	setSubLayerRow: function(tr, layer, subLayer) {
 		var td=tr.insertCell(0);
 		var labelCell=td;
-		labelCell.innerHTML=subLayer.title;
+		labelCell.innerHTML=PrismsUtils.fixUnicodeString(subLayer.title);
 		td=tr.insertCell(1);
 		if(subLayer.enabled)
 		{
@@ -220,7 +220,8 @@ __dojo.declare("prisms.widget.LayerConfigurator", prisms.widget.PrismsDialog, {
 
 	addLink: function(tableCell, label, callback){
 		var div=document.createElement("div");
-		div.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">"+label+"</a>";
+		div.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue\">"
+			+PrismsUtils.fixUnicodeString(label)+"</a>";
 		var a=div.childNodes[0];
 		this._listeners.push(__dojo.connect(a, "onclick", this, callback));
 		tableCell.appendChild(a);
@@ -233,6 +234,6 @@ __dojo.declare("prisms.widget.LayerConfigurator", prisms.widget.PrismsDialog, {
 	},
 
 	setTitle: function(title){
-		this.titleNode.innerHTML=title;
+		this.titleNode.innerHTML=PrismsUtils.fixUnicodeString(title);
 	}
 });

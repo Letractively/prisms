@@ -26,15 +26,30 @@ __dojo.declare("prisms.widget._SearchableListNode", [__dijit._Widget, __dijit._T
 				item.icon=__dojo.eval("["+item.icon+"]")[0];
 		}
 		if(typeof item.icon=="string")
+		{
+			this.iconNode.style.display="";
 			this.iconNode.src="__webContentRoot/rsrc/icons/"+item.icon+".png";
+		}
 		else if(typeof item.icon=="object" && item.icon!=null)
-			this.iconNode.src=this.list.model.prisms.getDynamicImageSource(item.icon.plugin,
-				item.icon.method, 0, 0, 16, 16, 16, 16);
+		{
+			this.iconNode.style.display="";
+			var prisms=this.list.prisms;
+			if(!prisms)
+				prisms=this.list.model.prisms;
+			this.iconNode.src=prisms.getDynamicImageSource(item.icon.plugin, item.icon.method,
+				0, 0, 16, 16, 16, 16);
+		}
+		else
+			this.iconNode.style.display="none";
 		if(typeof item.bgColor != "undefined")
 			this.labelNode.style.backgroundColor=item.bgColor;
 		if(typeof item.textColor != "undefined")
 			this.labelNode.style.color=item.textColor;
-		this.labelNode.innerHTML=this.item.text;
+		if(item.description)
+			this.domNode.title=item.description;
+		else
+			this.domNode.title="";
+		this.labelNode.innerHTML=PrismsUtils.fixUnicodeString(this.item.text);
 	},
 
 	isSelected: function(){
@@ -59,7 +74,7 @@ __dojo.declare("prisms.widget._SearchListMenuItem", __dijit.MenuItem, {
 
 	setLabel: function(label){
 		this.label=label;
-		this.containerNode.innerHTML=label;
+		this.containerNode.innerHTML=PrismsUtils.fixUnicodeString(label);
 	},
 
 	onClick: function(){
@@ -92,9 +107,8 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 		this.prismsMenu=new __dijit.Menu({});
 		this.prismsMenu.bindDomNode(this.domNode);
 		__dojo.connect(this.domNode, "onclick", this, this.onClick);
-		if(this.model.setVisible) {
+		if(this.model.setVisible)
 			__dojo.connect(this.model, "setVisible", this, this.setVisible);
-		}
 		__dojo.connect(this.prismsMenu, "_openMyself", this, this.addMenuItems);
 		this.actionLead=document.createElement("div");
 		this.actionLead.style.position="absolute";
@@ -115,9 +129,10 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 			var prisms=PrismsUtils.getPrisms(this);
 			if(prisms)
 				this.setPrisms(prisms);
-			else
-				console.error("No prisms parent for plugin "+this.model.pluginName);
+			//else
+			//	console.error("No prisms parent for plugin "+this.model.pluginName);
 		}
+		this._filterBlurred();
 	},
 
 	setPrisms: function(prisms){
@@ -137,6 +152,7 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 				self.setItems(items);
 			});
 		});
+		__dojo.connect(this.model, "setListParams", this, this.setListParams);
 		__dojo.connect(this.model, "onChildrenChange", this, function(parent, newChildren){
 			if(parent!=this.titleNode.item)
 				return;
@@ -147,9 +163,6 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 				this.rootChanged(item);
 			else
 				this.changed(item);
-		});
-		__dojo.connect(this.model, "setFilter", this, function(filter){
-			this.filterText.setValue(filter);
 		});
 		__dojo.connect(this.model, "setFilteredItems", this, function(ids){
 			this.setFilteredItems(ids);
@@ -162,6 +175,32 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 		{
 			model.setPrisms(this.prisms);
 			this.init();
+		}
+	},
+
+	setListParams: function(params){
+		this.thePlaceHolder=params.placeHolder;
+		if(this.thePlaceHolder)
+			this.filterText.domNode.title=this.thePlaceHolder;
+		if(this.filterPlaceHeld && this.thePlaceHolder)
+		{
+			this.filterLock=true;
+			try{
+				this.filterText.setValue(this.thePlaceHolder);
+			} finally{
+				this.filterLock=false;
+			}
+		}
+		if(params.filter && (!this.theLastUpdate || new Date().getTime()-this.theLastUpdate>2000))
+		{
+			this.filterLock=true;
+			try{
+				if(params.filter.length>0)
+					this._filterFocusImpl();
+				this.filterText.setValue(params.filter);
+			} finally{
+				this.filterLock=false;
+			}
 		}
 	},
 
@@ -198,11 +237,12 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 			},
 
 			removed: function(node, idx1, incMod, retIdx){
-				node.domNode.parentNode.deleteRow(incMod);
+				if(node.domNode.parentNode)
+					node.domNode.parentNode.deleteRow(incMod);
 				return null;
 			},
 
-			set: function(node, idx1, item, idx2, incMod, retIdx){
+			set: function(node, idx1, incMod, item, idx2, retIdx){
 				if(incMod!=retIdx)
 					node.domNode.parentNode.insertBefore(node.domNode, self.contentTable.rows[retIdx]);
 				return node;
@@ -212,23 +252,34 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 	},
 
 	viewableItemsChanged: function(){
-		for(var i=0;i<this.items.length;i++)
+		if(this.filter)
 		{
-			var visible=false;
-			if(!this.filter)
-				visible=true;
-			else
-			{
-				var id=this.model.getIdentity(this.items[i].item);
-				for(var j=0;j<this.filter.length;j++)
-					if(this.filter[j]==id)
-					{
-						visible=true;
-						break;
-					}
-			}
-			PrismsUtils.setTableRowVisible(this.items[i].domNode, visible);
+			var self=this;
+			this.items=PrismsUtils.adjust(this.items, this.filter, {
+				identity: function(node, id){
+					return self.model.getIdentity(node.item)==id;
+				},
+
+				added: function(id, idx2, retIdx){
+					return null;
+				},
+
+				removed: function(node, idx1, incMod, retIdx){
+					PrismsUtils.setTableRowVisible(node.domNode, false);
+					return node;
+				},
+
+				set: function(node, idx1, incMod, id, idx2, retIdx){
+					PrismsUtils.setTableRowVisible(node.domNode, true);
+					if(incMod!=retIdx)
+						node.domNode.parentNode.insertBefore(node.domNode, self.contentTable.rows[retIdx]);
+					return node;
+				}
+			});
 		}
+		else
+			for(var i=0;i<this.items.length;i++)
+				PrismsUtils.setTableRowVisible(this.items[i].domNode, true);
 	},
 
 	rootChanged: function(item){
@@ -236,7 +287,6 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 	},
 
 	changed: function(item){
-		var id=this.model.getIdentity(item);
 		var node=this.getNode(item);
 		if(node)
 		{
@@ -485,9 +535,55 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 	},
 
 	_filterTextChanged: function(){
+		if(this.filterLock)
+			return;
+		var lastUpdate=new Date().getTime();
+		this.theLastUpdate=lastUpdate;
 		var self=this;
 		setTimeout(function(){
-			self.prisms.callApp(self.model.pluginName, "setFilter", {filter: self.filterText.getValue()});
-		}, 100);
+			if(self.theLastUpdate!=lastUpdate)
+				return;
+			var filter=self.filterText.getValue();
+			if(filter==self.thePlaceHolder)
+				filter="";
+			self.prisms.callApp(self.model.pluginName, "setFilter", {filter: filter});
+		}, 250);
+	},
+
+	_filterBlurred: function(){
+		var text=this.filterText.getValue();
+		if(!text || text.length==0 || text==this.thePlaceHolder)
+		{
+			this.filterPlaceHeld=true;
+			this.filterText.textbox.style.color="#808080";
+			if(this.thePlaceHolder)
+			{
+				this.filterLock=true;
+				try{
+					this.filterText.setValue(this.thePlaceHolder);
+				} finally{
+					this.filterLock=false;
+				}
+			}
+		}
+	},
+
+	_filterFocused: function(){
+		if(this.filterPlaceHeld)
+		{
+			this._filterFocusImpl();
+			this.filterText.textbox.focus();
+		}
+	},
+
+	_filterFocusImpl: function(){
+		this.filterPlaceHeld=false;
+		this.filterText.textbox.style.color="black";
+		this.filterLock=true;
+		try{
+			this.filterText.setValue("");
+		} finally{
+			this.filterLock=false;
+		}
 	}
 });

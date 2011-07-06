@@ -14,14 +14,6 @@ public interface Worker
 	 */
 	void run(Runnable r, ErrorListener listener);
 
-	/**
-	 * Informs this worker of the number of sessions in the application so it may know how many
-	 * resources it should consume
-	 * 
-	 * @param count The number of sessions to be accommodated
-	 */
-	void setSessionCount(int count);
-
 	/** Releases all of this worker's resources after all tasks have finished */
 	void close();
 

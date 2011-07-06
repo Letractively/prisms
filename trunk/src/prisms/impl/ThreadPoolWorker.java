@@ -29,6 +29,8 @@ public class ThreadPoolWorker implements Worker
 
 	static Logger log = Logger.getLogger(ThreadPoolWorker.class);
 
+	private final String theName;
+
 	private int theMaxThreadCount;
 
 	volatile int theThreadCounter;
@@ -59,20 +61,11 @@ public class ThreadPoolWorker implements Worker
 		ReusableThread()
 		{
 			isAlive = true;
-			String name = ThreadPoolWorker.this.getClass().getName();
-			int idx = name.lastIndexOf(".");
-			if(idx >= 0)
-				name = name.substring(idx + 1);
-			String subName = " " + getClass().getName();
-			idx = subName.lastIndexOf(".");
-			if(subName.lastIndexOf("$") > idx)
-				idx = subName.lastIndexOf("$");
-			if(idx >= 0)
-				subName = subName.substring(idx + 1);
-			setName(name + " " + subName + " #" + theThreadCounter);
 			theThreadCounter++;
+			setName(ThreadPoolWorker.this.getName() + " #" + theThreadCounter);
 		}
 
+		@Override
 		public void run()
 		{
 			while(isAlive)
@@ -156,14 +149,31 @@ public class ThreadPoolWorker implements Worker
 		}
 	}
 
-	/** Creates a ThreadPool with no active threads. */
-	public ThreadPoolWorker()
+	/**
+	 * Creates a ThreadPool with a default maximum thread count (the number of available processors
+	 * times 2. This improves performance during I/O intensive operations.).
+	 * 
+	 * @param name The name for this worker
+	 */
+	public ThreadPoolWorker(String name)
 	{
+		this(name, Runtime.getRuntime().availableProcessors() * 2);
+	}
+
+	/**
+	 * Creates a ThreadPool with a specified maximum thread count
+	 * 
+	 * @param name The name for this worker
+	 * @param threads The max thread count. See {@link #setMaxThreadCount(int)}
+	 */
+	public ThreadPoolWorker(String name, int threads)
+	{
+		theName = name;
 		theLock = new java.util.concurrent.locks.ReentrantLock();
 		theAvailableThreads = new java.util.ArrayList<ReusableThread>();
 		theInUseThreads = new java.util.ArrayList<ReusableThread>();
 		theTaskQueue = new java.util.LinkedList<TaskQueueObject>();
-		theMaxThreadCount = 100;
+		setMaxThreadCount(threads);
 	}
 
 	/**
@@ -230,6 +240,12 @@ public class ThreadPoolWorker implements Worker
 		{
 			theLock.unlock();
 		}
+	}
+
+	/** @return This worker's name */
+	public String getName()
+	{
+		return theName;
 	}
 
 	/** @return Whether this thread pool has been marked as closed */
@@ -381,6 +397,12 @@ public class ThreadPoolWorker implements Worker
 	}
 
 	/**
+	 * Sets the maximum thread count of this pool. If the given value is positive, the value will be
+	 * used literally. If 0 is given, the max thread count will be set to the current number of
+	 * available processors available. If a negative value is given, the max thread count will be
+	 * set to the current available processor count minus the absolute value of the argument. If the
+	 * processor-adjusted thread count is <=0, then a max thread count of 1 will be used.
+	 * 
 	 * @param maxTC The maximum number of threads this ThreadPool should spawn before rejecting
 	 *        thread requests. If <code>maxTC</code> is smaller than the number of threads currently
 	 *        in use, no thread requests will be granted until that number is one less than
@@ -389,8 +411,9 @@ public class ThreadPoolWorker implements Worker
 	public void setMaxThreadCount(int maxTC)
 	{
 		if(maxTC <= 0)
-			throw new IllegalArgumentException("Maximum thread count must be greater than 0, not "
-				+ maxTC);
+			maxTC += Runtime.getRuntime().availableProcessors();
+		if(maxTC <= 0)
+			maxTC = 1;
 		theLock.lock();
 		try
 		{
@@ -401,10 +424,5 @@ public class ThreadPoolWorker implements Worker
 		{
 			theLock.unlock();
 		}
-	}
-
-	public void setSessionCount(int count)
-	{
-		setMaxThreadCount(count);
 	}
 }

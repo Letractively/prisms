@@ -3,13 +3,16 @@
  */
 package prisms.impl;
 
-import prisms.records2.ChangeType;
+import prisms.records.ChangeType;
 
-/** All {@link prisms.records2.SubjectType}s available for PRISMS data */
-public enum PrismsSubjectType implements prisms.records2.SubjectType
+/** All {@link prisms.records.SubjectType}s available for PRISMS data */
+public enum PrismsSubjectType implements prisms.records.SubjectType
 {
 	/** Changes to the set of users */
-	user(prisms.arch.ds.User.class, null, null, PrismsChangeTypes.UserChange.class);
+	user(prisms.arch.ds.User.class, null, null, PrismsChangeTypes.UserChange.class),
+	/** Changes to the set of groups */
+	group(prisms.arch.ds.UserGroup.class, prisms.arch.PrismsApplication.class, null,
+		PrismsChangeTypes.GroupChange.class);
 
 	private final Class<?> theMajorType;
 
