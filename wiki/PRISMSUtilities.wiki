@@ -1,9 +1,7 @@
-#summary PRISMS Utilities
+#summary Utilities collected in the PRISMS framework
 #labels Featured,Phase-Implementation
 
-= Utilities collected in the PRISMS framework =
-
-===Although PRISMS is designed to be used as a framework that applications operate in, many different types of utilities have been developed for use within the framework, but are designed to be used independent of the framework as a whole. ===
+==Although PRISMS is designed to be used as a framework that applications operate in, many different types of utilities have been developed for use within the framework, but are designed to be used independent of the framework as a whole. ==
 
  * *Records & Synchronization:* This feature consists of a table that keeps track of changes to a set of data in memory (via code integrated into the API where changes are made to the data set in memory). This table keeps a complete history of the data set (auto-purge capabilities exist to keep the size small if desired). This complete history allows several features for the data set:
     * Undo/redo capabilities
