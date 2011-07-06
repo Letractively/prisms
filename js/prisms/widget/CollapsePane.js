@@ -58,7 +58,7 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 			this.titleNode.style.fontWeight="bold";
 			this.titleNode.style.fontSize="large";
 			__dojo.connect(this.titleNode, "onclick", this, this._expandClicked);
-			this.titleNode.innerHTML=this.title;
+			this.titleNode.innerHTML=PrismsUtils.fixUnicodeString(this.title);
 		}
 
 		if(!this._wipeIn || !this._wipeOut)
@@ -112,7 +112,7 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 	},
 
 	setTitle: function(title){
-		this.titleNode.innerHTML=title;
+		this.titleNode.innerHTML=PrismsUtils.fixUnicodeString(title);
 	},
 
 	setCollapsed: function(collapsed){

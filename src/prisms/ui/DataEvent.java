@@ -3,35 +3,21 @@
  */
 package prisms.ui;
 
-/**
- * An event that may occur on a data structure
- */
+/** An event that may occur on a data structure */
 public abstract class DataEvent
 {
-	/**
-	 * The type of an event
-	 */
+	/** The type of an event */
 	public static enum Type
 	{
-		/**
-		 * An event for which a node was added
-		 */
+		/** An event for which a data item was added */
 		ADD,
-		/**
-		 * An event for which a node was removed
-		 */
+		/** An event for which a data item was removed */
 		REMOVE,
-		/**
-		 * An event for which a node was moved
-		 */
+		/** An event for which a data item was moved */
 		MOVE,
-		/**
-		 * An event for which a node was changed
-		 */
+		/** An event for which a data item was modified */
 		CHANGE,
-		/**
-		 * An event for which the data structure should be completely refreshed
-		 */
+		/** An event for which the data structure should be completely refreshed */
 		REFRESH;
 	}
 
@@ -47,9 +33,7 @@ public abstract class DataEvent
 		theType = type;
 	}
 
-	/**
-	 * @return This event's type
-	 */
+	/** @return This event's type */
 	public Type getType()
 	{
 		return theType;

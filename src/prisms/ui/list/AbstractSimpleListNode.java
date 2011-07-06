@@ -1,4 +1,4 @@
-/**
+/*
  * AbstractSimpleListNode.java Created Jan 29, 2008 by Andrew Butler, PSL
  */
 package prisms.ui.list;
@@ -7,9 +7,7 @@ import javax.swing.Action;
 
 import org.json.simple.JSONObject;
 
-/**
- * Provides a default serialization implementation
- */
+/** Provides a default serialization implementation */
 public abstract class AbstractSimpleListNode implements JsonListNode
 {
 	private final DataListManager theMgr;
@@ -29,41 +27,28 @@ public abstract class AbstractSimpleListNode implements JsonListNode
 		theActions = new Action [0];
 	}
 
-	/**
-	 * @return The list manager managing this node
-	 */
+	/** @return The list manager managing this node */
 	public DataListManager getManager()
 	{
 		return theMgr;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#isSelected()
-	 */
 	public boolean isSelected()
 	{
 		return isSelected;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#setSelected(boolean)
-	 */
 	public void setSelected(boolean selected)
 	{
 		isSelected = selected;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#setSelected(boolean)
-	 */
 	public void userSetSelected(boolean selected)
 	{
 		isSelected = selected;
 	}
 
-	/**
-	 * @return The actions available to the user for this node
-	 */
+	/** @return The actions available to the user for this node */
 	public Action [] getAvailableActions()
 	{
 		return theActions;
@@ -110,8 +95,8 @@ public abstract class AbstractSimpleListNode implements JsonListNode
 				multi = ((Boolean) theActions[a].getValue("multiple")).booleanValue();
 			else
 				multi = false;
-			ret = prisms.util.ArrayUtils.add(ret, new NodeAction((String) theActions[a]
-				.getValue(Action.NAME), multi));
+			ret = prisms.util.ArrayUtils.add(ret,
+				new NodeAction((String) theActions[a].getValue(Action.NAME), multi));
 		}
 		return ret;
 	}
@@ -142,8 +127,8 @@ public abstract class AbstractSimpleListNode implements JsonListNode
 		ret.put("text", getText());
 		ret.put("icon", getIcon());
 		ret.put("description", getDescription());
-		ret.put("bgColor", prisms.util.JsonUtils.toHTML(getBackground()));
-		ret.put("textColor", prisms.util.JsonUtils.toHTML(getForeground()));
+		ret.put("bgColor", prisms.util.ColorUtils.toHTML(getBackground()));
+		ret.put("textColor", prisms.util.ColorUtils.toHTML(getForeground()));
 		ret.put("actions", prisms.util.JsonUtils.serialize(getActions()));
 		return ret;
 	}

@@ -27,10 +27,10 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 
 	boolean theDataLock;
 
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		User user = session.getProperty(ManagerProperties.selectedUser);
 		UserGroup group = session.getProperty(ManagerProperties.userSelectedGroup);
 		setUserGroup(user, group);
@@ -82,7 +82,7 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setEnabled");
-		evt.put("enabled", new Boolean(isEnabled()));
+		evt.put("enabled", Boolean.valueOf(isEnabled()));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -95,7 +95,7 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 			group = new JSONObject();
 			group.put("name", theGroup.getName());
 			group.put("descrip", theGroup.getDescription());
-			group.put("selected", new Boolean(userHasGroup()));
+			group.put("selected", Boolean.valueOf(userHasGroup()));
 		}
 		evt.put("group", group);
 		theSession.postOutgoingEvent(evt);

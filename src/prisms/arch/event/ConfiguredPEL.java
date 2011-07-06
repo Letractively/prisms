@@ -3,14 +3,9 @@
  */
 package prisms.arch.event;
 
-import org.dom4j.Element;
-
-import prisms.arch.AppConfig;
-import prisms.arch.PrismsSession;
-
 /**
- * A {@link PrismsEventListener} that can be configured using {@link AppConfig}. An event listener
- * that is configured from XML must generally be told what session it is in since the
+ * A {@link PrismsEventListener} that can be configured using {@link prisms.arch.AppConfig}. An
+ * event listener that is configured from XML must generally be told what session it is in since the
  * {@link PrismsEventListener} interface assumes that it already knows.
  */
 public interface ConfiguredPEL extends PrismsEventListener
@@ -19,7 +14,7 @@ public interface ConfiguredPEL extends PrismsEventListener
 	 * Sets this listener's session so it can perform its action properly
 	 * 
 	 * @param session The session that this listener is listening to
-	 * @param configEl The XML element to configure this event listener
+	 * @param config The configuration to configure this event listener
 	 */
-	void configure(PrismsSession session, Element configEl);
+	void configure(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config);
 }

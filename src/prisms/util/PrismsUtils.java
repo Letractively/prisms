@@ -3,11 +3,94 @@
  */
 package prisms.util;
 
-/**
- * A general utility class with methods useful in the PRISMS architecture
- */
+import java.util.Calendar;
+
+import org.json.simple.JSONObject;
+
+import prisms.arch.ds.PasswordConstraints;
+
+/** A general utility class with methods useful in the PRISMS architecture */
 public class PrismsUtils
 {
+	/** Represents different precisions to which a time can be represented in text */
+	public enum TimePrecision
+	{
+		/** Represents a time to days */
+		DAYS("ddMMMyyyy", false),
+		/** Represents a time to minutes */
+		MINUTES("ddMMMyyyy HHmm"),
+		/** Represents a time to seconds */
+		SECONDS("ddMMMyyyy HH:mm:ss"),
+		/** Represents a time to milliseconds */
+		MILLIS("ddMMMyyyy HH:mm:ss.SSS");
+
+		private java.util.concurrent.locks.Lock theLock;
+
+		/** The GMT date format for this precision */
+		private final java.text.SimpleDateFormat gmtFormat;
+
+		/** The local date format for this precision */
+		private final java.text.SimpleDateFormat localFormat;
+
+		TimePrecision(String dateFormat)
+		{
+			this(dateFormat, true);
+		}
+
+		TimePrecision(String dateFormat, boolean withZ)
+		{
+			theLock = new java.util.concurrent.locks.ReentrantLock();
+			localFormat = new java.text.SimpleDateFormat(dateFormat);
+			if(withZ)
+				dateFormat += "'Z'";
+			gmtFormat = new java.text.SimpleDateFormat(dateFormat);
+			gmtFormat.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+		}
+
+		/**
+		 * Prints a GMT-refrenced representation of the given time for this precision
+		 * 
+		 * @param time The time to represent
+		 * @param local Whether to print the time in the local time zone or in GMT
+		 * @return The representation of <code>time</code>
+		 */
+		public String print(long time, boolean local)
+		{
+			java.text.SimpleDateFormat format = local ? localFormat : gmtFormat;
+			theLock.lock();
+			try
+			{
+				return format.format(new java.util.Date(time));
+			} finally
+			{
+				theLock.unlock();
+			}
+		}
+
+		/**
+		 * Parses a GMT-referenced date for this precision
+		 * 
+		 * @param time The formatted time string
+		 * @param local Whether to print the time in the local time zone or in GMT
+		 * @return The java time value represented by <code>time</code>
+		 */
+		public long parse(String time, boolean local)
+		{
+			java.text.SimpleDateFormat format = local ? localFormat : gmtFormat;
+			theLock.lock();
+			try
+			{
+				return format.parse(time).getTime();
+			} catch(java.text.ParseException e)
+			{
+				throw new IllegalArgumentException("Cannot parse " + time + " to a time", e);
+			} finally
+			{
+				theLock.unlock();
+			}
+		}
+	}
+
 	/**
 	 * Allows the
 	 * {@link PrismsUtils#navigate(Object, Object, prisms.util.PrismsUtils.TreeInterpreter)} method
@@ -38,22 +121,61 @@ public class PrismsUtils
 		boolean nodesMatch(T1 node1, T2 node2);
 	}
 
-	private static final java.text.SimpleDateFormat theFcastFormat;
-
 	private static final String randomEvent = Long
 		.toHexString((long) (Math.random() * Long.MAX_VALUE));
 
 	private static final prisms.arch.event.PrismsProperty<?> randomProperty = prisms.arch.event.PrismsProperty
 		.create(randomEvent, PrismsUtils.class);
 
+	private static boolean isJava6;
+
+	private static java.util.Random theRandom;
+
 	static
 	{
-		theFcastFormat = new java.text.SimpleDateFormat("ddMMMyyyy HHmm'Z'");
-		theFcastFormat.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+		theRandom = new java.util.Random();
+		try
+		{
+			isJava6 = java.sql.Connection.class.getMethod("isValid", Integer.class) != null;
+		} catch(Exception e)
+		{
+			isJava6 = false;
+		}
 	}
 
 	private PrismsUtils()
 	{
+	}
+
+	/** @return Whether the JVM being run has JDK-6 classes. */
+	public static boolean isJava6()
+	{
+		return isJava6;
+	}
+
+	/**
+	 * Creates a random hexadecimal string with the given length
+	 * 
+	 * @param chars The length for the random string
+	 * @return The random string
+	 */
+	public static String getRandomString(int chars)
+	{
+		StringBuilder ret = new StringBuilder();
+		while(ret.length() < chars)
+		{
+			int next = theRandom.nextInt();
+			ret.append(Integer.toHexString(next));
+		}
+		if(ret.length() != chars)
+			ret.setLength(chars);
+		return ret.toString();
+	}
+
+	/** @return A non-negative random integer */
+	public static int getRandomInt()
+	{
+		return theRandom.nextInt() >>> 1;
 	}
 
 	/**
@@ -64,7 +186,7 @@ public class PrismsUtils
 	 */
 	public static String print(long time)
 	{
-		return theFcastFormat.format(new java.util.Date(time));
+		return TimePrecision.MINUTES.print(time, false);
 	}
 
 	/**
@@ -75,24 +197,31 @@ public class PrismsUtils
 	 */
 	public static long parse(String time)
 	{
-		try
-		{
-			return theFcastFormat.parse(time).getTime();
-		} catch(java.text.ParseException e)
-		{
-			throw new IllegalArgumentException("Cannot parse " + time + " to a time", e);
-		}
+		return TimePrecision.MINUTES.parse(time, false);
+	}
+
+	/**
+	 * Prints a time length to a string
+	 * 
+	 * @param length The length of time in milliseconds
+	 * @return The representation of the time length
+	 */
+	public static String printTimeLength(long length)
+	{
+		StringBuilder sb = new StringBuilder();
+		printTimeLength(length, sb, false);
+		return sb.toString();
 	}
 
 	/**
 	 * Prints a time length to a string builder
 	 * 
 	 * @param length The length of time in milliseconds
-	 * @return The representation of the time length into
+	 * @param sb The StringBuilder to write the representation of the time length into
+	 * @param abbrev Whether to shorten the string intelligibly as much as possible
 	 */
-	public static String printTimeLength(long length)
+	public static void printTimeLength(long length, StringBuilder sb, boolean abbrev)
 	{
-		StringBuilder sb = new StringBuilder();
 		if(length == 0)
 			sb.append("no time");
 		int days, hrs, mins, secs, millis;
@@ -108,29 +237,173 @@ public class PrismsUtils
 		if(days > 0)
 		{
 			sb.append(days);
-			sb.append(" days ");
+			if(abbrev)
+				sb.append("d ");
+			else if(days > 1)
+				sb.append(" days ");
+			else
+				sb.append(" day ");
 		}
 		if(hrs > 0)
 		{
 			sb.append(hrs);
-			sb.append(" hours ");
+			if(abbrev)
+				sb.append("h ");
+			else if(hrs > 1)
+				sb.append(" hours ");
+			else
+				sb.append(" hour ");
 		}
 		if(mins > 0)
 		{
 			sb.append(mins);
-			sb.append(" minutes ");
+			if(abbrev)
+				sb.append("m ");
+			else if(mins > 1)
+				sb.append(" minutes ");
+			else
+				sb.append(" minute ");
 		}
 		if(secs > 0)
 		{
 			sb.append(secs);
-			sb.append(" seconds ");
+			if(millis > 0)
+			{
+				sb.append('.');
+				if(millis < 100)
+					sb.append('0');
+				if(millis < 10)
+					sb.append('0');
+				sb.append(millis);
+				millis = 0;
+			}
+			if(abbrev)
+				sb.append("s ");
+			else if(secs > 1)
+				sb.append(" seconds ");
+			else
+				sb.append(" second ");
 		}
 		if(millis > 0)
 		{
 			sb.append(millis);
-			sb.append(" millis");
+			if(abbrev)
+				sb.append("mil ");
+			else if(millis > 1)
+				sb.append(" millis");
+			else
+				sb.append(" milli");
 		}
-		return sb.toString();
+		if(sb.length() == 0)
+			sb.append("no time");
+		else if(sb.charAt(sb.length() - 1) == ' ')
+			sb.deleteCharAt(sb.length() - 1);
+	}
+
+	/**
+	 * @param start The start time of the interval whose end time to print
+	 * @param end The end time of the interval to print
+	 * @param timeZone The timezone to print in
+	 * @param calField The calendar field precision to print to
+	 * @return A string representing the interval's end time in a context where the start time is
+	 *         known. This results in a shorter string that is quicker to read.
+	 */
+	public static String printEndTime(long start, long end, java.util.TimeZone timeZone,
+		int calField)
+	{
+		Calendar sc = Calendar.getInstance();
+		if(timeZone != null)
+			sc.setTimeZone(timeZone);
+		sc.setTimeInMillis(start);
+		Calendar ec = Calendar.getInstance();
+		if(timeZone != null)
+			ec.setTimeZone(timeZone);
+		ec.setTimeInMillis(end);
+
+		StringBuilder ret = new StringBuilder();
+		int length = 0;
+		switch(calField)
+		{
+		case Calendar.MILLISECOND:
+			ret.append(ec.get(Calendar.MILLISECOND));
+			length += 3;
+			while(ret.length() < length)
+				ret.insert(0, '0');
+			//$FALL-THROUGH$
+		case Calendar.SECOND:
+			if(length > 0)
+			{
+				ret.insert(0, '.');
+				length++;
+			}
+			ret.insert(0, ec.get(Calendar.SECOND));
+			length += 3;
+			while(ret.length() < length)
+				ret.insert(0, '0');
+			if(end - start < 60L * 1000 && sc.get(Calendar.MINUTE) == ec.get(Calendar.MINUTE))
+				return ret.toString();
+			//$FALL-THROUGH$
+		case Calendar.MINUTE:
+		case Calendar.HOUR_OF_DAY:
+			if(length > 0)
+			{
+				ret.insert(0, ':');
+				length++;
+			}
+			ret.insert(0, ec.get(Calendar.MINUTE));
+			length += 2;
+			while(ret.length() < length)
+				ret.insert(0, '0');
+			ret.insert(0, ':');
+			ret.insert(0, ec.get(Calendar.HOUR_OF_DAY));
+			length += 3;
+			while(ret.length() < length)
+				ret.insert(0, '0');
+			if(end - start < 24L * 60 * 60 * 1000
+				&& sc.get(Calendar.DAY_OF_MONTH) == ec.get(Calendar.DAY_OF_MONTH))
+				return ret.toString();
+			//$FALL-THROUGH$
+		case Calendar.DAY_OF_MONTH:
+			int day = ec.get(Calendar.DAY_OF_MONTH);
+			if(length > 0)
+			{
+				ret.insert(0, ' ');
+				length++;
+			}
+			ret.insert(0, day);
+			length += 2;
+			while(ret.length() < length)
+				ret.insert(0, '0');
+			if(end - start < 31L * 24 * 60 * 60 * 1000
+				&& sc.get(Calendar.MONTH) == ec.get(Calendar.MONTH))
+			{
+				String suffix;
+				if(day / 10 == 1)
+					suffix = "th";
+				else if(day % 10 == 1)
+					suffix = "st";
+				else if(day % 10 == 2)
+					suffix = "nd";
+				else if(day % 10 == 3)
+					suffix = "rd";
+				else
+					suffix = "th";
+				ret.insert(2, suffix);
+				return ret.toString();
+			}
+			//$FALL-THROUGH$
+		case Calendar.MONTH:
+			String [] months = new String [] {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
+				"Aug", "Sep", "Oct", "Nov", "Dec"};
+			ret.insert(2, months[ec.get(Calendar.MONTH)]);
+			length += 3;
+			if(sc.get(Calendar.YEAR) == ec.get(Calendar.YEAR))
+				return ret.toString();
+			//$FALL-THROUGH$
+		case Calendar.YEAR:
+			return print(end);
+		}
+		return ret.toString();
 	}
 
 	/**
@@ -144,18 +417,27 @@ public class PrismsUtils
 	 */
 	public static String encodeUnicode(String str)
 	{
-		for(int c = 0; c < str.length(); c++)
+		int c;
+		for(c = 0; c < str.length() && str.codePointAt(c) <= 0x7f; c++);
+		if(c == str.length())
+			return str;
+
+		StringBuilder ret = new StringBuilder();
+		ret.append(str.substring(0, c));
+		for(; c < str.length(); c++)
 		{
-			if(str.codePointAt(c) > 0x7F)
+			if(str.codePointAt(c) > 0x7f)
 			{
+				ret.append("\\u");
 				String hexString = Integer.toHexString(str.codePointAt(c));
-				while(hexString.length() < 4)
-					hexString = "0" + hexString;
-				str = str.substring(0, c) + "\\u" + hexString + str.substring(c + 1);
-				c += 5;
+				for(int i = 0; i < 4 - hexString.length(); i++)
+					ret.append('0');
+				ret.append(hexString);
 			}
+			else
+				ret.append(str.charAt(c));
 		}
-		return str;
+		return ret.toString();
 	}
 
 	/**
@@ -171,25 +453,53 @@ public class PrismsUtils
 	 */
 	public static String decodeUnicode(String str)
 	{
-		int idx = str.indexOf("\\u");
-		while(idx >= 0)
+		int index = str.indexOf("\\u");
+		if(index >= 0)
 		{
-			if(idx < str.length() - 5 && isHexDigit(str.charAt(idx + 2))
-				&& isHexDigit(str.charAt(idx + 3)) && isHexDigit(str.charAt(idx + 4))
-				&& isHexDigit(str.charAt(idx + 5)))
+			StringBuilder sb = new StringBuilder();
+			charLoop: for(int c = 0; c < str.length(); c++)
 			{
-				str = str.substring(0, idx)
-					+ Character.toChars(Integer.parseInt(str.substring(idx + 2, idx + 6), 16))[0]
-					+ str.substring(idx + 6);
+				if(c >= index && c < str.length() - 5 && str.charAt(c) == '\\'
+					&& str.charAt(c + 1) == 'u')
+				{
+					final int preC = c;
+					c += 2;
+					int code = 0;
+					for(int i = 0; i < 4; i++)
+					{
+						int hex = fromHex(str.charAt(c));
+						if(hex < 0)
+						{ // Doesn't match \\uXXXX--don't adjust
+							c = preC;
+							sb.append(str.charAt(c));
+							continue charLoop;
+						}
+						code = code * 16 + hex;
+						c++;
+					}
+					c--;
+					char [] codeChars = Character.toChars(code);
+					for(char ch : codeChars)
+						sb.append(ch);
+				}
+				else
+					sb.append(str.charAt(c));
 			}
-			idx = str.indexOf("\\u", idx + 1);
+			str = sb.toString();
 		}
 		return str;
 	}
 
-	private static boolean isHexDigit(char c)
+	private static int fromHex(char c)
 	{
-		return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+		if(c >= '0' && c <= '9')
+			return c - '0';
+		else if(c >= 'a' && c <= 'f')
+			return c - 'a' + 10;
+		else if(c >= 'A' && c <= 'F')
+			return c - 'A' + 10;
+		else
+			return -1;
 	}
 
 	/**
@@ -385,91 +695,58 @@ public class PrismsUtils
 	}
 
 	/**
-	 * Retrieves and parses XML for a given location
+	 * Serializes password constraints to JSON
 	 * 
-	 * @param location The location of the XML file to parse
-	 * @param relative The locations to which the location may be relative
-	 * @return The root element of the given XMl file
-	 * @throws java.io.IOException If an error occurs finding, reading, or parsing the file
+	 * @param constraints The password constraints to serialize
+	 * @return The JSON-serialize password constraints
 	 */
-	public static org.dom4j.Element getRootElement(String location, String... relative)
-		throws java.io.IOException
+	public static JSONObject serializeConstraints(PasswordConstraints constraints)
 	{
-		String newLocation = resolve(location, relative);
-		if(newLocation == null)
-			return null;
-		java.net.URL configURL;
-		if(newLocation.startsWith("classpath:/"))
-		{ // Classpath resource
-			configURL = PrismsUtils.class
-				.getResource(newLocation.substring("classpath:/".length()));
-			if(configURL == null)
-			{
-				throw new java.io.FileNotFoundException("Classpath configuration URL "
-					+ newLocation + " refers to a non-existent resource");
-			}
-		}
-		else if(newLocation.contains(":/"))
-		{ // Absolute resource
-			configURL = new java.net.URL(newLocation);
-		}
-		else
-		{
-			throw new java.io.IOException("Location " + newLocation + " is invalid");
-		}
-		org.dom4j.Element configEl;
-		try
-		{
-			configEl = new org.dom4j.io.SAXReader().read(configURL).getRootElement();
-		} catch(org.dom4j.DocumentException e)
-		{
-			throw new javax.imageio.IIOException("Could not read XML file " + location, e);
-		}
-		return configEl;
+		JSONObject ret = new JSONObject();
+		ret.put("minLength", Integer.valueOf(constraints.getMinCharacterLength()));
+		ret.put("minUpperCase", Integer.valueOf(constraints.getMinUpperCase()));
+		ret.put("minLowerCase", Integer.valueOf(constraints.getMinLowerCase()));
+		ret.put("minDigits", Integer.valueOf(constraints.getMinDigits()));
+		ret.put("minSpecialChars", Integer.valueOf(constraints.getMinSpecialChars()));
+		ret.put("maxDuration", Long.valueOf(constraints.getMaxPasswordDuration()));
+		ret.put("numUnique", Integer.valueOf(constraints.getNumPreviousUnique()));
+		ret.put("minChangeInterval", Long.valueOf(constraints.getMinPasswordChangeInterval()));
+		return ret;
 	}
 
 	/**
-	 * Gets the location of a class to use in resolving relative paths with
-	 * {@link #getRootElement(String, String...)}
+	 * Deserializes password constraints from JSON
 	 * 
-	 * @param clazz The class to get the location of
-	 * @return The location of the class file
+	 * @param constraints The JSON-serialized password constraints
+	 * @return The deserialized password constraints
 	 */
-	public static String getLocation(Class<?> clazz)
+	public static PasswordConstraints deserializeConstraints(JSONObject constraints)
 	{
-		return "classpath://" + clazz.getName().replaceAll("\\.", "/") + ".class";
+		PasswordConstraints ret = new PasswordConstraints();
+		ret.setMinCharacterLength(((Number) constraints.get("minLength")).intValue());
+		ret.setMinUpperCase(((Number) constraints.get("minUpperCase")).intValue());
+		ret.setMinLowerCase(((Number) constraints.get("minLowerCase")).intValue());
+		ret.setMinDigits(((Number) constraints.get("minDigits")).intValue());
+		ret.setMinSpecialChars(((Number) constraints.get("minSpecialChars")).intValue());
+		ret.setMaxPasswordDuration(((Number) constraints.get("maxDuration")).longValue());
+		ret.setNumPreviousUnique(((Number) constraints.get("numUnique")).intValue());
+		ret.setMinPasswordChangeInterval(((Number) constraints.get("minChangeInterval"))
+			.longValue());
+		return ret;
 	}
 
-	private static String resolve(String location, String... relative) throws java.io.IOException
+	/**
+	 * Self-test method
+	 * 
+	 * @param args Command line args, ignored
+	 */
+	public static void main(String [] args)
 	{
-		if(location.contains(":/"))
-			return location;
-		else if(relative.length > 0)
-		{
-			String resolvedRel = resolve(relative[0], ArrayUtils.remove(relative, 0));
-			if(resolvedRel.contains(":/"))
-			{
-				String newLocation = location;
-				do
-				{
-					int lastSlash = resolvedRel.lastIndexOf("/");
-					resolvedRel = resolvedRel.substring(0, lastSlash);
-					if(newLocation.startsWith("../"))
-						newLocation = newLocation.substring(3);
-				} while(newLocation.startsWith("../"));
-				if(!resolvedRel.contains(":/"))
-				{
-					throw new java.io.IOException("Location " + location + " relative to "
-						+ ArrayUtils.toString(relative) + " is invalid");
-				}
-				return resolvedRel + "/" + newLocation;
-			}
-			else
-				return null;
-		}
-		else
-		{
-			throw new java.io.IOException("Location " + location + " is invalid");
-		}
+		String str = "This is a unicode string this (\\u00b0) is a unicode symbol";
+		System.out.println("Original=" + str);
+		str = decodeUnicode(str);
+		System.out.println("Decoded=" + str);
+		str = encodeUnicode(str);
+		System.out.println("Encoded=" + str);
 	}
 }

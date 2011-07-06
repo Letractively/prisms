@@ -4,13 +4,14 @@
 	<name>MANAGER</name>
 	<description>Allows management of PRISMS users, applications, permissions, etc.</description>
 	<config-class>prisms.arch.AppConfig</config-class>
-	<version>1.4.0</version>
-	<modified>28Oct2010</modified>
+	<version>1.5.0</version>
+	<modified>27Apr2011</modified>
 	<worker>
 		<type>threadpool</type>
 	</worker>
 	<properties>
 		<property globalRef="prisms-users" />
+		<property globalRef="prisms-preferences" />
 	</properties>
 	<events>
 		<event>
@@ -21,15 +22,15 @@
 			<name>appGroupsChanged</name>
 			<class>prisms.util.EventGlobalizer</class>
 		</event>
-		<event>
-			<name>groupPermissionsChanged</name>
-			<class>prisms.util.EventGlobalizer</class>
-		</event>
 	</events>
 	<monitors>
+		<monitor>
+			<class>manager.app.ManagerMonitor</class>
+		</monitor>
 	</monitors>
 	<clients>
-		<client configXML="ManagerClientConfig.xml"/>
+		<client configXML="ManagerClientConfig.xml" />
+		<client configXML="SessionServiceConfig.xml" />
 	</clients>
 	<permissions>
 		<permission>

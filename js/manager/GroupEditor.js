@@ -83,8 +83,10 @@ __dojo.declare("manager.GroupEditor", [__dijit._Widget, __dijit._Contained, __di
 		this.dataLock=true;
 		this.value = value;
 		try{
-			this.nameField.setValue(value.name);
-			this.descripField.value=value.descrip;
+			if(this.nameField.getValue()!=value.name)
+				this.nameField.setValue(value.name);
+			if(this.descripField.value!=value.descrip)
+				this.descripField.value=value.descrip;
 		} finally{
 			this.dataLock=false;
 		}

@@ -26,10 +26,10 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 
 	PrismsApplication theApp;
 
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		User user = session.getProperty(ManagerProperties.selectedUser);
 		PrismsApplication app = session.getProperty(ManagerProperties.userApplication);
 		setUserApp(user, app);
@@ -76,7 +76,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		evt.put("method", "setEnabled");
 		evt.put(
 			"enabled",
-			new Boolean(theUser != null
+			Boolean.valueOf(theUser != null
 				&& theApp != null
 				&& !(theApp == theSession.getApp() && theUser.getName().equals(
 					theSession.getUser().getName()))
@@ -88,7 +88,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		evt.put("method", "setData");
 		evt.put("user", theUser == null ? null : theUser.getName());
 		evt.put("app", theApp == null ? null : theApp.getName());
-		evt.put("accessible", new Boolean(isAccessible()));
+		evt.put("accessible", Boolean.valueOf(isAccessible()));
 		theSession.postOutgoingEvent(evt);
 	}
 
@@ -148,7 +148,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		try
 		{
 			((ManageableUserSource) us).setUserAccess(theUser, theApp, accessible,
-				new prisms.records2.RecordsTransaction(theSession.getUser()));
+				new prisms.records.RecordsTransaction(theSession.getUser()));
 		} catch(prisms.arch.PrismsException e)
 		{
 			throw new IllegalStateException("Could not set user-application accessibility", e);

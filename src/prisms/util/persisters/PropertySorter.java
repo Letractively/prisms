@@ -16,12 +16,12 @@ public class PropertySorter<T> extends prisms.arch.event.GlobalPropertyManager<T
 	private java.util.Comparator<T> theComparator;
 
 	@Override
-	public void configure(prisms.arch.PrismsApplication app, org.dom4j.Element configEl)
+	public void configure(prisms.arch.PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
+		super.configure(app, config);
 		if(theComparator == null)
 		{
-			String compClass = configEl.elementTextTrim("comparator");
+			String compClass = config.get("comparator");
 			if(compClass != null)
 				try
 				{
@@ -36,10 +36,24 @@ public class PropertySorter<T> extends prisms.arch.event.GlobalPropertyManager<T
 	}
 
 	@Override
-	protected void eventOccurred(PrismsSession session, PrismsEvent evt, Object eventValue)
+	protected void eventOccurred(prisms.arch.PrismsApplication app, PrismsSession session,
+		PrismsEvent evt, Object eventValue)
 	{
-		if(!isValueCorrect(session, session.getProperty(getProperty())))
-			session.setProperty(getProperty(), getCorrectValue(session));
+		T [] value;
+		if(session != null)
+		{
+			value = session.getProperty(getProperty());
+			if(!isValueCorrect(session, value))
+				session.setProperty(getProperty(), getCorrectValue(value), "prismsPersisted",
+					evt.getProperty("prismsPersisted"));
+		}
+		else
+		{
+			value = app.getGlobalProperty(getProperty());
+			if(!isValueCorrect(null, value))
+				app.setGlobalProperty(getProperty(), getCorrectValue(value), "prismsPersisted",
+					evt.getProperty("prismsPersisted"));
+		}
 	}
 
 	@Override
@@ -49,14 +63,28 @@ public class PropertySorter<T> extends prisms.arch.event.GlobalPropertyManager<T
 	}
 
 	@Override
+	protected void checkValue(PrismsSession session, T [] value,
+		prisms.arch.event.PrismsPCE<T []> evt)
+	{
+		if(!isValueCorrect(session, value))
+			session.setProperty(getProperty(), getCorrectValue(session), "prismsPersisted",
+				evt.get("prismsPersisted"));
+	}
+
+	@Override
 	public T [] getCorrectValue(prisms.arch.PrismsSession session)
 	{
 		T [] ret = session.getProperty(getProperty());
-		if(ret == null)
-			return ret;
-		ret = ret.clone();
-		java.util.Arrays.sort(ret, theComparator);
-		return ret;
+		return getCorrectValue(ret);
+	}
+
+	T [] getCorrectValue(T [] origValue)
+	{
+		if(origValue == null)
+			return origValue;
+		origValue = origValue.clone();
+		java.util.Arrays.sort(origValue, theComparator);
+		return origValue;
 	}
 
 	@Override

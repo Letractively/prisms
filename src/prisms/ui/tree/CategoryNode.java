@@ -5,15 +5,18 @@ package prisms.ui.tree;
 
 import java.awt.Color;
 
-
-/**
- * A simple named node
- */
+/** A simple named node */
 public class CategoryNode extends AbstractSimpleTreeNode
 {
-	private String theTitle;
+	private String theText;
 
 	private String theIcon;
+
+	private String theDescription;
+
+	private Color theBG;
+
+	private Color theFG;
 
 	/**
 	 * Creates a Category node
@@ -25,72 +28,70 @@ public class CategoryNode extends AbstractSimpleTreeNode
 	public CategoryNode(DataTreeManager mgr, DataTreeNode parent, String title)
 	{
 		super(mgr, parent);
-		theTitle = title;
+		theText = title;
+		theDescription = title;
+		theBG = Color.white;
+		theFG = Color.black;
 	}
 
-	public void setChildren(DataTreeNode [] children)
-	{
-		super.setChildren(children);
-	}
-
-	/**
-	 * @see prisms.ui.list.DataListNode#getText()
-	 */
 	public String getText()
 	{
-		return theTitle;
+		return theText;
 	}
 
-	/**
-	 * @param text The text that this node should display
-	 */
+	/** @param text The text that this node should display */
 	public void setText(String text)
 	{
-		theTitle = text;
+		theText = text;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#getDescription()
-	 */
 	public String getDescription()
 	{
-		return theTitle;
+		return theDescription;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#getIcon()
-	 */
+	/** @param descrip The description that this node should display */
+	public void setDescription(String descrip)
+	{
+		theDescription = descrip;
+	}
+
 	public String getIcon()
 	{
 		return theIcon;
 	}
 
-	/**
-	 * @param icon The icon for this node
-	 */
+	/** @param icon The icon for this node */
 	public void setIcon(String icon)
 	{
 		theIcon = icon;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#getBackground()
-	 */
 	public Color getBackground()
 	{
-		return Color.white;
+		return theBG;
 	}
 
-	/**
-	 * @see prisms.ui.list.DataListNode#getForeground()
-	 */
+	/** @param bg The background color that this node should display */
+	public void setBackground(Color bg)
+	{
+		theBG = bg;
+	}
+
 	public Color getForeground()
 	{
-		return Color.black;
+		return theFG;
 	}
 
+	/** @param fg The foreground color that this node should display */
+	public void setForeground(Color fg)
+	{
+		theFG = fg;
+	}
+
+	@Override
 	public String toString()
 	{
-		return "Category: " + theTitle;
+		return "Category: " + theText;
 	}
 }

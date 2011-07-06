@@ -3,9 +3,7 @@
  */
 package prisms.arch.ds;
 
-/**
- * Defines constraints that may be placed on passwords within PRISMS
- */
+/** Defines constraints that may be placed on passwords within PRISMS */
 public class PasswordConstraints
 {
 	private boolean isLocked;
@@ -26,9 +24,7 @@ public class PasswordConstraints
 
 	private long theMinPasswordChangeInterval;
 
-	/**
-	 * Creates a PasswordConstraints object with no constraints
-	 */
+	/** Creates a PasswordConstraints object with no constraints */
 	public PasswordConstraints()
 	{
 		theMaxPasswordDuration = -1;
@@ -56,33 +52,25 @@ public class PasswordConstraints
 		return count;
 	}
 
-	/**
-	 * @return Whether these constraints are permanently locked so that they cannot be modified
-	 */
+	/** @return Whether these constraints are permanently locked so that they cannot be modified */
 	public boolean isLocked()
 	{
 		return isLocked;
 	}
 
-	/**
-	 * Locks these password constraints so that they cannot be modified
-	 */
+	/** Locks these password constraints so that they cannot be modified */
 	public void lock()
 	{
 		isLocked = true;
 	}
 
-	/**
-	 * @return The minimum number of characters a password can contain
-	 */
+	/** @return The minimum number of characters a password can contain */
 	public int getMinCharacterLength()
 	{
 		return theMinCharacterLength;
 	}
 
-	/**
-	 * @param length The minimum number of characters a password should contain
-	 */
+	/** @param length The minimum number of characters a password should contain */
 	public void setMinCharacterLength(int length)
 	{
 		if(isLocked)
@@ -90,17 +78,13 @@ public class PasswordConstraints
 		theMinCharacterLength = length;
 	}
 
-	/**
-	 * @return The minimum number of upper-case characters a password can contain
-	 */
+	/** @return The minimum number of upper-case characters a password can contain */
 	public int getMinUpperCase()
 	{
 		return theMinUpperCase;
 	}
 
-	/**
-	 * @param count The minimum number of upper-case characters a password should contain
-	 */
+	/** @param count The minimum number of upper-case characters a password should contain */
 	public void setMinUpperCase(int count)
 	{
 		if(isLocked)
@@ -108,17 +92,13 @@ public class PasswordConstraints
 		theMinUpperCase = count;
 	}
 
-	/**
-	 * @return The minimum number of lower-case characters a password can contain
-	 */
+	/** @return The minimum number of lower-case characters a password can contain */
 	public int getMinLowerCase()
 	{
 		return theMinLowerCase;
 	}
 
-	/**
-	 * @param count The minimum number of lower-case characters a password should contain
-	 */
+	/** @param count The minimum number of lower-case characters a password should contain */
 	public void setMinLowerCase(int count)
 	{
 		if(isLocked)
@@ -126,17 +106,13 @@ public class PasswordConstraints
 		theMinLowerCase = count;
 	}
 
-	/**
-	 * @return The minimum number of decimal digits a password can contain
-	 */
+	/** @return The minimum number of decimal digits a password can contain */
 	public int getMinDigits()
 	{
 		return theMinDigits;
 	}
 
-	/**
-	 * @param count The minimum number of decimal digits a password should contain
-	 */
+	/** @param count The minimum number of decimal digits a password should contain */
 	public void setMinDigits(int count)
 	{
 		if(isLocked)
@@ -144,17 +120,13 @@ public class PasswordConstraints
 		theMinDigits = count;
 	}
 
-	/**
-	 * @return The minimum number of special characters a password can contain
-	 */
+	/** @return The minimum number of special characters a password can contain */
 	public int getMinSpecialChars()
 	{
 		return theMinSpecialChars;
 	}
 
-	/**
-	 * @param count The minimum number of special characters a password should contain
-	 */
+	/** @param count The minimum number of special characters a password should contain */
 	public void setMinSpecialChars(int count)
 	{
 		if(isLocked)
@@ -182,17 +154,13 @@ public class PasswordConstraints
 		theMaxPasswordDuration = duration;
 	}
 
-	/**
-	 * @return The number of previous passwords a user may not reuse
-	 */
+	/** @return The number of previous passwords a user may not reuse */
 	public int getNumPreviousUnique()
 	{
 		return theNumPreviousUnique;
 	}
 
-	/**
-	 * @param count The number of previous passwords a user should not be able to reuse
-	 */
+	/** @param count The number of previous passwords a user should not be able to reuse */
 	public void setNumPreviousUnique(int count)
 	{
 		if(isLocked)

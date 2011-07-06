@@ -19,9 +19,8 @@ public class ListenerUtils
 	 * @param arrayProp The array property to monitor
 	 * @param elementProp The singular property to monitor
 	 */
-	public static <T> void monitorArrayElement(final prisms.arch.PrismsSession session,
-		prisms.arch.event.PrismsProperty<T []> arrayProp,
-		final prisms.arch.event.PrismsProperty<T> elementProp)
+	public static <T> void monitorArrayElement(final PrismsSession session,
+		PrismsProperty<T []> arrayProp, final PrismsProperty<T> elementProp)
 	{
 		session.addPropertyChangeListener(arrayProp, new PrismsPCL<T []>()
 		{
@@ -43,12 +42,12 @@ public class ListenerUtils
 	 * @param eventProp The name of the property in the event that will contain the relevant value
 	 * @param prop The property to set to null when its value is removed
 	 */
-	public static void monitorRemoveEvent(final prisms.arch.PrismsSession session,
-		final String eventName, final String eventProp, final PrismsProperty<?> prop)
+	public static void monitorRemoveEvent(final PrismsSession session, final String eventName,
+		final String eventProp, final PrismsProperty<?> prop)
 	{
-		session.addEventListener(eventName, new prisms.arch.event.PrismsEventListener()
+		session.addEventListener(eventName, new PrismsEventListener()
 		{
-			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+			public void eventOccurred(PrismsSession session2, PrismsEvent evt)
 			{
 				if(equal(session2.getProperty(prop), evt.getProperty(eventProp)))
 					session2.setProperty(prop, null);
@@ -67,7 +66,7 @@ public class ListenerUtils
 	 * @param arrayProp The array property to keep consistent with the singular property
 	 * @param singProp The singular property to keep consistent with the array property
 	 */
-	public static <T> void coupleWithSingular(final prisms.arch.PrismsSession session,
+	public static <T> void coupleWithSingular(final PrismsSession session,
 		final PrismsProperty<T []> arrayProp, final PrismsProperty<T> singProp)
 	{
 		session.addPropertyChangeListener(singProp, new PrismsPCL<T>()
@@ -123,12 +122,12 @@ public class ListenerUtils
 	 * @param superSetProp The super-set property
 	 * @param subSetProp The sub-set property
 	 */
-	public static <T> void monitorSubset(final prisms.arch.PrismsSession session,
+	public static <T> void monitorSubset(final PrismsSession session,
 		PrismsProperty<T []> superSetProp, final PrismsProperty<T []> subSetProp)
 	{
-		session.addPropertyChangeListener(superSetProp, new prisms.arch.event.PrismsPCL<T []>()
+		session.addPropertyChangeListener(superSetProp, new PrismsPCL<T []>()
 		{
-			public void propertyChange(prisms.arch.event.PrismsPCE<T []> evt)
+			public void propertyChange(PrismsPCE<T []> evt)
 			{
 				T [] subSet = session.getProperty(subSetProp);
 				final boolean [] modified = new boolean [] {false};
@@ -160,6 +159,44 @@ public class ListenerUtils
 					session.setProperty(subSetProp, subSet);
 			}
 		});
+	}
+
+	/**
+	 * Makes a set of properties exclusive of each others. That is, when the value of one is set to
+	 * a non-null, non zero-length value, the values of the rest of the properties will be set to
+	 * null or a 0-length array of an appropriate type.
+	 * 
+	 * @param session The session to monitor
+	 * @param props The properties to be exclusive of each other
+	 */
+	public static void makeExclusive(final PrismsSession session, final PrismsProperty<?>... props)
+	{
+		for(PrismsProperty<?> prop : props)
+		{
+			session.addPropertyChangeListener(prop, new PrismsPCL<Object>()
+			{
+				public void propertyChange(PrismsPCE<Object> evt)
+				{
+					if(evt.getNewValue() == null)
+						return;
+					if(evt.getNewValue() instanceof Object []
+						&& ((Object []) evt.getNewValue()).length == 0)
+						return;
+					for(@SuppressWarnings("rawtypes")
+					PrismsProperty prop2 : props)
+						if(evt.getProperty() != prop2)
+						{
+							Object propVal;
+							if(prop2.getType().isArray())
+								propVal = java.lang.reflect.Array.newInstance(prop2.getType()
+									.getComponentType(), 0);
+							else
+								propVal = null;
+							session.setProperty(prop2, propVal);
+						}
+				}
+			});
+		}
 	}
 
 	static boolean equal(Object o1, Object o2)

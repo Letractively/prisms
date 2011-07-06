@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<client>
+	<name>sessions</name>
+	<description>Serves session info for the manager full client</description>
+	<service>true</service>
+	<common-session>true</common-session>
+	<allowAnonymous>false</allowAnonymous>
+	<session-timeout>900000</session-timeout>
+	<monitors>
+	</monitors>
+	<plugins>
+		<plugin>
+			<name>Session Tree</name>
+			<class>manager.ui.app.inspect.AppSessionServerTree</class>
+		</plugin>
+	</plugins>
+</client>

@@ -28,22 +28,19 @@ public class DualKey<K1, K2>
 		theKey2 = key2;
 	}
 
-	/**
-	 * @return This key's first component
-	 */
+	/** @return This key's first component */
 	public K1 getKey1()
 	{
 		return theKey1;
 	}
 
-	/**
-	 * @return This key's second component
-	 */
+	/** @return This key's second component */
 	public K2 getKey2()
 	{
 		return theKey2;
 	}
 
+	@Override
 	public boolean equals(Object o)
 	{
 		if(!(o instanceof DualKey<?, ?>))
@@ -52,6 +49,7 @@ public class DualKey<K1, K2>
 			&& ArrayUtils.equals(((DualKey<?, ?>) o).theKey2, theKey2);
 	}
 
+	@Override
 	public int hashCode()
 	{
 		return ArrayUtils.hashCode(theKey1) * 31 + ArrayUtils.hashCode(theKey2);

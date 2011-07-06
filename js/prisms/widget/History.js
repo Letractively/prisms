@@ -2,6 +2,7 @@
 __dojo.require("dijit.form.Button");
 __dojo.require("dijit.form.NumberSpinner");
 
+__dojo.require("prisms.widget.TabWidget");
 __dojo.require("prisms.widget.SortTable");
 __dojo.require("prisms.widget.TimeAmountEditor");
 
@@ -15,6 +16,8 @@ __dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, __dijit._Templ
 	templatePath: "__webContentRoot/view/prisms/templates/history.html",
 	
 	widgetsInTemplate: true,
+
+	visible: true,
 
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
@@ -34,10 +37,15 @@ __dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, __dijit._Templ
 		this.prisms=prisms;
 		this.sortTable.prisms=this.prisms;
 		this.prisms.loadPlugin(this);
+		if(!this.visible)
+			this.setVisible(false);
+		delete this["visible"];
 	},
 
 	processEvent: function(event){
-		if(event.method=="setItem")
+		if(event.method=="hide")
+			this.setVisible(false);
+		else if(event.method=="setItem")
 			this.setItem(event.item);
 		else if(event.method=="setSnapshotTime")
 			this.setSnapshot(event.time);
@@ -109,14 +117,17 @@ __dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, __dijit._Templ
 		if(typeof purge.entryCount=="number")
 		{
 			this.entryCountCheck.checked=true;
-			this.entryCountEditor.setValue(purge.entryCount);
+			if(this.entryCountEditor.getValue()!=purge.entryCount)
+				this.entryCountEditor.setValue(purge.entryCount);
 		}
 		else
 			this.entryCountCheck.checked=false;
 		if(typeof purge.age=="number")
 		{
 			this.ageCheck.checked=true;
-			this.ageEditor.setValue({months: 0, seconds: purge.age});
+			var age=this.ageEditor.getValue();
+			if(age.months!=0 || age.seconds!=purge.age)
+				this.ageEditor.setValue({months: 0, seconds: purge.age});
 		}
 		else
 			this.ageCheck.checked=false;
@@ -165,33 +176,37 @@ __dojo.declare("prisms.widget.History", [prisms.widget.TabWidget, __dijit._Templ
 	},
 
 	setSnapshot: function(snapshot){
-		this.snapshotTime.innerHTML=snapshot;
+		this.snapshotTime.innerHTML=PrismsUtils.fixUnicodeString(snapshot);
 	},
 
 	setItem: function(item){
 		if(item)
 		{
 			if(item.isUserActivity)
-				this.titleHeader.innerHTML="Actions of "+item.text;
+				this.titleHeader.innerHTML="Actions of "+PrismsUtils.fixUnicodeString(item.text);
 			else if(item.isCenterActivity || item.isSyncRecordActivity)
 			{
 				if(item.isImport)
-					this.titleHeader.innerHTML="Modifications imported from "+item.text;
+					this.titleHeader.innerHTML="Modifications imported from "+PrismsUtils.fixUnicodeString(item.text);
 				else
-					this.titleHeader.innerHTML="Modifications exported to "+item.text;
+					this.titleHeader.innerHTML="Modifications exported to "+PrismsUtils.fixUnicodeString(item.text);
 			}
 			else
-				this.titleHeader.innerHTML="History Of "+item.text;
+				this.titleHeader.innerHTML="History Of "+PrismsUtils.fixUnicodeString(item.text);
 			this.showAllHistoryDiv.style.display="block";
 		}
 		else
 		{
-			this.titleHeader.innerHTML=this.pluginName;
+			this.titleHeader.innerHTML=PrismsUtils.fixUnicodeString(this.pluginName);
 			this.showAllHistoryDiv.style.display="none";
 		}
 	},
 
 	setContent: function(content, show){
+		var oldSelect=this.isSelected();
+		this.setVisible(true);
+		if(!show && !oldSelect)
+			this.setSelected(false);
 		this.sortTable.setData(content);
 		if(show)
 			this.setSelected(true, true);

@@ -3,10 +3,7 @@
  */
 package prisms.arch;
 
-import java.util.Iterator;
-
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 
 import prisms.arch.event.PrismsEventListener;
 import prisms.arch.event.PropertyManager;
@@ -28,30 +25,28 @@ public class AppConfig
 	 * @param app The application to configure
 	 * @param config The XML configuration
 	 */
-	public void configureApp(PrismsApplication app, Element config)
+	public void configureApp(PrismsApplication app, PrismsConfig config)
 	{
 		synchronized(app)
 		{
 			if(app.isConfigured())
 				return;
-			Element workerEl = config.element("worker");
-			configureWorker(app, workerEl);
-			Element propertiesEl = config.element("properties");
-			if(propertiesEl != null)
-			{
-				Iterator<Element> elIter = propertiesEl.elementIterator("property");
-				while(elIter != null && elIter.hasNext())
+			prisms.util.TrackerSet.TrackConfig[] trackConfigs = null;
+			PrismsConfig tracks = config.subConfig("tracking");
+			if(tracks != null)
+				trackConfigs = prisms.util.TrackerSet.parseTrackConfigs(tracks);
+			if(trackConfigs == null)
+				trackConfigs = app.getEnvironment().getTrackConfigs();
+			if(trackConfigs != null)
+				configureTracking(app, trackConfigs);
+			for(PrismsConfig propConfig : config.subConfigs("properties/property"))
+				try
 				{
-					Element next = elIter.next();
-					try
-					{
-						addPropertyManager(app, next);
-					} catch(Exception e)
-					{
-						log.error("Could not add property manager: " + next.asXML(), e);
-					}
+					addPropertyManager(app, propConfig);
+				} catch(Exception e)
+				{
+					log.error("Could not add property manager: " + propConfig, e);
 				}
-			}
 			for(PropertyManager<?> pm : app.getManagers())
 			{
 				try
@@ -62,38 +57,22 @@ public class AppConfig
 					log.error("Properties set failed: ", e);
 				}
 			}
-			Element eventsEl = config.element("events");
-			if(eventsEl != null)
-			{
-				Iterator<Element> elIter = eventsEl.elementIterator("event");
-				while(elIter.hasNext())
+			for(PrismsConfig evtConfig : config.subConfigs("events/event"))
+				try
 				{
-					Element next = elIter.next();
-					try
-					{
-						addEventListener(app, null, next);
-					} catch(Exception e)
-					{
-						log.error("Could not add event listener: " + next.asXML(), e);
-					}
-				}
-			}
-			Element monitorsEl = config.element("monitors");
-			if(monitorsEl != null)
-			{
-				Iterator<Element> elIter = monitorsEl.elementIterator("monitor");
-				while(elIter.hasNext())
+					addEventListener(app, null, evtConfig);
+				} catch(Exception e)
 				{
-					Element next = elIter.next();
-					try
-					{
-						addMonitor(app, null, next);
-					} catch(Exception e)
-					{
-						log.error("Could not add monitor: " + next.asXML(), e);
-					}
+					log.error("Could not add event listener: " + evtConfig, e);
 				}
-			}
+			for(PrismsConfig monConfig : config.subConfigs("monitors/monitor"))
+				try
+				{
+					addMonitor(app, null, monConfig);
+				} catch(Exception e)
+				{
+					log.error("Could not add monitor: " + monConfig, e);
+				}
 		}
 	}
 
@@ -101,56 +80,32 @@ public class AppConfig
 	 * @param client The client to configure
 	 * @param config The configuration XML
 	 */
-	public void configureClient(ClientConfig client, Element config)
+	public void configureClient(ClientConfig client, PrismsConfig config)
 	{
-		Element eventsEl = config.element("events");
-		if(eventsEl != null)
-		{
-			Iterator<Element> elIter = eventsEl.elementIterator("event");
-			while(elIter.hasNext())
+		for(PrismsConfig evtConfig : config.subConfigs("events/event"))
+			try
 			{
-				Element next = elIter.next();
-				try
-				{
-					addEventListener(null, client, next);
-				} catch(Exception e)
-				{
-					log.error("Could not add event listener: " + next.asXML(), e);
-				}
-			}
-		}
-		Element monitorsEl = config.element("monitors");
-		if(monitorsEl != null)
-		{
-			Iterator<Element> elIter = monitorsEl.elementIterator("monitor");
-			while(elIter.hasNext())
+				addEventListener(null, client, evtConfig);
+			} catch(Exception e)
 			{
-				Element next = elIter.next();
-				try
-				{
-					addMonitor(null, client, next);
-				} catch(Exception e)
-				{
-					log.error("Could not add monitor: " + next.asXML(), e);
-				}
+				log.error("Could not add event listener: " + evtConfig, e);
 			}
-		}
-		Element pluginsEl = config.element("plugins");
-		if(pluginsEl != null)
-		{
-			Iterator<Element> elIter = pluginsEl.elementIterator("plugin");
-			while(elIter.hasNext())
+		for(PrismsConfig monConfig : config.subConfigs("monitors/monitor"))
+			try
 			{
-				Element next = elIter.next();
-				try
-				{
-					addPlugin(client, next);
-				} catch(Exception e)
-				{
-					log.error("Could not add plugin: " + next.asXML(), e);
-				}
+				addMonitor(null, client, monConfig);
+			} catch(Exception e)
+			{
+				log.error("Could not add monitor: " + monConfig, e);
 			}
-		}
+		for(PrismsConfig pluginConfig : config.subConfigs("plugins/plugin"))
+			try
+			{
+				addPlugin(client, pluginConfig);
+			} catch(Exception e)
+			{
+				log.error("Could not add plugin: " + pluginConfig, e);
+			}
 	}
 
 	/**
@@ -166,36 +121,33 @@ public class AppConfig
 	}
 
 	/**
-	 * Configures an application's worker for running background tasks
+	 * Configures an application's tracking
 	 * 
-	 * @param app The application to set the worker for
-	 * @param el The XML element representing the worker to configure
+	 * @param app The application to configure
+	 * @param trackConfigs The track configs to configure the application's tracking with
 	 */
-	public void configureWorker(PrismsApplication app, Element el)
+	public void configureTracking(PrismsApplication app,
+		prisms.util.TrackerSet.TrackConfig[] trackConfigs)
 	{
-		if(el == null || "threadpool".equals(el.elementText("type")))
-			app.setWorker(new prisms.impl.ThreadPoolWorker());
-		else
-			throw new IllegalArgumentException("Unrecognized worker type in worker element "
-				+ el.asXML() + "\nCannot configure application without worker");
+		app.getTrackSet().addTrackConfigs(trackConfigs);
 	}
 
 	/**
-	 * Tells this config to register a property manager using the element properties
+	 * Tells this config to register a property manager using the configuration properties
 	 * 
 	 * @param app The application to add the plugin type to
-	 * @param propEl The element to configure the property manager
+	 * @param propConfig The configuration for the property manager
 	 * @throws IllegalArgumentException If the property manager cannot be registered as specified
 	 */
-	public void addPropertyManager(PrismsApplication app, Element propEl)
+	public void addPropertyManager(PrismsApplication app, PrismsConfig propConfig)
 		throws IllegalArgumentException
 	{
-		log.debug("Adding property manager:\n" + propEl.asXML());
-		String globalName = propEl.attributeValue("globalRef");
+		log.debug("Adding property manager:\n" + propConfig);
+		String globalName = propConfig.get("globalRef");
 		if(globalName != null)
 		{
 			PropertyManager<?> [] mgrs = app.getEnvironment().getManagers(globalName);
-			Element [] configs = app.getEnvironment().getManagerConfigs(globalName);
+			PrismsConfig [] configs = app.getEnvironment().getManagerConfigs(globalName);
 			if(mgrs == null)
 			{
 				log.error("No global property managers named " + globalName);
@@ -208,7 +160,7 @@ public class AppConfig
 					mgrs[m].configure(app, configs[m]);
 				} catch(Exception e)
 				{
-					log.error("Could not configure manager: " + configs[m].asXML(), e);
+					log.error("Could not configure manager: " + configs[m], e);
 					continue;
 				}
 				app.addManager(mgrs[m]);
@@ -217,7 +169,7 @@ public class AppConfig
 		else
 		{
 			PropertyManager<?> mgr;
-			String mgrType = propEl.attributeValue("type");
+			String mgrType = propConfig.get("type");
 			try
 			{
 				mgr = (PropertyManager<?>) Class.forName(mgrType).newInstance();
@@ -228,10 +180,10 @@ public class AppConfig
 			}
 			try
 			{
-				mgr.configure(app, propEl);
+				mgr.configure(app, propConfig);
 			} catch(Exception e)
 			{
-				log.error("Could not configure manager: " + propEl.asXML(), e);
+				log.error("Could not configure manager: " + propConfig, e);
 				return;
 			}
 			app.addManager(mgr);
@@ -244,33 +196,33 @@ public class AppConfig
 	 * 
 	 * @param app The application, optional
 	 * @param client The client, optional
-	 * @param evtEl The XML element describing the event listener
+	 * @param evtConfig The configuration describing the event listener
 	 * @throws IllegalArgumentException If the event listener prototype cannot be created or added
 	 */
-	public void addEventListener(PrismsApplication app, ClientConfig client, Element evtEl)
+	public void addEventListener(PrismsApplication app, ClientConfig client, PrismsConfig evtConfig)
 		throws IllegalArgumentException
 	{
-		String lstnrClass = evtEl.elementTextTrim("class");
-		log.debug("Adding event listener:\n" + evtEl.asXML());
+		String lstnrClass = evtConfig.get("class");
+		log.debug("Adding event listener:\n" + evtConfig);
 		Class<? extends PrismsEventListener> pelClass;
 		try
 		{
 			pelClass = (Class<? extends PrismsEventListener>) Class.forName(lstnrClass);
 		} catch(Throwable e)
 		{
-			log.error("Could not get event listener type " + lstnrClass + ": " + evtEl.asXML(), e);
+			log.error("Could not get event listener type " + lstnrClass + ": " + evtConfig, e);
 			return;
 		}
 		if(!PrismsEventListener.class.isAssignableFrom(pelClass))
 		{
-			log.error("type " + lstnrClass + " is not an Event Listener: " + evtEl.asXML());
+			log.error("type " + lstnrClass + " is not an Event Listener: " + evtConfig);
 			return;
 		}
-		String name = evtEl.elementTextTrim("name");
+		String name = evtConfig.get("name");
 		if(app != null)
-			app.addEventListenerType(name, pelClass, evtEl);
+			app.addEventListenerType(name, pelClass, evtConfig);
 		if(client != null)
-			client.addEventListenerType(name, pelClass, evtEl);
+			client.addEventListenerType(name, pelClass, evtConfig);
 	}
 
 	/**
@@ -279,70 +231,69 @@ public class AppConfig
 	 * 
 	 * @param app The application, optional
 	 * @param client The client, optional
-	 * @param monitorEl The XML element describing the monitor
+	 * @param monitorConfig The configuration describing the monitor
 	 * @throws IllegalArgumentException If the monitor prototype cannot be created or added
 	 */
-	public void addMonitor(PrismsApplication app, ClientConfig client, Element monitorEl)
+	public void addMonitor(PrismsApplication app, ClientConfig client, PrismsConfig monitorConfig)
 		throws IllegalArgumentException
 	{
-		String monitorClassStr = monitorEl.elementTextTrim("class");
-		log.debug("Adding session monitor:\n" + monitorEl.asXML());
+		String monitorClassStr = monitorConfig.get("class");
+		log.debug("Adding session monitor:\n" + monitorConfig);
 		Class<? extends SessionMonitor> monitorClass;
 		try
 		{
 			monitorClass = (Class<? extends SessionMonitor>) Class.forName(monitorClassStr);
 		} catch(Throwable e)
 		{
-			log.error("Could not get monitor type " + monitorClassStr + ": " + monitorEl.asXML(), e);
+			log.error("Could not get monitor type " + monitorClassStr + ": " + monitorConfig, e);
 			return;
 		}
 		if(!SessionMonitor.class.isAssignableFrom(monitorClass))
 		{
-			log.error("type " + monitorClassStr + " is not a Monitor: " + monitorEl.asXML());
+			log.error("type " + monitorClassStr + " is not a Monitor: " + monitorConfig);
 			return;
 		}
 		if(app != null)
-			app.addMonitorType(monitorClass, monitorEl);
+			app.addMonitorType(monitorClass, monitorConfig);
 		if(client != null)
-			client.addMonitorType(monitorClass, monitorEl);
+			client.addMonitorType(monitorClass, monitorConfig);
 	}
 
 	/**
 	 * Adds a template for a plugin to the client
 	 * 
 	 * @param client The client to add the plugin to
-	 * @param pluginEl The plugin element
+	 * @param pluginConfig The plugin configuration
 	 * @throws IllegalArgumentException If the plugin cannot be registered as specified
 	 */
-	public void addPlugin(ClientConfig client, Element pluginEl) throws IllegalArgumentException
+	public void addPlugin(ClientConfig client, PrismsConfig pluginConfig)
+		throws IllegalArgumentException
 	{
-		String name = pluginEl.elementTextTrim("name");
-		String clazz = pluginEl.elementTextTrim("class");
-		log.debug("Adding plugin " + name + " type " + clazz);
-		if(name == null && clazz == null)
+		String name = pluginConfig.get("name");
+		if(name == null)
 		{
-			log.error("No name or class specified for plugin: " + pluginEl.asXML());
-			return;
-		}
-		else if(name == null)
-		{
-			log.error("No name specified for plugin of class " + clazz + ": " + pluginEl.asXML());
-			return;
-		}
-		if(clazz == null)
-		{
-			log.error("No class specified for plugin " + name + ": " + pluginEl.asXML());
+			log.error("No name specified for plugin: " + pluginConfig);
 			return;
 		}
 		Class<? extends AppPlugin> type;
 		try
 		{
-			type = (Class<? extends AppPlugin>) Class.forName(clazz);
-		} catch(Throwable e)
+			type = pluginConfig.getClass("class", AppPlugin.class);
+		} catch(ClassNotFoundException e)
 		{
-			log.error("Could not instantiate plugin " + clazz + ": " + pluginEl.asXML(), e);
+			log.error("Class " + pluginConfig.get("class") + " not found for plugin " + name, e);
+			return;
+		} catch(ClassCastException e)
+		{
+			log.error("Class " + pluginConfig.get("class") + " is not a plugin type for plugin "
+				+ name, e);
 			return;
 		}
-		client.addPluginType(name, type, pluginEl);
+		if(type == null)
+		{
+			log.error("No class specified for plugin: " + pluginConfig);
+			return;
+		}
+		client.addPluginType(name, type, pluginConfig);
 	}
 }

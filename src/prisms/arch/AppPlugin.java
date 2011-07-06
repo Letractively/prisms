@@ -3,18 +3,16 @@
  */
 package prisms.arch;
 
-/**
- * A plugin to a {@link PrismsSession}. Oversees a certain part of an application.
- */
+/** A plugin to a {@link PrismsSession}. Oversees a certain part of an application. */
 public interface AppPlugin
 {
 	/**
 	 * Initializes the plugin. This method is called when the plugin is first created.
 	 * 
 	 * @param session The session that this plugin belongs to
-	 * @param pluginEl The XML configuration element for the plugin
+	 * @param config The configuration for the plugin
 	 */
-	void initPlugin(PrismsSession session, org.dom4j.Element pluginEl);
+	void initPlugin(PrismsSession session, PrismsConfig config);
 
 	/**
 	 * Called to initialize a client with its complete state. This method should fire events to

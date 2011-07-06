@@ -5,9 +5,7 @@ package prisms.util.persisters;
 
 import prisms.arch.ds.User;
 
-/**
- * A key for an object that is owned by a user and can be made public or private so that other
- */
+/** A key for an object that is owned by a user and can be made public or private so that other */
 public class PublicShareKey implements ShareKey
 {
 	private User theOwner;
@@ -57,17 +55,13 @@ public class PublicShareKey implements ShareKey
 		return theOwner;
 	}
 
-	/**
-	 * @return Whether this object is marked as public, meaning it can be viewed by all users
-	 */
+	/** @return Whether this object is marked as public, meaning it can be viewed by all users */
 	public boolean isPublic()
 	{
 		return isPublic;
 	}
 
-	/**
-	 * @param p Whether this object should be public, meaning it can be viewed by all users
-	 */
+	/** @param p Whether this object should be public, meaning it can be viewed by all users */
 	public void setPublic(boolean p)
 	{
 		isPublic = p;
@@ -99,6 +93,7 @@ public class PublicShareKey implements ShareKey
 		return canEdit(user);
 	}
 
+	@Override
 	public PublicShareKey clone()
 	{
 		PublicShareKey ret;
@@ -128,6 +123,7 @@ public class PublicShareKey implements ShareKey
 		return ret;
 	}
 
+	@Override
 	public boolean equals(Object o)
 	{
 		if(!(o instanceof PublicShareKey))
@@ -138,6 +134,7 @@ public class PublicShareKey implements ShareKey
 			&& equal(psk.theEditAllPermission, theEditAllPermission);
 	}
 
+	@Override
 	public int hashCode()
 	{
 		return theOwner.hashCode() * 13 + (isPublic ? 11 : 0)

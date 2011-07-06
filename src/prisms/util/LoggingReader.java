@@ -26,8 +26,18 @@ public class LoggingReader extends java.io.Reader
 	}
 
 	/**
-	 * @return The reader wrapped by this logging reader
+	 * @param base The reader to wrap
+	 * @param file The file to log to, or null to log to System.out
+	 * @throws IOException If an error occurs setting up the log file
 	 */
+	public LoggingReader(java.io.Reader base, java.io.File file) throws IOException
+	{
+		theBase = base;
+		if(file != null)
+			theLog = new java.io.BufferedWriter(new java.io.FileWriter(file));
+	}
+
+	/** @return The reader wrapped by this logging reader */
 	public java.io.Reader getBase()
 	{
 		return theBase;

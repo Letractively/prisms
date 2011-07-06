@@ -3,8 +3,6 @@
  */
 package prisms.util;
 
-import org.dom4j.Element;
-
 import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsSession;
 
@@ -18,9 +16,9 @@ public class ArrayPropertyInitializer<T> extends prisms.arch.event.PropertyManag
 	prisms.arch.event.SessionMonitor
 {
 	@Override
-	public void configure(PrismsApplication app, Element configEl)
+	public void configure(PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
+		super.configure(app, config);
 		if(!getProperty().getType().isArray())
 			throw new IllegalStateException(
 				"An array property initializer can only be used on array types");
@@ -51,13 +49,10 @@ public class ArrayPropertyInitializer<T> extends prisms.arch.event.PropertyManag
 		return val != null;
 	}
 
-	/**
-	 * @see prisms.arch.event.SessionMonitor#register(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void register(prisms.arch.PrismsSession session, org.dom4j.Element configEl)
+	public void register(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		prisms.arch.event.PrismsProperty<T> prop = prisms.arch.event.PrismsProperty.get(
-			configEl.elementText("property"), (Class<T>) Object [].class);
+			config.get("property"), (Class<T>) Object [].class);
 		if(session.getProperty(prop) == null)
 			session.setProperty(prop, zeroLengthArray(prop));
 	}

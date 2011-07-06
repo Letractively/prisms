@@ -26,6 +26,7 @@ __dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, __dijit._Template
 			else
 				console.error("No prisms parent for plugin "+this.pluginName);
 		}
+		this.isReadOnly=false;
 	},
 
 	setPrisms: function(prisms){
@@ -38,6 +39,8 @@ __dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, __dijit._Template
 			this.setVisible(event.visible);
 		else if(event.method=="setEnabled")
 			this.setEnabled(event.enabled);
+		else if(event.method=="setReadOnly")
+			this.setReadOnly(event.readOnly);
 		else if(event.method=="setValue")
 			this.setValue(event.value);
 		else if(event.method=="changePassword")
@@ -52,52 +55,33 @@ __dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, __dijit._Template
 
 	setVisible: function(visible){
 		this.domNode.style.display=(visible ? "block" : "none");
+		this.inherited("setVisible", arguments);
 	},
 
 	setEnabled: function(enabled){
-		var self=this;
-		//TODO: This is important for subtabs later
-//		if(!this.initialized)
-//		{
-//			this.taskEditorTimeoutCount=0;
-//			this.initTaskEditorTimeout=setTimeout(function(){
-//				var tabs=__dijit.byId("managerMainTabContainer");
-//				var taskTab=__dijit.byId("managerUserTab");
-//				var doClear=false;
-//				if(tabs && taskTab)
-//				{
-//					tabs.selectChild(taskTab);
-//					doClear=true;
-//				}
-//				self.taskEditorTimeoutCount++;
-//				doClear|=self.taskEditorTimeoutCount>=10;
-//				if(doClear)
-//				{
-//					clearTimeout(self.initTaskEditorTimeout);
-//					delete self.initTaskEditorTimeout;
-//					delete self.taskEditorTimeoutCount;
-//					self.initialized=true;
-//				}
-//			}, 250);
-//		}
-		
-		
-		this.nameField.setAttribute("disabled", !enabled);
+		this.isEnabled=enabled;
+		this.nameField.setAttribute("disabled", !enabled || this.isReadOnly);
 		this.changePasswordButton.setAttribute("disabled", !enabled);
 		this.passwordExpireCheck.setAttribute("disabled", !enabled);
 		this.passwordExpiration.setDisabled(!enabled);
+	},
+
+	setReadOnly: function(readOnly){
+		this.isReadOnly=readOnly;
+		this.setEnabled(this.isEnabled);
 	},
 
 	setValue: function(value){
 		this.dataLock=true;
 		this.value = value;
 		try{
-			
-			this.nameField.setValue(value.name);
+			if(this.nameField.getValue()!=value.name)
+				this.nameField.setValue(value.name);
 			if(value.passwordExpiration)
 			{
 				PrismsUtils.setTableVisible(this.passwordExpirationTable, true);
-				this.passwordExpiration.setValue(value.passwordExpiration);
+				if(this.passwordExpiration.getValue().getTime()!=value.passwordExpiration)
+					this.passwordExpiration.setValue(value.passwordExpiration);
 				this.passwordExpireCheck.setValue(true);
 			}
 			else
@@ -117,7 +101,7 @@ __dojo.declare("manager.UserEditor", [prisms.widget.TabWidget, __dijit._Template
 		this.constraints=constraints;
 		this.password1.value="";
 		this.password2.value="";
-		this.passwordUserName.innerHTML="Change password for user \""+this.nameField.value+"\"";
+		this.passwordUserName.innerHTML=PrismsUtils.fixUnicodeString("Change password for user \""+this.nameField.value+"\"");
 		this.changePasswordDialog.show();
 	},
 

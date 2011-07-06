@@ -7,7 +7,6 @@ import org.apache.log4j.Logger;
 
 import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsSession;
-import prisms.util.DualKey;
 
 /**
  * A property manager for a global property. This manager adds the ability to listen to events that
@@ -34,7 +33,7 @@ import prisms.util.DualKey;
  * <li>"qualified.value.Type" (optional) is the type of the event property</li>
  * <li>"Reflection Path" (optional) is the path to use to get from the event property to the value
  * to send to the
- * {@link #eventOccurred(prisms.arch.PrismsSession, prisms.arch.event.PrismsEvent, Object)
+ * {@link #eventOccurred(PrismsApplication, PrismsSession, prisms.arch.event.PrismsEvent, Object)
  * eventOccurred} method. The path consists of the names of methods (suffixed by "()") and fields,
  * separated by dots, to evaluate in sequence that will return the value to send to the method. As
  * an example: "getParent().parent" would cause the method named "getParent" to be evaluated on the
@@ -63,7 +62,7 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	 * property change events and PRISMS events that are a result of a change to the managed
 	 * property.
 	 */
-	public static final String CAUSE_APP = "causeUser";
+	public static final String CAUSE_APP = "causeApp";
 
 	private static class EventProperty
 	{
@@ -111,9 +110,11 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 		}
 	}
 
-	private java.util.HashMap<DualKey<PrismsApplication, String>, EventProperty> theEventProperties;
+	private java.util.HashMap<String, EventProperty> theEventProperties;
 
 	private String GLOBALIZED_PROPERTY;
+
+	private boolean isConfigured;
 
 	/**
 	 * Creates a GlobalPropertyManager that must be configured to get its application and target
@@ -121,7 +122,7 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	 */
 	public GlobalPropertyManager()
 	{
-		theEventProperties = new java.util.HashMap<DualKey<PrismsApplication, String>, EventProperty>();
+		theEventProperties = new java.util.HashMap<String, EventProperty>();
 		GLOBALIZED_PROPERTY = "PropertyGlobalizedEvent" + Integer.toHexString(hashCode());
 	}
 
@@ -143,34 +144,37 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	}
 
 	@Override
-	public void configure(PrismsApplication app, org.dom4j.Element configEl)
+	public void configure(PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
-		java.util.List<org.dom4j.Element> eventEls = configEl.elements("changeEvent");
-		for(org.dom4j.Element eventEl : eventEls)
-			registerEventListener(app, eventEl);
+		super.configure(app, config);
+		if(!isConfigured)
+		{
+			for(prisms.arch.PrismsConfig eventConfig : config.subConfigs("changeEvent"))
+				registerEventListener(eventConfig);
+			isConfigured = true;
+		}
+		for(String eventName : theEventProperties.keySet())
+			app.addGlobalEventListener(eventName, this);
 	}
 
 	/**
 	 * Registers a listener for an event that is relevant to this property
 	 * 
-	 * @param app The application to register the listener in
-	 * @param eventEl The element specifying how the listener will behave
+	 * @param eventConfig The configuration specifying how the listener will behave
 	 */
-	protected void registerEventListener(prisms.arch.PrismsApplication app,
-		org.dom4j.Element eventEl)
+	protected void registerEventListener(prisms.arch.PrismsConfig eventConfig)
 	{
-		String eventName = eventEl.elementTextTrim("name");
+		String eventName = eventConfig.get("name");
 		if(eventName == null)
 			throw new IllegalArgumentException("Cannot listen for change event on property "
 				+ getProperty() + ". No event name specified");
 
-		String propName = eventEl.elementTextTrim("eventProperty");
+		String propName = eventConfig.get("eventProperty");
 		if(propName != null)
 		{
 			EventProperty ep;
-			String className = eventEl.elementTextTrim("valueType");
-			String pathStr = eventEl.elementTextTrim("path");
+			String className = eventConfig.get("valueType");
+			String pathStr = eventConfig.get("path");
 			if(className != null)
 			{
 				try
@@ -206,17 +210,12 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 				ep = new EventProperty(propName);
 			if(ep != null)
 			{
-				DualKey<PrismsApplication, String> key = new DualKey<PrismsApplication, String>(
-					app, eventName);
-				if(theEventProperties.get(key) != null)
+				if(theEventProperties.get(eventName) != null)
 					log.error("Multiple event handlers registered for event " + eventName
-						+ " on global property " + getProperty().getName() + " for application "
-						+ app.getName() + ". Using last entry.");
-				theEventProperties.put(key, ep);
+						+ " on global property " + getProperty().getName() + ". Using last entry.");
+				theEventProperties.put(eventName, ep);
 			}
 		}
-
-		app.addGlobalEventListener(eventName, this);
 	}
 
 	public final void eventOccurred(PrismsSession session, prisms.arch.event.PrismsEvent evt)
@@ -227,8 +226,7 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 			return;
 		evt.setProperty(GLOBALIZED_PROPERTY, Boolean.TRUE);
 
-		EventProperty prop = theEventProperties.get(new DualKey<PrismsApplication, String>(session
-			.getApp(), evt.name));
+		EventProperty prop = theEventProperties.get(evt.name);
 		if(prop != null)
 		{
 			Object oProp = evt.getProperty(prop.eventProp);
@@ -259,29 +257,57 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 					prop = null;
 				}
 			if(prop != null)
-				eventOccurred(session, evt, oProp);
+			{
+				PrismsApplication app;
+				if(session != null)
+					app = session.getApp();
+				else
+					app = (PrismsApplication) evt.getProperty("globalEventApp");
+				prisms.util.ProgramTracker.TrackNode track = null;
+				prisms.arch.PrismsTransaction trans = getEnv().getTransaction();
+				if(trans != null)
+					track = trans.getTracker().start(
+						"PRISMS: Property " + getProperty() + " event " + evt.name
+							+ " processed by property manager");
+				try
+				{
+					eventOccurred(app, session, evt, oProp);
+				} finally
+				{
+					if(track != null)
+						trans.getTracker().end(track);
+				}
+			}
 		}
 
-		if(!Boolean.TRUE.equals(evt
-			.getProperty(prisms.arch.PrismsApplication.GLOBALIZED_EVENT_PROPERTY)))
-			session.getApp().fireGlobally(session, evt);
-		if(evt.getProperty(CAUSE_USER) == null)
-			evt.setProperty(CAUSE_USER, session.getUser());
-		if(evt.getProperty(CAUSE_APP) == null)
-			evt.setProperty(CAUSE_APP, session.getApp());
-		fireGlobalEvent(session.getApp(), evt.name, evt.getPropertyList());
+		if(session != null)
+		{
+			if(!Boolean.TRUE.equals(evt
+				.getProperty(prisms.arch.PrismsApplication.GLOBALIZED_EVENT_PROPERTY)))
+				session.getApp().fireGlobally(session, evt);
+			if(evt.getProperty(CAUSE_USER) == null)
+				evt.setProperty(CAUSE_USER, session.getUser());
+			if(evt.getProperty(CAUSE_APP) == null)
+				evt.setProperty(CAUSE_APP, session.getApp());
+			fireGlobalEvent(session.getApp(), evt.name, evt.getPropertyList());
+		}
 	}
 
 	/**
 	 * Notifies this manager that a relevant event has occurred
 	 * 
+	 * @param app The application in which the event is being fired. This may or may not be the
+	 *        application in which the event occurred, but this method is guaranteed to only be
+	 *        called once for each event, regardless of the number of sessions in the application.
 	 * @param session The session in which the event is being fired. This may or may not be the
 	 *        session in which the event occurred, but this method is guaranteed to only be called
-	 *        once for each event, regardless of the number of sessions in the application.
+	 *        once for each event, regardless of the number of sessions in the application. <b>THIS
+	 *        ARGUMENT MAY BE NULL</b> if the event was fired globally and there are no sessions in
+	 *        the application.
 	 * @param evt The event that was fired
 	 * @param eventValue The value of the property registered to the event from the app config XML
 	 */
-	protected abstract void eventOccurred(prisms.arch.PrismsSession session,
+	protected abstract void eventOccurred(PrismsApplication app, PrismsSession session,
 		prisms.arch.event.PrismsEvent evt, Object eventValue);
 
 	/** Calls {@link prisms.arch.event.PropertyManager#changeValues(PrismsSession, PrismsPCE)} */
@@ -293,6 +319,10 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	@Override
 	public void changeValues(PrismsSession session, final PrismsPCE<T> evt)
 	{
+		if(Boolean.TRUE.equals(evt.get(GLOBALIZED_PROPERTY)))
+			return;
+		evt.set(GLOBALIZED_PROPERTY, Boolean.TRUE);
+
 		evt.getApp().runSessionTask(session, new prisms.arch.PrismsApplication.SessionTask()
 		{
 			public void run(PrismsSession s)

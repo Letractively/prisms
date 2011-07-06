@@ -142,6 +142,18 @@ public class ResourcePool<T>
 	public void close()
 	{
 		isClosed = true;
+		clear();
+	}
+
+	/**
+	 * Clears out all existing resources in the pool, whether they are available or in use. New
+	 * resources can then be created by or for the pool. There is no need to wait for in-use
+	 * resources to be released back to the pool. When resources being used when this call is made
+	 * are released back to the pool, they will be destroyed appropriately without being exposed as
+	 * available, while resources created and used after this call will remain available.
+	 */
+	public void clear()
+	{
 		theLock.lock();
 		try
 		{
@@ -154,6 +166,8 @@ public class ResourcePool<T>
 					theCreator.destroyResource(res);
 				iter.remove();
 			}
+			for(T res : theInUseResources)
+				theRemovedResources.add(res);
 		} finally
 		{
 			theLock.unlock();
@@ -190,7 +204,7 @@ public class ResourcePool<T>
 	 * parameter is false, null will be returned.
 	 * 
 	 * @param wait Whether to wait for the resource rather than accept null if no resources or
-	 *        available
+	 *        available at the moment
 	 * @return The free resource to use, or null if the wait parameter is false and there are no
 	 *         free resources
 	 * @throws ResourceCreationException If an error occurs when the creator creates a new resource
@@ -201,6 +215,8 @@ public class ResourcePool<T>
 			throw new IllegalStateException("This resource pool is closed");
 		T ret = null;
 		boolean waiting = false;
+		int tries = 0;
+		Thread toWake = null;
 		do
 		{
 			try
@@ -208,39 +224,65 @@ public class ResourcePool<T>
 				theLock.lock();
 				try
 				{
+					// Create new resources if the pool is empty and we haven't reached capacity
 					if(theAvailableResources.size() == 0)
 						updateResourceSet();
-					if(theAvailableResources.size() > 0)
+					// Don't give a resource immediately if other threads are waiting for it. We'll
+					// try to be fair. Instead wake up the longest-waiting thread to grab the
+					// resource.
+					if(tries == 0 && !theWaitingThreads.isEmpty())
 					{
+						toWake = theWaitingThreads.removeFirst();
+						if(wait)
+						{
+							waiting = true;
+							theWaitingThreads.add(Thread.currentThread());
+						}
+					}
+					if(theWaitingThreads.isEmpty() && theAvailableResources.size() > 0)
+					{
+						// Resources are available. Stop waiting and return the resource.
 						if(waiting)
 							theWaitingThreads.remove(Thread.currentThread());
 						waiting = false;
+						// Remote the resource from the available set and add to the in-use set
 						ret = theAvailableResources.remove(theAvailableResources.size() - 1);
 						theInUseResources.add(ret);
 					}
 					else if(wait && !waiting)
 					{
+						// No resources available. Wait until one is.
 						waiting = true;
-						theWaitingThreads.add(Thread.currentThread());
+						if(tries > 0)
+							theWaitingThreads.addFirst(Thread.currentThread());
+						else
+							theWaitingThreads.add(Thread.currentThread());
 					}
 				} finally
 				{
 					theLock.unlock();
+					if(toWake != null)
+						toWake.interrupt();
 				}
 				if(waiting)
 				{
+					// Wait indefinitely until the thread is interrupted by addResource
+					tries++;
 					try
 					{
 						Thread.sleep(24L * 60 * 60 * 1000);
 					} catch(InterruptedException e)
 					{}
 				}
+				toWake = null;
 			} catch(Exception e)
 			{
 				if(e instanceof InterruptedException)
 				{}
 				else if(e instanceof RuntimeException)
 					throw (RuntimeException) e;
+				else if(e instanceof ResourceCreationException)
+					throw (ResourceCreationException) e;
 				else
 					throw new IllegalStateException("Should not be able to get here", e);
 			}
@@ -258,16 +300,23 @@ public class ResourcePool<T>
 		theLock.lock();
 		try
 		{
+			// Remove from the in-use set
 			theInUseResources.remove(resource);
-			if(!theRemovedResources.remove(resource))
+			// If the resource has been marked for removal, remove it from the pool
+			if(theRemovedResources.remove(resource))
 			{
-				if(isClosed)
+				if(theCreator != null)
+					theCreator.destroyResource(resource);
+			}
+			else
+			{
+				// If the pool is closed or beyond its capacity, remove the resource from the pool
+				if((isClosed && !theWaitingThreads.isEmpty()) || getResourceCount() >= theMaxSize)
 				{
 					if(theCreator != null)
 						theCreator.destroyResource(resource);
 				}
-				else if(theCreator != null && getResourceCount() >= theMaxSize)
-					theCreator.destroyResource(resource);
+				// Add the resource back into the available set
 				else
 					addResource(resource);
 			}
@@ -287,15 +336,21 @@ public class ResourcePool<T>
 	 */
 	public void addResource(T resource)
 	{
-		if(isClosed)
+		// This may be called from outside or by releaseResource
+		if(isClosed && !theWaitingThreads.isEmpty())
 			throw new IllegalStateException("This resource pool is closed");
 		Thread waiting = null;
 		theLock.lock();
 		try
 		{
-			if(!theWaitingThreads.isEmpty() || !isClosed)
+			// If the pool is not closed or there are waiting threads, add the resource to the
+			// available set
+			if((!theWaitingThreads.isEmpty() || !isClosed)
+				&& !theAvailableResources.contains(resource))
 			{
 				theAvailableResources.add(resource);
+				// If there are threads waiting, notify the first one that there is now a resource
+				// available
 				if(!theWaitingThreads.isEmpty())
 					waiting = theWaitingThreads.removeFirst();
 			}
@@ -303,6 +358,7 @@ public class ResourcePool<T>
 		{
 			theLock.unlock();
 		}
+		// Interrupt the waiting thread so it can grab the new resource
 		if(waiting != null)
 			waiting.interrupt();
 	}
@@ -335,34 +391,28 @@ public class ResourcePool<T>
 		}
 	}
 
+	/* The lock MUST already be held before calling this method */
 	private void updateResourceSet() throws ResourceCreationException
 	{
 		if(theCreator == null)
 			return;
-		theLock.lock();
-		try
-		{
-			int newRC = getNewResourceCount();
-			int total = getResourceCount();
-			if(newRC < total)
-			{ // Need to kill some threads
-				int killCount = total - newRC;
-				for(; theAvailableResources.size() > 0 && killCount > 0; killCount--)
-				{
-					T res = theAvailableResources.remove(theAvailableResources.size() - 1);
-					if(theCreator != null)
-						theCreator.destroyResource(res);
-				}
-			}
-			else if(newRC > total)
+		int newRC = getNewResourceCount();
+		int total = getResourceCount();
+		if(newRC < total)
+		{ // Need to kill some resources
+			int killCount = total - newRC;
+			for(; theAvailableResources.size() > 0 && killCount > 0; killCount--)
 			{
-				int spawnCount = newRC - total;
-				for(int t = 0; t < spawnCount; t++)
-					theAvailableResources.add(0, theCreator.createResource());
+				T res = theAvailableResources.remove(theAvailableResources.size() - 1);
+				if(theCreator != null)
+					theCreator.destroyResource(res);
 			}
-		} finally
+		}
+		else if(newRC > total)
 		{
-			theLock.unlock();
+			int spawnCount = newRC - total;
+			for(int t = 0; t < spawnCount; t++)
+				theAvailableResources.add(0, theCreator.createResource());
 		}
 	}
 
@@ -391,5 +441,93 @@ public class ResourcePool<T>
 		if(ret > theMaxSize)
 			ret = theMaxSize;
 		return ret;
+	}
+
+	/**
+	 * <p>
+	 * A test method for this class. This method creates several threads and a pool with not quite
+	 * enough resources to go around. The threads all try to grab resources (with a true wait
+	 * parameter), hold them shortly, and then release them, attempting to detect faults with an
+	 * independent concurrent set.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method prints status reports every 30 seconds to System.out. When an error is detected,
+	 * it is printed with System.err. An error in this case is defined only as the pool allowing a
+	 * single resource to be in use by more than one caller.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method never finishes normally--it will self-test as long as the process is not
+	 * terminated.
+	 * </p>
+	 * 
+	 * @param args Command-line arguments, ignored
+	 */
+	public static void main(String [] args)
+	{
+		int threadCount = Runtime.getRuntime().availableProcessors() + 2;
+		final ResourcePool<Object> pool = new ResourcePool<Object>(null, threadCount - 1);
+		for(int i = 0; i < pool.getMaxSize(); i++)
+			pool.addResource(new Object());
+		final java.util.concurrent.ConcurrentHashMap<Object, Object> checkSet;
+		checkSet = new java.util.concurrent.ConcurrentHashMap<Object, Object>();
+		final long start = System.currentTimeMillis();
+		final long [] lastStatus = new long [] {start};
+		final long [] testTries = new long [1];
+		final int [] faults = new int [1];
+		Runnable task = new Runnable()
+		{
+			public void run()
+			{
+				while(true)
+				{
+					Object res = null;
+					try
+					{
+						res = pool.getResource(true);
+						if(checkSet.get(res) != null)
+						{
+							System.err.println("Resource " + Integer.toHexString(res.hashCode())
+								+ " already in use!");
+							faults[0]++;
+						}
+						checkSet.put(res, res);
+						long now = System.currentTimeMillis();
+						if(now - lastStatus[0] >= 30000)
+						{
+							lastStatus[0] = now;
+							System.out.println(testTries[0] + " tries and " + faults[0]
+								+ " faults in " + PrismsUtils.printTimeLength(now - start));
+						}
+						testTries[0]++;
+						Thread.yield();
+					} catch(ResourceCreationException e)
+					{
+						e.printStackTrace();
+						continue;
+					} finally
+					{
+						if(res != null)
+						{
+							checkSet.remove(res);
+							pool.releaseResource(res);
+						}
+					}
+				}
+			}
+		};
+		Thread [] threads = new Thread [threadCount];
+		for(int i = 0; i < threads.length; i++)
+			threads[i] = new Thread(task);
+		for(int i = 0; i < threads.length; i++)
+			threads[i].start();
+		System.out.println("Started resource pool test at " + PrismsUtils.print(start) + " with "
+			+ threadCount + " threads and " + pool.getMaxSize() + " resources");
+		try
+		{
+			Thread.sleep(10L * 365 * 24 * 60 * 60 * 1000);
+		} catch(InterruptedException e)
+		{}
 	}
 }

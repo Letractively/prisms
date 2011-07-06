@@ -3,43 +3,36 @@
  */
 package prisms.ui.tree;
 
-/**
- * Allows a tree structure to be monitored for changes
- */
+/** Allows a tree structure to be monitored for changes */
 public class DataTreeManager
 {
 	private DataTreeNode theRoot;
 
 	private java.util.Collection<DataTreeListener> theListeners;
 
-	/**
-	 * Creates a DataTreeManager
-	 */
+	/** Creates a DataTreeManager */
 	public DataTreeManager()
 	{
 		theListeners = new java.util.ArrayList<DataTreeListener>();
 	}
 
-	/**
-	 * @return The root node of this manager's tree
-	 */
+	/** @return The root node of this manager's tree */
 	public DataTreeNode getRoot()
 	{
 		return theRoot;
 	}
 
-	/**
-	 * @param root The root node for this manager's tree
-	 */
+	/** @param root The root node for this manager's tree */
 	public void setRoot(DataTreeNode root)
 	{
+		DataTreeNode oldRoot = theRoot;
 		theRoot = root;
+		if(oldRoot instanceof AbstractSimpleTreeNode)
+			((AbstractSimpleTreeNode) oldRoot).removed();
 		treeRefreshed();
 	}
 
-	/**
-	 * @param L The listener to be notified when the tree structure or data changes
-	 */
+	/** @param L The listener to be notified when the tree structure or data changes */
 	public void addListener(DataTreeListener L)
 	{
 		if(L != null)

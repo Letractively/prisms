@@ -6,9 +6,7 @@ package prisms.util.json;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-/**
- * An implementation of serial writer that compiles a DOM-like JSON structure serially
- */
+/** An implementation of serial writer that compiles a DOM-like JSON structure serially */
 public class SerialJsonCompiler implements JsonSerialWriter
 {
 	private java.util.ArrayList<Object> thePath;
@@ -17,9 +15,7 @@ public class SerialJsonCompiler implements JsonSerialWriter
 
 	private Object theLastProduced;
 
-	/**
-	 * Creates a serial JSON compiler
-	 */
+	/** Creates a serial JSON compiler */
 	public SerialJsonCompiler()
 	{
 		thePath = new java.util.ArrayList<Object>();
@@ -34,6 +30,7 @@ public class SerialJsonCompiler implements JsonSerialWriter
 	{
 		if(thePropertyName != null)
 			throw new IllegalStateException("Property name already set--need value for property");
+		thePropertyName = name;
 	}
 
 	public void endObject()
@@ -67,7 +64,7 @@ public class SerialJsonCompiler implements JsonSerialWriter
 
 	public void writeBoolean(boolean value)
 	{
-		push(new Boolean(value));
+		push(Boolean.valueOf(value));
 	}
 
 	public void writeNull()
@@ -82,17 +79,13 @@ public class SerialJsonCompiler implements JsonSerialWriter
 			pop();
 	}
 
-	/**
-	 * @return The depth of the content being produced (in JSON objects and arrays only)
-	 */
+	/** @return The depth of the content being produced (in JSON objects and arrays only) */
 	public int getDepth()
 	{
 		return thePath.size();
 	}
 
-	/**
-	 * @return The JSON object or array that is currently being compiled
-	 */
+	/** @return The JSON object or array that is currently being compiled */
 	public Object top()
 	{
 		int size = thePath.size();

@@ -45,8 +45,6 @@ __dojo.declare("prisms.widget.ListModel", null, {
 			this.setVisible(event.visible);
 		else if(event.method=="setSelectionMode")
 			this.selectionMode=event.selectionMode;
-		else if(event.method=="setFilter")
-			this.setFilter(event.filter);
 		else if(event.method=="setFilteredItems")
 			this.setFilteredItems(event.ids);
 		else
@@ -96,24 +94,15 @@ __dojo.declare("prisms.widget.ListModel", null, {
 	newItem: function(args, parent){
 	},
 
-	/**
-	 * Just a callback for the tree
-	 */
+	/** Just a callback for the tree */
 	onChange: function(item){
 	},
 
-	/**
-	 * Just a callback for the tree
-	 */
+	/** Just a callback for the tree */
 	onChildrenChange: function(parent, newChildrenList){
 	},
 
-	setFilter: function(filter){
-	},
-
-	/**
-	 * Callback for SearchableList
-	 */
+	/** Callback for SearchableList */
 	setFilteredItems: function(ids){
 	},
 
@@ -181,9 +170,7 @@ __dojo.declare("prisms.widget.ListModel", null, {
 		this.onChange(this.theValue);
 	},
 
-	/**
-	 * Stub method for the tree to listen to
-	 */
+	/** Stub method for the tree to listen to */
 	setVisible: function(visible){
 	},
 

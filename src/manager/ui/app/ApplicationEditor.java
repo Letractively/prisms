@@ -18,10 +18,10 @@ public class ApplicationEditor implements prisms.arch.AppPlugin
 
 	PrismsApplication theApp;
 
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		theApp = theSession.getProperty(ManagerProperties.selectedApp);
 		session.addPropertyChangeListener(ManagerProperties.selectedApp,
 			new prisms.arch.event.PrismsPCL<PrismsApplication>()
@@ -39,7 +39,7 @@ public class ApplicationEditor implements prisms.arch.AppPlugin
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setVisible");
-		evt.put("visible", new Boolean(visible));
+		evt.put("visible", Boolean.valueOf(visible));
 		theSession.postOutgoingEvent(evt);
 		if(!visible)
 			return;

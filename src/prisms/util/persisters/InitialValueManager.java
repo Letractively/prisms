@@ -4,7 +4,6 @@
 package prisms.util.persisters;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 
 import prisms.arch.Persister;
 import prisms.arch.PrismsSession;
@@ -24,9 +23,7 @@ public class InitialValueManager<T> extends PropertyManager<T>
 
 	private java.util.Set<Integer> theInitializedSessions;
 
-	/**
-	 * Creates an InitialValueManager
-	 */
+	/** Creates an InitialValueManager */
 	public InitialValueManager()
 	{
 		theInitializedSessions = new java.util.HashSet<Integer>();
@@ -48,13 +45,15 @@ public class InitialValueManager<T> extends PropertyManager<T>
 	}
 
 	@Override
-	public void configure(prisms.arch.PrismsApplication app, Element configEl)
+	public void configure(prisms.arch.PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
+		super.configure(app, config);
 		if(theValue != null)
 			return;
-		Persister<T> persister = app.getEnvironment().getPersisterFactory()
-			.create(configEl.element("persister"), app, getProperty());
+		Persister<T> persister = null;
+		prisms.arch.PrismsConfig persisterEl = config.subConfig("persister");
+		if(persisterEl != null)
+			persister = PersistingPropertyManager.createPersister(persisterEl, app, getProperty());
 		if(persister != null)
 		{
 			try
@@ -64,6 +63,40 @@ public class InitialValueManager<T> extends PropertyManager<T>
 			{
 				log.error("Could not deserialize property " + getProperty(), e);
 				return;
+			}
+		}
+		else if("true".equals(config.get("initNull")))
+			theValue = null;
+		else
+		{
+			if(getProperty().getType().isArray())
+				theValue = (T) java.lang.reflect.Array.newInstance(getProperty().getType()
+					.getComponentType(), 0);
+			else
+			{
+				java.lang.reflect.Constructor<T> constructor;
+				try
+				{
+					constructor = (java.lang.reflect.Constructor<T>) getProperty().getType()
+						.getConstructor();
+				} catch(Exception e)
+				{
+					throw new IllegalArgumentException("Could not configure initial value of"
+						+ " property " + getProperty() + "--could not get no-argument constructor",
+						e);
+				}
+				if(constructor == null)
+					throw new IllegalArgumentException("Could not configure initial value of"
+						+ " property " + getProperty() + "--no no-argument constructor found");
+				else
+					try
+					{
+						theValue = getProperty().getType().newInstance();
+					} catch(Exception e)
+					{
+						throw new IllegalArgumentException("Could not configure initial value of"
+							+ " property " + getProperty() + "--no-argument constructor failed", e);
+					}
 			}
 		}
 	}
@@ -88,28 +121,24 @@ public class InitialValueManager<T> extends PropertyManager<T>
 	@Override
 	public T getApplicationValue(prisms.arch.PrismsApplication app)
 	{
-		return theValue;
+		// Just an initial value--this doesn't count as an application-wide value
+		return null;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#getCorrectValue(prisms.arch.PrismsSession)
-	 */
 	@Override
 	public T getCorrectValue(PrismsSession session)
 	{
 		return theValue;
 	}
 
-	/**
-	 * @see prisms.arch.event.PropertyManager#isValueCorrect(prisms.arch.PrismsSession,
-	 *      java.lang.Object)
-	 */
 	@Override
 	public <V extends T> boolean isValueCorrect(PrismsSession session, V val)
 	{
-		if(!theInitializedSessions.contains(new Integer(session.hashCode())))
+		if(theValue == null)
+			return true;
+		if(!theInitializedSessions.contains(Integer.valueOf(session.hashCode())))
 		{
-			theInitializedSessions.add(new Integer(session.hashCode()));
+			theInitializedSessions.add(Integer.valueOf(session.hashCode()));
 			return false;
 		}
 		return true;

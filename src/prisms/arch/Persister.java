@@ -14,16 +14,14 @@ public interface Persister<T>
 	/**
 	 * Configures the persister
 	 * 
-	 * @param configEl The persister's configuration element
+	 * @param config The persister's configuration
 	 * @param app The application that the persister resides in
 	 * @param property The property to persist
 	 */
-	void configure(org.dom4j.Element configEl, prisms.arch.PrismsApplication app,
+	void configure(PrismsConfig config, prisms.arch.PrismsApplication app,
 		prisms.arch.event.PrismsProperty<T> property);
 
-	/**
-	 * @return All values that have been previously persisted
-	 */
+	/** @return All values that have been previously persisted */
 	T getValue();
 
 	/**

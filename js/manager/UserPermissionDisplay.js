@@ -43,6 +43,6 @@ __dojo.declare("manager.UserPermissionDisplay", [__dijit._Widget, __dijit._Conta
 		if(!value.permission || !value.permission.descrip)
 			this.permissionDescription.innerHTML="";
 		else
-			this.permissionDescription.innerHTML=value.permission.descrip;
+			this.permissionDescription.innerHTML=PrismsUtils.fixUnicodeString(value.permission.descrip);
 	}
 });

@@ -13,36 +13,27 @@ import prisms.util.preferences.Preference;
 /** A plugin allowing the user to change preferences registered as user-modifiable by other plugins */
 public class PreferencesEditor implements prisms.arch.AppPlugin
 {
+	/** The name of the preferences editor plugin */
+	public static final String NAME = "Preferences";
+
 	private PrismsSession theSession;
-
-	private prisms.arch.event.PrismsProperty<prisms.util.preferences.Preferences> thePrefProperty;
-
-	String theName;
 
 	boolean theDataLock;
 
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
-		String ppName = pluginEl.elementText("prefProperty");
-		if(ppName == null)
-			throw new IllegalArgumentException("No preference property specified");
-		thePrefProperty = prisms.arch.event.PrismsProperty.get(
-			pluginEl.elementText("prefProperty"), prisms.util.preferences.Preferences.class);
-		if(thePrefProperty == null)
-			throw new IllegalArgumentException("Preference property " + ppName + " does not exist");
 
 		theSession.addEventListener("preferencesChanged",
 			new prisms.arch.event.PrismsEventListener()
 			{
 				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
 				{
-					if(theDataLock)
+					if(theDataLock || !(evt instanceof prisms.util.preferences.PreferenceEvent))
 						return;
 					prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
 					JSONObject postEvt = new JSONObject();
-					postEvt.put("plugin", theName);
+					postEvt.put("plugin", NAME);
 					postEvt.put("method", "set");
 					postEvt.put("domain", pEvt.getPreference().getDomain());
 					postEvt.put("prefName", pEvt.getPreference().getName());
@@ -54,16 +45,24 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 
 	public void initClient()
 	{
+		if(theSession.getClient().isService())
+			return;
+		prisms.util.preferences.Preferences prefs = theSession.getPreferences();
+		JSONObject evt = new JSONObject();
+		evt.put("plugin", NAME);
+		evt.put("method", "setVisible");
+		evt.put("visible", Boolean.valueOf(prefs.getActiveDomains().length > 0));
+		theSession.postOutgoingEvent(evt);
 	}
 
 	public void processEvent(JSONObject evt)
 	{
-		prisms.util.preferences.Preferences prefs = theSession.getProperty(thePrefProperty);
+		prisms.util.preferences.Preferences prefs = theSession.getPreferences();
 		if("editPreferences".equals(evt.get("method")))
 		{
 			JSONObject prefObj = serialize(prefs);
 			JSONObject evt2 = new JSONObject();
-			evt2.put("plugin", theName);
+			evt2.put("plugin", NAME);
 			evt2.put("method", "show");
 			evt2.put("data", prefObj);
 			theSession.postOutgoingEvent(evt2);
@@ -86,16 +85,16 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 					}
 				break;
 			case COLOR:
-				value = prisms.util.JsonUtils.fromHTML((String) value);
+				value = prisms.util.ColorUtils.fromHTML((String) value);
 				break;
 			case INT:
 			case NONEG_INT:
-				value = new Integer(((Number) value).intValue());
+				value = Integer.valueOf(((Number) value).intValue());
 				break;
 			case FLOAT:
 			case NONEG_FLOAT:
 			case PROPORTION:
-				value = new Float(((Number) value).floatValue());
+				value = Float.valueOf(((Number) value).floatValue());
 				break;
 			default:
 			}
@@ -123,17 +122,18 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 	public JSONObject serialize(prisms.util.preferences.Preferences prefs)
 	{
 		JSONObject ret = new JSONObject();
-		String [] domains = prefs.getDomains();
+		String [] domains = prefs.getActiveDomains();
 		for(String domain : domains)
 		{
 			org.json.simple.JSONArray domainArray = new org.json.simple.JSONArray();
-			Preference<?> [] domainPrefs = prefs.getPreferences(domain);
+			Preference<?> [] domainPrefs = prefs.getActivePreferences(domain);
 			for(Preference<?> pref : domainPrefs)
 			{
 				if(!pref.isDisplayed())
 					continue;
 				JSONObject prefObject = new JSONObject();
 				prefObject.put("name", pref.getName());
+				prefObject.put("descrip", pref.getDescription());
 				prefObject.put("type", pref.getType().name());
 				Object value = prefs.get(pref);
 				switch(pref.getType())
@@ -148,7 +148,7 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 					prefObject.put("value", enumPref);
 					break;
 				case COLOR:
-					prefObject.put("value", prisms.util.JsonUtils.toHTML((Color) value));
+					prefObject.put("value", prisms.util.ColorUtils.toHTML((Color) value));
 					break;
 				default:
 					prefObject.put("value", value);

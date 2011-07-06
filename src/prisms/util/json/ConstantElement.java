@@ -5,9 +5,7 @@ package prisms.util.json;
 
 import org.json.simple.JSONObject;
 
-/**
- * Represents an element that must have a constant value
- */
+/** Represents an element that must have a constant value */
 public class ConstantElement implements JsonElement
 {
 	private JsonSchemaParser theParser;
@@ -18,9 +16,7 @@ public class ConstantElement implements JsonElement
 
 	private Object theValue;
 
-	/**
-	 * @param value The value for this constant
-	 */
+	/** @param value The value for this constant */
 	public ConstantElement(Object value)
 	{
 		theValue = value;
@@ -34,9 +30,7 @@ public class ConstantElement implements JsonElement
 		theName = elementName;
 	}
 
-	/**
-	 * @return The value for this constant
-	 */
+	/** @return The value for this constant */
 	public Object getValue()
 	{
 		return theValue;
@@ -61,10 +55,6 @@ public class ConstantElement implements JsonElement
 	{
 		if(theValue == null)
 			return jsonValue == null ? 1 : 0;
-		if(theValue == null && jsonValue == null)
-			return 1;
-		if(theValue == null || jsonValue == null)
-			return 0;
 		if(jsonValue instanceof Number && theValue instanceof Number)
 		{
 			if(theValue instanceof Integer || theValue instanceof Long)
@@ -83,7 +73,7 @@ public class ConstantElement implements JsonElement
 				}
 				else if(theValue.equals(jsonValue))
 					return 1;
-				else if(jsonValue instanceof Number)
+				else
 					return 0.25f;
 			}
 		}
@@ -115,6 +105,7 @@ public class ConstantElement implements JsonElement
 		return ret.toString();
 	}
 
+	@Override
 	public String toString()
 	{
 		return getName() + "("

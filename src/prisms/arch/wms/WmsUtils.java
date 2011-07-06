@@ -11,9 +11,7 @@ import org.dom4j.Element;
  */
 public class WmsUtils
 {
-	/**
-	 * Represents a layer available from a WMS server
-	 */
+	/** Represents a layer available from a WMS server */
 	public static class WmsLayer
 	{
 		/**
@@ -177,7 +175,7 @@ public class WmsUtils
 			if(abstractDescrip != null)
 			{
 				abstractDescrip = abstractDescrip.replaceAll("\n", " ");
-				abstractDescrip.replaceAll("\r", "");
+				abstractDescrip = abstractDescrip.replaceAll("\r", "");
 			}
 			layers.add(new WmsLayer(name, title, abstractDescrip));
 		}

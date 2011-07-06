@@ -3,7 +3,7 @@
 	<tr __dojoType="prisms.widget._SearchableListNode" dojoAttachPoint="titleNode"></tr>
 	<tr dojoAttachPoint="filterRow"><td colspan="2" style="height:19px">
 		<div __dojoType="dijit.form.TextBox" dojoAttachPoint="filterText"
-			dojoAttachEvent="_onKeyPress:_filterTextChanged"></div>
+			dojoAttachEvent="_onKeyPress:_filterTextChanged,_onBlur:_filterBlurred,_onFocus:_filterFocused"></div>
 	</td></tr>
 	<tr><td colspan="2" valign="top">
 		<table dojoAttachPoint="contentTable"></table>

@@ -12,16 +12,12 @@ import javax.servlet.http.HttpServletResponse;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-/**
- * Allows forwarding of input from one servlet to another via {@link java.net.URL}
- */
+/** Allows forwarding of input from one servlet to another via {@link java.net.URL} */
 public class HttpForwarder
 {
 	static int BUFFER_LENGTH = 32 * 1024;
 
-	/**
-	 * An interceptor can be used to examine or modify transactions from input or to output
-	 */
+	/** An interceptor can be used to examine or modify transactions from input or to output */
 	public interface HttpInterceptor
 	{
 		/**
@@ -49,9 +45,7 @@ public class HttpForwarder
 			Object fromInput) throws IOException;
 	}
 
-	/**
-	 * Implements {@link HttpInterceptor} in a way that simply forwards the information
-	 */
+	/** Implements {@link HttpInterceptor} in a way that simply forwards the information */
 	public static class DefaultHttpInterceptor implements HttpInterceptor
 	{
 		private byte [] buffer = new byte [BUFFER_LENGTH];
@@ -81,9 +75,7 @@ public class HttpForwarder
 		}
 	}
 
-	/**
-	 * Parses some requests and responses into JSON for easier interception by subclasses
-	 */
+	/** Parses some requests and responses into JSON for easier interception by subclasses */
 	public static class JsonInterceptor extends DefaultHttpInterceptor
 	{
 		@Override
@@ -115,11 +107,12 @@ public class HttpForwarder
 		{
 			java.io.Writer writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(out));
 			boolean first = true;
-			for(Object param : jsonReq.keySet())
+			for(java.util.Map.Entry<Object, Object> entry : (java.util.Collection<java.util.Map.Entry<Object, Object>>) jsonReq
+				.entrySet())
 			{
 				if(!first)
 					writer.write("&");
-				writer.write(param + "=" + jsonReq.get(param));
+				writer.write(entry.getKey() + "=" + entry.getValue());
 				first = false;
 			}
 			writer.flush();
@@ -236,14 +229,14 @@ public class HttpForwarder
 				else if(entry.getKey().toLowerCase().equals("content-length")
 					|| entry.getKey().contains("Cookie"))
 					continue;
-				String value = "";
+				StringBuilder value = new StringBuilder();
 				for(String v : entry.getValue())
 				{
 					if(value.length() != 0)
-						value += ';';
-					value += v;
+						value.append(';');
+					value.append(v);
 				}
-				response.setHeader(entry.getKey(), value);
+				response.setHeader(entry.getKey(), value.toString());
 			}
 		}
 
@@ -330,9 +323,7 @@ public class HttpForwarder
 		}
 	}
 
-	/**
-	 * @param interceptor The interceptor to set
-	 */
+	/** @param interceptor The interceptor to set */
 	public void setInterceptor(HttpInterceptor interceptor)
 	{
 		theInterceptor = interceptor;

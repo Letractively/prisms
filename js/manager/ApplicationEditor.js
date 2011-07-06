@@ -45,13 +45,14 @@ __dojo.declare("manager.ApplicationEditor", [prisms.widget.TabWidget, __dijit._T
 
 	setVisible: function(visible){
 		PrismsUtils.setTableVisible(this.domNode, visible);
+		this.inherited("setVisible", arguments);
 	},
 
 	setValue: function(value){
 		this.dataLock=true;
 		this.value = value;
 		try{
-			this.nameField.innerHTML=value.name;
+			this.nameField.innerHTML=PrismsUtils.fixUnicodeString(value.name);
 			if(typeof value.descrip=="undefined")
 			{
 				this.descripLabel.style.visibility="hidden";
@@ -62,7 +63,7 @@ __dojo.declare("manager.ApplicationEditor", [prisms.widget.TabWidget, __dijit._T
 				this.descripLabel.style.visiblity="visible";
 				this.descripField.parentNode.style.visibility="visible";
 				if(value.descrip)
-					this.descripField.innerHTML=value.descrip;
+					this.descripField.innerHTML=PrismsUtils.fixUnicodeString(value.descrip);
 				else
 					this.descripField.innerHTML="";
 			}

@@ -9,25 +9,21 @@ import java.io.OutputStream;
 import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
+import prisms.arch.ImagePlugin;
+import prisms.arch.PrismsSession;
+
 import com.bbn.openmap.LatLonPoint;
 import com.bbn.openmap.Layer;
 import com.bbn.openmap.proj.LLXY;
 import com.bbn.openmap.proj.ProjMath;
 import com.bbn.openmap.proj.Projection;
 
-import prisms.arch.ImagePlugin;
-import prisms.arch.PrismsSession;
-
-/**
- * An image plugin that displays a map
- */
+/** An image plugin that displays a map */
 public class PrismsOpenMapPlugin implements ImagePlugin
 {
 	private static final Logger log = Logger.getLogger(PrismsOpenMapPlugin.class);
 
-	/**
-	 * A listener to receive mouse clicks and drags on the map
-	 */
+	/** A listener to receive mouse clicks and drags on the map */
 	public static interface MouseListener
 	{
 		/**
@@ -61,9 +57,7 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 		void dragged(LatLonPoint start, LatLonPoint end);
 	}
 
-	/**
-	 * The format used to print a point's longitude
-	 */
+	/** The format used to print a point's longitude */
 	public static final java.text.NumberFormat LAT_LON_FORMAT = new java.text.DecimalFormat(
 		"0.0000");
 
@@ -107,10 +101,10 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 		theListeners = new java.util.ArrayList<MouseListener>();
 	}
 
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 	}
 
 	public void initClient()
@@ -118,25 +112,19 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 		draw();
 	}
 
-	/**
-	 * @return This plugin's name
-	 */
+	/** @return This plugin's name */
 	public String getName()
 	{
 		return theName;
 	}
 
-	/**
-	 * @return This plugin's session
-	 */
+	/** @return This plugin's session */
 	public PrismsSession getSession()
 	{
 		return theSession;
 	}
 
-	/**
-	 * @return This plugin's internal OpenMap image server
-	 */
+	/** @return This plugin's internal OpenMap image server */
 	public com.bbn.openmap.image.ImageServer getImageServer()
 	{
 		return theImageServer;
@@ -203,9 +191,9 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 	{
 		if("moveCenter".equals(evt.get("method")))
 		{
-			moveCenter(((Number) evt.get("xOffset")).intValue(), ((Number) evt.get("yOffset"))
-				.intValue(), ((Number) evt.get("width")).intValue(), ((Number) evt.get("height"))
-				.intValue());
+			moveCenter(((Number) evt.get("xOffset")).intValue(),
+				((Number) evt.get("yOffset")).intValue(), ((Number) evt.get("width")).intValue(),
+				((Number) evt.get("height")).intValue());
 		}
 		else if("mapClicked".equals(evt.get("method")))
 		{
@@ -219,10 +207,10 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 		}
 		else if("mapDragging".equals(evt.get("method")))
 		{
-			mapDragging(((Number) evt.get("startX")).intValue(), ((Number) evt.get("startY"))
-				.intValue(), ((Number) evt.get("dragX")).intValue(), ((Number) evt.get("dragY"))
-				.intValue(), ((Number) evt.get("width")).intValue(), ((Number) evt.get("height"))
-				.intValue());
+			mapDragging(((Number) evt.get("startX")).intValue(),
+				((Number) evt.get("startY")).intValue(), ((Number) evt.get("dragX")).intValue(),
+				((Number) evt.get("dragY")).intValue(), ((Number) evt.get("width")).intValue(),
+				((Number) evt.get("height")).intValue());
 		}
 		else if("mapDragged".equals(evt.get("method")))
 		{
@@ -387,9 +375,11 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 			JSONObject retEvt = new JSONObject();
 			retEvt.put("plugin", theName);
 			retEvt.put("method", "setPointActions");
-			retEvt.put("pointActions", getPointActions(((Number) evt.get("x")).intValue(),
-				((Number) evt.get("y")).intValue(), ((Number) evt.get("width")).intValue(),
-				((Number) evt.get("height")).intValue()));
+			retEvt.put(
+				"pointActions",
+				getPointActions(((Number) evt.get("x")).intValue(),
+					((Number) evt.get("y")).intValue(), ((Number) evt.get("width")).intValue(),
+					((Number) evt.get("height")).intValue()));
 			theSession.postOutgoingEvent(retEvt);
 		}
 		else if("performAction".equals(evt.get("method")))
@@ -445,9 +435,7 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 		draw();
 	}
 
-	/**
-	 * Causes the client to redraw its image
-	 */
+	/** Causes the client to redraw its image */
 	public void draw()
 	{
 		theSession.postOutgoingEvent(prisms.util.PrismsUtils.rEventProps("plugin", theName,
@@ -511,16 +499,19 @@ public class PrismsOpenMapPlugin implements ImagePlugin
 	{
 		LatLonPoint omPoint = createProjection(width, height).inverse(x, y);
 
-		prisms.arch.event.PrismsEvent actionsEvent = new prisms.arch.event.PrismsEvent("getUserActions",
-			"plugin", theName, "point", omPoint, "actions", new javax.swing.Action [0]);
+		prisms.arch.event.PrismsEvent actionsEvent = new prisms.arch.event.PrismsEvent(
+			"getUserActions", "plugin", theName, "point", omPoint, "actions",
+			new javax.swing.Action [0]);
 		theSession.fireEvent(actionsEvent);
 		javax.swing.Action[] newActions = (javax.swing.Action[]) actionsEvent
 			.getProperty("actions");
 		theActions = newActions;
 
 		JSONObject ret = new JSONObject();
-		ret.put("label", LAT_LON_FORMAT.format(omPoint.getLatitude()) + ", "
-			+ LAT_LON_FORMAT.format(omPoint.getLongitude()));
+		ret.put(
+			"label",
+			LAT_LON_FORMAT.format(omPoint.getLatitude()) + ", "
+				+ LAT_LON_FORMAT.format(omPoint.getLongitude()));
 		org.json.simple.JSONArray actions = new org.json.simple.JSONArray();
 		for(int a = 0; a < theActions.length; a++)
 			actions.add(theActions[a].getValue(javax.swing.Action.NAME));

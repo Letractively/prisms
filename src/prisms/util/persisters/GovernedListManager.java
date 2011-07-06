@@ -26,39 +26,39 @@ public class GovernedListManager<T> extends PersistingPropertyManager<T []>
 	private Governor<? super T> theGovernor;
 
 	@Override
-	public void configure(PrismsApplication app, org.dom4j.Element configEl)
+	public void configure(PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
+		super.configure(app, config);
 		if(theGovernor == null)
 		{
-			org.dom4j.Element govEl = configEl.element("governor");
+			prisms.arch.PrismsConfig govEl = config.subConfig("governor");
 			if(govEl == null)
 				throw new IllegalStateException(
 					"No governor specified for governed manager of property " + getProperty());
-			String governorClass = govEl.elementTextTrim("class");
-			if(governorClass == null)
-				throw new IllegalStateException(
-					"No governor specified for governed manager of property " + getProperty());
-			Class<?> clazz;
+			@SuppressWarnings("rawtypes")
+			Class<? extends Governor> clazz;
 			try
 			{
-				clazz = Class.forName(governorClass);
-			} catch(Exception e)
-			{
-				throw new IllegalStateException("Cannot find governor class " + governorClass
-					+ " for managing governed property " + getProperty(), e);
-			}
-			try
-			{
-				theGovernor = clazz.asSubclass(Governor.class).newInstance();
+				clazz = govEl.getClass("class", Governor.class);
 			} catch(ClassCastException e)
 			{
-				throw new IllegalStateException("Class " + governorClass
+				throw new IllegalStateException("Class " + govEl.get("class")
 					+ " is not a Governor implementation for governed property " + getProperty(), e);
 			} catch(Exception e)
 			{
-				throw new IllegalStateException("Could not instantiate governor " + governorClass
-					+ " for governed property " + getProperty(), e);
+				throw new IllegalStateException("Cannot find governor class " + govEl.get("class")
+					+ " for managing governed property " + getProperty(), e);
+			}
+			if(clazz == null)
+				throw new IllegalStateException(
+					"No governor specified for governed manager of property " + getProperty());
+			try
+			{
+				theGovernor = clazz.newInstance();
+			} catch(Exception e)
+			{
+				throw new IllegalStateException("Could not instantiate governor "
+					+ govEl.get("class") + " for governed property " + getProperty(), e);
 			}
 			theGovernor.configure(govEl);
 		}
@@ -255,8 +255,8 @@ public class GovernedListManager<T> extends PersistingPropertyManager<T []>
 	}
 
 	@Override
-	protected void eventOccurred(PrismsSession session, prisms.arch.event.PrismsEvent evt,
-		Object eventValue)
+	protected void eventOccurred(PrismsApplication app, PrismsSession session,
+		prisms.arch.event.PrismsEvent evt, Object eventValue)
 	{
 		if(!Boolean.TRUE.equals(evt.getProperty(GOVERNED)))
 		{
@@ -265,14 +265,13 @@ public class GovernedListManager<T> extends PersistingPropertyManager<T []>
 				&& !Boolean.TRUE.equals(evt
 					.getProperty(PrismsApplication.GLOBALIZED_EVENT_PROPERTY)))
 			{
-				if(!getGovernor().canView(session.getApp(), session.getUser(), (T) eventValue))
+				if(!getGovernor().canView(app, session.getUser(), (T) eventValue))
 					throw new IllegalArgumentException("User " + session.getUser()
-						+ " does not have access to item " + eventValue + " in application "
-						+ session.getApp());
-				if(!getGovernor().canEdit(session.getApp(), session.getUser(), (T) eventValue))
+						+ " does not have access to item " + eventValue + " in application " + app);
+				if(!getGovernor().canEdit(app, session.getUser(), (T) eventValue))
 					throw new IllegalArgumentException("User " + session.getUser()
 						+ " does not have permission to edit item " + eventValue
-						+ " in application " + session.getApp());
+						+ " in application " + app);
 			}
 			int idx = ArrayUtils.indexOf(theGlobalValue, eventValue);
 			if(idx < 0)
@@ -284,6 +283,6 @@ public class GovernedListManager<T> extends PersistingPropertyManager<T []>
 			else
 				globalAdjustValues(evt.getPropertyList());
 		}
-		super.eventOccurred(session, evt, eventValue);
+		super.eventOccurred(app, session, evt, eventValue);
 	}
 }

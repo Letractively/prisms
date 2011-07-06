@@ -28,9 +28,7 @@ public class SubClassMap<C, V>
 
 	private MapItem [] theItems;
 
-	/**
-	 * Creates a SubClassMap
-	 */
+	/** Creates a SubClassMap */
 	public SubClassMap()
 	{
 		theItems = new SubClassMap.MapItem [0];
@@ -71,7 +69,8 @@ public class SubClassMap<C, V>
 		for(int i = 0; i < theItems.length; i++)
 		{
 			if(theItems[i].theClass == clazz
-				|| (allDescending && clazz.isAssignableFrom(theItems[i].theClass)))
+				|| (allDescending && clazz != null && theItems[i].theClass != null && clazz
+					.isAssignableFrom(theItems[i].theClass)))
 				theItems = ArrayUtils.remove(theItems, i);
 		}
 	}
@@ -91,7 +90,7 @@ public class SubClassMap<C, V>
 		{
 			if(item.theClass == subClass)
 				return item.theValue;
-			else if(item.theClass.isAssignableFrom(subClass))
+			else if(item.theClass != null && item.theClass.isAssignableFrom(subClass))
 				matches = ArrayUtils.add(matches, item);
 		}
 		if(matches.length == 0)
@@ -101,10 +100,12 @@ public class SubClassMap<C, V>
 		for(MapItem item : matches)
 		{
 			int dist = getTypeDistance(item.theClass, subClass);
-			if(match == null || dist < minDist)
+			if(dist >= 0 && (match == null || dist < minDist))
 			{
 				minDist = dist;
 				match = item;
+				if(dist == 0)
+					break;
 			}
 		}
 		return match.theValue;
@@ -114,6 +115,8 @@ public class SubClassMap<C, V>
 	{
 		if(clazz == subClass)
 			return 0;
+		if(clazz == null || subClass == null)
+			return -1;
 		int dist = getTypeDistance(clazz, subClass.getSuperclass());
 		if(dist >= 0)
 			return dist + 1;

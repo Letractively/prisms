@@ -5,6 +5,8 @@ package prisms.util;
 
 import java.io.IOException;
 
+import org.apache.log4j.Logger;
+
 /**
  * A random access text file allows a text file to be accessed randomly starting at any position. It
  * keeps a buffer of a configurable length, enabling successive access operations to be as efficient
@@ -12,7 +14,9 @@ import java.io.IOException;
  */
 public class RandomAccessTextFile
 {
-	class CircularCharBuffer
+	private static final Logger log = Logger.getLogger(RandomAccessTextFile.class);
+
+	private static class CircularCharBuffer
 	{
 		private char [] theBuffer;
 
@@ -190,7 +194,12 @@ public class RandomAccessTextFile
 			if(theFileReader != null)
 				theFileReader.close();
 			theFileReader = new java.io.FileReader(theFile);
-			theFileReader.skip(thePos);
+			long toSkip = thePos;
+			int tries;
+			for(tries = 0; toSkip > 0 && tries < 5; tries++)
+				toSkip -= theFileReader.skip(toSkip);
+			if(toSkip > 0)
+				throw new IOException("Could not skip to the appropriate file location");
 			theReaderIndex = thePos;
 		}
 
@@ -239,9 +248,7 @@ public class RandomAccessTextFile
 		theReader = new RandomAccessReader(bufferLength);
 	}
 
-	/**
-	 * @param length The length of the buffer to keep
-	 */
+	/** @param length The length of the buffer to keep */
 	public void setBufferLength(int length)
 	{
 		theReader.setBufferLength(length);
@@ -258,9 +265,7 @@ public class RandomAccessTextFile
 		return theReader;
 	}
 
-	/**
-	 * @return The file that this wrapper accesses
-	 */
+	/** @return The file that this wrapper accesses */
 	public java.io.File getFile()
 	{
 		return theFile;
@@ -276,7 +281,10 @@ public class RandomAccessTextFile
 	{
 		theReader.reallyClose();
 		if(deleteFile)
-			theFile.delete();
+		{
+			if(!theFile.delete())
+				log.warn("File " + theFile + " not closed");
+		}
 		theFile = null;
 	}
 }

@@ -3,12 +3,7 @@
  */
 package prisms.impl;
 
-import javax.servlet.http.HttpServletRequest;
-
-import org.dom4j.Element;
-
-import prisms.arch.PrismsApplication;
-import prisms.arch.ds.UserSource;
+import prisms.arch.PrismsServer.PrismsRequest;
 
 /**
  * Authenticates from an external CAS server. Note that this authenticator does not make any CAS
@@ -17,24 +12,22 @@ import prisms.arch.ds.UserSource;
  */
 public class CASAuthenticator extends AutoCreateAuthenticator
 {
-	public void configure(Element configEl, UserSource userSource, PrismsApplication [] apps)
-	{
-		super.configure(configEl, userSource, apps);
-	}
-
-	org.jasig.cas.client.validation.Assertion getAssertion(HttpServletRequest request)
+	org.jasig.cas.client.validation.Assertion getAssertion(
+		javax.servlet.http.HttpServletRequest request)
 	{
 		return (org.jasig.cas.client.validation.Assertion) request.getSession().getAttribute(
 			org.jasig.cas.client.util.AbstractCasFilter.CONST_CAS_ASSERTION);
 	}
 
-	public boolean recognized(HttpServletRequest request)
+	public boolean recognized(PrismsRequest request)
 	{
-		return getAssertion(request) != null && request.getRemoteUser() != null;
+		return getAssertion(request.httpRequest) != null
+			&& request.httpRequest.getRemoteUser() != null;
 	}
 
-	public String getUserName(HttpServletRequest request)
+	@Override
+	public String getUserName(PrismsRequest request)
 	{
-		return request.getRemoteUser();
+		return request.httpRequest.getRemoteUser();
 	}
 }

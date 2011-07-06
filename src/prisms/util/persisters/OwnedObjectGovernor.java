@@ -13,10 +13,10 @@ public class OwnedObjectGovernor implements Governor<OwnedObject>
 
 	private String theEditAllPermission;
 
-	public void configure(org.dom4j.Element configEl)
+	public void configure(prisms.arch.PrismsConfig config)
 	{
-		theViewAllPermission = configEl.elementTextTrim("view-all");
-		theEditAllPermission = configEl.elementTextTrim("edit-all");
+		theViewAllPermission = config.get("view-all");
+		theEditAllPermission = config.get("edit-all");
 	}
 
 	public boolean isShared(OwnedObject item)

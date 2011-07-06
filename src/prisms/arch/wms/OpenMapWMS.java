@@ -12,9 +12,7 @@ import com.bbn.openmap.proj.LLXY;
 import com.bbn.openmap.proj.ProjMath;
 import com.bbn.openmap.proj.Projection;
 
-/**
- * A simple OpenMap abstract implementation of the WMS standard for PRISMS
- */
+/** A simple OpenMap abstract implementation of the WMS standard for PRISMS */
 public abstract class OpenMapWMS extends prisms.ui.PrismsOpenMapPlugin implements WmsPlugin
 {
 	/**
@@ -27,25 +25,17 @@ public abstract class OpenMapWMS extends prisms.ui.PrismsOpenMapPlugin implement
 		super(omProps);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
+	@Override
 	public void initClient()
 	{
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
+	@Override
 	public void processEvent(org.json.simple.JSONObject evt)
 	{
 		throw new IllegalArgumentException(getName() + " event not recognized: " + evt);
 	}
 
-	/**
-	 * @see prisms.arch.wms.WmsPlugin#drawMapOverlay(prisms.arch.wms.PrismsWmsRequest, JSONObject,
-	 *      java.io.OutputStream)
-	 */
 	public synchronized void drawMapOverlay(PrismsWmsRequest request, JSONObject event,
 		java.io.OutputStream output) throws java.io.IOException
 	{

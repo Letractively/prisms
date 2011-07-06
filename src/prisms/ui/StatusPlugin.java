@@ -19,13 +19,10 @@ public class StatusPlugin implements AppPlugin
 
 	String theName;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = "Status";
 		theSession.addEventListener("sendStatusUpdate", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
@@ -71,16 +68,10 @@ public class StatusPlugin implements AppPlugin
 		theSession.postOutgoingEvent(evt);
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		throw new IllegalArgumentException("No talking to the " + theName + " plugin!");

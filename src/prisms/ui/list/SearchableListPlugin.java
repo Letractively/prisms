@@ -5,6 +5,8 @@ package prisms.ui.list;
 
 import org.json.simple.JSONObject;
 
+import prisms.util.IntList;
+
 /**
  * A subtype of {@link DataListMgrPlugin} that allows the user to filter the content by a string
  * 
@@ -14,23 +16,35 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 {
 	private String theFilter;
 
+	private String thePlaceholder;
+
+	private volatile int theFilterNumber;
+
+	private IntList theDisplayed;
+
 	@Override
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setSelectionMode(SelectionMode.SINGLE);
+		if(thePlaceholder == null)
+			thePlaceholder = "Type to filter...";
 	}
 
 	@Override
 	public void initClient()
 	{
 		super.initClient();
-		JSONObject evt = new JSONObject();
-		evt.put("plugin", getName());
-		evt.put("method", "setFilter");
-		evt.put("filter", theFilter);
-		getSession().postOutgoingEvent(evt);
-		setFilter(theFilter);
+		sendDisplay();
+	}
+
+	@Override
+	protected JSONObject getListParams()
+	{
+		JSONObject ret = super.getListParams();
+		ret.put("filter", theFilter);
+		ret.put("placeHolder", thePlaceholder);
+		return ret;
 	}
 
 	@Override
@@ -46,76 +60,177 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	public void setListData(T [] items)
 	{
 		super.setListData(items);
-		setFilter(theFilter);
+		filterChanged();
 	}
 
 	@Override
 	public void setItems(DataListNode [] items)
 	{
 		super.setItems(items);
-		setFilter(theFilter);
+		filterChanged();
 	}
 
 	@Override
 	public void addNode(DataListNode node, int index)
 	{
 		super.addNode(node, index);
-		setFilter(theFilter);
+		filterChanged();
+	}
+
+	@Override
+	public void nodeChanged(DataListNode node)
+	{
+		super.nodeChanged(node);
+		filterChanged();
 	}
 
 	@Override
 	public void removeNode(int index)
 	{
 		super.removeNode(index);
-		setFilter(theFilter);
+		theDisplayed.removeAll(index);
+		sendDisplay();
 	}
 
-	void setFilter(String filter)
+	/**
+	 * @return The placeholder string that shows up (greyed out) when the user hasn't typed anything
+	 *         in the search box
+	 */
+	public String getPlaceholder()
+	{
+		return thePlaceholder;
+	}
+
+	/**
+	 * @param placeholder The placeholder string to show up (greyed out) when the user hasn't typed
+	 *        anything in the search box
+	 */
+	public void setPlaceholder(String placeholder)
+	{
+		thePlaceholder = placeholder;
+		setListParams();
+	}
+
+	/** @return The filter that the user has entered to search for items */
+	public String getFilter()
+	{
+		return theFilter;
+	}
+
+	/**
+	 * Allows subclasses or external code to dynamically change the filter text
+	 * 
+	 * @param filter The filter to use for the search criteria
+	 */
+	public void setFilter(String filter)
 	{
 		if(filter != null && filter.length() == 0)
 			filter = null;
 		theFilter = filter;
-		if(filter != null)
-			filter = filter.toLowerCase();
+		filterChanged();
+		setListParams();
+	}
+
+	/**
+	 * @return The results of the filter--the indices of the matched items, ordered by how well each
+	 *         item matches the filter
+	 */
+	public IntList getSearchResults()
+	{
+		return theDisplayed;
+	}
+
+	/**
+	 * Called when anything happens that may change what is displayed to the user. This may be a
+	 * change to the
+	 */
+	protected void filterChanged()
+	{
+		if(searchItems(theFilter))
+			sendDisplay();
+	}
+
+	private boolean searchItems(String filter)
+	{
+		theFilterNumber++;
+		int filterNumber = theFilterNumber;
+		if(filter == null || filter.length() == 0)
+		{
+			theDisplayed = null;
+			return true;
+		}
+		final IntList indices = new IntList();
+		final prisms.util.FloatList ranks = new prisms.util.FloatList();
+		String [] filters = filter.split("\\s+");
+		for(int i = 0; i < getItemCount(); i++)
+		{
+			if(getItem(i) instanceof SelectableList<?>.ItemNode)
+			{
+				float r = 1;
+				for(String f : filters)
+				{
+					if(filterNumber != theFilterNumber)
+						return false;
+					int fDist = getFilterDistance(((ItemNode) getItem(i)).getObject(), f);
+					if(fDist < 0)
+						r = 0;
+					r *= 1.0f / fDist;
+					if(r == 0)
+						break;
+				}
+				if(r > 0)
+				{
+					indices.add(i);
+					ranks.add(r);
+				}
+			}
+			else
+			{
+				indices.add(i);
+				ranks.add(Float.POSITIVE_INFINITY);
+			}
+		}
+		prisms.util.ArrayUtils.sort(ranks.toObjectArray(),
+			new prisms.util.ArrayUtils.SortListener<Float>()
+			{
+				public int compare(Float o1, Float o2)
+				{
+					if(o1.floatValue() > o2.floatValue())
+						return -1;
+					else if(o1.floatValue() < o2.floatValue())
+						return 1;
+					else
+						return 0;
+				}
+
+				public void swapped(Float o1, int idx1, Float o2, int idx2)
+				{
+					indices.swap(idx1, idx2);
+					ranks.swap(idx1, idx2);
+				}
+			});
+		if(filterNumber != theFilterNumber)
+			return false;
+		indices.seal();
+		theDisplayed = indices;
+		return true;
+	}
+
+	/** Sends the items matching the filter (or all items if there is no filter) */
+	protected void sendDisplay()
+	{
+		IntList disp = theDisplayed;
+		org.json.simple.JSONArray ids = new org.json.simple.JSONArray();
+		if(theFilter == null)
+			for(int i = 0; i < getItemCount(); i++)
+				ids.add(getItem(i).getID());
+		else if(disp != null)
+			for(int i = 0; i < disp.size(); i++)
+				ids.add(getItem(disp.get(i)).getID());
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", getName());
 		evt.put("method", "setFilteredItems");
-		if(filter == null || filter.length() == 0)
-			evt.put("ids", null);
-		else
-		{
-			final DataListNode [] items = new DataListNode [getItemCount()];
-			for(int i = 0; i < items.length; i++)
-				items[i] = getItem(i);
-			Integer [] rank = new Integer [items.length];
-			for(int i = 0; i < items.length; i++)
-			{
-				if(items[i] instanceof SelectableList<?>.ItemNode)
-					rank[i] = new Integer(getFilterDistance(((ItemNode) items[i]).getObject(),
-						filter));
-				else
-					rank[i] = new Integer(0);
-			}
-			prisms.util.ArrayUtils.sort(rank, new prisms.util.ArrayUtils.SortListener<Integer>()
-			{
-				public int compare(Integer o1, Integer o2)
-				{
-					return o1.intValue() - o2.intValue();
-				}
-
-				public void swapped(Integer o1, int idx1, Integer o2, int idx2)
-				{
-					DataListNode temp = items[idx1];
-					items[idx1] = items[idx2];
-					items[idx2] = temp;
-				}
-			});
-			org.json.simple.JSONArray ids = new org.json.simple.JSONArray();
-			for(int i = 0; i < items.length; i++)
-				if(rank[i].intValue() >= 0)
-					ids.add(items[i].getID());
-			evt.put("ids", ids);
-		}
+		evt.put("ids", ids);
 		getSession().postOutgoingEvent(evt);
 	}
 
@@ -131,7 +246,7 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	{
 		if(item == null)
 			return -1;
-		return distance(filter, item.toString());
+		return distance(filter.toLowerCase(), item.toString().toLowerCase());
 	}
 
 	/**
@@ -148,17 +263,49 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 			return 0;
 		if(text == null)
 			return -1;
-		text = text.toLowerCase();
+		int closest = -1;
 		for(int i = 0; i < text.length() - filter.length() + 1; i++)
 		{
 			if(!equal(filter, text, i))
 				continue;
-			int ret = i;
-			if(text.length() > filter.length() + 1)
-				ret++;
-			return ret;
+			int dist = 10;
+			if(i == 0)
+			{
+				dist -= 5;
+				if(filter.length() == text.length())
+					dist -= 5;
+				else if(Character.isWhitespace(text.charAt(filter.length())))
+					dist -= 3;
+				else if(isDivider(text.charAt(filter.length())))
+					dist -= 2;
+			}
+			else if(Character.isWhitespace(text.charAt(i - 1)))
+			{
+				dist -= 3;
+				if(i + filter.length() == text.length()
+					|| Character.isWhitespace(text.charAt(i + filter.length())))
+					dist -= 3;
+				else if(isDivider(text.charAt(i + filter.length())))
+					dist -= 1;
+			}
+			else if(isDivider(text.charAt(i - 1)))
+			{
+				dist -= 2;
+				if(i + filter.length() == text.length()
+					|| Character.isWhitespace(text.charAt(i + filter.length())))
+					dist -= 3;
+				else if(isDivider(text.charAt(i + filter.length())))
+					dist -= 2;
+			}
+			else if(i + filter.length() == text.length()
+				|| Character.isWhitespace(text.charAt(i + filter.length())))
+				dist -= 3;
+			else if(isDivider(text.charAt(i + filter.length())))
+				dist -= 2;
+			if(closest < 0 || dist < closest)
+				closest = dist;
 		}
-		return -1;
+		return closest;
 	}
 
 	private static boolean equal(String filter, String text, int idx)
@@ -167,5 +314,11 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 			if(text.charAt(c + idx) != filter.charAt(c))
 				return false;
 		return true;
+	}
+
+	private static boolean isDivider(char c)
+	{
+		return c == '-' || c == '_' || c == '+' || c == '=' || c == '(' || c == ')' || c == '/'
+			|| c == '.' || c == ',' || c == '<' || c == '>' || c == ':' || c == ';';
 	}
 }

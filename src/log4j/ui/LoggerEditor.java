@@ -7,17 +7,13 @@ import static log4j.app.Log4jProperties.selectedLogger;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import prisms.arch.AppPlugin;
 import prisms.arch.PrismsSession;
 
-/**
- * Allows the user to edit a Logger
- */
-public class LoggerEditor implements AppPlugin
+/** Allows the user to edit a Logger */
+public class LoggerEditor implements prisms.arch.AppPlugin
 {
 	private PrismsSession theSession;
 
@@ -25,13 +21,10 @@ public class LoggerEditor implements AppPlugin
 
 	private Logger theSelectedLogger;
 
-	/**
-	 * @see prisms.arch.AppPlugin#initPlugin(prisms.arch.PrismsSession, org.dom4j.Element)
-	 */
-	public void initPlugin(PrismsSession session, Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		Logger selected = session.getProperty(selectedLogger);
 		setLogger(selected);
 		session.addPropertyChangeListener(selectedLogger, new prisms.arch.event.PrismsPCL<Logger>()
@@ -43,9 +36,6 @@ public class LoggerEditor implements AppPlugin
 		});
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#initClient()
-	 */
 	public void initClient()
 	{
 		JSONObject evt = new JSONObject();
@@ -63,9 +53,6 @@ public class LoggerEditor implements AppPlugin
 		sendLogger();
 	}
 
-	/**
-	 * @see prisms.arch.AppPlugin#processEvent(org.json.simple.JSONObject)
-	 */
 	public void processEvent(JSONObject evt)
 	{
 		if("levelChanged".equals(evt.get("method")))
@@ -127,7 +114,7 @@ public class LoggerEditor implements AppPlugin
 			else
 				log.put("level", theSelectedLogger.getLevel().toString());
 			log.put("effectiveLevel", theSelectedLogger.getEffectiveLevel().toString());
-			log.put("additivity", new Boolean(theSelectedLogger.getAdditivity()));
+			log.put("additivity", Boolean.valueOf(theSelectedLogger.getAdditivity()));
 		}
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);

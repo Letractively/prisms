@@ -18,10 +18,10 @@ public class ClientEditor implements prisms.arch.AppPlugin
 
 	ClientConfig theClient;
 
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		theClient = theSession.getProperty(ManagerProperties.selectedClient);
 		session.addPropertyChangeListener(ManagerProperties.selectedClient,
 			new prisms.arch.event.PrismsPCL<ClientConfig>()
@@ -45,25 +45,7 @@ public class ClientEditor implements prisms.arch.AppPlugin
 
 	public void initClient()
 	{
-		boolean visible = theClient != null;
-		JSONObject evt = new JSONObject();
-		evt.put("plugin", theName);
-		evt.put("method", "setVisible");
-		evt.put("visible", new Boolean(visible));
-		theSession.postOutgoingEvent(evt);
-		if(!visible)
-			return;
-		evt = new JSONObject();
-		evt.put("plugin", theName);
-		evt.put("method", "setValue");
-		JSONObject val = new JSONObject();
-		val.put("name", theClient.getName());
-		val.put("descrip", theClient.getDescription());
-		val.put("isService", new Boolean(theClient.isService()));
-		val.put("sessionTimeout", new Long(theClient.getSessionTimeout() / 1000));
-		val.put("allowAnonymous", new Boolean(theClient.allowsAnonymous()));
-		evt.put("value", val);
-		theSession.postOutgoingEvent(evt);
+		send(false);
 	}
 
 	public void processEvent(JSONObject evt)
@@ -73,9 +55,35 @@ public class ClientEditor implements prisms.arch.AppPlugin
 
 	void setClient(ClientConfig client)
 	{
-		if(theClient == null && client == null)
+		if(theClient == client)
 			return;
 		theClient = client;
-		initClient();
+		send(true);
+	}
+
+	void send(boolean show)
+	{
+		boolean visible = theClient != null;
+		JSONObject evt = new JSONObject();
+		evt.put("plugin", theName);
+		evt.put("method", "setVisible");
+		evt.put("visible", Boolean.valueOf(visible));
+		if(show && visible)
+			evt.put("show", Boolean.TRUE);
+		theSession.postOutgoingEvent(evt);
+		if(!visible)
+			return;
+		evt = new JSONObject();
+		evt.put("plugin", theName);
+		evt.put("method", "setValue");
+		JSONObject val = new JSONObject();
+		val.put("name", theClient.getName());
+		val.put("descrip", theClient.getDescription());
+		val.put("isService", Boolean.valueOf(theClient.isService()));
+		val.put("sessionTimeout",
+			prisms.util.PrismsUtils.printTimeLength(theClient.getSessionTimeout()));
+		val.put("allowAnonymous", Boolean.valueOf(theClient.allowsAnonymous()));
+		evt.put("value", val);
+		theSession.postOutgoingEvent(evt);
 	}
 }

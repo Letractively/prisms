@@ -1,5 +1,5 @@
-/**
- * PluginAppSession.java Created Aug 1, 2007 by Andrew Butler, PSL
+/*
+ * PrismsSession.java Created Aug 1, 2007 by Andrew Butler, PSL
  */
 package prisms.arch;
 
@@ -11,9 +11,10 @@ import org.json.simple.JSONObject;
 
 import prisms.arch.ds.User;
 import prisms.arch.event.*;
+import prisms.util.ProgramTracker.TrackNode;
 
 /**
- * A PluginAppSession serves as the core of the plugin architecture and the remote session for the
+ * A PrismsSession serves as the core of the plugin architecture and the remote session for the
  * remote communication architecture. It contains operations allowing plugins to communicate with
  * each other and with the client while requiring a minimum of knowledge about either the client or
  * the other plugins.
@@ -27,6 +28,94 @@ public class PrismsSession
 		void eventPosted(JSONObject event);
 	}
 
+	/** Metadata describing a session */
+	public static class SessionMetadata
+	{
+		private final String theID;
+
+		private final PrismsAuthenticator theAuth;
+
+		private final String theRemoteAddr;
+
+		private final String theRemoteHost;
+
+		private final prisms.util.ClientEnvironment theCE;
+
+		private final PrismsServer.ClientGovernor theGovernor;
+
+		/**
+		 * Creates session metadata
+		 * 
+		 * @param id The ID of the session
+		 * @param auth The authenticator that granted access to the application
+		 * @param remoteAddr The remote address that is accessing this session
+		 * @param remoteHost The remote host that is accessing this session
+		 * @param ce The client environment detailing the browser and OS of the client, if available
+		 * @param gov Allows access to the activity level of the client
+		 * @see javax.servlet.ServletRequest#getRemoteAddr()
+		 * @see javax.servlet.ServletRequest#getRemoteHost()
+		 */
+		public SessionMetadata(String id, PrismsAuthenticator auth, String remoteAddr,
+			String remoteHost, prisms.util.ClientEnvironment ce, PrismsServer.ClientGovernor gov)
+		{
+			theID = id;
+			theAuth = auth;
+			theRemoteAddr = remoteAddr;
+			theRemoteHost = remoteHost;
+			theCE = ce;
+			theGovernor = gov;
+		}
+
+		/**
+		 * @return The session's ID. This value does not necessarily uniquely identify a particular
+		 *         {@link PrismsSession}, but rather is a field of the request used by the server to
+		 *         address a group of sessions.
+		 */
+		public String getID()
+		{
+			return theID;
+		}
+
+		/** @return The authenticator that granted access to the application */
+		public PrismsAuthenticator getAuth()
+		{
+			return theAuth;
+		}
+
+		/**
+		 * @return The remote IP that is accessing this session
+		 * @see javax.servlet.ServletRequest#getRemoteAddr()
+		 */
+		public String getRemoteAddr()
+		{
+			return theRemoteAddr;
+		}
+
+		/**
+		 * @return The remote host that is accessing this session
+		 * @see javax.servlet.ServletRequest#getRemoteHost()
+		 */
+		public String getRemoteHost()
+		{
+			return theRemoteHost;
+		}
+
+		/** @return The client's browser and OS versions, if available */
+		public prisms.util.ClientEnvironment getClientEnv()
+		{
+			return theCE;
+		}
+
+		/**
+		 * @return The governor that keeps track of and enforces maximums on client access to the
+		 *         server. May be null.
+		 */
+		public PrismsServer.ClientGovernor getGovernor()
+		{
+			return theGovernor;
+		}
+	}
+
 	static final Logger log = Logger.getLogger(PrismsSession.class);
 
 	private final PrismsApplication theApp;
@@ -35,13 +124,27 @@ public class PrismsSession
 
 	private final User theUser;
 
+	private final SessionMetadata theMetadata;
+
 	private final long theCreationTime;
+
+	private prisms.ui.UI theUI;
+
+	private prisms.ui.PreferencesEditor thePrefEditor;
+
+	private prisms.util.preferences.Preferences thePreferences;
+
+	private prisms.ui.StatusPlugin theStatus;
 
 	private final java.util.concurrent.ConcurrentLinkedQueue<JSONObject> theOutgoingQueue;
 
 	private long theLastCheckedTime;
 
+	private boolean isKilled;
+
 	private final java.util.LinkedHashMap<String, AppPlugin> thePlugins;
+
+	private final java.util.LinkedHashMap<String, AppPlugin> theStandardPlugins;
 
 	private final ConcurrentHashMap<PrismsProperty<?>, Object> theProperties;
 
@@ -56,11 +159,11 @@ public class PrismsSession
 
 	private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> theTaskList;
 
-	private final ConcurrentHashMap<Thread, JSONArray> theInvocations;
-
 	private EventListener theListener;
 
 	private java.util.concurrent.ConcurrentHashMap<String, boolean []> theRunningTasks;
+
+	private final prisms.util.TrackerSet theTrackSet;
 
 	/**
 	 * Creates a PluginAppSession
@@ -68,25 +171,42 @@ public class PrismsSession
 	 * @param app The application that this session was created for
 	 * @param client The client that this session was created for
 	 * @param user The user to create the session for
+	 * @param md The metadata associated with this session
 	 */
 	@SuppressWarnings("rawtypes")
-	public PrismsSession(PrismsApplication app, ClientConfig client, User user)
+	public PrismsSession(PrismsApplication app, ClientConfig client, User user, SessionMetadata md)
 	{
 		theApp = app;
 		theClient = client;
 		theUser = user;
+		theMetadata = md;
 		theCreationTime = System.currentTimeMillis();
 		theOutgoingQueue = new java.util.concurrent.ConcurrentLinkedQueue<JSONObject>();
 		theLastCheckedTime = System.currentTimeMillis();
 		thePlugins = new java.util.LinkedHashMap<String, AppPlugin>();
+		theStandardPlugins = new java.util.LinkedHashMap<String, AppPlugin>();
 		theProperties = new ConcurrentHashMap<PrismsProperty<?>, Object>();
 		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, Object>();
 		thePropertyStack = new ConcurrentHashMap<PrismsProperty<?>, PrismsSession>();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
 		theELs = new ListenerManager<PrismsEventListener>(PrismsEventListener.class);
 		theTaskList = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
-		theInvocations = new ConcurrentHashMap<Thread, JSONArray>();
 		theRunningTasks = new ConcurrentHashMap<String, boolean []>();
+		theTrackSet = new prisms.util.TrackerSet("Session: " + client + "/" + user, app
+			.getTrackSet().getConfigs());
+		theTrackSet.setConfigured();
+
+		if(client.isService())
+			theUI = new prisms.ui.UI.ServiceUI();
+		else
+			theUI = new prisms.ui.UI.NormalUI(this);
+		theStandardPlugins.put("UI", theUI);
+		thePrefEditor = new prisms.ui.PreferencesEditor();
+		thePrefEditor.initPlugin(this, null);
+		theStandardPlugins.put("Preferences", thePrefEditor);
+		theStatus = new prisms.ui.StatusPlugin();
+		theStatus.initPlugin(this, null);
+		theStandardPlugins.put("Status", theStatus);
 	}
 
 	/**
@@ -98,28 +218,84 @@ public class PrismsSession
 		theListener = listener;
 	}
 
-	/**
-	 * @return The application that created this session
-	 */
+	/** @return The application that created this session */
 	public PrismsApplication getApp()
 	{
 		return theApp;
 	}
 
-	/**
-	 * @return The client that configured this session
-	 */
+	/** @return The client that configured this session */
 	public ClientConfig getClient()
 	{
 		return theClient;
 	}
 
-	/**
-	 * @return The user of this session
-	 */
+	/** @return The user of this session */
 	public User getUser()
 	{
 		return theUser;
+	}
+
+	/**
+	 * @return The metadata associated with this session. This data may not be unique to this
+	 *         session. In particular, the ID associated with the metadata does not uniquely
+	 *         identify this particular session.
+	 */
+	public SessionMetadata getMetadata()
+	{
+		return theMetadata;
+	}
+
+	/** @return The UI plugin for this session */
+	public prisms.ui.UI getUI()
+	{
+		return theUI;
+	}
+
+	/** @param ui The UI plugin that this session should use */
+	public void setUI(prisms.ui.UI ui)
+	{
+		if(ui == null)
+			throw new NullPointerException();
+		theUI = ui;
+	}
+
+	/** @return The user preferences associated with this session */
+	public prisms.util.preferences.Preferences getPreferences()
+	{
+		if(thePreferences == null)
+		{
+			thePreferences = getProperty(PrismsProperties.preferences);
+			if(thePreferences == null)
+			{
+				log.warn("No preference persister configured for " + theApp
+					+ ": preferences will not be persisted");
+				thePreferences = new prisms.util.preferences.Preferences(theApp, theUser);
+			}
+		}
+		return thePreferences;
+	}
+
+	/** @return The status plugin to use for this session */
+	public prisms.ui.StatusPlugin getStatus()
+	{
+		return theStatus;
+	}
+
+	/**
+	 * A convenience method for getting the PRISMS transaction for the current thread
+	 * 
+	 * @return The PRISMS transaction for the current thread
+	 */
+	public PrismsTransaction getTransaction()
+	{
+		return theApp.getEnvironment().getTransaction();
+	}
+
+	/** @return The track set that keeps track of performance for this session */
+	public prisms.util.TrackerSet getTrackSet()
+	{
+		return theTrackSet;
 	}
 
 	/**
@@ -133,9 +309,7 @@ public class PrismsSession
 		return theUser.getPermissions(theApp);
 	}
 
-	/**
-	 * @return The time that this session was created
-	 */
+	/** @return The time that this session was created */
 	public long getCreationTime()
 	{
 		return theCreationTime;
@@ -147,10 +321,13 @@ public class PrismsSession
 	 */
 	public AppPlugin getPlugin(String name)
 	{
-		synchronized(thePlugins)
-		{
-			return thePlugins.get(name);
-		}
+		AppPlugin ret = theStandardPlugins.get(name);
+		if(ret == null)
+			synchronized(thePlugins)
+			{
+				return thePlugins.get(name);
+			}
+		return ret;
 	}
 
 	/**
@@ -169,9 +346,7 @@ public class PrismsSession
 		}
 	}
 
-	/**
-	 * Resets this session's counter so that it doesn't timeout
-	 */
+	/** Resets this session's counter so that it doesn't timeout */
 	public void renew()
 	{
 		theLastCheckedTime = System.currentTimeMillis();
@@ -187,14 +362,15 @@ public class PrismsSession
 	 */
 	public JSONArray processSync(JSONObject event)
 	{
-		JSONArray ret = new JSONArray();
-		theInvocations.put(Thread.currentThread(), ret);
+		PrismsTransaction trans = theApp.getEnvironment().getTransaction();
+		trans.setSynchronous();
+		JSONArray ret;
 		try
 		{
 			process(event);
 		} finally
 		{
-			theInvocations.remove(Thread.currentThread());
+			ret = theApp.getEnvironment().finish(trans);
 		}
 		return ret;
 	}
@@ -240,16 +416,19 @@ public class PrismsSession
 		{
 			public void run()
 			{
+				final PrismsTransaction trans = getApp().getEnvironment().transact(
+					PrismsSession.this, PrismsTransaction.Stage.processEvent);
 				try
 				{
 					process(event);
 				} finally
 				{
 					fFinished[0] = true;
+					getApp().getEnvironment().finish(trans);
 				}
 			}
 		};
-		theApp.getWorker().run(toRun, new Worker.ErrorListener()
+		theApp.getEnvironment().getWorker().run(toRun, new Worker.ErrorListener()
 		{
 			public void error(Error e)
 			{
@@ -284,8 +463,7 @@ public class PrismsSession
 			JSONObject getEvents = new JSONObject();
 			getEvents.put("method", "getEvents");
 			getEvents.put("taskID", taskID);
-			prisms.ui.UI ui = (prisms.ui.UI) getPlugin("UI");
-			if(!finished[0] && ui == null || !ui.isProgressShowing())
+			if(!finished[0] && !getUI().isProgressShowing())
 			{
 				theRunningTasks.put(taskID, finished);
 				JSONArray ret = getEvents();
@@ -331,7 +509,15 @@ public class PrismsSession
 			AppPlugin plugin = getPlugin((String) pName);
 			if(plugin == null)
 				throw new IllegalArgumentException("No such plugin: " + pName);
-			plugin.processEvent(evt);
+			TrackNode track = theApp.getEnvironment().getTransaction().getTracker()
+				.start("PRISMS: " + pName + ".processEvent");
+			try
+			{
+				plugin.processEvent(evt);
+			} finally
+			{
+				theApp.getEnvironment().getTransaction().getTracker().end(track);
+			}
 			renew();
 		}
 
@@ -339,9 +525,7 @@ public class PrismsSession
 		theApp.runScheduledTasks();
 	}
 
-	/**
-	 * Runs all tasks added with {@link #runEventually(Runnable)}
-	 */
+	/** Runs all tasks added with {@link #runEventually(Runnable)} */
 	public void runTasks()
 	{
 		if(theTaskList.isEmpty())
@@ -363,6 +547,10 @@ public class PrismsSession
 				 * full. */
 				if(task == null)
 					break;
+				TrackNode track = null;
+				PrismsTransaction trans = theApp.getEnvironment().getTransaction();
+				if(trans != null)
+					track = trans.getTracker().start("PRISMS: Running session task " + task);
 				try
 				{
 					task.run();
@@ -372,6 +560,10 @@ public class PrismsSession
 						outerE.getStackTrace(), getClass().getName(), "_process"));
 					log.error("Error Processing Task " + task, e);
 					postOutgoingEvent(wrapError("Error Processing Task " + task, e));
+				} finally
+				{
+					if(track != null)
+						trans.getTracker().end(track);
 				}
 			}
 		}
@@ -408,26 +600,48 @@ public class PrismsSession
 		return events;
 	}
 
-	/**
-	 * Initializes this session for a client that has just connected or reconnected to it
-	 */
+	/** Initializes this session for a client that has just connected or reconnected to it */
 	public void init()
 	{
 		clearOutgoingQueue();
 		final boolean [] finished = new boolean [] {false};
+		final PrismsTransaction trans = getApp().getEnvironment().transact(PrismsSession.this,
+			PrismsTransaction.Stage.initSession);
 		try
 		{
+			TrackNode track;
+			for(java.util.Map.Entry<String, AppPlugin> p : theStandardPlugins.entrySet())
+			{
+				track = trans.getTracker().start("PRISMS:Initializing " + p.getKey());
+				try
+				{
+					p.getValue().initClient();
+				} catch(Throwable e)
+				{
+					log.error("Could not client-initialize " + p.getKey(), e);
+					JSONObject event = new JSONObject();
+					event.put("method", "error");
+					event.put("message",
+						"Could not initialize " + p.getKey() + ": " + e.getMessage());
+					postOutgoingEvent(event);
+				} finally
+				{
+					trans.getTracker().end(track);
+				}
+			}
+
 			java.util.Map.Entry<String, AppPlugin> [] plugins;
 			synchronized(thePlugins)
 			{
 				plugins = thePlugins.entrySet()
 					.toArray(new java.util.Map.Entry [thePlugins.size()]);
 			}
-			long time = System.currentTimeMillis();
 			for(java.util.Map.Entry<String, AppPlugin> p : plugins)
 			{
+				track = trans.getTracker().start("PRISMS:Initializing plugin " + p.getKey());
 				try
 				{
+					long time = System.currentTimeMillis();
 					p.getValue().initClient();
 					long newTime = System.currentTimeMillis();
 					if(log.isDebugEnabled())
@@ -437,7 +651,7 @@ public class PrismsSession
 						toPrint.append(p.getKey());
 						toPrint.append(" in ");
 						toPrint.append(prisms.util.PrismsUtils.printTimeLength(newTime - time));
-						log.debug(toPrint);
+						log.debug(toPrint.toString());
 					}
 				} catch(Throwable e)
 				{
@@ -447,11 +661,15 @@ public class PrismsSession
 					event.put("message",
 						"Could not initialize plugin " + p.getKey() + ": " + e.getMessage());
 					postOutgoingEvent(event);
+				} finally
+				{
+					trans.getTracker().end(track);
 				}
 			}
 		} finally
 		{
 			finished[0] = true;
+			getApp().getEnvironment().finish(trans);
 		}
 		renew();
 	}
@@ -497,10 +715,10 @@ public class PrismsSession
 		{
 			throw new IllegalArgumentException("Could not serialize event", e);
 		}
-		JSONArray serviceOut = theInvocations.get(Thread.currentThread());
-		if(serviceOut != null)
+		PrismsTransaction trans = theApp.getEnvironment().getTransaction();
+		if(trans != null && trans.isSynchronous())
 		{
-			serviceOut.add(evt);
+			trans.respond(evt);
 			return;
 		}
 		else if(theClient.isService())
@@ -565,6 +783,12 @@ public class PrismsSession
 		}
 	}
 
+	/** @return All properties for which values are set in this session */
+	public PrismsProperty<?> [] getAllProperties()
+	{
+		return theProperties.keySet().toArray(new PrismsProperty [theProperties.size()]);
+	}
+
 	/**
 	 * @param <T> The type of property to get
 	 * @param property The name of the property to get the value of
@@ -598,6 +822,8 @@ public class PrismsSession
 		/* Many property sets can be going on at once, but only one for each property in a session */
 		synchronized(getPropertyLock(propName))
 		{
+			PrismsPCE<T> propEvt = new PrismsPCE<T>(getApp(), this, propName,
+				(T) theProperties.get(propName), propValue);
 			PrismsPCL<T> [] listeners;
 			thePropertyStack.put(propName, this);
 			if(propValue == null)
@@ -606,8 +832,6 @@ public class PrismsSession
 				theProperties.put(propName, propValue);
 			listeners = getPropertyChangeListeners(propName);
 
-			PrismsPCE<T> propEvt = new PrismsPCE<T>(getApp(), this, propName,
-				(T) theProperties.get(propName), propValue);
 			for(int i = 0; i < eventProps.length; i += 2)
 			{
 				if(!(eventProps[i] instanceof String))
@@ -616,12 +840,27 @@ public class PrismsSession
 						+ "] is not a string");
 				propEvt.set((String) eventProps[i], eventProps[i + 1]);
 			}
+			PrismsTransaction trans = theApp.getEnvironment().getTransaction();
 			for(PrismsPCL<T> l : listeners)
 			{
-				l.propertyChange(propEvt);
+				TrackNode track = null;
+				if(trans != null)
+					track = trans.getTracker().start(
+						"PRISMS: Listener " + l + " to property " + propName + " notified");
+				try
+				{
+					l.propertyChange(propEvt);
+				} finally
+				{
+					if(track != null)
+						trans.getTracker().end(track);
+				}
 				/* If this property is changed as a result of the above PCL, stop this notification */
 				if(!thePropertyStack.containsKey(propName))
+				{
+					propEvt.set("canceled", Boolean.TRUE);
 					break;
+				}
 			}
 			thePropertyStack.remove(propName);
 		}
@@ -695,7 +934,8 @@ public class PrismsSession
 	 * @param propName The name of the property to remove the listener from
 	 * @param pcl The PropertyChangeListener to remove
 	 */
-	public <T> void removePropertyChangeListener(PrismsProperty<T> propName, PrismsPCL<T> pcl)
+	public <T> void removePropertyChangeListener(PrismsProperty<T> propName,
+		PrismsPCL<? super T> pcl)
 	{
 		thePCLs.removeListener(propName, pcl);
 	}
@@ -707,9 +947,23 @@ public class PrismsSession
 	 */
 	public void fireEvent(PrismsEvent event)
 	{
+		PrismsTransaction trans = theApp.getEnvironment().getTransaction();
 		PrismsEventListener [] listeners = getEventListeners(event.name);
 		for(PrismsEventListener l : listeners)
-			l.eventOccurred(this, event);
+		{
+			TrackNode track = null;
+			if(trans != null)
+				track = trans.getTracker().start(
+					"PRISMS: Listener " + l + " for event " + event.name + " notified");
+			try
+			{
+				l.eventOccurred(this, event);
+			} finally
+			{
+				if(track != null)
+					trans.getTracker().end(track);
+			}
+		}
 	}
 
 	/**
@@ -775,12 +1029,16 @@ public class PrismsSession
 		theELs.removeListener(eventName, el);
 	}
 
-	/**
-	 * Discards all outgoing events posted since the last process call
-	 */
+	/** Discards all outgoing events posted since the last process call */
 	public void clearOutgoingQueue()
 	{
 		theOutgoingQueue.clear();
+	}
+
+	/** @return The last time the user or client interacted with this session */
+	public long getLastAccess()
+	{
+		return theLastCheckedTime;
 	}
 
 	/**
@@ -795,11 +1053,35 @@ public class PrismsSession
 	}
 
 	/**
-	 * Called when the session is no longer accessible or needed
+	 * Kills this session
+	 * 
+	 * @param manager The manager application. If this argument is not the manager application, this
+	 *        method will throw an exception
 	 */
+	public void kill(PrismsApplication manager)
+	{
+		if(!theApp.getEnvironment().isManager(manager))
+			throw new IllegalArgumentException("Only the manager application may kill sessions");
+		isKilled = true;
+	}
+
+	/** @return Whether this session has been killed */
+	public boolean isKilled()
+	{
+		return isKilled;
+	}
+
+	/** Called when the session is no longer accessible or needed */
 	public void destroy()
 	{
 		getApp().removeSession(this);
 		fireEvent(new PrismsEvent("destroy"));
+	}
+
+	@Override
+	public String toString()
+	{
+		return theApp.getName() + "/" + theClient.getName() + " session #"
+			+ Integer.toHexString(hashCode()) + " for " + theUser.getName();
 	}
 }

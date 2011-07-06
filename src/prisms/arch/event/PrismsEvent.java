@@ -34,7 +34,8 @@ public class PrismsEvent
 		name = aName.intern();
 		theProperties = new java.util.HashMap<String, Object>(evtProps == null ? 4
 			: evtProps.size() + 2);
-		theProperties.putAll(evtProps);
+		if(evtProps != null)
+			theProperties.putAll(evtProps);
 	}
 
 	/**
@@ -88,14 +89,30 @@ public class PrismsEvent
 	/** @return All properties set in this event in the form [name, value, name, value...] */
 	public Object [] getPropertyList()
 	{
-		Object [] ret = new Object [theProperties.size() * 2];
-		int i = 0;
-		for(java.util.Map.Entry<String, Object> entry : theProperties.entrySet())
+		String [] keys = theProperties.keySet().toArray(new String [0]);
+		int i = keys.length;
+		for(String key : keys)
+			if(key == null)
+				i--;
+		Object [] ret = new Object [i * 2];
+		i = 0;
+		for(String key : keys)
 		{
-			ret[i] = entry.getKey();
-			ret[i + 1] = entry.getValue();
+			if(key == null)
+				continue;
+			ret[i] = key;
+			ret[i + 1] = theProperties.get(key);
 			i += 2;
 		}
+		return ret;
+	}
+
+	@Override
+	public String toString()
+	{
+		String ret = "PrismsEvent " + name;
+		if(theProperties != null && !theProperties.isEmpty())
+			ret += ":" + theProperties;
 		return ret;
 	}
 }

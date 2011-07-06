@@ -4,9 +4,9 @@
 package prisms.arch;
 
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 
 import prisms.arch.event.*;
 
@@ -49,7 +49,15 @@ public class PrismsApplication
 
 		private PrismsSession theSession;
 
-		ApplicationLock(String message, int scale, int progress, PrismsSession session)
+		/**
+		 * Creates an application lock
+		 * 
+		 * @param message The message to display to the user
+		 * @param scale The scale of the task that is blocking the application
+		 * @param progress The progress of the task that is blocking the application
+		 * @param session The session that should not be locked out
+		 */
+		public ApplicationLock(String message, int scale, int progress, PrismsSession session)
 		{
 			theMessage = message;
 			theScale = scale;
@@ -88,9 +96,7 @@ public class PrismsApplication
 			return theProgress;
 		}
 
-		/**
-		 * @return The session that is responsible for locking the application (may be null)
-		 */
+		/** @return The session that is responsible for locking the application (may be null) */
 		public PrismsSession getLockingSession()
 		{
 			return theSession;
@@ -105,20 +111,30 @@ public class PrismsApplication
 		}
 	}
 
+	/** Watches for new sessions or purged sessions */
+	public static interface SessionWatcher
+	{
+		/** @param session The new session for the application */
+		void sessionAdded(PrismsSession session);
+
+		/** @param session The purged session */
+		void sessionRemoved(PrismsSession session);
+	}
+
 	private static class EventListenerType
 	{
 		final String theEventName;
 
 		final Class<? extends PrismsEventListener> theListenerType;
 
-		final Element theConfigEl;
+		final PrismsConfig theConfig;
 
 		EventListenerType(String eventName, Class<? extends PrismsEventListener> listenerType,
-			Element configEl)
+			PrismsConfig config)
 		{
 			theEventName = eventName;
 			theListenerType = listenerType;
-			theConfigEl = configEl;
+			theConfig = config;
 		}
 	}
 
@@ -126,12 +142,12 @@ public class PrismsApplication
 	{
 		final Class<? extends SessionMonitor> theMonitorType;
 
-		final Element theConfigEl;
+		final PrismsConfig theConfig;
 
-		MonitorType(Class<? extends SessionMonitor> monitorType, Element configEl)
+		MonitorType(Class<? extends SessionMonitor> monitorType, PrismsConfig config)
 		{
 			theMonitorType = monitorType;
-			theConfigEl = configEl;
+			theConfig = config;
 		}
 	}
 
@@ -161,7 +177,7 @@ public class PrismsApplication
 
 	private final ArrayList<MonitorType> theMonitorTypes;
 
-	private final java.util.concurrent.ConcurrentHashMap<String, PrismsEventListener []> theGlobalListeners;
+	private final ConcurrentHashMap<String, PrismsEventListener []> theGlobalListeners;
 
 	private final ArrayList<ScheduledTask> theOneTimeTasks;
 
@@ -169,16 +185,22 @@ public class PrismsApplication
 
 	private final ArrayList<Runnable> theDestroyTasks;
 
-	private final java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object> thePropertyLocks;
+	private final ConcurrentHashMap<PrismsProperty<?>, Object> thePropertyLocks;
 
-	private final java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, PrismsApplication> thePropertyStack;
+	private final ConcurrentHashMap<PrismsProperty<?>, PrismsApplication> thePropertyStack;
+
+	private final prisms.util.TrackerSet theTrackSet;
+
+	private int theFollowedReloadPropsCommand;
+
+	private int theFollowedReloadSessionsCommand;
 
 	@SuppressWarnings("rawtypes")
 	private final ListenerManager<PrismsPCL> thePCLs;
 
-	private Worker theWorker;
-
 	private ApplicationLock theAppLock;
+
+	private SessionWatcher [] theWatchers;
 
 	/**
 	 * Creates a PluginApplication
@@ -200,19 +222,21 @@ public class PrismsApplication
 		theVersion = version;
 		theModifiedDate = modifiedDate;
 		theConfigurator = configurator;
+		theWatchers = new SessionWatcher [0];
 		theClientConfigs = new java.util.LinkedHashMap<String, ClientConfig>();
 		thePermissions = new java.util.LinkedHashMap<String, Permission>();
 		theSessions = new java.util.concurrent.ConcurrentLinkedQueue<PrismsSession>();
 		theManagers = new ArrayList<PropertyManager<?>>();
 		theELTypes = new java.util.ArrayList<EventListenerType>();
 		theMonitorTypes = new java.util.ArrayList<MonitorType>();
-		theGlobalListeners = new java.util.concurrent.ConcurrentHashMap<String, PrismsEventListener []>();
+		theGlobalListeners = new ConcurrentHashMap<String, PrismsEventListener []>();
 		theOneTimeTasks = new ArrayList<ScheduledTask>();
 		theRecurringTasks = new ArrayList<ScheduledTask>();
 		theDestroyTasks = new ArrayList<Runnable>();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
-		thePropertyLocks = new java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, Object>();
-		thePropertyStack = new java.util.concurrent.ConcurrentHashMap<PrismsProperty<?>, PrismsApplication>();
+		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, Object>();
+		thePropertyStack = new ConcurrentHashMap<PrismsProperty<?>, PrismsApplication>();
+		theTrackSet = new prisms.util.TrackerSet("App: " + name, null);
 	}
 
 	/** @return The environment that this application is used in */
@@ -235,6 +259,8 @@ public class PrismsApplication
 	 */
 	public void setConfigured(Object config)
 	{
+		if(theConfigurator == null)
+			throw new IllegalStateException("Application " + this + " is already configured");
 		if(config == theConfigurator)
 		{
 			theConfigurator = null;
@@ -242,6 +268,17 @@ public class PrismsApplication
 		}
 		else
 			throw new IllegalArgumentException("Configurator is not correct");
+		prisms.arch.ds.UserSource.ApplicationStatus status;
+		try
+		{
+			theTrackSet.setConfigured();
+			status = theEnv.getUserSource().getApplicationStatus(this);
+			theFollowedReloadPropsCommand = status.reloadPropsCommand;
+			theFollowedReloadSessionsCommand = status.reloadSessionsCommand;
+		} catch(PrismsException e)
+		{
+			log.error("Could not get applications status", e);
+		}
 	}
 
 	/** @return The name of this application */
@@ -277,17 +314,13 @@ public class PrismsApplication
 		return ret.toString();
 	}
 
-	/**
-	 * @return The time when this application was last developed
-	 */
+	/** @return The time when this application was last developed */
 	public long getModifiedDate()
 	{
 		return theModifiedDate;
 	}
 
-	/**
-	 * @return The time when this application was last developed, as a string
-	 */
+	/** @return The time when this application was last developed, as a string */
 	public String getModifiedDateString()
 	{
 		if(theModifiedDate <= 0)
@@ -360,6 +393,12 @@ public class PrismsApplication
 		thePermissions.put(permission.getName(), permission);
 	}
 
+	/** @return The track set that keeps track of performance for this application */
+	public prisms.util.TrackerSet getTrackSet()
+	{
+		return theTrackSet;
+	}
+
 	/**
 	 * Tells this application to manage a property, ensuring that all sessions in this application
 	 * always have access to the appropriate value
@@ -377,9 +416,7 @@ public class PrismsApplication
 			s.addPropertyChangeListener(manager.getProperty(), manager);
 	}
 
-	/**
-	 * @return All property managers registered with this application
-	 */
+	/** @return All property managers registered with this application */
 	public PropertyManager<?> [] getManagers()
 	{
 		return theManagers.toArray(new PropertyManager [theManagers.size()]);
@@ -404,30 +441,31 @@ public class PrismsApplication
 	 * 
 	 * @param eventName The name of the event to listener
 	 * @param listenerType The class of the listener to create for each session
-	 * @param configEl The element used to configure new instances of the listener type
+	 * @param config The configuration used to configure new instances of the listener type
 	 */
 	public void addEventListenerType(String eventName,
-		Class<? extends PrismsEventListener> listenerType, Element configEl)
+		Class<? extends PrismsEventListener> listenerType, PrismsConfig config)
 	{
-		theELTypes.add(new EventListenerType(eventName, listenerType, configEl));
+		theELTypes.add(new EventListenerType(eventName, listenerType, config));
 	}
 
 	/**
 	 * Adds a template for a session monitor, which will be added to each session as it is created
 	 * 
 	 * @param monitorType The class of the monitor to create for each session
-	 * @param configEl The configuration element to configure the monitor
+	 * @param config The configuration element to configure the monitor
 	 */
-	public void addMonitorType(Class<? extends SessionMonitor> monitorType,
-		org.dom4j.Element configEl)
+	public void addMonitorType(Class<? extends SessionMonitor> monitorType, PrismsConfig config)
 	{
-		theMonitorTypes.add(new MonitorType(monitorType, configEl));
+		theMonitorTypes.add(new MonitorType(monitorType, config));
 	}
 
 	/**
 	 * Adds an event listener to listen to an event whatever session it occurs in. The listener will
 	 * receive an event as many times as there are sessions when the event fires each time the event
-	 * fires.
+	 * fires. If there are no sessions when the event fires (but the application has been
+	 * configured), the listener will receive the event once with a null session argument, but with
+	 * the application set in an event property named "globalEventApp".
 	 * 
 	 * @param eventName The name of the event to listen to, or null to listen to every event
 	 * @param listener The listener to listen for the event
@@ -546,6 +584,7 @@ public class PrismsApplication
 		PropertyManager<T> manager = null;
 		synchronized(getPropertyLock(prop))
 		{
+			PrismsTransaction trans = theEnv.getTransaction();
 			for(PropertyManager<?> mgr : theManagers)
 			{
 				if(mgr != manager && mgr.getProperty().equals(prop))
@@ -553,7 +592,19 @@ public class PrismsApplication
 					PropertyManager<T> propMgr = (PropertyManager<T>) mgr;
 					if(manager == null && propMgr.getApplicationValue(this) != null)
 						manager = propMgr;
-					propMgr.propertyChange(propEvt);
+					prisms.util.ProgramTracker.TrackNode track = null;
+					if(trans != null)
+						track = trans.getTracker().start(
+							"PRISMS: Global listener " + propMgr + " to property " + prop
+								+ " notified");
+					try
+					{
+						propMgr.propertyChange(propEvt);
+					} finally
+					{
+						if(track != null)
+							trans.getTracker().end(track);
+					}
 				}
 			}
 			value = getGlobalProperty(prop);
@@ -683,24 +734,49 @@ public class PrismsApplication
 			if(session_i == session)
 			{
 				if(!excludeSession)
-					task.run(session);
+				{
+					prisms.util.ProgramTracker.TrackNode event = null;
+					PrismsTransaction trans = getEnvironment().getTransaction();
+					if(trans != null)
+						event = trans.getTracker().start(
+							"PRISMS: Running session task " + task + " synchronously on session "
+								+ session);
+					try
+					{
+						task.run(session);
+					} finally
+					{
+						if(event != null)
+							trans.getTracker().end(event);
+					}
+				}
 			}
 			else
 			{
 				final PrismsSession s = session_i;
-				final Exception e = new Exception();
+				final StackTraceElement [] trace = Thread.currentThread().getStackTrace();
 				s.runEventually(new Runnable()
 				{
 					public void run()
 					{
+						prisms.util.ProgramTracker.TrackNode event = null;
+						PrismsTransaction trans = getEnvironment().getTransaction();
+						if(trans != null)
+							event = trans.getTracker().start(
+								"PRISMS: Running session task " + task
+									+ " asynchronously on session " + s);
 						try
 						{
 							task.run(s);
-						} catch(RuntimeException e2)
+						} catch(RuntimeException e)
 						{
-							e2.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(
-								e2.getStackTrace(), e.getStackTrace(), getClass().getName(), "run"));
-							throw e2;
+							e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(
+								e.getStackTrace(), trace, getClass().getName(), "run"));
+							throw e;
+						} finally
+						{
+							if(event != null)
+								trans.getTracker().end(event);
 						}
 					}
 				});
@@ -717,13 +793,37 @@ public class PrismsApplication
 	public void fireGlobally(PrismsSession session, final PrismsEvent toFire)
 	{
 		toFire.setProperty(GLOBALIZED_EVENT_PROPERTY, Boolean.TRUE);
-		runSessionTask(session, new SessionTask()
+		if(theSessions.isEmpty())
 		{
-			public void run(PrismsSession s)
+			Object oldApp = toFire.getProperty("globalEventApp");
+			toFire.setProperty("globalEventApp", this);
+			try
 			{
-				s.fireEvent(toFire);
+				PrismsEventListener [] Ls = theGlobalListeners.get(toFire.name);
+				if(Ls != null)
+					for(PrismsEventListener L : Ls)
+						L.eventOccurred(null, toFire);
+			} finally
+			{
+				toFire.setProperty("globalEventApp", oldApp);
 			}
-		}, false);
+		}
+		else
+		{
+			runSessionTask(session, new SessionTask()
+			{
+				public void run(PrismsSession s)
+				{
+					s.fireEvent(toFire);
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Firing event " + toFire.name + " globally";
+				}
+			}, false);
+		}
 	}
 
 	/**
@@ -737,6 +837,16 @@ public class PrismsApplication
 		addEventListeners(session);
 		addSessionMonitors(session);
 		theSessions.add(session);
+		for(SessionWatcher watcher : theWatchers)
+		{
+			try
+			{
+				watcher.sessionAdded(session);
+			} catch(Throwable e)
+			{
+				log.error("Session watcher failed", e);
+			}
+		}
 	}
 
 	/**
@@ -770,6 +880,25 @@ public class PrismsApplication
 	}
 
 	/**
+	 * Stops a task that has been scheduled to recur
+	 * 
+	 * @param task The task that was scheduled with {@link #scheduleRecurringTask(Runnable, long)}
+	 */
+	public void stopRecurringTask(Runnable task)
+	{
+		synchronized(theRecurringTasks)
+		{
+			java.util.Iterator<ScheduledTask> iter = theRecurringTasks.iterator();
+			while(iter.hasNext())
+				if(task.equals(iter.next().theTask))
+				{
+					iter.remove();
+					break;
+				}
+		}
+	}
+
+	/**
 	 * Locks this application from user interaction or unlocks it
 	 * 
 	 * @param message The message that should be displayed to users who try to access the
@@ -780,8 +909,10 @@ public class PrismsApplication
 	 *        {@link ApplicationLock#getScale()})
 	 * @param locker The session that locked the application--the application will not be locked
 	 *        against this session
+	 * @throws PrismsException If the app lock cannot be set in the environment
 	 */
 	public void setApplicationLock(String message, int scale, int progress, PrismsSession locker)
+		throws PrismsException
 	{
 		if(message == null)
 			theAppLock = null;
@@ -789,21 +920,54 @@ public class PrismsApplication
 			theAppLock = new ApplicationLock(message, scale, progress, locker);
 		else
 			theAppLock.set(message, scale, progress, locker);
+
+		theEnv.getUserSource().setApplicationLock(this, theAppLock);
 	}
 
 	/**
 	 * @return The application lock detailing the information to be displayed to users who try to
 	 *         access the application if it is locked, or null if the application is not locked
+	 * @throws PrismsException If the app lock cannot be retrieved from the environment
 	 */
-	public ApplicationLock getApplicationLock()
+	public ApplicationLock getApplicationLock() throws PrismsException
 	{
+		if(theAppLock == null)
+		{
+			prisms.arch.ds.UserSource.ApplicationStatus status = theEnv.getUserSource()
+				.getApplicationStatus(this);
+			if(status.reloadPropsCommand >= 0
+				&& status.reloadPropsCommand != theFollowedReloadPropsCommand)
+			{
+				_reloadProperties();
+				theFollowedReloadPropsCommand = status.reloadPropsCommand;
+			}
+			if(status.reloadSessionsCommand >= 0
+				&& status.reloadSessionsCommand != theFollowedReloadSessionsCommand)
+			{
+				runScheduledTasks();
+				_reloadSessions();
+				theFollowedReloadSessionsCommand = status.reloadSessionsCommand;
+			}
+			return status.lock;
+		}
 		return theAppLock;
 	}
 
-	/**
-	 * Causes all sessions of this application to reload themselves
-	 */
-	public void reloadAll()
+	/** Causes all sessions of this application to reload themselves */
+	public void reloadSessions()
+	{
+		try
+		{
+			theEnv.getUserSource().reloadSessions(this);
+		} catch(PrismsException e)
+		{
+			log.error("Could not distribute command to reload sessions through PRISMS environment",
+				e);
+		}
+		_reloadSessions();
+	}
+
+	private void _reloadSessions()
 	{
 		PrismsSession [] sessions = getSessions();
 		for(PrismsSession session : sessions)
@@ -815,11 +979,22 @@ public class PrismsApplication
 		}
 	}
 
-	/**
-	 * Reloads the persistent properties in this application from their respective data sources
-	 */
-	@SuppressWarnings("rawtypes")
+	/** Reloads the persistent properties in this application from their respective data sources */
 	public void reloadProperties()
+	{
+		try
+		{
+			theEnv.getUserSource().reloadProperties(this);
+		} catch(PrismsException e)
+		{
+			log.error(
+				"Could not distribute command to reload properties through PRISMS environment", e);
+		}
+		_reloadProperties();
+	}
+
+	@SuppressWarnings("rawtypes")
+	private void _reloadProperties()
 	{
 		for(PropertyManager manager : theManagers)
 		{
@@ -842,9 +1017,7 @@ public class PrismsApplication
 		}
 	}
 
-	/**
-	 * Runs tasks that are scheduled with this application to be run
-	 */
+	/** Runs tasks that are scheduled with this application to be run */
 	protected void runScheduledTasks()
 	{
 		long currentTime = System.currentTimeMillis();
@@ -865,7 +1038,23 @@ public class PrismsApplication
 				theRecurringTasks.toArray(new ScheduledTask [0]));
 		}
 		for(ScheduledTask t : tasks)
-			t.run(currentTime);
+		{
+			prisms.util.ProgramTracker.TrackNode event = null;
+			PrismsTransaction trans = getEnvironment().getTransaction();
+			if(trans != null)
+				event = trans.getTracker().start("PRISMS: Executing scheduled task " + t);
+			try
+			{
+				t.run(currentTime);
+			} catch(Throwable e)
+			{
+				log.error("Could not execute scheduled task " + t, e);
+			} finally
+			{
+				if(event != null)
+					trans.getTracker().end(event);
+			}
+		}
 	}
 
 	/**
@@ -886,7 +1075,8 @@ public class PrismsApplication
 			try
 			{
 				if(!mgr.isValueCorrect(session, session.getProperty(mgr.getProperty())))
-					session.setProperty(mgr.getProperty(), mgr.getCorrectValue(session));
+					session.setProperty(mgr.getProperty(), mgr.getCorrectValue(session),
+						"prismsPersisted", Boolean.TRUE);
 				session.addPropertyChangeListener(mgr.getProperty(), mgr);
 			} catch(RuntimeException e)
 			{
@@ -930,7 +1120,7 @@ public class PrismsApplication
 			{
 				try
 				{
-					((ConfiguredPEL) pel).configure(session, elt.theConfigEl);
+					((ConfiguredPEL) pel).configure(session, elt.theConfig);
 				} catch(Throwable e)
 				{
 					log.error("Could not configure listener " + elt.theEventName
@@ -963,7 +1153,14 @@ public class PrismsApplication
 				log.error("Could not instantiate session monitor " + mt.theMonitorType, e);
 				continue;
 			}
-			sm.register(session, mt.theConfigEl);
+			try
+			{
+				sm.register(session, mt.theConfig);
+			} catch(Throwable e)
+			{
+				log.error("could not register session monitor " + mt.theMonitorType
+					+ " for application " + theName, e);
+			}
 		}
 	}
 
@@ -975,11 +1172,48 @@ public class PrismsApplication
 	void removeSession(PrismsSession session)
 	{
 		theSessions.remove(session);
+		for(SessionWatcher watcher : theWatchers)
+		{
+			try
+			{
+				watcher.sessionRemoved(session);
+			} catch(Throwable e)
+			{
+				log.error("Session watcher failed", e);
+			}
+		}
 	}
 
 	/**
-	 * @return The list of active sessions that this application serves
+	 * Allows access to the complete set of sessions, but only for the manager application
+	 * 
+	 * @param watcher The session watcher to be notified when sessions are added or removed
+	 * @param manager The manager application for this environment. If this is not the manager, this
+	 *        method will throw an exception
+	 * @return The current set of sessions
 	 */
+	public PrismsSession [] watchSessions(SessionWatcher watcher, PrismsApplication manager)
+	{
+		if(manager == null || !theEnv.isManager(manager))
+			throw new IllegalArgumentException(
+				"Only the manager app may have unrestricted access to the set of sessions");
+		synchronized(theWatchers)
+		{
+			theWatchers = prisms.util.ArrayUtils.add(theWatchers, watcher);
+			return theSessions.toArray(new PrismsSession [theSessions.size()]);
+		}
+	}
+
+	/** @param watcher The watcher to remove from listening for sessions */
+	public void stopWatching(SessionWatcher watcher)
+	{
+		synchronized(theWatchers)
+		{
+			theWatchers = prisms.util.ArrayUtils.remove(theWatchers, watcher);
+		}
+	}
+
+	/** @return The list of active sessions that this application serves */
 	private PrismsSession [] getSessions()
 	{
 		return theSessions.toArray(new PrismsSession [theSessions.size()]);
@@ -998,9 +1232,7 @@ public class PrismsApplication
 		}
 	}
 
-	/**
-	 * Called when the application is no longer accessible or needed
-	 */
+	/** Called when the application is no longer accessible or needed */
 	public void destroy()
 	{
 		java.util.Iterator<PrismsSession> iter = theSessions.iterator();
@@ -1025,34 +1257,11 @@ public class PrismsApplication
 				}
 			}
 		}
-		if(theWorker != null)
-			theWorker.close();
-	}
-
-	/**
-	 * @return This application's worker for running background tasks
-	 */
-	public Worker getWorker()
-	{
-		return theWorker;
-	}
-
-	/**
-	 * Sets the worker that does background tasks for this application
-	 * 
-	 * @param w The worker to set for the application
-	 */
-	public void setWorker(Worker w)
-	{
-		Worker oldWorker = theWorker;
-		theWorker = w;
-		if(oldWorker != null)
-			oldWorker.close();
 	}
 
 	private static class ScheduledTask
 	{
-		private final Runnable theTask;
+		final Runnable theTask;
 
 		private long theTime;
 
@@ -1078,6 +1287,12 @@ public class PrismsApplication
 				theTime = currentTime + theFrequency;
 			theTask.run();
 			return true;
+		}
+
+		@Override
+		public String toString()
+		{
+			return theTask.toString();
 		}
 	}
 

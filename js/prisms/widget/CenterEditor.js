@@ -1,6 +1,9 @@
 
+__dojo.require("prisms.widget.TabWidget");
+__dojo.require("prisms.widget.CertificateViewer");
+
 __dojo.provide("prisms.widget.CenterEditor");
-__dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Templated, __dijit._Container], {
+__dojo.declare("prisms.widget.CenterEditor", [prisms.widget.TabWidget, __dijit._Templated, __dijit._Container], {
 
 	prisms: null,
 
@@ -9,6 +12,8 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 	templatePath: "__webContentRoot/view/prisms/templates/centerEditor.html",
 
 	widgetsInTemplate: true,
+
+	visible: true,
 
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
@@ -27,10 +32,15 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 	setPrisms: function(prisms){
 		this.prisms=prisms;
 		this.prisms.loadPlugin(this);
+		if(!this.visible)
+			this.setVisible(false);
+		delete this["visible"];
 	},
 
 	processEvent: function(event){
-		if(event.method=="setCenter")
+		if(event.method=="hide")
+			this.setVisible(false);
+		else if(event.method=="setCenter")
 			this.setCenter(event.center, event.show);
 		else if(event.method=="setUsers")
 			this.setUsers(event.users);
@@ -43,12 +53,22 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 		}
 		else if(event.method=="displaySyncInfo")
 			this.displaySyncInfo(event.message, event.data);
+		else if(event.method=="showCertificate")
+			this.showCertificate(event.certificate);
+		else if(event.method=="checkCertificate")
+			this.checkCertificate(event.newCert, event.oldCert);
 		else
 			throw new Error("Unrecognized "+this.pluginName+" method "+event.method);
 	},
 
 	shutdown: function(){
-		this.setVisible(false);
+		this.setEditorVisible(false);
+		this.certlock=true;
+		try{
+			this.certificateDialog.hide();
+		} finally{
+			this.certLock=false;
+		}
 	},
 
 	setEnabled: function(enabled, purgeEnabled){
@@ -68,10 +88,14 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 		this.exportPurgeButton.setAttribute("disabled", !purgeEnabled);
 	},
 
-	setVisible: function(visible, show) {
+	setEditorVisible: function(visible, show) {
+		var oldSelect=this.isSelected();
+		this.setVisible(true);
+		if(!show && !oldSelect)
+			this.setSelected(false);
 		this.domNode.style.display = visible ? "block" : "none";
 		if(visible && show)
-			PrismsUtils.displayTab(this);
+			this.setVisible(true, true);
 	},
 
 	setUsers: function(users){
@@ -102,26 +126,53 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 	setCenter: function(center, show) {
 		if(!center)
 		{
-			this.setVisible(false);
+			this.setEditorVisible(false);
 			return;
 		}
 
-		this.setVisible(true, show);
-		this.titleCell.innerHTML='Center "'+center.name+'"';
+		this.setEditorVisible(true, show);
+		this.titleCell.innerHTML=PrismsUtils.fixUnicodeString('Center "'+center.name+'"');
 		this.center=center;
 		this.dataLock=true;
 		try{
-			if (center.name==null)
+			if(center.name==null)
 				center.name="";
-			if (center.url==null)
+			if(center.url==null)
 				center.url="";
-			if (center.serverUserName==null)
+			if(center.serverUserName==null)
 				center.serverUserName="";
-			this.nameField.value=center.name;
-			this.urlField.value=center.url;
-			this.serverUserField.value=center.serverUserName;
-			this.syncFreqEditor.setValue({seconds: center.syncFrequency});
-//			this.modSaveTimeEditor.setValue({seconds: center.modificationSaveTime});
+			if(this.nameField.value!=center.name)
+				this.nameField.value=center.name;
+			if(this.urlField.value!=center.url)
+				this.urlField.value=center.url;
+			PrismsUtils.setTableCellVisible(this.certViewIcon, center.url.indexOf("https://")==0);
+			if(this.serverUserField.value!=center.serverUserName)
+				this.serverUserField.value=center.serverUserName;
+			if(this.syncFreqEditor.getValue().seconds!=center.syncFrequency)
+				this.syncFreqEditor.setValue({seconds: center.syncFrequency});
+			PrismsUtils.setTableCellVisible(this.centerStatusCell, center.status);
+			if(center.status)
+			{
+				this.centerStatusCell.innerHTML=center.status;
+				switch(center.quality)
+				{
+				case "GOOD":
+					this.centerStatusCell.style.color="#00c000";
+					break;
+				case "NORMAL":
+					this.centerStatusCell.style.color="#a0a0a0";
+					break;
+				case "POOR":
+					this.centerStatusCell.style.color="#a0a000";
+					break;
+				case "BAD":
+					this.centerStatusCell.style.color="#ff0000";
+					break;
+				default:
+					this.centerStatusCell.style.color="black";
+					break;
+				}
+			}
 			if(center.clientUser)
 			{
 				for(var i=0;i<this.clientUserSelect.options.length;i++)
@@ -134,6 +185,50 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 		} finally{
 			this.dataLock=false;
 		}
+	},
+
+	showCertificate: function(cert){
+		this.certDialogText1.containerNode.innerHTML="Center "+PrismsUtils.fixUnicodeString(this.center.name)
+			+" currently recognizes the following security certificate:";
+		this.acceptButton.setLabel("OK");
+		this.denyButton.setLabel("Clear");
+
+		this.certificateDialog.domNode.style.width="320px";
+		this.comparePane.domNode.style.display="none";
+		this.soloViewer.domNode.style.display="block";
+		this.soloViewer.setValue(cert);
+		this.certDialogText2.containerNode.innerHTML="";
+
+		this.isChecking=false;
+		this.certificateDialog.show();
+	},
+
+	checkCertificate: function(newCert, oldCert){
+		this.certDialogText1.containerNode.innerHTML="Center "+PrismsUtils.fixUnicodeString(this.center.name)
+			+" has presented a security certificate:";
+		this.acceptButton.setLabel("Accept");
+		this.denyButton.setLabel("Deny");
+		if(oldCert)
+		{
+			this.certificateDialog.domNode.style.width="700px";
+			this.soloViewer.domNode.style.display="none";
+			this.comparePane.domNode.style.display="block";
+			this.oldCertViewer.setValue(oldCert);
+			this.newCertViewer.setValue(newCert);
+			this.certDialogText2.containerNode.innerHTML="Do you want to accept the new certificate?<br />"
+				+"Make sure you trust the certificate before clicking \"Accept\".";
+		}
+		else
+		{
+			this.certificateDialog.domNode.style.width="320px";
+			this.comparePane.domNode.style.display="none";
+			this.soloViewer.domNode.style.display="block";
+			this.soloViewer.setValue(newCert);
+			this.certDialogText2.containerNode.innerHTML="Do you want to accept the certificate?<br />"
+				+"Make sure you trust the certificate before clicking \"Accept\".";
+		}
+		this.isChecking=true;
+		this.certificateDialog.show();
 	},
 
 	_nameChanged: function(){
@@ -157,7 +252,9 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 	_urlChanged: function(){
 		if(this.dataLock)
 			return;
-		this.prisms.callApp(this.pluginName, "setURL", {url: this.urlField.value});
+		var url=this.urlField.value;
+		PrismsUtils.setTableCellVisible(this.certViewIcon, url.indexOf("https://")==0);
+		this.prisms.callApp(this.pluginName, "setURL", {url: url});
 	},
  
 	_serverUserChanged: function(){
@@ -196,13 +293,6 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 		this.prisms.callApp(this.pluginName, "setSyncFrequency", {freq: this.syncFreqEditor.getValue()});
 	},
 
-//	_modSaveTimeChanged: function(){
-//		if(this.dataLock)
-//			return;
-//		this.prisms.callApp(this.pluginName, "setModificationSaveTime", {
-//			saveTime: this.modSaveTimeEditor.getValue()});
-//	},
-
 	_testURL: function(){
 		if(this.dataLock)
 			return;
@@ -232,7 +322,7 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 		message=msg.join("<br />");
 		msg=message.split("\t");
 		message=msg.join("&nbsp;&nbsp;&nbsp;&nbsp;");
-		this.syncInfoMessage.innerHTML=message;
+		this.syncInfoMessage.innerHTML=PrismsUtils.fixUnicodeString(message);
 		this.syncInfoData.value=data;
 		this.syncInfoDialog.show();
 	},
@@ -283,6 +373,7 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 		if(event.keyCode==__dojo.keys.ENTER)
 			this._passwordChanged();
 	},
+
 	_passwordChanged: function(){
 		if(this.dataLock)
 			return;
@@ -309,5 +400,55 @@ __dojo.declare("prisms.widget.CenterEditor", [__dijit._Widget, __dijit._Template
 
 	_closeSyncInfo: function(){
 		this.syncInfoDialog.hide();
+	},
+
+	_viewCertClicked: function(){
+		this.prisms.callApp(this.pluginName, "viewCertificate");
+	},
+
+	_certClose: function(){
+		this.certLock=true;
+		try{
+			this.certificateDialog.hide();
+		} finally{
+			this.certLock=false;
+		}
+		this.soloViewer.setValue(null);
+	},
+
+	_certAccept: function(){
+		this.certLock=true;
+		try{
+			this.certificateDialog.hide();
+		} finally{
+			this.certLock=false;
+		}
+		this.soloViewer.setValue(null);
+		if(this.isChecking)
+		{
+			this.newCertViewer.setValue(null);
+			this.oldCertViewer.setValue(null);
+			this.prisms.callApp(this.pluginName, "acceptCertificate", {accepted: true});
+		}
+	},
+
+	_certDeny: function(){
+		if(this.certLock)
+			return;
+		this.certLock=true;
+		try{
+			this.certificateDialog.hide();
+		} finally{
+			this.certLock=false;
+		}
+		this.soloViewer.setValue(null);
+		if(this.isChecking)
+		{
+			this.newCertViewer.setValue(null);
+			this.oldCertViewer.setValue(null);
+			this.prisms.callApp(this.pluginName, "acceptCertificate", {accepted: false});
+		}
+		else
+			this.prisms.callApp(this.pluginName, "clearCertificate");
 	}
 });

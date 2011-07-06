@@ -28,8 +28,14 @@
 			</tr>
 			<tr>
 				<td>URL:</td>
-				<td><input type="text" style="width:99%" dojoAttachPoint="urlField"
-					dojoAttachEvent="onchange:_urlChanged" /></td>
+				<td><table style="width:100%"><tr>
+					<td><input type="text" style="width:99%" dojoAttachPoint="urlField"
+						dojoAttachEvent="onchange:_urlChanged" /></td>
+					<td style="width:18px" dojoAttachPoint="certViewIcon">
+						<img src="__webContentRoot/rsrc/icons/prisms/certificate.png"
+							dojoAttachEvent="onclick:_viewCertClicked" />
+					</td>
+				</tr></table></td>
 			</tr>
 			<tr>
 				<td nowrap="nowrap">Connect As:</td>
@@ -59,6 +65,10 @@
 						dojoAttachPoint="syncNowLink"
 						dojoAttachEvent="onclick:_syncNow">Synchronize Now</a>
 				</td>
+			</tr>
+			<tr>
+				<td>Status:</td>
+				<td dojoAttachPoint="centerStatusCell" style="font-weight:bold"></td>
 			</tr>
 		</table></td>
 		<td colspan="2" valign="top"><table>
@@ -151,4 +161,28 @@
 				</tr>
 		</div></td></tr>
 </table>
+<div __dojoType="dijit.Dialog" dojoAttachPoint="certificateDialog" dojoAttachEvent:"hide:_certDeny">
+	<div __dojoType="dijit.layout.BorderContainer" style="height:450px;text-align:center">
+		<div __dojoType="dijit.layout.ContentPane" dojoAttachPoint="certDialogText1" region="top" style="height:36px"></div>
+		<div __dojoType="dijit.layout.ContentPane" region="center" >
+			<div __dojoType="prisms.widget.CertificateViewer" style="left:150px" dojoAttachPoint="soloViewer"></div>
+			<div __dojoType="dijit.layout.BorderContainer" region="center" style="width:680px;height:300px"
+				dojoAttachPoint="comparePane">
+				<div __dojoType="prisms.widget.CertificateViewer" dojoAttachPoint="newCertViewer" region="left"></div>
+				<div __dojoType="dijit.layout.ContentPane" style="vertical-align:middle"
+					dojoAttachPoint="replaceLabel" region="center">to replace</div>
+				<div __dojoType="prisms.widget.CertificateViewer", dojoAttachPoint="oldCertViewer" region="right"></div>
+			</div>
+		</div>
+		<div __dojoType="dijit.layout.BorderContainer" region="bottom" style="height:95px">
+			<div __dojoType="dijit.layout.ContentPane" dojoAttachPoint="certDialogText2" region="top" style="height:55px"></div>
+			<div __dojoType="dijit.layout.BorderContainer" style="text-align: center" region="center">
+				<div __dojoType="dijit.form.Button" region="left" dojoAttachPoint="acceptButton"
+					dojoAttachEvent="onClick:_certAccept">Accept</div>
+				<div __dojoType="dijit.form.Button" region="right" dojoAttachPoint="denyButton"
+					dojoAttachEvent="onClick:_certDeny">Deny</div>
+			</div>
+		</div>
+	</div>
+</div>
 </div>

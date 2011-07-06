@@ -3,10 +3,9 @@
  */
 package prisms.util;
 
-import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
 
 /**
  * A cache that purges values according to their frequency and recency of use and other qualitative
@@ -20,7 +19,8 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 {
 	/**
 	 * Allows this cache to assess the quality of a cache item to determine its value to the
-	 * accessor
+	 * accessor. Implementors of this class should make the methods as fast as possible to speed up
+	 * the purge process.
 	 * 
 	 * @param <T> The type of value to be qualitized
 	 */
@@ -49,7 +49,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	public static final int ACCESS_GET = 1;
 
 	/**
-	 * Access to an object in the same amoutn as a set operation
+	 * Access to an object in the same amount as a set operation
 	 * 
 	 * @see #access(Object, int)
 	 */
@@ -64,9 +64,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 
 	private final Qualitizer<V> theQualitizer;
 
-	private final java.util.HashMap<K, CacheValue> theCache;
-
-	private final java.util.concurrent.locks.ReentrantReadWriteLock theLock;
+	private final java.util.concurrent.ConcurrentHashMap<K, CacheValue> theCache;
 
 	private float thePreferredSize;
 
@@ -78,12 +76,12 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 
 	private long thePurgeTime;
 
-	/**
-	 * Creates a DemandCache with default values
-	 */
+	private int thePurgeMods;
+
+	/** Creates a DemandCache with default values */
 	public DemandCache()
 	{
-		this(null, -1, 5L * 60 * 1000);
+		this(null, -1, -1);
 	}
 
 	/**
@@ -96,22 +94,8 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 */
 	public DemandCache(Qualitizer<V> qualitizer, float prefSize, long halfLife)
 	{
-		if(qualitizer == null)
-			qualitizer = new Qualitizer<V>()
-			{
-				public float quality(V value)
-				{
-					return 1;
-				}
-
-				public float size(V value)
-				{
-					return 1;
-				}
-			};
 		theQualitizer = qualitizer;
-		theCache = new java.util.HashMap<K, CacheValue>();
-		theLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
+		theCache = new java.util.concurrent.ConcurrentHashMap<K, CacheValue>();
 		thePreferredSize = prefSize;
 		theHalfLife = halfLife;
 		theReference = 1;
@@ -119,9 +103,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		thePurgeTime = theCheckedTime;
 	}
 
-	/**
-	 * @return The preferred size of this cache, or <=0 if this cache has no preferred size
-	 */
+	/** @return The preferred size of this cache, or <=0 if this cache has no preferred size */
 	public float getPreferredSize()
 	{
 		return thePreferredSize;
@@ -133,184 +115,99 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 */
 	public void setPreferredSize(float prefSize)
 	{
+		boolean mod = prefSize <= 0 ? false : prefSize < thePreferredSize;
 		thePreferredSize = prefSize;
+		if(mod)
+			purge(true);
 	}
 
-	/**
-	 * @return The approximate half life of items in this cache
-	 */
+	/** @return The approximate half life of items in this cache */
 	public long getHalfLife()
 	{
 		return theHalfLife;
 	}
 
-	/**
-	 * @param halfLife The half life for items in this cache
-	 */
+	/** @param halfLife The half life for items in this cache */
 	public void setHalfLife(long halfLife)
 	{
+		boolean mod = halfLife <= 0 ? false : halfLife < theHalfLife;
 		theHalfLife = halfLife;
+		if(mod)
+			purge(true);
 	}
 
-	/**
-	 * @see java.util.Map#get(java.lang.Object)
-	 */
 	public V get(Object key)
 	{
-		Lock lock = theLock.readLock();
-		lock.lock();
-		try
-		{
-			CacheValue value = theCache.get(key);
-			if(value == null)
-				return null;
-			_access(value, ACCESS_GET);
-			return value.value;
-		} finally
-		{
-			lock.unlock();
-		}
+		CacheValue value = theCache.get(key);
+		if(value == null)
+			return null;
+		_access(value, ACCESS_GET);
+		return value.value;
 	}
 
-	/**
-	 * @see java.util.Map#put(java.lang.Object, java.lang.Object)
-	 */
 	public V put(K key, V value)
 	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
-		{
-			if(thePurgeTime < System.currentTimeMillis() - 60 * 1000)
-				purge();
-			CacheValue newValue = new CacheValue();
-			newValue.value = value;
-			_access(newValue, ACCESS_SET);
-			CacheValue oldValue = theCache.put(key, newValue);
-			return oldValue == null ? null : oldValue.value;
-		} finally
-		{
-			lock.unlock();
-		}
+		CacheValue newValue = new CacheValue();
+		newValue.value = value;
+		_access(newValue, ACCESS_SET);
+		CacheValue oldValue = theCache.put(key, newValue);
+		thePurgeMods++;
+		purge(false);
+		return oldValue == null ? null : oldValue.value;
 	}
 
-	/**
-	 * @see java.util.Map#remove(java.lang.Object)
-	 */
 	public V remove(Object key)
 	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
-		{
-			if(thePurgeTime < System.currentTimeMillis() - 60 * 1000)
-				purge();
-			CacheValue oldValue = theCache.remove(key);
-			return oldValue == null ? null : oldValue.value;
-		} finally
-		{
-			lock.unlock();
-		}
+		CacheValue oldValue = theCache.remove(key);
+		return oldValue == null ? null : oldValue.value;
 	}
 
-	/**
-	 * @see java.util.Map#clear()
-	 */
 	public void clear()
 	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
-		{
-			theCache.clear();
-		} finally
-		{
-			lock.unlock();
-		}
+		theCache.clear();
 	}
 
-	/**
-	 * @see java.util.Map#size()
-	 */
 	public int size()
 	{
 		return theCache.size();
 	}
 
-	/**
-	 * @see java.util.Map#isEmpty()
-	 */
 	public boolean isEmpty()
 	{
 		return theCache.isEmpty();
 	}
 
-	/**
-	 * @see java.util.Map#containsKey(java.lang.Object)
-	 */
 	public boolean containsKey(Object key)
 	{
-		Lock lock = theLock.readLock();
-		lock.lock();
-		try
-		{
-			return theCache.containsKey(key);
-		} finally
-		{
-			lock.unlock();
-		}
+		return theCache.containsKey(key);
 	}
 
-	/**
-	 * @see java.util.Map#containsValue(java.lang.Object)
-	 */
 	public boolean containsValue(Object value)
 	{
-		throw new UnsupportedOperationException("The containsValue method is not supported by "
-			+ getClass().getName());
+		for(CacheValue val : theCache.values())
+			if(value.equals(val.value))
+				return true;
+		return false;
 	}
 
-	/**
-	 * @see java.util.Map#putAll(java.util.Map)
-	 */
 	public void putAll(Map<? extends K, ? extends V> m)
 	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
+		for(java.util.Map.Entry<? extends K, ? extends V> entry : m.entrySet())
 		{
-			if(thePurgeTime < System.currentTimeMillis() - 60 * 1000)
-				purge();
-			for(java.util.Map.Entry<? extends K, ? extends V> entry : m.entrySet())
-			{
-				CacheValue cv = new CacheValue();
-				cv.value = entry.getValue();
-				_access(cv, ACCESS_SET);
-				theCache.put(entry.getKey(), cv);
-			}
-		} finally
-		{
-			lock.unlock();
+			CacheValue cv = new CacheValue();
+			cv.value = entry.getValue();
+			_access(cv, ACCESS_SET);
+			theCache.put(entry.getKey(), cv);
+			thePurgeMods++;
 		}
+		purge(false);
 	}
 
-	/**
-	 * @see java.util.Map#keySet()
-	 */
 	public Set<K> keySet()
 	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
 		final Object [] keys;
-		try
-		{
-			if(thePurgeTime < System.currentTimeMillis() - 60 * 1000)
-				purge();
-			keys = theCache.keySet().toArray();
-		} finally
-		{
-			lock.unlock();
-		}
+		purge(false);
+		keys = theCache.keySet().toArray();
 		return new java.util.AbstractSet<K>()
 		{
 			@Override
@@ -327,6 +224,8 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 
 					public K next()
 					{
+						if(index >= keys.length)
+							throw new java.util.NoSuchElementException();
 						index++;
 						return (K) keys[index - 1];
 					}
@@ -346,23 +245,11 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		};
 	}
 
-	/**
-	 * @see java.util.Map#entrySet()
-	 */
 	public Set<java.util.Map.Entry<K, V>> entrySet()
 	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
 		final Map.Entry<K, CacheValue> [] entries;
-		try
-		{
-			if(thePurgeTime < System.currentTimeMillis() - 60 * 1000)
-				purge();
-			entries = theCache.entrySet().toArray(new Map.Entry [0]);
-		} finally
-		{
-			lock.unlock();
-		}
+		purge(false);
+		entries = theCache.entrySet().toArray(new Map.Entry [0]);
 		return new java.util.AbstractSet<Map.Entry<K, V>>()
 		{
 			@Override
@@ -400,6 +287,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 								return retValue;
 							}
 
+							@Override
 							public String toString()
 							{
 								return entries[entryIndex].getKey().toString() + "="
@@ -425,13 +313,41 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		};
 	}
 
-	/**
-	 * @see java.util.Map#values()
-	 */
-	public Collection<V> values()
+	public Set<V> values()
 	{
-		throw new UnsupportedOperationException("The values method is not supported by "
-			+ getClass().getName());
+		final Set<java.util.Map.Entry<K, V>> entrySet = entrySet();
+		return new java.util.AbstractSet<V>()
+		{
+			@Override
+			public Iterator<V> iterator()
+			{
+				final java.util.Iterator<java.util.Map.Entry<K, V>> entryIter;
+				entryIter = entrySet.iterator();
+				return new java.util.Iterator<V>()
+				{
+					public boolean hasNext()
+					{
+						return entryIter.hasNext();
+					}
+
+					public V next()
+					{
+						return entryIter.next().getValue();
+					}
+
+					public void remove()
+					{
+						entryIter.remove();
+					}
+				};
+			}
+
+			@Override
+			public int size()
+			{
+				return entrySet.size();
+			}
+		};
 	}
 
 	/**
@@ -441,18 +357,10 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 */
 	public float getTotalSize()
 	{
-		Lock lock = theLock.readLock();
-		lock.lock();
-		try
-		{
-			float ret = 0;
-			for(CacheValue value : theCache.values())
-				ret += theQualitizer.size(value.value);
-			return ret;
-		} finally
-		{
-			lock.unlock();
-		}
+		float ret = 0;
+		for(CacheValue value : theCache.values())
+			ret += theQualitizer.size(value.value);
+		return ret;
 	}
 
 	/**
@@ -460,30 +368,32 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 *         {@link Qualitizer#quality(Object)}. This value will return 1 if the qualitizer was
 	 *         not set in the constructor.
 	 */
-	public float getOverallQuality()
+	public float getAverageQuality()
 	{
-		Lock lock = theLock.readLock();
-		lock.lock();
-		try
+		if(theQualitizer == null)
+			return theCache.size();
+		float ret = 0;
+		int count = 0;
+		for(CacheValue value : theCache.values())
 		{
-			float ret = 0;
-			for(CacheValue value : theCache.values())
-				ret += theQualitizer.quality(value.value);
-			return ret / theCache.size();
-		} finally
-		{
-			lock.unlock();
+			count++;
+			ret += theQualitizer.quality(value.value);
 		}
+		return ret / count;
 	}
 
 	private void _access(CacheValue value, int weight)
 	{
-		if(weight <= 0)
+		if(weight <= 0 || theHalfLife <= 0)
 			return;
 		updateReference();
 		if(weight > 10)
 			weight = 10;
-		value.demand += theReference * weight;
+		float ref = theReference * weight;
+		if(value.demand <= 1)
+			value.demand += ref;
+		else if(value.demand < ref * 2)
+			value.demand += ref / value.demand;
 	}
 
 	/**
@@ -498,53 +408,71 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 */
 	public void access(K key, int weight)
 	{
-		Lock lock = theLock.readLock();
-		lock.lock();
-		try
-		{
-			CacheValue value = theCache.get(key);
-			if(value != null)
-				_access(value, weight);
-		} finally
-		{
-			lock.unlock();
-		}
+		CacheValue value = theCache.get(key);
+		if(value != null)
+			_access(value, weight);
 	}
 
 	/**
 	 * Purges the cache of values that are deemed of less use to the accessor. The behavior of this
 	 * method depends the behavior of {@link #shouldRemove(CacheValue, float, float, float)}
+	 * 
+	 * @param force If false, the purge operation will only be performed if this cache determines
+	 *        that a purge is needed (determined by the number of modifications directly to this
+	 *        cache and time elapsed since the last purge). <code>force</code> may be used to cause
+	 *        a purge without a perceived "need", such as may be warranted if a cached item's size
+	 *        or quality changes drastically.
 	 */
-	public void purge()
+	public void purge(boolean force)
 	{
-		Lock lock = theLock.writeLock();
-		lock.lock();
-		try
+		if(!force)
 		{
-			updateReference();
-			scaleReference();
-			int count = size();
-			float totalSize = 0;
-			float totalQuality = 0;
+			float purgeNeed = (thePurgeMods * 1.0f / 4)
+				+ (System.currentTimeMillis() - thePurgeTime) / 60000f;
+			if(purgeNeed < 1)
+				return;
+		}
+		updateReference();
+		scaleReference();
+		int count = 0;
+		float totalSize = 0;
+		float totalQuality = 0;
+		if(theQualitizer == null)
+		{
+			count = theCache.size();
+			totalSize = count;
+			totalQuality = count;
+		}
+		else
 			for(CacheValue value : theCache.values())
 			{
+				count++;
 				totalSize += theQualitizer.size(value.value);
 				totalQuality += theQualitizer.quality(value.value);
 			}
-			totalQuality /= count;
 
-			java.util.Iterator<CacheValue> iter = theCache.values().iterator();
-			while(iter.hasNext())
-			{
-				CacheValue next = iter.next();
-				if(shouldRemove(next, totalSize, totalQuality, count))
-					iter.remove();
-			}
-		} finally
+		java.util.Iterator<CacheValue> iter = theCache.values().iterator();
+		while(iter.hasNext())
 		{
-			lock.unlock();
+			CacheValue next = iter.next();
+			if(shouldRemove(next, totalSize, totalQuality / count, count))
+			{
+				count--;
+				if(theQualitizer != null)
+				{
+					totalSize -= theQualitizer.size(next.value);
+					totalQuality -= theQualitizer.quality(next.value);
+				}
+				else
+				{
+					totalSize--;
+					totalQuality--;
+				}
+				iter.remove();
+			}
 		}
 		thePurgeTime = System.currentTimeMillis();
+		thePurgeMods = 0;
 	}
 
 	/**
@@ -562,24 +490,36 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 * 
 	 * @param value The value to determine the quality of
 	 * @param totalSize The total size (determined by the Qualitizer) of this cache
-	 * @param overallQuality The overall quality of the cache
+	 * @param avgQuality The average quality of the cache
 	 * @param entryCount The number of entries in this cache
 	 * @return Whether the value should be removed from the cache
 	 */
-	protected boolean shouldRemove(CacheValue value, float totalSize, float overallQuality,
+	protected boolean shouldRemove(CacheValue value, float totalSize, float avgQuality,
 		float entryCount)
 	{
-		float quality = theQualitizer.quality(value.value);
-		if(quality == 0)
-			return true; // Remove if the value has no quality
-		float size = theQualitizer.size(value.value);
-		if(size == 0)
-			return false; // Don't remove if the value takes up no space
+		float quality;
+		float size;
+		if(theQualitizer == null)
+		{
+			quality = 1;
+			size = 1;
+		}
+		else
+		{
+			quality = theQualitizer.quality(value.value);
+			size = theQualitizer.size(value.value);
+			if(quality == 0)
+				return true; // Remove if the value has no quality
+			if(size == 0)
+				return false; // Don't remove if the value takes up no space
+		}
 
 		/* Take into account how frequently and recently the value was accessed */
-		float valueQuality = value.demand / theReference;
+		float valueQuality = 1;
+		if(value.demand > 0)
+			valueQuality *= value.demand / theReference;
 		/* Take into account the inherent quality in the value compareed to the average */
-		valueQuality *= quality / overallQuality;
+		valueQuality *= quality / avgQuality;
 		/* Take into account the value's size compared with the average size */
 		valueQuality /= size / (totalSize / entryCount);
 		/* Take into account the overall size of this cache compared with the preferred size
@@ -589,14 +529,13 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		return valueQuality < 0.5f;
 	}
 
-	/**
-	 * Updates {@link #theReference} to devalue all items in the cache with age. The read lock must
-	 * be obtained before calling this method.
-	 */
+	/** Updates {@link #theReference} to devalue all items in the cache with age. */
 	private void updateReference()
 	{
+		if(theHalfLife <= 0)
+			return;
 		long time = System.currentTimeMillis();
-		if(time - theCheckedTime >= theHalfLife / 100)
+		if(time - theCheckedTime < theHalfLife / 100)
 			return;
 		theReference *= Math.pow(2, (time - theCheckedTime) * 1.0 / theHalfLife);
 		theCheckedTime = time;
@@ -609,11 +548,60 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 */
 	private void scaleReference()
 	{
+		if(theHalfLife <= 0)
+			return;
 		if(theReference > 1e7)
 		{
 			for(CacheValue value : theCache.values())
 				value.demand /= theReference;
 			theReference = 1;
 		}
+	}
+
+	/**
+	 * Unit-test
+	 * 
+	 * @param args Command-line args, ignored
+	 */
+	public static void main(String [] args)
+	{
+		int avgSz = 1;
+		final float [] sizes = new float [1000];
+		for(int idx = 0; idx < sizes.length; idx++)
+			sizes[idx] = (float) (Math.random() * avgSz);
+		DemandCache<Integer, Integer> cache = new DemandCache<Integer, Integer>(
+			new Qualitizer<Integer>()
+			{
+				public float quality(Integer value)
+				{
+					return value.intValue();
+				}
+
+				public float size(Integer value)
+				{
+					return sizes[value.intValue()];
+				}
+			}, 100, 2000);
+		for(int i = 0; i < 1000; i++)
+			cache.put(Integer.valueOf(i), Integer.valueOf(i));
+
+		float totalSize = 0;
+		float totalQ = 0;
+		int purgeCount = 0;
+		for(int count = 0; count < 1000000; count++)
+		{
+			Integer test = Integer.valueOf((int) (Math.random() * sizes.length));
+			Integer val = cache.get(test);
+			if(val == null)
+			{
+				totalSize += sizes[test.intValue()];
+				totalQ += test.intValue();
+				purgeCount++;
+				cache.put(test, test);
+			}
+		}
+		System.out.println(purgeCount + " purges detected, avg quality "
+			+ Math.round(totalQ / purgeCount / sizes.length * 100) + "%, avg size "
+			+ Math.round(totalSize / purgeCount / avgSz * 100) + "%");
 	}
 }

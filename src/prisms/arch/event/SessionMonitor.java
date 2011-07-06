@@ -17,7 +17,7 @@ public interface SessionMonitor
 	 * all necessary setup work on the session.
 	 * 
 	 * @param session The session to set up and monitor
-	 * @param configEl The XML element to configure this monitor with
+	 * @param config The configuration to configure this monitor with
 	 */
-	void register(PrismsSession session, org.dom4j.Element configEl);
+	void register(PrismsSession session, prisms.arch.PrismsConfig config);
 }

@@ -4,13 +4,13 @@
 package prisms.util.persisters;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Element;
 
 import prisms.arch.Persister;
 import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsSession;
 import prisms.arch.event.PrismsProperty;
 import prisms.util.ArrayUtils;
+import prisms.util.ProgramTracker.TrackNode;
 
 /**
  * Persists a property consisting of an array of elements
@@ -49,7 +49,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 
 	private PrismsApplication theApp;
 
-	private Element theConfigEl;
+	private prisms.arch.PrismsConfig theConfig;
 
 	private PrismsProperty<T []> theProperty;
 
@@ -59,10 +59,15 @@ public abstract class ListPersister<T> implements Persister<T []>
 
 	T [] theUpdateQueue;
 
-	public void configure(Element configEl, PrismsApplication app, PrismsProperty<T []> property)
+	int dataLock;
+
+	public void configure(prisms.arch.PrismsConfig config, PrismsApplication app,
+		PrismsProperty<T []> property)
 	{
+		if(theElements != null)
+			return; // Already configured
 		theApp = app;
-		theConfigEl = configEl;
+		theConfig = config;
 		theProperty = property;
 		theElements = new java.util.ArrayList<ListElementContainer>();
 		theUpdateQueue = (T []) java.lang.reflect.Array.newInstance(property.getType()
@@ -78,10 +83,10 @@ public abstract class ListPersister<T> implements Persister<T []>
 		return theApp;
 	}
 
-	/** @return The XML configuration that intitialized this persister */
-	public Element getConfigEl()
+	/** @return The configuration that intitialized this persister */
+	public prisms.arch.PrismsConfig getConfigEl()
 	{
-		return theConfigEl;
+		return theConfig;
 	}
 
 	/** @return The property that this persister is persisting */
@@ -108,6 +113,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
 	{
 		final prisms.arch.event.PrismsPCE<T []> fEvt = evt;
+		dataLock++;
+		final int currentLock = dataLock;
 		ListElementContainer [] dbEls = theElements
 			.toArray(new ListPersister.ListElementContainer [theElements.size()]);
 		ArrayUtils.adjust(dbEls, (T []) value,
@@ -120,14 +127,29 @@ public abstract class ListPersister<T> implements Persister<T []>
 
 				public ListElementContainer added(T o, int index, int retIdx)
 				{
-					T dbArea = add(session, o, fEvt);
-					if(dbArea != null)
+					if(currentLock != dataLock)
+						return null;
+					TrackNode track = null;
+					prisms.arch.PrismsTransaction trans = getApp().getEnvironment()
+						.getTransaction();
+					if(trans != null)
+						track = trans.getTracker().start(
+							"PRISMS: Adding value " + o + " in persister " + this);
+					T dbItem;
+					try
 					{
-						ListElementContainer ret = new ListElementContainer(dbArea, o);
-						synchronized(theElements)
-						{
-							theElements.add(retIdx, ret);
-						}
+						dbItem = add(session, o, fEvt);
+					} finally
+					{
+						if(track != null)
+							trans.getTracker().end(track);
+					}
+					if(currentLock != dataLock)
+						return null;
+					if(dbItem != null)
+					{
+						ListElementContainer ret = new ListElementContainer(dbItem, o);
+						theElements.add(retIdx, ret);
 						return ret;
 					}
 					else
@@ -137,28 +159,48 @@ public abstract class ListPersister<T> implements Persister<T []>
 				public ListElementContainer removed(ListElementContainer o, int index, int incMod,
 					int retIdx)
 				{
+					if(currentLock != dataLock)
+						return null;
+					TrackNode track = null;
+					prisms.arch.PrismsTransaction trans = getApp().getEnvironment()
+						.getTransaction();
+					if(trans != null)
+						track = trans.getTracker().start(
+							"PRISMS: Removing value " + o + " from persister " + this);
 					synchronized(o.theDBValue)
 					{
-						remove(session, o.theDBValue, fEvt);
+						try
+						{
+							remove(session, o.theDBValue, fEvt);
+						} finally
+						{
+							if(track != null)
+								trans.getTracker().end(track);
+						}
 					}
-					synchronized(theElements)
-					{
-						theElements.remove(incMod);
-					}
+					if(currentLock != dataLock)
+						return null;
+					theElements.remove(incMod);
 					return null;
 				}
 
 				public ListElementContainer set(ListElementContainer o1, int idx1, int incMod,
 					T o2, int idx2, int retIdx)
 				{
+					if(currentLock != dataLock)
+						return null;
 					// update(o1.theDBValue, o2);
 					if(incMod != retIdx)
 					{
-						synchronized(theElements)
-						{
-							ListElementContainer lec = theElements.remove(incMod);
-							theElements.add(incMod, lec);
-						}
+						ListElementContainer lec = theElements.remove(incMod);
+						/* I don't know how it can be that retIdx>=theElements.size() since this
+						 * method is protected from modifications both within this thread and
+						 * outside it, but it seems it's happening, so I'll protect against the
+						 * exception it causes. */
+						if(retIdx < theElements.size())
+							theElements.add(retIdx, lec);
+						else
+							theElements.add(lec);
 					}
 					return o1;
 				}
@@ -184,12 +226,20 @@ public abstract class ListPersister<T> implements Persister<T []>
 					{
 						boolean preLocked = el.isLocked;
 						el.isLocked = true;
+						TrackNode track = null;
+						prisms.arch.PrismsTransaction trans = getApp().getEnvironment()
+							.getTransaction();
+						if(trans != null)
+							track = trans.getTracker().start(
+								"PRISMS: Value " + el.theDBValue + " changed in persister " + this);
 						try
 						{
 							update(session, el.theDBValue, (T) o, evt);
 						} finally
 						{
 							el.isLocked = preLocked;
+							if(track != null)
+								trans.getTracker().end(track);
 						}
 					}
 				break;
@@ -197,20 +247,14 @@ public abstract class ListPersister<T> implements Persister<T []>
 		T toUpdate = null;
 		if(theUpdateQueue.length > 0)
 		{
-			synchronized(this)
-			{
-				if(theUpdateQueue.length > 0)
-				{
-					toUpdate = theUpdateQueue[0];
-					theUpdateQueue = ArrayUtils.remove(theUpdateQueue, 0);
-				}
-			}
+			toUpdate = theUpdateQueue[0];
+			theUpdateQueue = ArrayUtils.remove(theUpdateQueue, 0);
 		}
 		if(toUpdate != null)
 			valueChanged(session, fullValue, toUpdate, evt);
 	}
 
-	public void reload()
+	public synchronized void reload()
 	{
 		theElements.clear();
 		for(T value : depersist())

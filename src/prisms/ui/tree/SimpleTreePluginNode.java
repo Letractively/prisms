@@ -5,9 +5,7 @@ package prisms.ui.tree;
 
 import prisms.ui.list.NodeAction;
 
-/**
- * A version of tree node that has the option to check the session for actions from other plugins
- */
+/** A version of tree node that has the option to check the session for actions from other plugins */
 public abstract class SimpleTreePluginNode extends AbstractSimpleTreeNode
 {
 	private boolean hasPublicActions;
@@ -25,21 +23,29 @@ public abstract class SimpleTreePluginNode extends AbstractSimpleTreeNode
 	}
 
 	/**
-	 * @return Whether this node exposes its action set publicly
+	 * @param manager The manager plugin for this node's tree structure
+	 * @param id The ID for this node
+	 * @param parent This node's parent
+	 * @param publicActions Whether this node publishes an event allowing listeners to add actions
 	 */
+	public SimpleTreePluginNode(DataTreeMgrPlugin manager, String id, DataTreeNode parent,
+		boolean publicActions)
+	{
+		super(manager, id, parent);
+		hasPublicActions = publicActions;
+	}
+
+	/** @return Whether this node exposes its action set publicly */
 	public boolean hasPublicActions()
 	{
 		return hasPublicActions;
 	}
 
-	/**
-	 * @see prisms.ui.tree.AbstractSimpleTreeNode#setSelected(boolean)
-	 */
 	@Override
 	public final void setSelected(boolean selected)
 	{
 		super.setSelected(selected);
-		getManager().nodeChanged(this, false);
+		changed(false);
 	}
 
 	/**
@@ -51,9 +57,6 @@ public abstract class SimpleTreePluginNode extends AbstractSimpleTreeNode
 		hasPublicActions = pa;
 	}
 
-	/**
-	 * @see prisms.ui.tree.AbstractSimpleTreeNode#getActions()
-	 */
 	@Override
 	public NodeAction [] getActions()
 	{
@@ -64,8 +67,9 @@ public abstract class SimpleTreePluginNode extends AbstractSimpleTreeNode
 			for(int a = 0; a < actions.length; a++)
 				if(actions[a].getValue("temporary") != null)
 					removeAction(actions[a]);
-			prisms.arch.event.PrismsEvent actionsEvent = new prisms.arch.event.PrismsEvent("getUserActions",
-				"plugin", plugin.getName(), "node", this, "actions", new javax.swing.Action [0]);
+			prisms.arch.event.PrismsEvent actionsEvent = new prisms.arch.event.PrismsEvent(
+				"getUserActions", "plugin", plugin.getName(), "node", this, "actions",
+				new javax.swing.Action [0]);
 			addEventProperties(actionsEvent);
 			plugin.getSession().fireEvent(actionsEvent);
 			javax.swing.Action[] newActions = (javax.swing.Action[]) actionsEvent

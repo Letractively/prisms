@@ -3,22 +3,93 @@
  */
 package prisms.impl;
 
-import javax.servlet.http.HttpServletRequest;
-
-import org.apache.log4j.Logger;
-import org.dom4j.Element;
 import org.json.simple.JSONObject;
 
-import prisms.arch.PrismsApplication;
-import prisms.arch.PrismsAuthenticator;
-import prisms.arch.PrismsException;
+import prisms.arch.*;
+import prisms.arch.PrismsServer.PrismsRequest;
 import prisms.arch.ds.User;
 import prisms.arch.ds.UserSource;
 
 /** An authenticator that auto-creates users when they are authenticated externally */
 public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 {
-	private static final Logger log = Logger.getLogger(AutoCreateAuthenticator.class);
+	/** A {@link PrismsAuthenticator.SessionAuthenticator} for auto-create authenticators */
+	protected static class AutoCreateSessionAuthenticator implements SessionAuthenticator
+	{
+		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request, boolean secure)
+			throws PrismsException
+		{
+			return new AutoCreateRequestAuthenticator(request);
+		}
+
+		public JSONObject requestLogin(PrismsRequest request)
+		{
+			return null;
+		}
+
+		public boolean needsPasswordChange() throws PrismsException
+		{
+			return false;
+		}
+
+		public JSONObject requestPasswordChange() throws PrismsException
+		{
+			throw new IllegalStateException(
+				"No custom password change available for this Authenticator");
+		}
+
+		public AuthenticationError changePassword(JSONObject event)
+		{
+			throw new IllegalStateException(
+				"No custom password change available for this Authenticator");
+		}
+
+		public long recheck()
+		{
+			return -1;
+		}
+
+		public void destroy()
+		{
+		}
+	}
+
+	/** A {@link PrismsAuthenticator.RequestAuthenticator} for auto-create authentication */
+	protected static class AutoCreateRequestAuthenticator implements RequestAuthenticator
+	{
+		private PrismsRequest theRequest;
+
+		/** @param req The request to provide authentication data for */
+		protected AutoCreateRequestAuthenticator(PrismsRequest req)
+		{
+			theRequest = req;
+		}
+
+		public boolean isError()
+		{
+			return false;
+		}
+
+		public String getError()
+		{
+			return null;
+		}
+
+		public boolean shouldReattempt()
+		{
+			return false;
+		}
+
+		public String getData()
+		{
+			return theRequest.httpRequest.getParameter("data");
+		}
+
+		public String encrypt(javax.servlet.http.HttpServletResponse resp, String data)
+		{
+			return data;
+		}
+	}
 
 	private prisms.arch.PrismsApplication[] theApps;
 
@@ -28,11 +99,11 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 
 	private User theTemplate;
 
-	public void configure(Element configEl, UserSource userSource, PrismsApplication [] apps)
+	public void configure(PrismsConfig config, UserSource userSource, PrismsApplication [] apps)
 	{
 		theApps = apps;
 		theUserSource = userSource;
-		theTemplateUserName = configEl.elementTextTrim("user-template");
+		theTemplateUserName = config.get("user-template");
 		if(theTemplateUserName != null)
 			try
 			{
@@ -59,92 +130,76 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 	 * @param request The request through which PRISMS is being accessed
 	 * @return The name of the user that is trying to access PRISMS through the given request
 	 */
-	public abstract String getUserName(HttpServletRequest request);
+	public abstract String getUserName(PrismsRequest request);
 
-	public User getUser(HttpServletRequest request) throws PrismsException
+	public User getUser(PrismsRequest request) throws PrismsException
 	{
 		String userName = getUserName(request);
 		User ret = theUserSource.getUser(userName);
 		if(ret != null)
 			return ret;
-		if(!(theUserSource instanceof prisms.arch.ds.ManageableUserSource))
-			throw new PrismsException("User source is not manageable--cannot create user for "
-				+ userName);
-		if(theTemplate == null)
+		synchronized(this)
 		{
-			if(theTemplateUserName == null)
-				throw new PrismsException("No user template set--cannot set properties of user");
-			else
+			ret = theUserSource.getUser(userName);
+			if(ret != null)
+				return ret;
+			if(!(theUserSource instanceof prisms.arch.ds.ManageableUserSource))
+				throw new PrismsException("User source is not manageable--cannot create user for "
+					+ userName);
+			if(theTemplate == null)
 			{
-				try
+				if(theTemplateUserName == null)
+					throw new PrismsException("No user template set--cannot set properties of user");
+				else
 				{
-					theTemplate = theUserSource.getUser(theTemplateUserName);
-				} catch(PrismsException e)
-				{
-					throw new IllegalStateException("Could not get template user", e);
+					try
+					{
+						theTemplate = theUserSource.getUser(theTemplateUserName);
+					} catch(PrismsException e)
+					{
+						throw new IllegalStateException("Could not get template user", e);
+					}
+					if(theTemplate == null)
+						throw new PrismsException("User template " + theTemplateUserName
+							+ " for authenticator " + getClass().getName()
+							+ " does not exist. New user " + userName + " can not"
+							+ " be authenticated.");
 				}
-				if(theTemplate == null)
-					log.error("User template " + theTemplateUserName + " for authenticator "
-						+ getClass().getName() + " does not exist. New user " + userName
-						+ " can not" + " be authenticated.");
 			}
+			if(!theUserSource.canAccess(theTemplate, request.getApp()))
+				throw new PrismsException("User " + userName
+					+ " does not have access to application " + request.getApp());
+
+			prisms.arch.ds.ManageableUserSource mus = (prisms.arch.ds.ManageableUserSource) theUserSource;
+			for(User u : mus.getAllUsers())
+				if(u.getName().equals(userName))
+				{
+					ret = u;
+					break;
+				}
+			if(ret == null)
+			{
+				ret = mus.createUser(userName,
+					new prisms.records.RecordsTransaction(mus.getSystemUser()));
+				ret.setName(userName);
+			}
+			else
+				ret.setDeleted(false);
+			for(prisms.arch.PrismsApplication app : theApps)
+				if(mus.canAccess(theTemplate, app) && !mus.canAccess(ret, app))
+					mus.setUserAccess(ret, app, true,
+						new prisms.records.RecordsTransaction(mus.getSystemUser()));
+			for(prisms.arch.ds.UserGroup group : theTemplate.getGroups())
+				if(!prisms.util.ArrayUtils.contains(ret.getGroups(), group))
+					ret.addTo(group);
+			mus.putUser(ret, new prisms.records.RecordsTransaction(mus.getSystemUser()));
+			return ret;
 		}
-		prisms.arch.ds.ManageableUserSource mus = (prisms.arch.ds.ManageableUserSource) theUserSource;
-		ret = mus.createUser(userName, new prisms.records2.RecordsTransaction(mus.getSystemUser()));
-		ret.setName(userName);
-		for(prisms.arch.PrismsApplication app : theApps)
-			if(mus.canAccess(theTemplate, app))
-				mus.setUserAccess(ret, app, true,
-					new prisms.records2.RecordsTransaction(mus.getSystemUser()));
-		for(prisms.arch.ds.UserGroup group : theTemplate.getGroups())
-			ret.addTo(group);
-		mus.putUser(ret, new prisms.records2.RecordsTransaction(mus.getSystemUser()));
-		return ret;
 	}
 
-	public Object createAuthenticationInfo(HttpServletRequest request, User user)
+	public SessionAuthenticator createSessionAuthenticator(PrismsRequest request, User user)
 		throws PrismsException
 	{
-		return null;
-	}
-
-	public Object getAuthenticatedData(HttpServletRequest request, Object authInfo, boolean secure)
-		throws PrismsException
-	{
-		return request.getParameter("data");
-	}
-
-	public JSONObject requestLogin(HttpServletRequest request, Object authInfo)
-	{
-		throw new IllegalStateException("No custom login available for this Authenticator");
-	}
-
-	public String encrypt(HttpServletRequest request, String data, Object authInfo)
-	{
-		return data;
-	}
-
-	public boolean needsPasswordChange(HttpServletRequest request, Object authInfo)
-		throws PrismsException
-	{
-		return false;
-	}
-
-	public JSONObject requestPasswordChange(HttpServletRequest request, Object authInfo)
-		throws PrismsException
-	{
-		throw new IllegalStateException(
-			"No custom password change available for this Authenticator");
-	}
-
-	public AuthenticationError changePassword(HttpServletRequest request, Object authInfo,
-		JSONObject event)
-	{
-		throw new IllegalStateException(
-			"No custom password change available for this Authenticator");
-	}
-
-	public void destroy(Object authInfo)
-	{
+		return new AutoCreateSessionAuthenticator();
 	}
 }

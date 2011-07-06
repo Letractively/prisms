@@ -433,7 +433,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 			writer.writeString("Value");
 			writer.startProperty("prop2\\");
 			writer.startArray();
-			writer.writeNumber(new Integer(5));
+			writer.writeNumber(Integer.valueOf(5));
 			writer.writeBoolean(true);
 			writer.endArray();
 			writer.startProperty("prop3");

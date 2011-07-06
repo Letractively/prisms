@@ -10,7 +10,7 @@ import prisms.arch.event.PrismsEvent;
 /**
  * A property manager that persists its data using a {@link Persister}
  * 
- * @param <T> The type of the manager
+ * @param <T> The type of the property that this manager manages
  */
 public abstract class PersistingPropertyManager<T> extends
 	prisms.arch.event.GlobalPropertyManager<T>
@@ -19,17 +19,18 @@ public abstract class PersistingPropertyManager<T> extends
 
 	private boolean hasLoaded;
 
+	private boolean theDataLock;
+
 	@Override
-	public void configure(prisms.arch.PrismsApplication app, org.dom4j.Element configEl)
+	public void configure(prisms.arch.PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
+		super.configure(app, config);
 		if(thePersister == null)
 		{
 			Persister<T> persister;
-			org.dom4j.Element persisterEl = configEl.element("persister");
+			prisms.arch.PrismsConfig persisterEl = config.subConfig("persister");
 			if(persisterEl != null)
-				persister = app.getEnvironment().getPersisterFactory()
-					.create(persisterEl, app, getProperty());
+				persister = createPersister(persisterEl, app, getProperty());
 			else
 				persister = null;
 			setPersister(persister);
@@ -37,9 +38,15 @@ public abstract class PersistingPropertyManager<T> extends
 	}
 
 	@Override
-	protected void eventOccurred(PrismsSession session, PrismsEvent evt, Object eventValue)
+	protected void eventOccurred(prisms.arch.PrismsApplication app, PrismsSession session,
+		PrismsEvent evt, Object eventValue)
 	{
-		changeValue(session, session.getProperty(getProperty()), eventValue, evt);
+		T value;
+		if(session == null)
+			value = app.getGlobalProperty(getProperty());
+		else
+			value = session.getProperty(getProperty());
+		changeValue(session, value, eventValue, evt);
 	}
 
 	@Override
@@ -48,19 +55,27 @@ public abstract class PersistingPropertyManager<T> extends
 		super.propertiesSet(app);
 		if(thePersister != null && !hasLoaded)
 		{
-			hasLoaded = true;
-			setValue(thePersister.link(getGlobalValue()));
+			theDataLock = true;
+			try
+			{
+				setValue(thePersister.link(getGlobalValue()));
+			} finally
+			{
+				theDataLock = false;
+			}
 		}
+		hasLoaded = true;
 	}
 
 	@Override
 	public void changeValues(prisms.arch.PrismsSession session, prisms.arch.event.PrismsPCE<T> evt)
 	{
+		if(!theDataLock && !Boolean.TRUE.equals(evt.get("prismsPersisted")))
+		{
+			evt.set("prismsPersisted", Boolean.TRUE);
+			saveData(session, evt);
+		}
 		super.changeValues(session, evt);
-		if(Boolean.TRUE.equals(evt.get("prismsPersisted")))
-			return;
-		evt.set("prismsPersisted", Boolean.TRUE);
-		saveData(session, evt);
 	}
 
 	/**
@@ -74,13 +89,26 @@ public abstract class PersistingPropertyManager<T> extends
 	public synchronized void changeValue(PrismsSession session, T fullValue, Object o,
 		prisms.arch.event.PrismsEvent evt)
 	{
-		if(thePersister != null)
-			thePersister.valueChanged(session, fullValue, o, evt);
+		if(thePersister != null && !Boolean.TRUE.equals(evt.getProperty("prismsPersisted")))
+		{
+			prisms.util.ProgramTracker.TrackNode track = null;
+			prisms.arch.PrismsTransaction trans = getEnv().getTransaction();
+			if(trans != null)
+				track = trans.getTracker().start(
+					"PRISMS: Persisting new data portion (" + evt.name + ") for property "
+						+ getProperty());
+			try
+			{
+				thePersister.valueChanged(session, fullValue, o, evt);
+			} finally
+			{
+				if(track != null)
+					trans.getTracker().end(track);
+			}
+		}
 	}
 
-	/**
-	 * @return this managers persister
-	 */
+	/** @return this managers persister */
 	public Persister<T> getPersister()
 	{
 		return thePersister;
@@ -88,7 +116,7 @@ public abstract class PersistingPropertyManager<T> extends
 
 	/**
 	 * Sets this manager's persister. Called from
-	 * {@link #configure(prisms.arch.PrismsApplication, org.dom4j.Element)}
+	 * {@link #configure(prisms.arch.PrismsApplication, prisms.arch.PrismsConfig)}
 	 * 
 	 * @param persister The persister being set for this manager
 	 */
@@ -97,7 +125,14 @@ public abstract class PersistingPropertyManager<T> extends
 		thePersister = persister;
 		if(thePersister == null)
 			return;
-		setValue(thePersister.getValue());
+		theDataLock = true;
+		try
+		{
+			setValue(thePersister.getValue());
+		} finally
+		{
+			theDataLock = false;
+		}
 	}
 
 	/** @return All values that should be persisted for this property */
@@ -121,7 +156,19 @@ public abstract class PersistingPropertyManager<T> extends
 	{
 		if(thePersister == null)
 			return;
-		thePersister.setValue(session, getGlobalValue(), evt);
+		prisms.util.ProgramTracker.TrackNode track = null;
+		prisms.arch.PrismsTransaction trans = getEnv().getTransaction();
+		if(trans != null)
+			track = trans.getTracker().start(
+				"PRISMS: Persisting new data for property " + getProperty());
+		try
+		{
+			thePersister.setValue(session, getGlobalValue(), evt);
+		} finally
+		{
+			if(track != null)
+				trans.getTracker().end(track);
+		}
 	}
 
 	@Override
@@ -129,5 +176,41 @@ public abstract class PersistingPropertyManager<T> extends
 	{
 		return !(thePersister instanceof DiscriminatingPersister)
 			|| ((DiscriminatingPersister<T>) thePersister).applies(evt);
+	}
+
+	/**
+	 * Creates a persister from a configuration
+	 * 
+	 * @param <T> The type of persister to create
+	 * @param persisterEl The configuration representing a persister
+	 * @param app The application to create the persister for
+	 * @param property The name of the property to be persisted by the new persister
+	 * @return A configured persister
+	 */
+	public static <T> Persister<T> createPersister(prisms.arch.PrismsConfig persisterEl,
+		prisms.arch.PrismsApplication app, prisms.arch.event.PrismsProperty<T> property)
+	{
+		Persister<T> ret;
+		try
+		{
+			String className = persisterEl.get("class");
+			if(className == null)
+				throw new IllegalStateException("No class element in persister element "
+					+ persisterEl);
+			Class<? extends Persister<T>> clazz = (Class<? extends Persister<T>>) Class
+				.forName(className);
+			if(clazz == null)
+				throw new IllegalStateException("Persister class " + className + " not found");
+			ret = clazz.newInstance();
+		} catch(Throwable e)
+		{
+			if(e instanceof IllegalStateException)
+				throw (IllegalStateException) e;
+			else
+				throw new IllegalArgumentException("Could not create persister for property "
+					+ property, e);
+		}
+		ret.configure(persisterEl, app, property);
+		return ret;
 	}
 }

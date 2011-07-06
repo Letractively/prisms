@@ -6,14 +6,10 @@ package prisms.util.json;
 import java.io.IOException;
 import java.io.Reader;
 
-/**
- * Parses JSON from a stream incrementally, notifying a handler as each piece is parsed
- */
+/** Parses JSON from a stream incrementally, notifying a handler as each piece is parsed */
 public class SAJParser
 {
-	/**
-	 * Handles the JSON input from the parser
-	 */
+	/** Handles the JSON input from the parser */
 	public interface ParseHandler
 	{
 		/**
@@ -248,7 +244,7 @@ public class SAJParser
 			else if(top() instanceof org.json.simple.JSONObject)
 				((org.json.simple.JSONObject) top()).put(state.top().getPropertyName(), bValue);
 			else
-				theValue = new Boolean(value);
+				theValue = Boolean.valueOf(value);
 		}
 
 		public void valueNull(ParseState state)
@@ -299,17 +295,13 @@ public class SAJParser
 			}
 		}
 
-		/**
-		 * @return The depth of the item that is currently being parsed
-		 */
+		/** @return The depth of the item that is currently being parsed */
 		public int getDepth()
 		{
 			return thePath.size();
 		}
 
-		/**
-		 * @return The item that is currently being parsed
-		 */
+		/** @return The item that is currently being parsed */
 		public Object top()
 		{
 			if(thePath.size() == 0)
@@ -346,9 +338,7 @@ public class SAJParser
 		PROPERTY;
 	}
 
-	/**
-	 * Represents an object whose parsing has not been completed
-	 */
+	/** Represents an object whose parsing has not been completed */
 	public static class ParseNode
 	{
 		/** The type of object that this node represents */
@@ -382,9 +372,7 @@ public class SAJParser
 			return thePropertyName;
 		}
 
-		/**
-		 * @return Whether this node has content yet
-		 */
+		/** @return Whether this node has content yet */
 		public boolean hasContent()
 		{
 			return hasContent;
@@ -421,6 +409,8 @@ public class SAJParser
 
 		private int theIndex;
 
+		private boolean wasLastLine;
+
 		private int theLineNumber;
 
 		private int theCharNumber;
@@ -439,9 +429,9 @@ public class SAJParser
 
 		int nextChar() throws IOException
 		{
+			wasLastLine = false;
 			do
 			{
-				boolean lastLine = theCurrentChar == '\n' || theCurrentChar == '\r';
 				theIndex++;
 				theCharNumber++;
 				if(theLastChar >= 0)
@@ -451,9 +441,9 @@ public class SAJParser
 				theLastChar = -1;
 				if(theCurrentChar == '\n' || theCurrentChar == '\r')
 				{
+					wasLastLine = true;
 					theCharNumber = 0;
-					if(!lastLine)
-						theLineNumber++;
+					theLineNumber++;
 				}
 				/* Ignoring newlines helps when parsing output that is wrapped regardless of
 				 * content, e.g. when copying from DOS command prompt output */
@@ -464,6 +454,11 @@ public class SAJParser
 		int currentChar()
 		{
 			return theCurrentChar;
+		}
+
+		boolean wasLastLine()
+		{
+			return wasLastLine;
 		}
 
 		/**
@@ -703,9 +698,7 @@ public class SAJParser
 			return thePath.size();
 		}
 
-		/**
-		 * @return The item that is currently being parsed
-		 */
+		/** @return The item that is currently being parsed */
 		public ParseNode top()
 		{
 			if(thePath.size() == 0)
@@ -731,17 +724,13 @@ public class SAJParser
 			return theIndex;
 		}
 
-		/**
-		 * @return The number of new lines that have been read so far plus one
-		 */
+		/** @return The number of new lines that have been read so far plus one */
 		public int getLineNumber()
 		{
 			return theLineNumber;
 		}
 
-		/**
-		 * @return The number of characters that have been read since the last new line
-		 */
+		/** @return The number of characters that have been read since the last new line */
 		public int getCharNumber()
 		{
 			return theCharNumber;
@@ -801,9 +790,7 @@ public class SAJParser
 		}
 	}
 
-	/**
-	 * An exception that occurs because of invalid JSON content
-	 */
+	/** An exception that occurs because of invalid JSON content */
 	public static class ParseException extends Exception
 	{
 		private final ParseState theState;
@@ -820,9 +807,7 @@ public class SAJParser
 			theState = state;
 		}
 
-		/**
-		 * @return The state that the parsing was in when the illegal content was encountered
-		 */
+		/** @return The state that the parsing was in when the illegal content was encountered */
 		public ParseState getParseState()
 		{
 			return theState;
@@ -833,25 +818,19 @@ public class SAJParser
 
 	private boolean useFormalJson;
 
-	/**
-	 * Creates a parser
-	 */
+	/** Creates a parser */
 	public SAJParser()
 	{
 		allowComments = true;
 	}
 
-	/**
-	 * @return Whether or not this parser allows comments (block- and line-style)
-	 */
+	/** @return Whether or not this parser allows comments (block- and line-style) */
 	public boolean allowsComments()
 	{
 		return allowComments;
 	}
 
-	/**
-	 * @param allowed Whether this parser should allow block- and line-style comments
-	 */
+	/** @param allowed Whether this parser should allow block- and line-style comments */
 	public void setAllowsComments(boolean allowed)
 	{
 		allowComments = allowed;
@@ -997,7 +976,7 @@ public class SAJParser
 		{ // Line comment
 			sb.append('/');
 			ch = state.nextChar();
-			while(ch >= 0 && ch != '\n' && ch != '\r')
+			while(ch >= 0 && !state.wasLastLine())
 			{
 				sb.append((char) ch);
 				ch = state.nextChar();
@@ -1452,9 +1431,9 @@ public class SAJParser
 					ret /= pow10((int) Long.parseLong(expNum));
 			}
 			if(type == 'f')
-				return new Float(neg ? -(float) ret : (float) ret);
+				return Float.valueOf(neg ? -(float) ret : (float) ret);
 			else
-				return new Double(neg ? -ret : ret);
+				return Double.valueOf(neg ? -ret : ret);
 		}
 		else
 		{
@@ -1465,7 +1444,7 @@ public class SAJParser
 					ret = Integer.parseInt(whole, radix);
 				else
 					ret = 0;
-				return new Integer(neg ? -ret : ret);
+				return Integer.valueOf(neg ? -ret : ret);
 			}
 			else
 			{
@@ -1476,7 +1455,7 @@ public class SAJParser
 					ret = Long.parseLong(whole, radix);
 				else
 					ret = 0;
-				return new Long(neg ? -ret : ret);
+				return Long.valueOf(neg ? -ret : ret);
 			}
 		}
 	}
@@ -1684,6 +1663,54 @@ public class SAJParser
 		String ret = sb.toString();
 		sb.setLength(0);
 		return ret;
+	}
+
+	/**
+	 * Parses the first JSON value from a stream. The stream is only read up to the last character
+	 * of the first JSON value in the stream.
+	 * 
+	 * @param reader The stream to parse
+	 * @return The first JSON value in the stream. May be null if that is the first value in the
+	 *         stream. Otherwise the value will be an instance of:
+	 *         <ul>
+	 *         <li>{@link org.json.simple.JSONObject}</li>
+	 *         <li>{@link org.json.simple.JSONArray}</li>
+	 *         <li>{@link java.lang.String}</li>
+	 *         <li>{@link java.lang.Number}</li>
+	 *         <li>{@link java.lang.Boolean}</li>
+	 *         </ul>
+	 * @throws IOException If the stream cannot be read
+	 * @throws ParseException If the contents of the stream cannot be parsed
+	 */
+	public static Object parse(Reader reader) throws IOException, ParseException
+	{
+		return new SAJParser().parse(reader, new DefaultHandler());
+	}
+
+	/**
+	 * Parses the first JSON value from a string. Further content in the string is ignored.
+	 * 
+	 * @param string The string to parse
+	 * @return The first JSON value in the stream. May be null if that is the first value in the
+	 *         string. Otherwise the value will be an instance of:
+	 *         <ul>
+	 *         <li>{@link org.json.simple.JSONObject}</li>
+	 *         <li>{@link org.json.simple.JSONArray}</li>
+	 *         <li>{@link java.lang.String}</li>
+	 *         <li>{@link java.lang.Number}</li>
+	 *         <li>{@link java.lang.Boolean}</li>
+	 *         </ul>
+	 * @throws ParseException If the string's contents cannot be parsed
+	 */
+	public static Object parse(String string) throws ParseException
+	{
+		try
+		{
+			return parse(new java.io.StringReader(string));
+		} catch(IOException e)
+		{
+			throw new IllegalStateException("IO Exception thrown from StringReader?!!", e);
+		}
 	}
 
 	/**

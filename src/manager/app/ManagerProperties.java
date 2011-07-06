@@ -48,4 +48,8 @@ public class ManagerProperties
 	/** The permission selected to view the characteristics of for the {@link #userSelectedGroup} */
 	public static final PrismsProperty<prisms.arch.Permission> userSelectedPermission = PrismsProperty
 		.create("userSelectedPermission", prisms.arch.Permission.class);
+
+	/** The performance data selected by the user to view */
+	public static final PrismsProperty<prisms.util.ProgramTracker> performanceData = PrismsProperty
+		.create("manager/performanceData", prisms.util.ProgramTracker.class);
 }

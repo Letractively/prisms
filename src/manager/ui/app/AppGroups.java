@@ -16,9 +16,9 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 	PrismsApplication theApp;
 
 	@Override
-	public void initPlugin(prisms.arch.PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
-		super.initPlugin(session, pluginEl);
+		super.initPlugin(session, config);
 		setSelectionMode(SelectionMode.SINGLE);
 		setDisplaySelectedOnly(false);
 		PrismsApplication app = session.getProperty(ManagerProperties.selectedApp);
@@ -51,7 +51,8 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 				try
 				{
 					mus.createGroup(theApp,
-						createNewGroupName("New " + theApp.getName() + " Group"));
+						createNewGroupName("New " + theApp.getName() + " Group"),
+						new prisms.records.RecordsTransaction(session2.getUser()));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user group", e);
@@ -176,56 +177,55 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 				{
 					final ItemNode node = (ItemNode) evt.getSource();
 					final UserGroup group = node.getObject();
-					final prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
-					prisms.ui.UI.ConfirmListener cl = new prisms.ui.UI.ConfirmListener()
-					{
-						public void confirmed(boolean confirm)
+					final prisms.ui.UI ui = getSession().getUI();
+					ui.confirm("Are you sure you want to delete group " + group.getName()
+						+ " from application " + theApp.getName() + "?",
+						new prisms.ui.UI.ConfirmListener()
 						{
-							if(!confirm)
-								return;
-							ManageableUserSource mus = (ManageableUserSource) getSession().getApp()
-								.getEnvironment().getUserSource();
-
-							prisms.arch.ds.User[] users = getSession().getProperty(
-								PrismsProperties.users);
-							users = users.clone();
-							for(int u = 0; u < users.length; u++)
+							public void confirmed(boolean confirm)
 							{
-								if(users[u] == null
-									|| !prisms.util.ArrayUtils.contains(users[u].getGroups(), group))
+								if(!confirm)
+									return;
+								ManageableUserSource mus = (ManageableUserSource) getSession()
+									.getApp().getEnvironment().getUserSource();
+
+								prisms.arch.ds.User[] users = getSession().getProperty(
+									PrismsProperties.users);
+								users = users.clone();
+								for(int u = 0; u < users.length; u++)
 								{
-									users = prisms.util.ArrayUtils.remove(users, u);
-									u--;
+									if(users[u] == null
+										|| !prisms.util.ArrayUtils.contains(users[u].getGroups(),
+											group))
+									{
+										users = prisms.util.ArrayUtils.remove(users, u);
+										u--;
+									}
 								}
-							}
 
-							try
-							{
-								mus.deleteGroup(group);
-							} catch(prisms.arch.PrismsException e)
-							{
-								throw new IllegalStateException("Could not delete group", e);
+								try
+								{
+									mus.deleteGroup(group, new prisms.records.RecordsTransaction(
+										getSession().getUser()));
+								} catch(prisms.arch.PrismsException e)
+								{
+									throw new IllegalStateException("Could not delete group", e);
+								}
+								try
+								{
+									getSession().fireEvent(
+										new prisms.arch.event.PrismsEvent("appGroupsChanged",
+											"app", theApp, "groups", mus.getGroups(theApp)));
+								} catch(prisms.arch.PrismsException e)
+								{
+									throw new IllegalStateException("Could not get user groups", e);
+								}
+								for(int u = 0; u < users.length; u++)
+									getSession().fireEvent(
+										new prisms.arch.event.PrismsEvent("prismsUserChanged",
+											"user", users[u]));
 							}
-							try
-							{
-								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("appGroupsChanged", "app",
-										theApp, "groups", mus.getGroups(theApp)));
-							} catch(prisms.arch.PrismsException e)
-							{
-								throw new IllegalStateException("Could not get user groups", e);
-							}
-							for(int u = 0; u < users.length; u++)
-								getSession().fireEvent(
-									new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
-										users[u]));
-						}
-					};
-					if(ui != null)
-						ui.confirm("Are you sure you want to delete group " + group.getName()
-							+ " from application " + theApp.getName() + "?", cl);
-					else
-						cl.confirmed(true);
+						});
 				}
 			});
 		}

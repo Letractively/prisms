@@ -1,16 +1,9 @@
 
 __dojo.require("dijit.layout.TabContainer");
-__dojo.require("prisms.widget.PrismsWidget");
 
 __dojo.provide("prisms.widget.PrismsTabContainer");
 __dojo.declare("prisms.widget.PrismsTabContainer", __dijit.layout.TabContainer, {
 	prisms: null,
-
-	postMixInProperties: function(){
-		this.inherited(arguments);
-		this.setPrisms=prisms.widget.PrismsWidget.prototype.setPrisms;
-		this._setChildPrisms=prisms.widget.PrismsWidget.prototype._setChildPrisms;
-	},
 
 	startup: function(){
 		this.inherited(arguments);
@@ -25,7 +18,5 @@ __dojo.declare("prisms.widget.PrismsTabContainer", __dijit.layout.TabContainer, 
 				this.selectChild(children[c]);
 				break;
 			}
-		if(this.prisms)
-			this.setPrisms(this.prisms);
 	}
 });

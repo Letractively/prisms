@@ -24,16 +24,14 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 
 	User theUser;
 
-	private prisms.ui.UI theUI;
-
 	private prisms.arch.ds.Hashing theValidationParams;
 
 	private long theValidationRequestTime;
 
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementTextTrim("name");
+		theName = config.get("name");
 		theUser = theSession.getProperty(ManagerProperties.selectedUser);
 		session.addPropertyChangeListener(ManagerProperties.selectedUser,
 			new prisms.arch.event.PrismsPCL<User>()
@@ -52,7 +50,6 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 					initClient();
 			}
 		});
-		theUI = (prisms.ui.UI) theSession.getPlugin("UI");
 	}
 
 	public void initClient()
@@ -61,15 +58,23 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setVisible");
-		evt.put("visible", new Boolean(visible));
+		evt.put("visible", Boolean.valueOf(visible));
 		theSession.postOutgoingEvent(evt);
 		if(!visible)
 			return;
+
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setEnabled");
-		evt.put("enabled", new Boolean(isEditable()));
+		evt.put("enabled", Boolean.valueOf(isEditable()));
 		theSession.postOutgoingEvent(evt);
+
+		evt = new JSONObject();
+		evt.put("plugin", theName);
+		evt.put("method", "setReadOnly");
+		evt.put("readOnly", Boolean.valueOf(theUser.isReadOnly()));
+		theSession.postOutgoingEvent(evt);
+
 		evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setValue");
@@ -85,17 +90,16 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			throw new IllegalStateException("Could not get user's password expiration", e);
 		}
 		if(expiration < Long.MAX_VALUE)
-			val.put("passwordExpiration", new Long(expiration));
+			val.put("passwordExpiration", Long.valueOf(expiration));
 		else
 			val.put("passwordExpiration", null);
-		val.put("locked", new Boolean(theUser.isLocked()));
+		val.put("locked", Boolean.valueOf(theUser.isLocked()));
 		evt.put("value", val);
 		theSession.postOutgoingEvent(evt);
 	}
 
 	public void processEvent(JSONObject evt)
 	{
-		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		if("nameChanged".equals(evt.get("method")))
 		{
 			assertEditable();
@@ -126,7 +130,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			} catch(prisms.arch.PrismsException e)
 			{
 				log.error("Could not set password expiration", e);
-				ui.error("Could not set password expiration: " + e.getMessage());
+				theSession.getUI().error("Could not set password expiration: " + e.getMessage());
 				return;
 			}
 			log.info("User " + theSession.getUser() + " changing expiration of user " + theUser
@@ -178,8 +182,6 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 	{
 		if(theUser == null)
 			return false;
-		if(theUser.isReadOnly())
-			return false;
 		return manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
 			theUser.getPermissions(theSession.getApp()));
 	}
@@ -220,7 +222,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 		event.put("method", "changePassword");
 		event.put("hashing", hashing.toJson());
 		event.put("constraints",
-			prisms.arch.service.PrismsSerializer.serializeConstraints(constraints));
+			prisms.util.PrismsUtils.serializeConstraints(constraints));
 		theSession.postOutgoingEvent(event);
 	}
 
@@ -233,12 +235,10 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			throw new IllegalStateException("No change password requested");
 		if(theValidationRequestTime < System.currentTimeMillis() - MAX_CHANGE_PASSWORD_REQUEST_WAIT)
 		{
-			if(theUI != null)
-				theUI.error("Change password request expired.  Please try again.");
+			theSession.getUI().error("Change password request expired.  Please try again.");
 			changePassword();
 			return;
 		}
-		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		try
 		{
 			theSession
@@ -250,7 +250,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 		} catch(prisms.arch.PrismsException e)
 		{
 			log.error("Could not set user password", e);
-			ui.error("Could not set user password: " + e.getMessage());
+			theSession.getUI().error("Could not set user password: " + e.getMessage());
 		}
 	}
 }

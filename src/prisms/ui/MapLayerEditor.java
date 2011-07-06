@@ -15,9 +15,7 @@ import com.bbn.openmap.plugin.PlugIn;
 import com.bbn.openmap.plugin.PlugInLayer;
 import com.bbn.openmap.plugin.wms.WMSPlugIn;
 
-/**
- * Allows the user to edit and add layers to the PRISMS map
- */
+/** Allows the user to edit and add layers to the PRISMS map */
 public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 {
 	static final Logger log = Logger.getLogger(MapLayerEditor.class);
@@ -30,10 +28,10 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 
 	private prisms.util.preferences.Preference<Object> theLayersPref;
 
-	public void initPlugin(PrismsSession session, org.dom4j.Element pluginEl)
+	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
-		theName = pluginEl.elementText("name");
+		theName = config.get("name");
 		theWmsUtils = new prisms.arch.wms.WmsUtils(5);
 		if(theLayersPref == null)
 			theLayersPref = new prisms.util.preferences.Preference<Object>(theName, "layers",
@@ -85,30 +83,22 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 			throw new IllegalArgumentException("Unrecognized " + theName + " event: " + evt);
 	}
 
-	/**
-	 * @return This plugin's session
-	 */
+	/** @return This plugin's session */
 	public PrismsSession getSession()
 	{
 		return theSession;
 	}
 
-	/**
-	 * @return The name of this plugin
-	 */
+	/** @return The name of this plugin */
 	public String getName()
 	{
 		return theName;
 	}
 
-	/**
-	 * @return The map that this editor is to configure layers for
-	 */
+	/** @return The map that this editor is to configure layers for */
 	public abstract PrismsOpenMapPlugin getMap();
 
-	/**
-	 * @return The preferences set that this editor will store preferences to
-	 */
+	/** @return The preferences set that this editor will store preferences to */
 	public abstract prisms.util.preferences.Preferences getPreferences();
 
 	/**
@@ -146,7 +136,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 				JSONObject jsonLayer = new JSONObject();
 				jsonLayers.add(jsonLayer);
 				jsonLayer.put("name", layer.getName());
-				jsonLayer.put("enabled", new Boolean(layer.isVisible()));
+				jsonLayer.put("enabled", Boolean.valueOf(layer.isVisible()));
 				String type;
 				if(layer instanceof com.bbn.openmap.layer.rpf.RpfLayer)
 					type = "CADRG";
@@ -171,7 +161,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 					type = "Other";
 
 				jsonLayer.put("type", type);
-				jsonLayer.put("configurable", new Boolean(canConfigure(layer)));
+				jsonLayer.put("configurable", Boolean.valueOf(canConfigure(layer)));
 			}
 		}
 		JSONObject evt = new JSONObject();
@@ -234,16 +224,15 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 		String url = plugin.getQueryHeader();
 		prisms.ui.UI.DefaultProgressInformer pi = new prisms.ui.UI.DefaultProgressInformer();
 		pi.setCancelable(true);
-		prisms.ui.UI ui = (prisms.ui.UI) getSession().getPlugin("UI");
-		ui.startTimedTask(pi);
+		getSession().getUI().startTimedTask(pi);
 		prisms.arch.wms.WmsUtils.WmsLayer[] layers;
 		try
 		{
 			layers = theWmsUtils.getWMSLayers(url, pi);
 		} catch(prisms.arch.PrismsException e)
 		{
-			ui.error(e.getMessage()
-				+ (e.getCause() != null ? ": " + e.getCause().getMessage() : ""));
+			getSession().getUI().error(
+				e.getMessage() + (e.getCause() != null ? ": " + e.getCause().getMessage() : ""));
 			return;
 		}
 		JSONArray jsonLayers = new JSONArray();
@@ -254,7 +243,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 			jsonLayer.put("name", wmsLayer.name);
 			jsonLayer.put("title", wmsLayer.title);
 			jsonLayer.put("enabled",
-				new Boolean(ArrayUtils.contains(plugin.getLayers().split(","), wmsLayer.name)));
+				Boolean.valueOf(ArrayUtils.contains(plugin.getLayers().split(","), wmsLayer.name)));
 		}
 		JSONObject jsonWMS = new JSONObject();
 		jsonWMS.put("name", layer.getName());
@@ -504,40 +493,38 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 				wms.setLayers(wms.getLayers().substring(0, wms.getLayers().length() - 1));
 		}
 		configureWMS((PlugInLayer) selectedLayer, wms);
-		prisms.ui.UI ui = (prisms.ui.UI) theSession.getPlugin("UI");
 		final boolean [] finished = new boolean [] {false};
-		if(ui != null)
-			ui.startTimedTask(new prisms.ui.UI.ProgressInformer()
+		getSession().getUI().startTimedTask(new prisms.ui.UI.ProgressInformer()
+		{
+			public String getTaskText()
 			{
-				public String getTaskText()
-				{
-					return "Redrawing WMS Layers";
-				}
+				return "Redrawing WMS Layers";
+			}
 
-				public int getTaskScale()
-				{
-					return 0;
-				}
+			public int getTaskScale()
+			{
+				return 0;
+			}
 
-				public int getTaskProgress()
-				{
-					return 0;
-				}
+			public int getTaskProgress()
+			{
+				return 0;
+			}
 
-				public boolean isTaskDone()
-				{
-					return finished[0];
-				}
+			public boolean isTaskDone()
+			{
+				return finished[0];
+			}
 
-				public boolean isCancelable()
-				{
-					return false;
-				}
+			public boolean isCancelable()
+			{
+				return false;
+			}
 
-				public void cancel() throws IllegalStateException
-				{
-				}
-			});
+			public void cancel() throws IllegalStateException
+			{
+			}
+		});
 		try
 		{
 			((PlugInLayer) selectedLayer).setList(((PlugInLayer) selectedLayer).prepare());
@@ -653,9 +640,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 		return ret.toString();
 	}
 
-	/**
-	 * Stores the configured layers in the preferences
-	 */
+	/** Stores the configured layers in the preferences */
 	public void storePrefs()
 	{
 		prisms.util.preferences.Preferences prefs = getPreferences();
@@ -693,7 +678,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 						return null;
 					JSONObject ret = new JSONObject();
 					ret.put("name", o.getName());
-					ret.put("enabled", new Boolean(o.isVisible()));
+					ret.put("enabled", Boolean.valueOf(o.isVisible()));
 					String type;
 					if(o instanceof com.bbn.openmap.layer.rpf.RpfLayer)
 						type = "CADRG";
@@ -740,7 +725,7 @@ public abstract class MapLayerEditor implements prisms.arch.AppPlugin
 					int retIdx)
 				{
 					o1.put("name", o2.getName());
-					o1.put("enabled", new Boolean(o2.isVisible()));
+					o1.put("enabled", Boolean.valueOf(o2.isVisible()));
 					if(o2 instanceof PlugInLayer
 						&& ((PlugInLayer) o2).getPlugIn() instanceof WMSPlugIn)
 					{

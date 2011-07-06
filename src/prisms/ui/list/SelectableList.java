@@ -15,9 +15,7 @@ import prisms.arch.event.PrismsEvent;
  */
 public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 {
-	/**
-	 * The default background color for selected items
-	 */
+	/** The default background color for selected items */
 	public static final Color DEFAULT_SELECTED_COLOR = new Color(176, 176, 255);
 
 	boolean publicActions;
@@ -36,9 +34,7 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 
 	boolean compareByIdentity = true;
 
-	/**
-	 * Creates a selectable list
-	 */
+	/** Creates a selectable list */
 	public SelectableList()
 	{
 		theActiveBackground = DEFAULT_SELECTED_COLOR;
@@ -48,9 +44,7 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 		displaySelectedOnly = true;
 	}
 
-	/**
-	 * @return Whether items in this list generate events to allow for externally-generated actions
-	 */
+	/** @return Whether items in this list generate events to allow for externally-generated actions */
 	public boolean isPublicActions()
 	{
 		return publicActions;
@@ -93,17 +87,13 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 		compareByIdentity = c;
 	}
 
-	/**
-	 * @return The background color displayed for selected items
-	 */
+	/** @return The background color displayed for selected items */
 	public Color getActiveBackground()
 	{
 		return theActiveBackground;
 	}
 
-	/**
-	 * @param bg The background color to be displayed for selected items
-	 */
+	/** @param bg The background color to be displayed for selected items */
 	public void setActiveBackground(Color bg)
 	{
 		theActiveBackground = bg;
@@ -127,17 +117,13 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 		theActiveOnlyBackground = bg;
 	}
 
-	/**
-	 * @return The foreground color displayed for selected items
-	 */
+	/** @return The foreground color displayed for selected items */
 	public Color getActiveForeground()
 	{
 		return theActiveForeground;
 	}
 
-	/**
-	 * @param fg The foreground color to be displayed for selected items
-	 */
+	/** @param fg The foreground color to be displayed for selected items */
 	public void setActiveForeground(Color fg)
 	{
 		theActiveForeground = fg;
@@ -161,8 +147,10 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 		theActiveOnlyForeground = fg;
 	}
 
+	@Override
 	public abstract String getTitle();
 
+	@Override
 	public abstract String getIcon();
 
 	/**
@@ -232,11 +220,11 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 				continue;
 			boolean selected;
 			if(compareByIdentity)
-				selected = prisms.util.ArrayUtils.containsID(items, ((ItemNode) getItem(i))
-					.getObject());
+				selected = prisms.util.ArrayUtils.containsID(items,
+					((ItemNode) getItem(i)).getObject());
 			else
-				selected = prisms.util.ArrayUtils.contains(items, ((ItemNode) getItem(i))
-					.getObject());
+				selected = prisms.util.ArrayUtils.contains(items,
+					((ItemNode) getItem(i)).getObject());
 			if(selected)
 				newSelected.add((ItemNode) getItem(i));
 			else if(((ItemNode) getItem(i)).isSelectedOnly())
@@ -348,14 +336,21 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 	public abstract String getItemName(T item);
 
 	/**
+	 * @param item The item to get the description for
+	 * @return The description for the given item
+	 */
+	public String getItemDescrip(T item)
+	{
+		return null;
+	}
+
+	/**
 	 * @param item The item to get the icon for
 	 * @return The icon for the given item
 	 */
 	public abstract String getItemIcon(T item);
 
-	/**
-	 * A list node representing an item in this list
-	 */
+	/** A list node representing an item in this list */
 	protected class ItemNode extends prisms.ui.list.SimpleListPluginNode
 	{
 		private T theObject;
@@ -366,29 +361,33 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 
 		private String theIcon;
 
+		private String theDescrip;
+
 		private Color theBackground;
 
 		private Color theForeground;
 
 		private boolean selectedOnly;
 
-		/**
-		 * @param obj The object to represent by this node
-		 */
+		/** @param obj The object to represent by this node */
 		public ItemNode(T obj)
 		{
 			super(SelectableList.this, publicActions);
 			theObject = obj;
 			theID = Integer.toHexString(hashCode());
-			theName = getItemName(obj);
-			theIcon = getItemIcon(obj);
+			init();
+		}
+
+		/** Initializes this item's display properties */
+		protected void init()
+		{
+			theName = getItemName(getObject());
+			theDescrip = getItemDescrip(getObject());
+			theIcon = getItemIcon(getObject());
 			theBackground = getBackground();
 			theForeground = getForeground();
 		}
 
-		/**
-		 * @see prisms.ui.list.AbstractSimpleListNode#setSelected(boolean)
-		 */
 		@Override
 		public void userSetSelected(boolean selected)
 		{
@@ -429,28 +428,25 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 			selectedOnly = selOnly;
 		}
 
-		/**
-		 * @return The object that this node represents
-		 */
+		/** @return The object that this node represents */
 		public T getObject()
 		{
 			return theObject;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getID()
-		 */
 		public String getID()
 		{
 			return theID;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getText()
-		 */
 		public String getText()
 		{
 			return theName;
+		}
+
+		public String getDescription()
+		{
+			return theDescrip;
 		}
 
 		/**
@@ -464,6 +460,12 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 			if(!theName.equals(getItemName(getObject())))
 			{
 				theName = getItemName(getObject());
+				modified = true;
+			}
+			if(theDescrip == null ? getItemDescrip(getObject()) == null : !theIcon
+				.equals(getItemDescrip(getObject())))
+			{
+				theDescrip = getItemDescrip(getObject());
 				modified = true;
 			}
 			if(theIcon == null ? getItemIcon(getObject()) == null : !theIcon
@@ -489,9 +491,6 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 			return modified;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getBackground()
-		 */
 		public Color getBackground()
 		{
 			if(selectedOnly)
@@ -502,9 +501,6 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 				return Color.white;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getForeground()
-		 */
 		public Color getForeground()
 		{
 			if(selectedOnly)
@@ -515,25 +511,11 @@ public abstract class SelectableList<T> extends prisms.ui.list.DataListMgrPlugin
 				return Color.black;
 		}
 
-		/**
-		 * @see prisms.ui.list.DataListNode#getDescription()
-		 */
-		public String getDescription()
-		{
-			return null;
-		}
-
-		/**
-		 * @see prisms.ui.list.DataListNode#getIcon()
-		 */
 		public String getIcon()
 		{
 			return theIcon;
 		}
 
-		/**
-		 * @see prisms.ui.list.SimpleListPluginNode#addEventProperties(prisms.arch.event.PrismsEvent)
-		 */
 		@Override
 		protected void addEventProperties(PrismsEvent evt)
 		{

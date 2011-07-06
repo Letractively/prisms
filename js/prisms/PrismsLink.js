@@ -40,7 +40,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 		if(this.connectImmediately)
 			this.prismsConnect();
 		var self=this;
-		dojo.addOnUnload(function(){
+		__dojo.addOnUnload(function(){
 			self.disconnect();
 		});
 	},
@@ -201,7 +201,10 @@ __dojo.declare("prisms.PrismsLink", null, {
 		else if(event.method=="error")
 		{
 			this.appLoaded();
-			this.serverError(event.message);
+			if(!this.isActive())
+				this.doLogin(event.message);
+			else
+				this.serverError(event.message);
 		}
 		else if(event.method=="restart")
 		{
@@ -289,21 +292,23 @@ __dojo.declare("prisms.PrismsLink", null, {
 			this.callServer("init");
 			this.appLoading();
 		}
-		else if(!this._login || error || !this._login.password || this._login.password.length==0)
+		else if(!this.tryEncryptAgain && (!this._login || error || !this._login.password || this._login.password.length==0))
 		{
 			this._encryption=encryption;
 			this._hashing=hashing;
 			this._postLoginAction="startEncryption";
 			this.appLoaded();
 			if(error)
+			{
+				this._loginError=error;
 				this.doLogin(error);
-			else if(!this._login.password || this._login.password.length==0)
-				this.doLogin("Password required for user "+this._login.userName);
+			}
 			else
 				this.doLogin();
 		}
 		else
 		{
+			this.tryEncryptAgain=false;
 			this.cipher=prisms.Encryption.createCipher(encryption);
 			this.cipher.init(this._getEncryptionKey(hashing, this._login.password));
 			if(this._postEncryptionAction)
@@ -369,14 +374,26 @@ __dojo.declare("prisms.PrismsLink", null, {
 			delete this.pingID;
 		}
 		this._login={userName: userName, password: password};
+		if(!this._hashing || this._hashing.user!=userName)
+			this.tryEncryptAgain=true;
 		delete this.cipher;
 		if(this._postLoginAction)
 		{
 			if(this._postLoginAction=="startEncryption")
-				this.startEncryption(this._encryption, this._hashing, null, "callInit");
+			{
+				if(!password || password.length==0)
+				{
+					this.appLoaded();
+					this.doLogin(this._loginError);
+				}
+				else
+				{
+					delete this._postLoginAction;
+					this.startEncryption(this._encryption, this._hashing, null, "callInit");
+				}
+			}
 			else
 				this.error("Unrecognized post-login action: "+this._postLoginAction);
-			delete this._postLoginAction;
 		}
 		else
 			this.callServer("init");
@@ -514,8 +531,11 @@ __dojo.declare("prisms.PrismsLink", null, {
 		this._xhrCall({method: "processEvent", data: params}, xhrArgs);
 	},
 
-	getWmsSource: function(plugin, method){
-		var params={plugin: plugin, sessionWMS: true};
+	getWmsSource: function(plugin, method, params){
+		if(!params)
+			params={sessionWMS: true};
+		params.plugin=plugin;
+		params.method=method;
 		var ret=this.imageURL+"?";
 		if(this.sessionID)
 			ret+="sessionID="+this.sessionID+"&";
@@ -666,7 +686,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 
 	_serializeDeep: function(val){
 		for(var field in val)
-			if(typeof val[field] == "object" || typeof val[field] == "array")
+			if(val[field] && (typeof val[field] == "object" || typeof val[field] == "array"))
 				val[field]=this.toJson(val[field]);
 	},
 

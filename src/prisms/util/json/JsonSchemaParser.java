@@ -174,11 +174,12 @@ public class JsonSchemaParser
 	{
 		String json;
 		java.io.Reader reader = null;
+		java.io.BufferedReader br = null;
 		try
 		{
 			reader = new java.io.InputStreamReader(url.openStream());
 			java.io.StringWriter sw = new java.io.StringWriter();
-			java.io.BufferedReader br = new java.io.BufferedReader(reader);
+			br = new java.io.BufferedReader(reader);
 			int read;
 			CommentState state = CommentState.NONE;
 			int buffer = -1;
@@ -241,10 +242,10 @@ public class JsonSchemaParser
 			throw new IllegalStateException("Could not find JSON at " + url, e);
 		} finally
 		{
-			if(reader != null)
+			if(br != null)
 				try
 				{
-					reader.close();
+					br.close();
 				} catch(java.io.IOException e)
 				{
 					log.error("Could not close stream", e);

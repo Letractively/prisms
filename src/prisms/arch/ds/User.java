@@ -1,4 +1,4 @@
-/**
+/*
  * User.java Created Oct 10, 2007 by Andrew Butler, PSL
  */
 package prisms.arch.ds;
@@ -10,7 +10,7 @@ import prisms.arch.PrismsApplication;
  * Represents a user of a {@link PrismsApplication}. Allows the application to restrict or deny
  * access based on a user's credentials and verifiability.
  */
-public class User implements prisms.records2.RecordUser, Cloneable
+public class User implements prisms.records.RecordUser, Cloneable
 {
 	private long theID;
 
@@ -231,7 +231,10 @@ public class User implements prisms.records2.RecordUser, Cloneable
 	@Override
 	public int hashCode()
 	{
-		return ((int) theID) ^ ((int) (theID >>> 32));
+		if(theID >= 0)
+			return ((int) theID) ^ ((int) (theID >>> 32));
+		else
+			return theName.hashCode();
 	}
 
 	private static class UserPermissions implements Permissions
@@ -278,6 +281,8 @@ public class User implements prisms.records2.RecordUser, Cloneable
 
 		public Permissions forApp(PrismsApplication app)
 		{
+			if(app == null)
+				return new UserAppPermissions(this, null);
 			UserAppPermissions ret = theAppPermissions.get(app.getName());
 			if(ret != null)
 				return ret;

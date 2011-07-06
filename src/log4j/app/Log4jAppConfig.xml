@@ -7,6 +7,9 @@
 	<worker>
 		<type>threadpool</type>
 	</worker>
+	<properties>
+		<property globalRef="prisms-preferences" />
+	</properties>
 	<clients>
 		<client configXML="Log4jClientConfig.xml" />
 	</clients>

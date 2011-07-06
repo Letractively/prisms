@@ -1,6 +1,5 @@
 
 __dojo.require("dijit.Dialog");
-__dojo.require("dijit.Toolbar")
 __dojo.require("dijit.form.Button");
 __dojo.require("dijit.form.TextBox");
 
@@ -17,19 +16,6 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
-/*		__dojo.connect(this.loginDialog, "show", this, function(){
-			if(this.userName.getValue().length>0)
-				this.password.focus();
-		});
-		__dojo.connect(this.userName, "onFocus", this, function(){
-			__dijit.selectInputText(this.userName);
-		});
-		__dojo.connect(this.password, "onfocus", this, function(){
-			__dijit.selectInputText(this.password);
-		});
-		__dojo.connect(this.password2, "onfocus", this, function(){
-			__dijit.selectInputText(this.password2);
-		});*/
 		this.uploadForm.target="uploadTarget";
 		this.MONTHS=["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -84,17 +70,17 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 		this.loginMenu=loginMenu;
 		this.loginLogoutButton=new dijit.MenuItem({label:"Log In..."});
 		this.loginMenu.dropDown.addChild(this.loginLogoutButton);
-		dojo.connect(this.loginLogoutButton, "onClick", this, this._doLoginLogout);
+		__dojo.connect(this.loginLogoutButton, "onClick", this, this._doLoginLogout);
 		this.switchUserButton=new dijit.MenuItem({label:"Switch User..."});
 		this.switchUserButton.setAttribute("disabled", true);
 		this.switchUserButton.domNode.title="Log in as another user";
 		this.loginMenu.dropDown.addChild(this.switchUserButton);
-		dojo.connect(this.switchUserButton, "onClick", this, this._doSwitchUser);
+		__dojo.connect(this.switchUserButton, "onClick", this, this._doSwitchUser);
 		this.changePasswordButton=new dijit.MenuItem({label:"Change Password..."});
 		this.changePasswordButton.setAttribute("disabled", true);
 		this.changePasswordButton.domNode.title="Change your password";
 		this.loginMenu.dropDown.addChild(this.changePasswordButton);
-		dojo.connect(this.changePasswordButton, "onClick", this, this._tryChangePassword);
+		__dojo.connect(this.changePasswordButton, "onClick", this, this._tryChangePassword);
 	},
 
 	getDefaultUser: function(){
@@ -140,7 +126,7 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 				this.loginMessageNode.innerHTML=message;
 			}
 			else
-				this.loginMessageNode.innerHTML="Enter new password for "+user;
+				this.loginMessageNode.innerHTML=PrismsUtils.fixUnicodeString("Enter new password for "+user);
 		}
 		PrismsUtils.setTableRowVisible(this.userNameRow, false);
 		PrismsUtils.setTableRowVisible(this.password2Row, true);
@@ -172,7 +158,7 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 		if(error)
 		{
 			this.loginMessageNode.style.color="red";
-			this.loginMessageNode.innerHTML=error;
+			this.loginMessageNode.innerHTML=PrismsUtils.fixUnicodeString(error);
 		}
 		else
 		{
@@ -199,7 +185,7 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 	},
 
 	appLoading: function(){
-		this.loadingMessageDiv.innerHTML="Loading "+this.prisms.application;
+		this.loadingMessageDiv.innerHTML=PrismsUtils.fixUnicodeString("Loading "+this.prisms.application);
 		this.loadingDialog.show();
 	},
 
@@ -244,9 +230,9 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 	doRestart: function(event){
 		PrismsUtils.setTableRowVisible(this.messageDialogOKRow, true);
 		if(event.message)
-			this.messageNode.innerHTML=event.message;
+			this.messageNode.innerHTML=PrismsUtils.fixUnicodeString(event.message);
 		else
-			this.messageNode.innerHTML=this.prisms.application+" must be reloaded";
+			this.messageNode.innerHTML=PrismsUtils.fixUnicodeString(this.prisms.application+" must be reloaded");
 		this.isRestarted=true;
 		this.messageDialog.show();
 	},
@@ -275,14 +261,13 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 			this.prisms.shutdown();
 			this.doRestart({message: "Session has timed out! Refresh required."});
 			this.messageDialog.layout();
-			this.prisms.callApp(null, "getEvents");
 		}
 		else if(exp<=60)
-			this.messageNode.innerHTML="Your session will expire in "+exp
-				+" seconds. Click OK to continue using "+this.prisms.application+".";
+			this.messageNode.innerHTML=PrismsUtils.fixUnicodeString("Your session will expire in "+exp
+				+" seconds. Click OK to continue using "+this.prisms.application+".");
 		else
-			this.messageNode.innerHTML="Your session will expire in approx. "+Math.ceil(exp/60)
-				+" minutes. Click OK to continue using "+this.prisms.application+".";
+			this.messageNode.innerHTML=PrismsUtils.fixUnicodeString("Your session will expire in approx. "+Math.ceil(exp/60)
+				+" minutes. Click OK to continue using "+this.prisms.application+".");
 	},
 
 	showAppLocked: function(message, scale, progress){
@@ -298,10 +283,11 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 			else
 				this.loadingMessageDiv.style.textAlign="center";
 			message=msg.join("&nbsp;&nbsp;&nbsp;&nbsp;");
-			this.loadingMessageDiv.innerHTML=message;
+			this.loadingMessageDiv.innerHTML=PrismsUtils.fixUnicodeString(message);
 		}
 		else
-			this.loadingMessageDiv.innerHTML=this.prisms.application+" is temporarily locked";
+			this.loadingMessageDiv.innerHTML=PrismsUtils.fixUnicodeString(
+				this.prisms.application+" is temporarily locked");
 		if(scale && typeof progress=="number")
 		{
 			this.loadingProgressBar.indeterminate=false;
@@ -371,7 +357,7 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 	},
 
 	doUpload: function(event){
-		this.uploadLabelCell.innerHTML=event.message;
+		this.uploadLabelCell.innerHTML=PrismsUtils.fixUnicodeString(event.message);
 		this.uploadEvent=event;
 		this.uploadFileField.value="";
 		this.uploadDialog.show();
@@ -438,7 +424,7 @@ __dojo.declare("prisms.DojoPrisms", [__dijit._Widget, __dijit._Templated], {
 			var msg=PrismsUtils.validatePassword(pwd, this._constraints);
 			if(msg)
 			{
-				this.loginMessageNode.innerHTML=msg;
+				this.loginMessageNode.innerHTML=PrismsUtils.fixUnicodeString(msg);
 				this.loginMessageNode.style.color="red";
 				this.password.focus();
 				return;

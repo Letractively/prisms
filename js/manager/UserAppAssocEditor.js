@@ -60,7 +60,8 @@ __dojo.declare("manager.UserAppAssocEditor", [__dijit._Widget, __dijit._Containe
 		this.setVisible(true);
 		this.dataLock=true;
 		try{
-			this.userAccessText.innerHTML="User '"+data.user+"' access to application '"+data.app+"':";
+			this.userAccessText.innerHTML=PrismsUtils.fixUnicodeString(
+				"User '"+data.user+"' access to application '"+data.app+"':");
 			this.canAccessCheck.setAttribute("checked", data.accessible);
 		} finally{
 			this.dataLock=false;

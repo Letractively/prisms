@@ -1,17 +1,41 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+
 <server>
+	<!-- Causes PRISMS to configure itself when it is loaded on app server startup -->
+	<!--<load-immediately />-->
+
+	<!-- Security settings within PRISMS -->
 	<security>
-		<timeout minutes="15" />
-		<!-- <refresh minutes="15" /> -->
-		<loginOnce>true</loginOnce>
-		<!-- <validation-trusted>true</validation-trusted> -->
+		<timeout>15min</timeout>
+		<!-- <refresh>15min</refresh> -->
+		<activity-constraint>
+			<constraint-time>1s</constraint-time>
+			<max-hits>100</max-hits>
+			<lockout-time>15s</lockout-time>
+		</activity-constraint>
+		<activity-constraint>
+			<constraint-time>1min</constraint-time>
+			<max-hits>500</max-hits>
+			<lockout-time>5min</lockout-time>
+		</activity-constraint>
+		<activity-constraint>
+			<constraint-time>15min</constraint-time>
+			<max-hits>1500</max-hits>
+			<lockout-time>15min</lockout-time>
+		</activity-constraint>
 	</security>
+
+	<!-- Which serializer type to use by default -->
 	<serializer>prisms.arch.JsonSerializer</serializer>
-	<encryption>
-		<class>prisms.arch.BlowfishEncryption</class>
-	</encryption>
-	<persisterFactory>
-		<class>prisms.impl.DefaultPersisterFactory</class>
+
+	<!-- Instructs instances on the enterprise how to contact this instance -->
+	<local-port>8080</local-port>
+	<local-scheme>http</local-scheme>
+	<local-path>prisms/prisms</local-path>
+
+	<!-- Sets up the connection factory with all potential database connections we may need -->
+	<connection-factory>
+		<class>prisms.impl.DefaultConnectionFactory</class>
 		<connection>
 			<name>PRISMS</name>
 			<driver>org.hsqldb.jdbcDriver</driver>
@@ -19,13 +43,41 @@
 			<username>PRISMS</username>
 			<password>PRISMS</password>
 		</connection>
-	</persisterFactory>
+	</connection-factory>
+
+	<!-- Sets up the user source that provides PRISMS with users -->
 	<datasource>
 		<class>prisms.impl.DBUserSource</class>
-		<connection name="PRISMS" />
+		<connection ref="PRISMS" />
 		<anonymous>anonymous</anonymous>
 	</datasource>
-	<applications />
+
+	<!-- Default users to load on initial install -->
+	<default-users>DefaultUsers.xml</default-users>
+
+	<tracking>
+		<track stats="true">30 seconds</track>
+		<track stats="true">1 minute</track>
+		<track stats="true">5 minutes</track>
+		<track>30 minutes</track>
+		<track>2 hours</track>
+	</tracking>
+
+	<!-- All custom (non-standard) applications to be loaded -->
+	<applications>
+	</applications>
+
+	<!-- All methods of authentication that can be allow users access into PRISMS applications -->
+	<authenticator>
+		<class>prisms.impl.UserSourceAuthenticator</class>
+		<userparam>user</userparam>
+		<encryption>
+			<class>prisms.arch.BlowfishEncryption</class>
+		</encryption>
+		<loginOnce>true</loginOnce>
+	</authenticator>
+
+	<!-- All property managers that may be common between applications -->
 	<global-listeners>
 		<listener-set name="prisms-users">
 			<property type="manager.persisters.PrismsUserManager">
@@ -45,6 +97,14 @@
 					<name>prismsUserChanged</name>
 					<eventProperty>user</eventProperty>
 				</changeEvent>
+			</property>
+		</listener-set>
+		<listener-set name="prisms-preferences">
+			<property type="prisms.util.persisters.UserSpecificManager">
+				<field>prisms.arch.event.PrismsProperties.preferences</field>
+				<persister ref="PRISMS">
+					<class>prisms.util.preferences.PreferencesPersister</class>
+				</persister>
 			</property>
 		</listener-set>
 	</global-listeners>

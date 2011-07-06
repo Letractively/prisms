@@ -6,21 +6,27 @@ package manager.persisters;
 import prisms.arch.PrismsApplication;
 import prisms.arch.ds.ManageableUserSource;
 import prisms.arch.ds.User;
+import prisms.arch.ds.UserGroup;
 
 /** Manages the full set of users available in PRISMS between applications */
 public class PrismsUserManager extends prisms.util.persisters.PersistingPropertyManager<User []>
 {
 	private User [] theUsers;
 
+	PrismsApplication theManager;
+
 	ManageableUserSource.UserSetListener theListener;
 
 	@Override
-	public void configure(final PrismsApplication app, org.dom4j.Element configEl)
+	public void configure(final PrismsApplication app, prisms.arch.PrismsConfig config)
 	{
-		super.configure(app, configEl);
-		if(theListener != null
+		super.configure(app, config);
+		if(app.getEnvironment().isManager(app))
+			theManager = app;
+		if(theListener == null
 			&& app.getEnvironment().getUserSource() instanceof ManageableUserSource)
 		{
+			ManageableUserSource us = (ManageableUserSource) app.getEnvironment().getUserSource();
 			theListener = new ManageableUserSource.UserSetListener()
 			{
 				public void userSetChanged(User [] users)
@@ -31,10 +37,46 @@ public class PrismsUserManager extends prisms.util.persisters.PersistingProperty
 
 				public void userChanged(User user)
 				{
-					fireGlobalEvent(null, "prismsUserChanged", "user", user);
+					fireGlobalEvent(null, "prismsUserChanged", "user", user, "prismsPersisted",
+						Boolean.TRUE);
+				}
+
+				public void userAuthorityChanged(User user)
+				{
+					fireGlobalEvent(null, "prismsUserAuthChanged", "user", user, "prismsPersisted",
+						Boolean.TRUE);
+				}
+
+				public void groupSetChanged(PrismsApplication _app, UserGroup [] groups)
+				{
+					if(theManager != null)
+						theManager.fireGlobally(null, new prisms.arch.event.PrismsEvent(
+							"appGroupsChanged", "app", _app, "groups", groups, "prismsPersisted",
+							Boolean.TRUE));
+				}
+
+				public void groupChanged(UserGroup group)
+				{
+					if(theManager != null)
+						theManager.fireGlobally(null, new prisms.arch.event.PrismsEvent(
+							"groupChanged", "group", group, "prismsPersisted", Boolean.TRUE));
 				}
 			};
-			((ManageableUserSource) app.getEnvironment().getUserSource()).addListener(theListener);
+			us.addListener(theListener);
+			if(us.getRecordKeeper() instanceof prisms.records.ScaledRecordKeeper)
+			{
+				final prisms.records.ScaledRecordKeeper srk = (prisms.records.ScaledRecordKeeper) us
+					.getRecordKeeper();
+				srk.setCheckInterval(1500);
+				app.scheduleRecurringTask(new Runnable()
+				{
+					public void run()
+					{
+						srk.checkChanges(false);
+					}
+				}, 2000);
+			}
+
 			app.addDestroyTask(new Runnable()
 			{
 				public void run()
