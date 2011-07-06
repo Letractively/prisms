@@ -8,7 +8,7 @@
     * Data accountability--complete records of who did what to which piece of data when
     * Duplication of a dynamic data set using a common database
     * Synchronization of data sets across network connections.
-  See the Synchronization wiki page for more information.
+  See the [http://code.google.com/p/prisms/wiki/Synchronization Synchronization] wiki page for more information.
  * *Searchable APIs:* This feature consists of interfaces and helper mechanisms that allow the creation of custom data retrieval APIs that can be searched by field.  This allows APIs to be greatly simplified by having only a couple methods that accept search objects and return all data matching the search.  Searchable APIs never need to be extended to access data in a different way. In addition, Searchable APIs can create prepared searches that allow for improved performance for repeated searches.
  * *Array Utilities:* PRISMS uses arrays instead of collections for most of its data sets. This is nice from a memory and code-simplicity standpoint, but causes problems in that arrays are constant-length and creating new arrays can cause performance problems if it is done too often. The ArrayUtils utility class was created to help make dealing with one-dimensional data sets easier. It provides several utilities:
     * Add methods to create new arrays with the elements of an array and a new element or to merge several arrays.
@@ -17,7 +17,7 @@
     * Comparisons to determine equality of two arrays, potentially regardless of order
     * An adjust method to intelligently control the content of a data set in response to changes to a related data set
     * A sorter that allows for customized operation to data that needs to be reordered.
-  See the ArrayUtils wiki page for more information and details
+  See the [http://code.google.com/p/prisms/wiki/ArrayUtils ArrayUtils] wiki page for more information and details
  * *JSON Utilities:* While XML has an overwhelming variety of resources for parsing and manipulating the format, the JSON format has relatively sparse utilities.  JSON has some great advantages over XML in processing time, simplicity, and space. PRISMS provides several utilities for JSON-based parsing, manipulation, and printing.:
     * A validation utility that validates org.json.simple JSON data against a schema which is itself specified in JSON format
     * A serial parser. SAX-like capability for JSON allows extremely large JSON data streams to be parsed piece-wise, giving the application a more scalable memory model. This utility also allows slight but useful departures from the JSON data format standard, e.g. hexadecimal numbers and comments.
