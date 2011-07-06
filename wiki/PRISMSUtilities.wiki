@@ -1,4 +1,4 @@
-#summary PRISMS_Utils
+#summary PRISMS Utilities
 #labels Featured,Phase-Implementation
 
 = Utilities collected in the PRISMS framework =
