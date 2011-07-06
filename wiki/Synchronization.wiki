@@ -1,5 +1,4 @@
 #summary An overview of the PRISMS data synchronization system
-#labels Featured
 
 = Synchronization of java objects over a data connection =
 
