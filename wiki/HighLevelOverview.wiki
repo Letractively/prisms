@@ -1,4 +1,5 @@
 #summary A high-level overview of the merits of the PRISMS framework to help developers or project managers decide if PRISMS is right for their project
+#labels Featured,Phase-Implementation
 
 = High-Level PRISMS Overview =
 
