@@ -12,7 +12,7 @@ The ArrayUtils class contains several utility methods useful for manipulating ar
  * Search an array for an element
  * Sort an array interactively--performing custom operations each time the given list is reordered. This can be used to sort multiple synchronized lists with a single operation.
 
-However, the most important and useful method in ArrayUtils is
+However, the most important and useful method in ArrayUtils is:
 = adjust =
 
 The *adjust* method is one of the most useful and innovative utilities in the PRISMS architecture.  Its function is to adjust the content of one list using the content of another.  The way this is done and the effects of the operation are completely customizable.  This method compares two arrays, determining elements that are missing in either array or have been moved from one position to another.  These differences are reported to a listener, giving the programmer the opportunity to take any action as a result of each difference.
