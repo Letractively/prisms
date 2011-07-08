@@ -129,9 +129,9 @@ setApplicationProperty(appValue);
 
 Thus the entire application's state can be updated in only 25 or so easy-to-understand lines of actual code.
 
-In addition to the removed method, null can be returned from the added and set methods as well to signify that the value should not be represented in the returned array or the incMod and retIdx indices.  
+In addition to the {{{removed}}} method, null can be returned from the {{{added}}} and {{{set}}} methods as well to signify that the value should not be represented in the returned array or the incMod and retIdx indices.  
 
-Also, although this example compared two arrays of Persons, the method is capable of comparing arrays of any two non-primitive types whose relationship is defined by the identity method.  Say then that the UI in this example is a list with a poorly-designed data model, and the only way to change the data is to set its items in an array.  Here is the UI list's item class:
+Also, although this example compared two arrays of {{{Person}}}s, the method is capable of comparing arrays of any two non-primitive types whose relationship is defined by the identity method.  Say then that the UI in this example is a list with a poorly-designed data model, and the only way to change the data is to set its items in an array.  Here is the UI list's item class:
 
 {{{
 public class ListItem
@@ -148,7 +148,7 @@ public class ListItem
 }
 }}}
 
-So the {{{getContent()}}} method returns a Person for our usage and the only way to set the content is to create a new ListItem with a person in the constructor.  The UI list itself contains {{{ListItem [] getListItems()}}} and {{{void setListItems(ListItem[])}}} methods for getting and setting its data, respectively.  After updating the set of Persons in the application's value, one could use the adjust method to update the UI as follows:
+So the {{{getContent()}}} method returns a {{{Person}}} for our usage and the only way to set the content is to create a new {{{ListItem}}} with a person in the constructor.  The UI list itself contains {{{ListItem [] getListItems()}}} and {{{void setListItems(ListItem[])}}} methods for getting and setting its data, respectively.  After updating the set of Persons in the application's value, one could use the adjust method to update the UI as follows:
 
 {{{
 uiList.setListItems(ArrayUtils.adjust(uiList.getListItems(), appValue,
@@ -177,4 +177,4 @@ uiList.setListItems(ArrayUtils.adjust(uiList.getListItems(), appValue,
 ));
 }}}
 
-Using the adjust method, we have updated the list despite the horrible programmer interface.  The adjust method is also very efficient, enabling us to create as few new ListItem objects as possible, while re-using those items whose content is still valid.  It also preserves order from the one of the arrays (the first if reorder operations (calls to {{{set}}} where incMod!=retIdx) are not followed, the second if they are) in the returned array (and parameter indices).  So if the appropriate argument is sorted and any extra elements that the other argument contains are ignored, the result (the returned array or a UI list, etc.) will be sorted correctly.
+Using the adjust method, we have updated the list despite the horrible programmer interface.  The adjust method is also very efficient, enabling us to create as few new {{{ListItem}}} objects as possible, while re-using those items whose content is still valid.  It also preserves order from the one of the arrays (the first if reorder operations (calls to {{{set}}} where {{{incMod!=retIdx}}}) are not followed, the second if they are) in the returned array (and parameter indices).  So if the appropriate argument is sorted and any extra elements that the other argument contains are ignored, the result (the returned array or a UI list, etc.) will be sorted correctly.
