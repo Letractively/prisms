@@ -32,3 +32,25 @@ Properties can be session-specific, having independent representations in each s
 PRISMS property values are typed to reduce unnecessary type casting and ClassCastExceptions.
 
 *Events:* Events represent messages that may pass between plugins and other listeners.  An event is like a method call on an unknown target.  From the caller plugin's perspective, the event is fired and forgotten.  Plugins and other listeners who care about the named event register listeners within prisms to take appropriate actions when the event occurs.
+
+= Flow =
+=== Following is the typical flow of control for a user's interaction with a PRISMS web application. Many different kinds of clients and variations on this flow are possible. ===
+
+ # The user navigates to the page for the web application, typically a plain HTML file or a JSP.
+ # As the web page is loaded, it makes a call to the PRISMS server. The server loads itself (if needed) and the web application and client configuration sent by the web client.
+   * The application is loaded with the different kinds of data needed for the application's operation and listeners to keep that data in a consistent state.
+   * The client is loaded with data needed for the particular client's view of the application data and listeners needed to keep this session-specific data consistent. It also contains a set of plugins that the client web app communicates with directly in order to represent or manipulate session and application data.
+ # The server then checks its authentication settings and returns a set of data that the client can use to disguise a password in such a way that the password can be recognized as correct by the server, but cannot be derived in clear-text by any means.
+   * Other means of authentication besides username/password can be configured, especially single-sign-on within a secure environment.
+   * It is assumed that the correct user name was sent on first contact
+ # The client prompts the user for their password. The client uses the server-sent data to hash the user's password and send it to the server.
+ # The server verifies that the data sent to it was created by hashing the correct password. The server creates a new session using the application's data and client configuration's plugins.  The server calls an initiation method on each plugin in the new session. These plugins generate events that give the client the information it needs to represent the initial state of the web app, each event addressed with the name of the plugin. These events are sent back to the client.
+ # The client distributes the events to client plugins by name, each of which is responsible for a small set of widgets on the application.
+ # The user performs an action on the client, such as clicking a button or an item in a list. This causes the client plugin responsible for that widget to make a call to the PRISMS server with an event detailing the action the user took. This even also is addressed with the name of the plugin.
+ # The PRISMS server delegates the event to the appropriate plugin in the session, calling the plugin's processEvent method. The plugin takes an action based on the user's action, which might affect an application-wide property. When the property is modified, it causes a property change event, which is listened for within a different plugin. That plugin acts on this change by modifying its internal data representation and posting an event or set of events for the client that reflect these internal changes.
+   * Note that the plugin whose processEvent was called does not need to know about the plugin listening to that property. If a third plugin is added that represents the same property in a different way, neither of the other two plugins need to be modified at all.
+ # The client version of the second plugin uses these events to modify the user's view of the data
+
+This flow illustrates the benefits of the PRISMS architecture:
+ * *Data centric:* Representations are of memory objects easily available within the session. Modifications are done to the data and then forgotten. Property change listeners registered from other parts of the application's configuration do all the work.
+ * *Modularity:* The different pieces of the program do not need to know of or refer to one another, making addition of new pieces or removal or modification of old pieces much easier.
