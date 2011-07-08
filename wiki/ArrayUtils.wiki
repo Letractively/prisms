@@ -2,8 +2,17 @@
 
 = An overview of the utilities in prisms.util.ArrayUtils =
 
-This is a description of some of the utility methods in the ArrayUtils class.
+The ArrayUtils class contains several utility methods useful for manipulating arrays. These included methods to:
+ * Add an element or several elements to an array
+ * Remove an element or all instances of an element from an array
+ * Concatenate several arrays into a single array
+ * Merge multiple arrays:
+   * including only elements common to all arrays
+   * excluding duplicates present in more than one array
+ * Search an array for an element
+ * Sort an array interactively--performing custom operations each time the given list is reordered. This can be used to sort multiple synchronized lists with a single operation.
 
+However, the most important and useful method in ArrayUtils is
 = adjust =
 
 The *adjust* method is one of the most useful and innovative utilities in the PRISMS architecture.  Its function is to adjust the content of one list using the content of another.  The way this is done and the effects of the operation are completely customizable.  This method compares two arrays, determining elements that are missing in either array or have been moved from one position to another.  These differences are reported to a listener, giving the programmer the opportunity to take any action as a result of each difference.
