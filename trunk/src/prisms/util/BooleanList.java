@@ -13,7 +13,7 @@ package prisms.util;
  * may be modified by one or more of them, it MUST be synchronized externally.
  * </p>
  */
-public class BooleanList implements Iterable<Boolean>, Cloneable
+public class BooleanList implements Iterable<Boolean>, Sealable, Cloneable
 {
 	private boolean [] theValue;
 
@@ -63,16 +63,25 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	/** Clears this list, setting its size to 0 */
 	public void clear()
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		theSize = 0;
 	}
 
-	/** Seals this list so that it cannot be modified. This cannot be undone. */
+	public boolean isSealed()
+	{
+		return isSealed;
+	}
+
 	public void seal()
 	{
 		trimToSize();
 		isSealed = true;
+	}
+
+	void assertUnsealed()
+	{
+		if(isSealed)
+			throw new Sealable.SealedException(this);
 	}
 
 	/**
@@ -95,8 +104,7 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public void add(boolean value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		ensureCapacity(theSize + 1);
 		theValue[theSize++] = value;
 	}
@@ -109,8 +117,7 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public void add(int index, boolean value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(index < 0 || index > theSize)
 			throw new ArrayIndexOutOfBoundsException(index);
 		ensureCapacity(theSize + 1);
@@ -139,8 +146,7 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public void addAll(boolean [] value, int start, int end)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(start >= value.length)
 			return;
 		if(end > value.length)
@@ -173,8 +179,7 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public boolean set(int index, boolean value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(index < 0 || index >= theSize)
 			throw new ArrayIndexOutOfBoundsException(index);
 		boolean ret = theValue[index];
@@ -190,8 +195,7 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public boolean remove(int index)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(index < 0 || index >= theSize)
 			throw new ArrayIndexOutOfBoundsException(index);
 		boolean ret = theValue[index];
@@ -209,8 +213,7 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public int removeAll(boolean value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		int ret = 0;
 		for(int i = 0; i < theSize; i++)
 			if(theValue[i] == value)
@@ -230,8 +233,7 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public void swap(int idx1, int idx2)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(idx1 < 0 || idx1 >= theSize)
 			throw new ArrayIndexOutOfBoundsException(idx1);
 		if(idx2 < 0 || idx2 >= theSize)
@@ -385,8 +387,9 @@ public class BooleanList implements Iterable<Boolean>, Cloneable
 	 */
 	public void ensureCapacity(int minCapacity)
 	{
-		if(isSealed && minCapacity > theSize)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		if(minCapacity <= theSize)
+			return;
+		assertUnsealed();
 		int oldCapacity = theValue.length;
 		if(minCapacity > oldCapacity)
 		{
