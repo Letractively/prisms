@@ -278,7 +278,7 @@ public abstract class AbstractSimpleTreeNode implements JsonTreeNode
 			boolean multi;
 			if(actions[a].getValue("multiple") instanceof String)
 				multi = "true".equalsIgnoreCase((String) actions[a].getValue("multiple"));
-			else if(theActions[a].getValue("multiple") instanceof Boolean)
+			else if(actions[a].getValue("multiple") instanceof Boolean)
 				multi = ((Boolean) actions[a].getValue("multiple")).booleanValue();
 			else
 				multi = false;
