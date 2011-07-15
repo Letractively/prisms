@@ -1013,7 +1013,7 @@ public final class ArrayUtils
 	 * A compliment to the {@link #equals(Object, Object)} method, this method returns a hashcode
 	 * for <code>array</code> such that it is consistent with the equals contract for the
 	 * {@link Object#equals(Object)} method, represented by the {@link #equals(Object, Object)}
-	 * method.
+	 * method or the {@link #equalsUnordered(Object, Object)} methods.
 	 * 
 	 * @param array The array to get a hashcode for
 	 * @return A hashcode based on <code>array</code> and its contents, if any
@@ -1024,13 +1024,10 @@ public final class ArrayUtils
 			return 0;
 		if(!array.getClass().isArray())
 			return array.hashCode();
-		int ret = array.getClass().getComponentType().hashCode();
 		int len = Array.getLength(array);
+		int ret = len * 17;
 		for(int i = 0; i < len; i++)
-		{
-			ret *= hashCode(Array.get(array, i));
-			ret += 29;
-		}
+			ret += hashCode(Array.get(array, i));
 		return ret;
 	}
 

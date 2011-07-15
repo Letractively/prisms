@@ -28,7 +28,7 @@ package prisms.util;
  * may be modified by one or more of them, it MUST be synchronized externally.
  * </p>
  */
-public class IntList implements Iterable<Integer>, Cloneable
+public class IntList implements Iterable<Integer>, Sealable, Cloneable
 {
 	private int [] theValue;
 
@@ -81,7 +81,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 		theSize = values.length;
 	}
 
-	/** @return Whether the elements in this list are sorted */
+	/** @return Whether this list sorts its elements */
 	public boolean isSorted()
 	{
 		return isSorted;
@@ -100,6 +100,22 @@ public class IntList implements Iterable<Integer>, Cloneable
 		if(sorted && !isSorted)
 			java.util.Arrays.sort(theValue, 0, theSize);
 		isSorted = sorted;
+	}
+
+	/**
+	 * @return Whether the elements in this list are in ascending order, regardless of the value of
+	 *         the sorted property of this list.
+	 */
+	public boolean checkSorted()
+	{
+		int preV = Integer.MIN_VALUE;
+		for(int i = 0; i < theSize; i++)
+		{
+			if(preV > theValue[i])
+				return false;
+			preV = theValue[i];
+		}
+		return true;
 	}
 
 	/** @return Whether this list eliminates duplicate values */
@@ -138,6 +154,18 @@ public class IntList implements Iterable<Integer>, Cloneable
 		isUnique = unique;
 	}
 
+	/**
+	 * @return False if there are any duplicates in this list, true otherwise; regardless of the
+	 *         value of the unique property of this list.
+	 */
+	public boolean checkUnique()
+	{
+		for(int i = 0; i < theSize - 1; i++)
+			if(lastIndexOf(theValue[i]) != i)
+				return false;
+		return true;
+	}
+
 	/** @return The number of elements in the list */
 	public int size()
 	{
@@ -153,16 +181,25 @@ public class IntList implements Iterable<Integer>, Cloneable
 	/** Clears this list, setting its size to 0 */
 	public void clear()
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		theSize = 0;
 	}
 
-	/** Seals this list so that it cannot be modified. This cannot be undone. */
+	public boolean isSealed()
+	{
+		return isSealed;
+	}
+
 	public void seal()
 	{
 		trimToSize();
 		isSealed = true;
+	}
+
+	void assertUnsealed()
+	{
+		if(isSealed)
+			throw new Sealable.SealedException(this);
 	}
 
 	/**
@@ -196,13 +233,12 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public boolean add(int value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		ensureCapacity(theSize + 1);
 		if(isSorted)
 		{
 			int index = indexFor(value);
-			if(isUnique && theValue[index] == value)
+			if(isUnique && index < theSize && theValue[index] == value)
 				return false;
 			for(int i = theSize; i > index; i--)
 				theValue[i] = theValue[i - 1];
@@ -244,6 +280,10 @@ public class IntList implements Iterable<Integer>, Cloneable
 			else
 				return mid;
 		}
+		if(theValue[max] < value)
+			max++;
+		else if(max > 0 && theValue[max] > value)
+			max--;
 		return max;
 	}
 
@@ -266,8 +306,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public boolean add(int index, int value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(isSorted)
 			return add(value);
 		else if(!isUnique || indexOf(value) < 0)
@@ -326,8 +365,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int addAll(int [] value, int start, int end)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(start >= value.length)
 			return 0;
 		if(end > value.length)
@@ -447,8 +485,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int set(int index, int value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(index < 0 || index >= theSize)
 			throw new ArrayIndexOutOfBoundsException(index);
 		int ret = theValue[index];
@@ -483,8 +520,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int remove(int index)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(index < 0 || index >= theSize)
 			throw new ArrayIndexOutOfBoundsException(index);
 		int ret = theValue[index];
@@ -502,8 +538,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public boolean removeValue(int value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		for(int i = 0; i < theSize; i++)
 			if(theValue[i] == value)
 			{
@@ -521,8 +556,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int removeAll(int value)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		int ret = 0;
 		for(int i = 0; i < theSize; i++)
 			if(theValue[i] == value)
@@ -542,8 +576,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int removeAll(IntList list)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		int ret = 0;
 		for(int i = 0; i < theSize; i++)
 			if(list.contains(theValue[i]))
@@ -563,8 +596,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public void swap(int idx1, int idx2)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(isSorted)
 			throw new IllegalStateException("Cannot perform a move operation on a sorted list");
 		if(idx1 < 0 || idx1 >= theSize)
@@ -594,8 +626,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int or(int... list)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(isUnique)
 			return addAll(list, 0, list.length);
 		else
@@ -624,8 +655,7 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int or(IntList list)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		if(isUnique)
 			return addAll(list.theValue, 0, list.theSize);
 		else
@@ -649,16 +679,15 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public int and(IntList list)
 	{
-		if(isSealed)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		assertUnsealed();
 		int ret = 0;
-		for(int i = 0; i < theSize; i++)
+		for(int i = theSize - 1; i >= 0; i--)
 		{
 			int j;
-			for(j = 0; j < list.theSize; j++)
+			for(j = list.theSize - 1; j >= 0; j--)
 				if(theValue[i] == list.theValue[j])
 					break;
-			if(j == list.theSize)
+			if(j < 0)
 			{
 				remove(i);
 				ret++;
@@ -806,8 +835,9 @@ public class IntList implements Iterable<Integer>, Cloneable
 	 */
 	public void ensureCapacity(int minCapacity)
 	{
-		if(isSealed && minCapacity > theSize)
-			throw new IllegalStateException("This list has been sealed and cannot be modified");
+		if(minCapacity <= theSize)
+			return;
+		assertUnsealed();
 		int oldCapacity = theValue.length;
 		if(minCapacity > oldCapacity)
 		{

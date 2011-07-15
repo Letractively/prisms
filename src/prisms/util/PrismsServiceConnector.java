@@ -482,9 +482,26 @@ public class PrismsServiceConnector
 		JSONObject rEventProps = PrismsUtils.rEventProps(params);
 		if(rEventProps == null)
 			rEventProps = new JSONObject();
-		rEventProps.put("plugin", plugin);
-		rEventProps.put("method", method);
-		JSONArray serverReturn = callServer(ServerMethod.processEvent, rEventProps);
+		return getResult(plugin, method, rEventProps);
+	}
+
+	/**
+	 * Calls the service expecting a return value
+	 * 
+	 * @param plugin The plugin to call
+	 * @param method The method to call
+	 * @param params The parameters to send to the method
+	 * @return The method's result
+	 * @throws AuthenticationFailedException If this connector is unable to log in to the PRISMS
+	 *         server
+	 * @throws PrismsServiceException If a PRISMS error occurs
+	 * @throws IOException If any other problem occurs calling the server
+	 */
+	public JSONObject getResult(String plugin, String method, JSONObject params) throws IOException
+	{
+		params.put("plugin", plugin);
+		params.put("method", method);
+		JSONArray serverReturn = callServer(ServerMethod.processEvent, params);
 		if(serverReturn.size() == 0)
 			throw new IOException("Error interfacing with server: No result returned: "
 				+ serverReturn);
