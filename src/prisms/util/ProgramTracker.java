@@ -68,13 +68,15 @@ public class ProgramTracker implements Cloneable
 	 * A configuration class that allows the printing of results of a tracking session to be
 	 * customized
 	 */
-	public static class PrintConfig
+	public static class PrintConfig implements Cloneable
 	{
 		private float theAccentThreshold;
 
 		private boolean isAsync;
 
-		private long theDisplayThreshold;
+		private long theOverallDisplayThreshold;
+
+		private long theTaskDisplayThreshold;
 
 		private int theIndent;
 
@@ -83,8 +85,39 @@ public class ProgramTracker implements Cloneable
 		{
 			theAccentThreshold = 0;
 			isAsync = false;
-			theDisplayThreshold = 0;
+			theOverallDisplayThreshold = 0;
+			theTaskDisplayThreshold = 0;
 			theIndent = DEFAULT_INDENT_INCREMENT;
+		}
+
+		/**
+		 * @return The threshold below which no tracking data will be printed. This parameter is for
+		 *         external use only
+		 */
+		public long getOverallDisplayThreshold()
+		{
+			return theOverallDisplayThreshold;
+		}
+
+		/**
+		 * @param thresh The threshold below which no tracking data will be printed. This parameter
+		 *        is for external use only
+		 */
+		public void setOverallDisplayThreshold(long thresh)
+		{
+			theOverallDisplayThreshold = thresh;
+		}
+
+		/** @return The threshold below which tasks will be omitted from the results */
+		public long getTaskDisplayThreshold()
+		{
+			return theTaskDisplayThreshold;
+		}
+
+		/** @param thresh The threshold below which tasks will be omitted from the results */
+		public void setTaskDisplayThreshold(long thresh)
+		{
+			theTaskDisplayThreshold = thresh;
 		}
 
 		/** @return The threshold percent above which a task will be accented in the result */
@@ -111,18 +144,6 @@ public class ProgramTracker implements Cloneable
 			isAsync = async;
 		}
 
-		/** @return The threshold below which tasks will be omitted from the results */
-		public long getDisplayThreshold()
-		{
-			return theDisplayThreshold;
-		}
-
-		/** @param thresh The threshold below which tasks will be omitted from the results */
-		public void setDisplayThreshold(long thresh)
-		{
-			theDisplayThreshold = thresh;
-		}
-
 		/** @return The number of spaces to indent nested tasks */
 		public int getIndent()
 		{
@@ -133,6 +154,20 @@ public class ProgramTracker implements Cloneable
 		public void setIndent(int indent)
 		{
 			theIndent = indent;
+		}
+
+		@Override
+		public PrintConfig clone()
+		{
+			PrintConfig ret;
+			try
+			{
+				ret = (PrintConfig) super.clone();
+			} catch(CloneNotSupportedException e)
+			{
+				throw new IllegalStateException(e.getMessage(), e);
+			}
+			return ret;
 		}
 	}
 
@@ -976,7 +1011,7 @@ public class ProgramTracker implements Cloneable
 	private void print(TrackNode node, StringBuilder sb, long lastTime, long totalTime, int indent,
 		PrintConfig config)
 	{
-		if(node.parent != null && node.getRealLength() < config.getDisplayThreshold())
+		if(node.parent != null && node.getRealLength() < config.getTaskDisplayThreshold())
 			return;
 		sb.append('\n');
 		node.write(indent, lastTime, totalTime, sb, config);

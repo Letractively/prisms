@@ -5,6 +5,8 @@ package prisms.arch;
 
 import org.apache.log4j.Logger;
 
+import prisms.util.ProgramTracker;
+
 /** Represents a transaction (a single request) in the PRISMS architecture */
 public class PrismsTransaction
 {
@@ -40,9 +42,11 @@ public class PrismsTransaction
 
 	private String theID;
 
+	private ProgramTracker.PrintConfig theDefaultPrintConfig;
+
 	private PrismsSession theSession;
 
-	private final prisms.util.ProgramTracker theTracker;
+	private final ProgramTracker theTracker;
 
 	private boolean isStarted;
 
@@ -54,19 +58,20 @@ public class PrismsTransaction
 
 	private Thread theThread;
 
-	private prisms.util.ProgramTracker.PrintConfig thePrintConfig;
+	private ProgramTracker.PrintConfig thePrintConfig;
 
 	long lastLogged;
 
 	private FinishListener [] theListeners;
 
-	private java.util.ArrayList<prisms.util.ProgramTracker.TrackNode> theRoutines;
+	private java.util.ArrayList<ProgramTracker.TrackNode> theRoutines;
 
-	PrismsTransaction()
+	PrismsTransaction(ProgramTracker.PrintConfig defaultPrintConfig)
 	{
-		theTracker = new prisms.util.ProgramTracker(TRACKER_ROUTINE);
+		theDefaultPrintConfig = defaultPrintConfig;
+		theTracker = new ProgramTracker(TRACKER_ROUTINE);
 		theListeners = new FinishListener [0];
-		theRoutines = new java.util.ArrayList<prisms.util.ProgramTracker.TrackNode>();
+		theRoutines = new java.util.ArrayList<ProgramTracker.TrackNode>();
 	}
 
 	/** @return An ID unique to this transaction */
@@ -82,7 +87,7 @@ public class PrismsTransaction
 	}
 
 	/** @return The program tracker for tracking this transaction */
-	public prisms.util.ProgramTracker getTracker()
+	public ProgramTracker getTracker()
 	{
 		return theTracker;
 	}
@@ -121,7 +126,7 @@ public class PrismsTransaction
 	 * @param config The print config to print this transaction's tracking data with after the
 	 *        transaction is complete
 	 */
-	public void setPrintTracking(prisms.util.ProgramTracker.PrintConfig config)
+	public void setPrintTracking(ProgramTracker.PrintConfig config)
 	{
 		thePrintConfig = config;
 	}
@@ -129,8 +134,17 @@ public class PrismsTransaction
 	/** @param print Whether this transaction should print its tracking data when finished */
 	public void setPrintTracking(boolean print)
 	{
-		if(print && thePrintConfig == null)
-			thePrintConfig = new prisms.util.ProgramTracker.PrintConfig();
+		if(print)
+		{
+			if(thePrintConfig == null)
+				thePrintConfig = new ProgramTracker.PrintConfig();
+			else
+			{
+				thePrintConfig = thePrintConfig.clone();
+				thePrintConfig.setOverallDisplayThreshold(0);
+				thePrintConfig.setTaskDisplayThreshold(0);
+			}
+		}
 		else if(!print && thePrintConfig != null)
 			thePrintConfig = null;
 	}
@@ -248,8 +262,9 @@ public class PrismsTransaction
 			theSession.getTrackSet().addTrackData(theTracker);
 			theSession.getApp().getTrackSet().addTrackData(theTracker);
 
-			if(thePrintConfig != null
-				&& theTracker.getData()[0].getLength() >= thePrintConfig.getDisplayThreshold())
+			long runTime = theTracker.getData()[0].getLength();
+			if(thePrintConfig != null && runTime >= thePrintConfig.getTaskDisplayThreshold()
+				&& runTime >= thePrintConfig.getOverallDisplayThreshold())
 			{
 				StringBuilder data = new StringBuilder();
 				theTracker.printData(data, thePrintConfig);
@@ -268,7 +283,7 @@ public class PrismsTransaction
 		isFinished = true;
 		isStarted = false;
 		theThread = null;
-		thePrintConfig = null;
+		thePrintConfig = theDefaultPrintConfig;
 		theEvents = null;
 		theSession = null;
 		theStage = null;

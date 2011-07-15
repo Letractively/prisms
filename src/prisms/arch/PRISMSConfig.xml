@@ -56,6 +56,9 @@
 	<default-users>DefaultUsers.xml</default-users>
 
 	<tracking>
+		<overall-display-threshold>1500</overall-display-threshold>
+		<task-display-threshold>100</task-display-threshold>
+		<accent-threshold>8</accent-threshold>
 		<track stats="true">30 seconds</track>
 		<track stats="true">1 minute</track>
 		<track stats="true">5 minutes</track>

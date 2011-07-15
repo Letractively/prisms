@@ -8,7 +8,7 @@ import prisms.arch.event.PropertyManager;
 import prisms.util.TrackerSet;
 
 /** Represents an environment in which the PRISMS architecture is accessed */
-public class PrismsEnv
+public class PrismsEnv implements prisms.util.Sealable
 {
 	private prisms.arch.ds.IDGenerator theIDs;
 
@@ -32,7 +32,9 @@ public class PrismsEnv
 
 	private TrackerSet.TrackConfig[] theTrackConfigs;
 
-	private boolean isConfigured;
+	private prisms.util.ProgramTracker.PrintConfig theDefaultPrintConfig;
+
+	private boolean isSealed;
 
 	/** Creates an environment */
 	public PrismsEnv()
@@ -46,7 +48,7 @@ public class PrismsEnv
 				public PrismsTransaction createResource()
 					throws prisms.util.ResourcePool.ResourceCreationException
 				{
-					return new PrismsTransaction();
+					return new PrismsTransaction(getDefaultPrintConfig());
 				}
 
 				public void destroyResource(PrismsTransaction resource)
@@ -54,6 +56,10 @@ public class PrismsEnv
 				}
 			}, Integer.MAX_VALUE);
 		theActiveTransactions = new java.util.concurrent.ConcurrentHashMap<Thread, PrismsTransaction>();
+		theDefaultPrintConfig = new prisms.util.ProgramTracker.PrintConfig();
+		theDefaultPrintConfig.setOverallDisplayThreshold(1500);
+		theDefaultPrintConfig.setTaskDisplayThreshold(100);
+		theDefaultPrintConfig.setAccentThreshold(8);
 	}
 
 	/* The following methods are for initialization of the environment. These methods cannot be
@@ -62,7 +68,7 @@ public class PrismsEnv
 
 	void setIDs(prisms.arch.ds.IDGenerator ids)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot set the ID generator after the"
 				+ " environment has been configured");
 		theIDs = ids;
@@ -70,7 +76,7 @@ public class PrismsEnv
 
 	void setUserSource(UserSource userSource)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot set the user source after the"
 				+ " environment has been configured");
 		theUserSource = userSource;
@@ -78,7 +84,7 @@ public class PrismsEnv
 
 	void setConnectionFactory(ConnectionFactory factory)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot set the connection factory after the"
 				+ " environment has been configured");
 		theConnectionFactory = factory;
@@ -86,7 +92,7 @@ public class PrismsEnv
 
 	void setWorker(Worker worker)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot set the worker after the"
 				+ " environment has been configured");
 		theWorker = worker;
@@ -94,7 +100,7 @@ public class PrismsEnv
 
 	void setTrackConfigs(prisms.util.TrackerSet.TrackConfig[] trackConfigs)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot set the tracking configuration after the"
 				+ " environment has been configured");
 		theTrackConfigs = trackConfigs;
@@ -102,7 +108,7 @@ public class PrismsEnv
 
 	void setVariable(String name, String value)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot set environment variables after the"
 				+ " environment has been configured");
 		String oldVal = theVariables.get(name);
@@ -162,6 +168,12 @@ public class PrismsEnv
 		return theTrackConfigs == null ? null : theTrackConfigs.clone();
 	}
 
+	/** @return The default print configuration that PRISMS will use to print tracking data */
+	public prisms.util.ProgramTracker.PrintConfig getDefaultPrintConfig()
+	{
+		return theDefaultPrintConfig;
+	}
+
 	/** @return Whether a manager application has been configured for this environment yet */
 	public boolean hasManager()
 	{
@@ -179,7 +191,7 @@ public class PrismsEnv
 
 	void setManagerApp(PrismsApplication managerApp)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot set the manager application after the"
 				+ " environment has been configured");
 		theManagerApp = managerApp;
@@ -195,7 +207,7 @@ public class PrismsEnv
 	 */
 	public void addGlobalManager(String name, PropertyManager<?> manager, PrismsConfig config)
 	{
-		if(isConfigured)
+		if(isSealed)
 			throw new IllegalStateException("Cannot add global managers after the"
 				+ " environment has been configured");
 		PropertyManager<?> [] managers = theGlobalManagers.get(name);
@@ -287,14 +299,14 @@ public class PrismsEnv
 	}
 
 	/** @return Whether this environment has finished being configured */
-	public boolean isConfigured()
+	public boolean isSealed()
 	{
-		return isConfigured;
+		return isSealed;
 	}
 
 	/** Marks this environment as completely configured and immutable */
-	public void setConfigured()
+	public void seal()
 	{
-		isConfigured = true;
+		isSealed = true;
 	}
 }

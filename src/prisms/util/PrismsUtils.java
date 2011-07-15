@@ -542,6 +542,37 @@ public class PrismsUtils
 	}
 
 	/**
+	 * A utility method for tracking with. Just makes code simpler.
+	 * 
+	 * @param env The PRISMS environment to get the transactional tracking data from
+	 * @param task The name of the task to start
+	 * @return The tracking node created by the tracker--may be null
+	 */
+	public static prisms.util.ProgramTracker.TrackNode track(prisms.arch.PrismsEnv env, String task)
+	{
+		prisms.arch.PrismsTransaction trans = env.getTransaction();
+		if(trans == null)
+			return null;
+		return trans.getTracker().start(task);
+	}
+
+	/**
+	 * Ends a task, typically one started with {@link #track(prisms.arch.PrismsEnv, String)}
+	 * 
+	 * @param env The PRISMS environment to get the transactional tracking data from
+	 * @param track The track node created by the tracker. May be null.
+	 */
+	public static void end(prisms.arch.PrismsEnv env, prisms.util.ProgramTracker.TrackNode track)
+	{
+		if(track == null)
+			return;
+		prisms.arch.PrismsTransaction trans = env.getTransaction();
+		if(trans == null)
+			return;
+		trans.getTracker().end(track);
+	}
+
+	/**
 	 * Modifies the stack trace to add information from the code that caused a Runnable task to be
 	 * run. The result is as if the runnable run method was called directly instead of adding the
 	 * task to be run later. This is beneficial because it gives information about what really
