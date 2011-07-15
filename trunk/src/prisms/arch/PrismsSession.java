@@ -509,14 +509,14 @@ public class PrismsSession
 			AppPlugin plugin = getPlugin((String) pName);
 			if(plugin == null)
 				throw new IllegalArgumentException("No such plugin: " + pName);
-			TrackNode track = theApp.getEnvironment().getTransaction().getTracker()
-				.start("PRISMS: " + pName + ".processEvent");
+			TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(), "PRISMS: "
+				+ pName + ".processEvent(" + evt.get("method") + ")");
 			try
 			{
 				plugin.processEvent(evt);
 			} finally
 			{
-				theApp.getEnvironment().getTransaction().getTracker().end(track);
+				prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
 			}
 			renew();
 		}
@@ -547,10 +547,8 @@ public class PrismsSession
 				 * full. */
 				if(task == null)
 					break;
-				TrackNode track = null;
-				PrismsTransaction trans = theApp.getEnvironment().getTransaction();
-				if(trans != null)
-					track = trans.getTracker().start("PRISMS: Running session task " + task);
+				TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(),
+					"PRISMS: Running session task " + task);
 				try
 				{
 					task.run();
@@ -562,8 +560,7 @@ public class PrismsSession
 					postOutgoingEvent(wrapError("Error Processing Task " + task, e));
 				} finally
 				{
-					if(track != null)
-						trans.getTracker().end(track);
+					prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
 				}
 			}
 		}

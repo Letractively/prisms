@@ -595,7 +595,7 @@ public abstract class PrismsConfig
 
 		if("variable".equals(xml.getName()))
 		{
-			if(env.isConfigured())
+			if(env.isSealed())
 			{
 				log.error("Environment variable reference in a configured environment");
 				return new PrismsConfig [0];
@@ -1167,9 +1167,9 @@ public abstract class PrismsConfig
 	 * <p>
 	 * Negative values are also supported and returned as such. An empty string is interpreted as a
 	 * zero-length time interval. If no unit is given and no decimal is present in the number, the
-	 * value is assumed to be in milliseconds if the value is a multiple of 250, or in seconds
-	 * otherwise. To avoid problems that may arise from incorrect assumptions of the unit, use units
-	 * explicitly.
+	 * value is assumed to be in milliseconds if the value is a multiple of 250 or of 100, or in
+	 * seconds otherwise. To avoid problems that may arise from incorrect assumptions of the unit,
+	 * use units explicitly.
 	 * </p>
 	 * 
 	 * @param time The time to parse
@@ -1206,7 +1206,7 @@ public abstract class PrismsConfig
 				{
 					throw new IllegalArgumentException("Could not parse numeric time " + time, e);
 				}
-				if(ret % 250 != 0)
+				if(ret % 250 != 0 && ret % 100 != 0)
 					ret *= 1000;
 				if(neg)
 					ret = -ret;

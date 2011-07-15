@@ -91,19 +91,14 @@ public abstract class PersistingPropertyManager<T> extends
 	{
 		if(thePersister != null && !Boolean.TRUE.equals(evt.getProperty("prismsPersisted")))
 		{
-			prisms.util.ProgramTracker.TrackNode track = null;
-			prisms.arch.PrismsTransaction trans = getEnv().getTransaction();
-			if(trans != null)
-				track = trans.getTracker().start(
-					"PRISMS: Persisting new data portion (" + evt.name + ") for property "
-						+ getProperty());
+			prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getEnv(),
+				"PRISMS: Persisting data portion (" + evt.name + ") of property " + getProperty());
 			try
 			{
 				thePersister.valueChanged(session, fullValue, o, evt);
 			} finally
 			{
-				if(track != null)
-					trans.getTracker().end(track);
+				prisms.util.PrismsUtils.end(getEnv(), track);
 			}
 		}
 	}
@@ -126,12 +121,15 @@ public abstract class PersistingPropertyManager<T> extends
 		if(thePersister == null)
 			return;
 		theDataLock = true;
+		prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getEnv(),
+			"PRISMS: depersisting property " + getProperty());
 		try
 		{
 			setValue(thePersister.getValue());
 		} finally
 		{
 			theDataLock = false;
+			prisms.util.PrismsUtils.end(getEnv(), track);
 		}
 	}
 
@@ -156,18 +154,14 @@ public abstract class PersistingPropertyManager<T> extends
 	{
 		if(thePersister == null)
 			return;
-		prisms.util.ProgramTracker.TrackNode track = null;
-		prisms.arch.PrismsTransaction trans = getEnv().getTransaction();
-		if(trans != null)
-			track = trans.getTracker().start(
-				"PRISMS: Persisting new data for property " + getProperty());
+		prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getEnv(),
+			"PRISMS: Persisting new data for property " + getProperty());
 		try
 		{
 			thePersister.setValue(session, getGlobalValue(), evt);
 		} finally
 		{
-			if(track != null)
-				trans.getTracker().end(track);
+			prisms.util.PrismsUtils.end(getEnv(), track);
 		}
 	}
 

@@ -1728,7 +1728,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 						if(host != null)
 						{
-							StringBuilder sb = new StringBuilder("Remote host").append(host);
+							StringBuilder sb = new StringBuilder("Remote host ").append(host);
 							sb.append(" locked out for ").append(newHits).append(" hits in ");
 							PrismsUtils.printTimeLength(now - oStart, sb, false);
 							sb.append(": Unlock set to ");
@@ -2050,7 +2050,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return null;
 		log.info("Configuring PRISMS...");
 		PrismsConfig pConfig = getPrismsConfig();
-		if(!Boolean.FALSE.equals(pConfig.is("checkForRunaways")))
+		if(Boolean.FALSE.equals(pConfig.is("checkForRunaways")))
 			isCheckingForRunaways = false;
 		String configXmlRef = getClass().getResource("PRISMSConfig.xml").toString();
 
@@ -2249,6 +2249,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			PrismsConfig tracking = pConfig.subConfig("tracking");
 			if(tracking != null)
 				theEnv.setTrackConfigs(prisms.util.TrackerSet.parseTrackConfigs(tracking));
+			if(tracking.get("overall-display-threshold") != null)
+				theEnv.getDefaultPrintConfig().setOverallDisplayThreshold(
+					tracking.getTime("overall-display-threshold"));
+			if(tracking.get("task-display-threshold") != null)
+				theEnv.getDefaultPrintConfig().setTaskDisplayThreshold(
+					tracking.getTime("task-display-threshold"));
+			if(tracking.get("accent-threshold") != null)
+				theEnv.getDefaultPrintConfig().setAccentThreshold(
+					tracking.getTime("accent-threshold"));
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
@@ -2319,7 +2328,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					+ getClass().getResource("PRISMSConfig.xml"));
 			else
 				loadApps(defAppConfig, configXmlRef);
-			theEnv.setConfigured();
+			theEnv.seal();
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
@@ -3371,7 +3380,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				prisms.util.ProgramTracker.PrintConfig config = new prisms.util.ProgramTracker.PrintConfig();
 				config.setAccentThreshold(8);
 				config.setAsync(true);
-				config.setDisplayThreshold(100);
+				config.setTaskDisplayThreshold(100);
 				t.getTracker().printData(msg, config);
 				log.warn(msg.toString());
 				t.lastLogged = now;
