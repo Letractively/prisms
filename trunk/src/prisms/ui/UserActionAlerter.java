@@ -102,6 +102,14 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 						}
 					}));
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + "."
+					+ prisms.util.ArrayUtils.toString(getPlugins()) + " " + getActionName()
+					+ " Action Alerter";
+			}
 		});
 	}
 
@@ -109,6 +117,18 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 	public prisms.arch.PrismsSession getSession()
 	{
 		return theSession;
+	}
+
+	/** @return The names of the plugins that this alerter may append actions to */
+	public String [] getPlugins()
+	{
+		return thePlugins;
+	}
+
+	/** @return The name of the action that this alerter may append */
+	public String getActionName()
+	{
+		return theActionName;
 	}
 
 	/**

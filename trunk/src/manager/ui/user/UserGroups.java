@@ -33,6 +33,12 @@ public class UserGroups extends SelectableList<UserGroup>
 				{
 					setUserApp(evt.getNewValue(), theApp);
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Groups User Selection Updater";
+				}
 			});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -44,6 +50,12 @@ public class UserGroups extends SelectableList<UserGroup>
 				if(user2.equals(theUser))
 					setUserApp(user2, theApp);
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Groups Viewability Updater";
+			}
 		});
 		session.addPropertyChangeListener(ManagerProperties.userApplication,
 			new prisms.arch.event.PrismsPCL<PrismsApplication>()
@@ -51,6 +63,12 @@ public class UserGroups extends SelectableList<UserGroup>
 				public void propertyChange(prisms.arch.event.PrismsPCE<PrismsApplication> evt)
 				{
 					setUserApp(theUser, evt.getNewValue());
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Groups App Selection Updater";
 				}
 			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
@@ -61,6 +79,12 @@ public class UserGroups extends SelectableList<UserGroup>
 				if(app2.equals(theApp))
 					setUserApp(theUser, app2);
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Groups App Updater";
+			}
 		});
 		session.addEventListener("appGroupsChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -68,6 +92,12 @@ public class UserGroups extends SelectableList<UserGroup>
 			{
 				if(theApp == evt.getProperty("app"))
 					setListData((UserGroup []) evt.getProperty("groups"));
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Groups Content Updater";
 			}
 		});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
@@ -82,6 +112,12 @@ public class UserGroups extends SelectableList<UserGroup>
 						((ItemNode) getItem(i)).check();
 						break;
 					}
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Groups Group Updater";
 			}
 		});
 	}

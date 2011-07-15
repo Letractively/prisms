@@ -29,6 +29,12 @@ public class UserGroupPermissions extends SelectableList<Permission>
 				{
 					setGroup(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Group Permissions Selection Updater";
+				}
 			});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -38,6 +44,12 @@ public class UserGroupPermissions extends SelectableList<Permission>
 					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 					initClient();// Refresh this tree to take new permissions changes into account
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Group Permissions Viewability Updater";
+			}
 		});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -46,6 +58,12 @@ public class UserGroupPermissions extends SelectableList<Permission>
 				if(evt.getProperty("group") != theGroup)
 					return;
 				setGroup(theGroup);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Group Permissions Content Updater";
 			}
 		});
 	}

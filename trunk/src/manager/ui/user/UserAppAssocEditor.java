@@ -40,6 +40,12 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 				{
 					setUserApp(evt.getNewValue(), theApp);
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User/App Assoc User Changer";
+				}
 			});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -49,6 +55,12 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 				if(user2.equals(theUser))
 					setUserApp(user2, theApp);
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User/App Assoc Viewability Updater";
+			}
 		});
 		session.addPropertyChangeListener(ManagerProperties.userApplication,
 			new prisms.arch.event.PrismsPCL<PrismsApplication>()
@@ -56,6 +68,12 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 				public void propertyChange(prisms.arch.event.PrismsPCE<PrismsApplication> evt)
 				{
 					setUserApp(theUser, evt.getNewValue());
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User/App Assoc App Changer";
 				}
 			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
@@ -65,6 +83,12 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 				PrismsApplication app2 = (PrismsApplication) evt.getProperty("app");
 				if(app2.equals(theApp))
 					setUserApp(theUser, app2);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User/App Assoc App Updater";
 			}
 		});
 	}

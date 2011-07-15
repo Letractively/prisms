@@ -29,6 +29,12 @@ public class StatusPlugin implements AppPlugin
 			{
 				sendStatusUpdate((String) evt.getProperty("message"));
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Status Update Displayer";
+			}
 		});
 
 		theSession.addEventListener("sendStatusError", new prisms.arch.event.PrismsEventListener()
@@ -37,7 +43,19 @@ public class StatusPlugin implements AppPlugin
 			{
 				sendStatusError((String) evt.getProperty("message"));
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Status Error Displayer";
+			}
 		});
+	}
+
+	/** @return The session that is using this plugin */
+	public PrismsSession getSession()
+	{
+		return theSession;
 	}
 
 	/**

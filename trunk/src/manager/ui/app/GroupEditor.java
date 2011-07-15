@@ -40,6 +40,12 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				{
 					setGroup(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager Group Editor Selection Updater";
+				}
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -48,6 +54,12 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				if(theDataLock)
 					return;
 				setGroup((UserGroup) evt.getProperty("group"));
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager Group Editor Content Updater";
 			}
 		});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
@@ -59,6 +71,12 @@ public class GroupEditor implements prisms.arch.AppPlugin
 				{
 					setGroup(theGroup);
 				}
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager Group Editor Viewability Updater";
 			}
 		});
 	}

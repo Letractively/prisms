@@ -1,4 +1,4 @@
-/**
+/*
  * UserGroupAssoc.java Created Feb 23, 2009 by Andrew Butler, PSL
  */
 package manager.ui.user;
@@ -41,6 +41,12 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 				{
 					setUserGroup(evt.getNewValue(), theGroup);
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Group Assoc User Selection Updater";
+				}
 			});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -55,6 +61,12 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 					.equals(((User) evt.getProperty("user")).getName()))
 					setUserGroup(theUser, theGroup);
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Group Assoc Viewability Updater";
+			}
 		});
 		session.addPropertyChangeListener(ManagerProperties.userSelectedGroup,
 			new prisms.arch.event.PrismsPCL<UserGroup>()
@@ -62,6 +74,12 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 				public void propertyChange(prisms.arch.event.PrismsPCE<UserGroup> evt)
 				{
 					setUserGroup(theUser, evt.getNewValue());
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Group Assoc Group Selection Updater";
 				}
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
@@ -73,6 +91,12 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 				UserGroup group2 = (UserGroup) evt.getProperty("group");
 				if(group2.equals(theGroup))
 					setUserGroup(theUser, group2);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User/Group Assoc Group Updater";
 			}
 		});
 	}

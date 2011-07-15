@@ -30,6 +30,12 @@ public class ClientEditor implements prisms.arch.AppPlugin
 				{
 					setClient(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager Client Editor Updater";
+				}
 			});
 		session.addPropertyChangeListener(ManagerProperties.selectedApp,
 			new prisms.arch.event.PrismsPCL<prisms.arch.PrismsApplication>()
@@ -39,6 +45,12 @@ public class ClientEditor implements prisms.arch.AppPlugin
 				{
 					if(theClient != null && evt.getNewValue() != theClient.getApp())
 						setClient(null);
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager Client Editor Clearer";
 				}
 			});
 	}

@@ -19,14 +19,6 @@ public class AllApplicationsList extends prisms.ui.list.SelectableList<PrismsApp
 		if(session.getProperty(ManagerProperties.selectedApp) != null)
 			setSelectedObjects(new PrismsApplication [] {session
 				.getProperty(ManagerProperties.selectedApp)});
-		session.addPropertyChangeListener(prisms.arch.event.PrismsProperties.applications,
-			new prisms.arch.event.PrismsPCL<PrismsApplication []>()
-			{
-				public void propertyChange(prisms.arch.event.PrismsPCE<PrismsApplication []> evt)
-				{
-					setListData(evt.getNewValue());
-				}
-			});
 		session.addPropertyChangeListener(ManagerProperties.selectedApp,
 			new prisms.arch.event.PrismsPCL<PrismsApplication>()
 			{
@@ -37,18 +29,13 @@ public class AllApplicationsList extends prisms.ui.list.SelectableList<PrismsApp
 					else
 						setSelectedObjects(new PrismsApplication [] {evt.getNewValue()});
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager App View Updater";
+				}
 			});
-		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
-		{
-			public void eventOccurred(prisms.arch.PrismsSession session2,
-				prisms.arch.event.PrismsEvent evt)
-			{
-				for(int i = 0; i < getItemCount(); i++)
-					if(getItem(i) instanceof prisms.ui.list.SelectableList<?>.ItemNode
-						&& ((ItemNode) getItem(i)).getObject().equals(evt.getProperty("app")))
-						((ItemNode) getItem(i)).check();
-			}
-		});
 	}
 
 	@Override

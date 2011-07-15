@@ -34,6 +34,12 @@ public class AppClients extends prisms.ui.list.SelectableList<ClientConfig>
 						setListData(new ClientConfig [0]);
 					setListParams();
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager Client List Content Updater";
+				}
 			});
 	}
 

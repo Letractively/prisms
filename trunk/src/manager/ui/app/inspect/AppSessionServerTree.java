@@ -613,6 +613,12 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 						return;
 					theEvents.add(evt);
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager AllAppsServer All Props Listener";
+				}
 			};
 			theSession.addPropertyChangeListener(thePCL);
 			PrismsProperty<?> [] props = theSession.getAllProperties();

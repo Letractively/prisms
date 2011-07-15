@@ -19,6 +19,12 @@ public class ManagerMonitor implements prisms.arch.event.SessionMonitor
 					if(client != null && client.getApp() != evt.getNewValue())
 						session.setProperty(ManagerProperties.selectedClient, null);
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager AppChange Client Clearer";
+				}
 			});
 		session.addPropertyChangeListener(ManagerProperties.selectedClient,
 			new prisms.arch.event.PrismsPCL<prisms.arch.ClientConfig>()
@@ -31,6 +37,12 @@ public class ManagerMonitor implements prisms.arch.event.SessionMonitor
 						session.setProperty(ManagerProperties.selectedApp, evt.getNewValue()
 							.getApp());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager ClientChange App Setter";
+				}
 			});
 		session.addPropertyChangeListener(ManagerProperties.userApplication,
 			new prisms.arch.event.PrismsPCL<prisms.arch.PrismsApplication>()
@@ -40,6 +52,12 @@ public class ManagerMonitor implements prisms.arch.event.SessionMonitor
 				{
 					session.setProperty(ManagerProperties.userSelectedGroup, null);
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager UserAppChange Group Clearer";
+				}
 			});
 		session.addPropertyChangeListener(ManagerProperties.userSelectedGroup,
 			new prisms.arch.event.PrismsPCL<prisms.arch.ds.UserGroup>()
@@ -47,6 +65,12 @@ public class ManagerMonitor implements prisms.arch.event.SessionMonitor
 				public void propertyChange(prisms.arch.event.PrismsPCE<prisms.arch.ds.UserGroup> evt)
 				{
 					session.setProperty(ManagerProperties.userSelectedPermission, null);
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager UserGroup Change Permission Clearer";
 				}
 			});
 	}

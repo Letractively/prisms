@@ -28,6 +28,12 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 			{
 				refresh();
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager Performance Data Shower";
+			}
 		});
 		CategoryNode root = new CategoryNode(this, null, "No Data Selected");
 		root.setIcon("manager/time");
@@ -52,6 +58,12 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 					prisms.arch.event.PrismsPCE<prisms.util.ProgramTracker> evt)
 				{
 					setPerformanceData(evt.getNewValue());
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager Performance Data Display Tree";
 				}
 			});
 	}

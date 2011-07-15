@@ -40,6 +40,12 @@ public class AppSessionClientTree extends prisms.ui.tree.service.ClientTree
 					for(AppNode node : getRoot().getChildren())
 						node.setSelected(node.getApp() == evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager AllApps App Highlight Updater";
+				}
 			});
 		session.addPropertyChangeListener(ManagerProperties.selectedClient,
 			new prisms.arch.event.PrismsPCL<ClientConfig>()
@@ -63,6 +69,12 @@ public class AppSessionClientTree extends prisms.ui.tree.service.ClientTree
 						}
 					}
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager AllApps Client Highlight Updater";
+				}
 			});
 		session.addEventListener("getPerformanceOptions",
 			new prisms.arch.event.PrismsEventListener()
@@ -76,6 +88,12 @@ public class AppSessionClientTree extends prisms.ui.tree.service.ClientTree
 					else if(thePerformanceNode instanceof AppNode)
 						evt.setProperty("options",
 							((AppNode) thePerformanceNode).getPerformanceOptions());
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager AllApps Performance Option Listener";
 				}
 			});
 		session.addEventListener("getPerformanceData", new prisms.arch.event.PrismsEventListener()
@@ -91,6 +109,12 @@ public class AppSessionClientTree extends prisms.ui.tree.service.ClientTree
 					evt.setProperty("data", ((AppNode) thePerformanceNode)
 						.getPerformanceData((prisms.util.TrackerSet.TrackConfig) evt
 							.getProperty("config")));
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager AllApps Client Performance Data Listener";
 			}
 		});
 	}

@@ -24,6 +24,12 @@ public class PerformanceDisplay implements prisms.arch.AppPlugin
 				{
 					initClient();
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager Performance Data Display";
+				}
 			});
 	}
 
