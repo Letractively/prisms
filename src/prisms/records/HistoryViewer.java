@@ -191,6 +191,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 					sendDisplay(false, false);
 				}
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " History Preference Applier";
+			}
 		});
 
 		prisms.util.preferences.Preferences prefs = theSession.getPreferences();
@@ -230,6 +236,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 						theActivityCenter = null;
 						reset(true);
 					}
+
+					@Override
+					public String toString()
+					{
+						return getSession().getApp().getName() + " History Item Shower";
+					}
 				});
 		}
 		String showUserActivityEvent = config.get("userActivityEvent");
@@ -244,6 +256,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 						theActivityUser = (RecordUser) evt.getProperty("user");
 						theActivityCenter = null;
 						reset(true);
+					}
+
+					@Override
+					public String toString()
+					{
+						return getSession().getApp().getName() + " History User Shower";
 					}
 				});
 		}
@@ -262,6 +280,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 						theActivityUser = null;
 						reset(true);
 					}
+
+					@Override
+					public String toString()
+					{
+						return getSession().getApp().getName() + " History Center Shower";
+					}
 				});
 		}
 		String showSyncRecordHistoryEvent = config.get("syncRecordHistoryEvent");
@@ -278,6 +302,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 						theActivityUser = null;
 						reset(true);
 					}
+
+					@Override
+					public String toString()
+					{
+						return getSession().getApp().getName() + " History Sync Record Shower";
+					}
 				});
 		}
 		theAutoPurgeChangeEvent = config.get("autoPurgeChangeEvent");
@@ -289,6 +319,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				public void eventOccurred(PrismsSession session2, PrismsEvent evt)
 				{
 					sendAutoPurge();
+				}
+
+				@Override
+				public String toString()
+				{
+					return getSession().getApp().getName() + " History Auto Purger Updater";
 				}
 			});
 		reset(false);
@@ -350,6 +386,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 							}
 						if(modified)
 							evt2.setProperty("actions", actions);
+					}
+
+					@Override
+					public String toString()
+					{
+						return getSession().getApp().getName() + " History Action Appender";
 					}
 				});
 		}

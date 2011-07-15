@@ -33,7 +33,19 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 			{
 				setLogger(evt.getNewValue());
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Logger Editor Selection Updater";
+			}
 		});
+	}
+
+	/** @return The session that is using this plugin */
+	public PrismsSession getSession()
+	{
+		return theSession;
 	}
 
 	public void initClient()

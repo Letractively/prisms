@@ -31,6 +31,12 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 					getSession().setProperty(ManagerProperties.selectedAppGroup, null);
 					setApp(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager App Group Content Selection Updater";
+				}
 			});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -40,6 +46,12 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 					// Refresh this tree to take new permissions changes into account
 					setApp(getSession().getProperty(ManagerProperties.selectedApp));
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager App Group Viewability Updater";
 			}
 		});
 		session.addEventListener("createNewGroup", new prisms.arch.event.PrismsEventListener()
@@ -69,6 +81,12 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 					new prisms.arch.event.PrismsEvent("appGroupsChanged", "app", theApp, "groups",
 						groups));
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager App Group createClicked Listener";
+			}
 		});
 		session.addEventListener("appGroupsChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -83,6 +101,12 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 					setListData(groups);
 				}
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager App Group Content Updater";
+			}
 		});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -96,6 +120,12 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 						((ItemNode) getItem(i)).check();
 						break;
 					}
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager App Group Element Updater";
 			}
 		});
 	}

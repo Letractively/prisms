@@ -232,6 +232,13 @@ public abstract class SearchableScaledList<T> extends SearchableListPlugin<T>
 					setDisplayCount(((Integer) pEvt.getValue()).intValue());
 				}
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + "." + getName()
+					+ " List Size Preference Applier";
+			}
 		});
 	}
 

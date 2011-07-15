@@ -51,6 +51,12 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 				{
 					setPermissionGroup(thePermission, evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager Group Permission Selection Updater";
+				}
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -61,6 +67,12 @@ public class PermissionEditor implements prisms.arch.AppPlugin
 				UserGroup group2 = (UserGroup) evt.getProperty("group");
 				if(group2.equals(theGroup))
 					setPermissionGroup(thePermission, group2);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager Group Permission Edit Updater";
 			}
 		});
 	}

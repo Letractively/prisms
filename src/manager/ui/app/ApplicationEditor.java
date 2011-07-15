@@ -30,6 +30,12 @@ public class ApplicationEditor implements prisms.arch.AppPlugin
 				{
 					setApp(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager App Editor Content Updater";
+				}
 			});
 	}
 

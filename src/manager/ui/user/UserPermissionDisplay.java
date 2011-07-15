@@ -32,6 +32,12 @@ public class UserPermissionDisplay implements prisms.arch.AppPlugin
 				{
 					setPermission(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Permission Selection Updater";
+				}
 			});
 		session.addEventListener("permissionChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -40,6 +46,12 @@ public class UserPermissionDisplay implements prisms.arch.AppPlugin
 				Permission perm2 = (Permission) evt.getProperty("permission");
 				if(perm2.equals(thePermission))
 					setPermission(perm2);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Permission Content Updater";
 			}
 		});
 	}

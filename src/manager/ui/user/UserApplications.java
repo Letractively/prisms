@@ -18,14 +18,6 @@ public class UserApplications extends prisms.ui.list.SelectableList<PrismsApplic
 		PrismsApplication [] apps = session
 			.getProperty(prisms.arch.event.PrismsProperties.applications);
 		setListData(apps);
-		session.addPropertyChangeListener(prisms.arch.event.PrismsProperties.applications,
-			new prisms.arch.event.PrismsPCL<PrismsApplication []>()
-			{
-				public void propertyChange(prisms.arch.event.PrismsPCE<PrismsApplication []> evt)
-				{
-					setListData(evt.getNewValue());
-				}
-			});
 		PrismsApplication app = session.getProperty(ManagerProperties.userApplication);
 		setSelectedObjects(new PrismsApplication [] {app});
 		session.addPropertyChangeListener(ManagerProperties.userApplication,
@@ -34,6 +26,12 @@ public class UserApplications extends prisms.ui.list.SelectableList<PrismsApplic
 				public void propertyChange(prisms.arch.event.PrismsPCE<PrismsApplication> evt)
 				{
 					setSelectedObjects(new PrismsApplication [] {evt.getNewValue()});
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Apps Highlight Updater";
 				}
 			});
 		session.addEventListener("appChanged", new prisms.arch.event.PrismsEventListener()
@@ -46,6 +44,12 @@ public class UserApplications extends prisms.ui.list.SelectableList<PrismsApplic
 						&& ((ItemNode) getItem(i)).getObject().equals(evt.getProperty("app")))
 						((ItemNode) getItem(i)).check();
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Apps Content Updater";
+			}
 		});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -55,6 +59,12 @@ public class UserApplications extends prisms.ui.list.SelectableList<PrismsApplic
 				if(getSession().getUser().getName()
 					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 					initClient();// Refresh this tree to take new permissions changes into account
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Apps Viewability Updater";
 			}
 		});
 	}

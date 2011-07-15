@@ -39,6 +39,12 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 				{
 					setApp(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager App Permissions Content Updater";
+				}
 			});
 		setGroup(session.getProperty(ManagerProperties.selectedAppGroup));
 		session.addPropertyChangeListener(ManagerProperties.selectedAppGroup,
@@ -47,6 +53,12 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 				public void propertyChange(prisms.arch.event.PrismsPCE<UserGroup> evt)
 				{
 					setGroup(evt.getNewValue());
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager App Permissions Highlight Updater";
 				}
 			});
 		session.addEventListener("groupChanged", new prisms.arch.event.PrismsEventListener()
@@ -59,6 +71,12 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 					return;
 				setGroup(theGroup);
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager App Permissions Highlight Change Updater";
+			}
 		});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -67,6 +85,12 @@ public class AppPermissions extends prisms.ui.list.SelectableList<Permission>
 				if(getSession().getUser().getName()
 					.equals(((prisms.arch.ds.User) evt.getProperty("user")).getName()))
 					setApp(theApp);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager App Permissions Viewability Updater";
 			}
 		});
 	}

@@ -125,6 +125,12 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 						.getProperty(ManagerProperties.selectedUser)))
 						getSession().setProperty(ManagerProperties.selectedUser, null);
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User List Content Updater";
+				}
 			});
 		session.addPropertyChangeListener(ManagerProperties.selectedUser,
 			new prisms.arch.event.PrismsPCL<User>()
@@ -135,6 +141,12 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 						setSelectedObjects(new User [0]);
 					else
 						setSelectedObjects(new User [] {evt.getNewValue()});
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User List Highlight Updater";
 				}
 			});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
@@ -163,6 +175,12 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 				else if(!getSession().getPermissions().has("createUser") && getItemCount() > 0
 					&& getItem(0) instanceof prisms.ui.list.ActionListNode)
 					removeNode(0);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User List Element Updater";
 			}
 		});
 		session.addEventListener("createNewUser", new prisms.arch.event.PrismsEventListener()
@@ -193,6 +211,12 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 				getSession().setProperty(PrismsProperties.users,
 					prisms.util.ArrayUtils.add(users, newUser));
 				doSelect(newUser);
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User createClicked Listener";
 			}
 		});
 	}

@@ -40,6 +40,12 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 				{
 					setUser(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager User Editor Selection Updater";
+				}
 			});
 		session.addEventListener("prismsUserChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -48,6 +54,12 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 				User user = (User) evt.getProperty("user");
 				if(theUser != null && theUser.equals(user))
 					initClient();
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager User Editor Viewability Updater";
 			}
 		});
 	}
@@ -221,8 +233,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 		event.put("plugin", theName);
 		event.put("method", "changePassword");
 		event.put("hashing", hashing.toJson());
-		event.put("constraints",
-			prisms.util.PrismsUtils.serializeConstraints(constraints));
+		event.put("constraints", prisms.util.PrismsUtils.serializeConstraints(constraints));
 		theSession.postOutgoingEvent(event);
 	}
 

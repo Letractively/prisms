@@ -20,7 +20,7 @@ public class ListenerUtils
 	 * @param elementProp The singular property to monitor
 	 */
 	public static <T> void monitorArrayElement(final PrismsSession session,
-		PrismsProperty<T []> arrayProp, final PrismsProperty<T> elementProp)
+		final PrismsProperty<T []> arrayProp, final PrismsProperty<T> elementProp)
 	{
 		session.addPropertyChangeListener(arrayProp, new PrismsPCL<T []>()
 		{
@@ -29,6 +29,13 @@ public class ListenerUtils
 				T sel = session.getProperty(elementProp);
 				if(sel != null && !ArrayUtils.contains(evt.getNewValue(), sel))
 					session.setProperty(elementProp, null);
+			}
+
+			@Override
+			public String toString()
+			{
+				return session.getApp().getName() + " Array Element Enforcer: " + arrayProp + ": "
+					+ elementProp;
 			}
 		});
 	}
@@ -51,6 +58,13 @@ public class ListenerUtils
 			{
 				if(equal(session2.getProperty(prop), evt.getProperty(eventProp)))
 					session2.setProperty(prop, null);
+			}
+
+			@Override
+			public String toString()
+			{
+				return session.getApp().getName() + " Remove Event Enforcer: " + eventName + ": "
+					+ prop;
 			}
 		});
 	}
@@ -91,6 +105,13 @@ public class ListenerUtils
 				}
 				session.setProperty(arrayProp, array);
 			}
+
+			@Override
+			public String toString()
+			{
+				return session.getApp().getName() + " Array/Single Coupler: " + singProp + ": "
+					+ arrayProp;
+			}
 		});
 		session.addPropertyChangeListener(arrayProp, new PrismsPCL<T []>()
 		{
@@ -110,6 +131,13 @@ public class ListenerUtils
 					session.setProperty(singProp, array[0]);
 				}
 			}
+
+			@Override
+			public String toString()
+			{
+				return session.getApp().getName() + " Array/Single Coupler: " + arrayProp + ": "
+					+ singProp;
+			}
 		});
 	}
 
@@ -123,7 +151,7 @@ public class ListenerUtils
 	 * @param subSetProp The sub-set property
 	 */
 	public static <T> void monitorSubset(final PrismsSession session,
-		PrismsProperty<T []> superSetProp, final PrismsProperty<T []> subSetProp)
+		final PrismsProperty<T []> superSetProp, final PrismsProperty<T []> subSetProp)
 	{
 		session.addPropertyChangeListener(superSetProp, new PrismsPCL<T []>()
 		{
@@ -157,6 +185,13 @@ public class ListenerUtils
 					});
 				if(modified[0])
 					session.setProperty(subSetProp, subSet);
+			}
+
+			@Override
+			public String toString()
+			{
+				return session.getApp().getName() + " Subset Enforcer: " + superSetProp + ":"
+					+ subSetProp;
 			}
 		});
 	}
@@ -194,6 +229,13 @@ public class ListenerUtils
 								propVal = null;
 							session.setProperty(prop2, propVal);
 						}
+				}
+
+				@Override
+				public String toString()
+				{
+					return session.getApp().getName() + " Exclusivity Enforcer for "
+						+ ArrayUtils.toString(props);
 				}
 			});
 		}
