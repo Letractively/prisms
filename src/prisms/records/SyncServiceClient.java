@@ -277,14 +277,11 @@ public class SyncServiceClient
 		pi.setProgressText("Connecting to " + center.getServerURL());
 		prisms.util.PrismsServiceConnector conn = connect(center);
 		pi.setProgressText("Retrieving synchronization status");
-		JSONObject retEvt;
+		JSONObject retEvt = createRequest(theSync, center, SyncRecord.Type.MANUAL_REMOTE, false,
+			false, pi);
 		try
 		{
-			retEvt = conn.getResult(thePlugin, "checkSync", "changes",
-				RecordUtils.serializeCenterChanges(theSync), "withRecords",
-				Boolean.valueOf(requiresRecords), "centerID",
-				Long.valueOf(theSync.getKeeper().getCenterID()), "syncPriority",
-				Integer.valueOf(theSync.getKeeper().getLocalPriority()));
+			retEvt = conn.getResult(thePlugin, "checkSync", retEvt);
 		} catch(prisms.util.PrismsServiceConnector.PrismsServiceException e)
 		{
 			pi.setDone();
@@ -349,24 +346,8 @@ public class SyncServiceClient
 		pi.setProgressText("Connecting to " + center.getServerURL());
 		prisms.util.PrismsServiceConnector conn = connect(center);
 		pi.setProgressText("Retrieving synchronization data");
-		JSONObject evt = new JSONObject();
-		switch(syncType)
-		{
-		case AUTOMATIC:
-			evt.put("type", "auto");
-			break;
-		case MANUAL_REMOTE:
-			evt.put("type", "manual");
-			break;
-		case FILE:
-			pi.setDone();
-			throw new PrismsRecordException("File sync cannot be used with service client");
-		}
-		evt.put("changes", RecordUtils.serializeCenterChanges(theSync));
-		evt.put("withRecords", Boolean.valueOf(requiresRecords));
-		evt.put("centerID", Long.valueOf(theSync.getKeeper().getCenterID()));
-		evt.put("syncPriority", Integer.valueOf(theSync.getKeeper().getLocalPriority()));
-		evt.put("storeSyncRecord", Boolean.valueOf(storeSyncRecord));
+		JSONObject evt = createRequest(theSync, center, syncType, requiresRecords, storeSyncRecord,
+			pi);
 		java.io.InputStream syncInput;
 		try
 		{
@@ -426,6 +407,48 @@ public class SyncServiceClient
 		pi.setDone();
 		if(storeSyncRecord)
 			sendSyncReceipt(conn, record, pi);
+	}
+
+	private static JSONObject createRequest(PrismsSynchronizer sync, PrismsCenter center,
+		SyncRecord.Type syncType, boolean requiresRecords, boolean storeSyncRecord,
+		prisms.ui.UI.DefaultProgressInformer pi) throws PrismsRecordException
+	{
+		JSONObject evt = new JSONObject();
+		switch(syncType)
+		{
+		case AUTOMATIC:
+			evt.put("type", "auto");
+			break;
+		case MANUAL_REMOTE:
+			evt.put("type", "manual");
+			break;
+		case FILE:
+			pi.setDone();
+			throw new PrismsRecordException("File sync cannot be used with service client");
+		}
+		evt.put("version", sync.getImpls()[sync.getImpls().length - 1].getVersion());
+		evt.put("changes", RecordUtils.serializeCenterChanges(sync));
+		evt.put("withRecords", Boolean.valueOf(requiresRecords));
+		evt.put("centerID", Long.valueOf(sync.getKeeper().getCenterID()));
+		evt.put("syncPriority", Integer.valueOf(sync.getKeeper().getLocalPriority()));
+		evt.put("storeSyncRecord", Boolean.valueOf(storeSyncRecord));
+		if(sync.getDepends().length > 0)
+		{
+			org.json.simple.JSONArray depends = new org.json.simple.JSONArray();
+			evt.put("subSyncs", depends);
+			for(int d = 0; d < sync.getDepends().length; d++)
+			{
+				PrismsSynchronizer subSync = sync.getDepends()[d];
+				PrismsCenter subCenter = sync.getDependCenter(subSync, center);
+				if(subCenter == null)
+					throw new PrismsRecordException("No dependent center" + " parallel to "
+						+ center.getName() + " for synchronizer with impl "
+						+ subSync.getImpls()[subSync.getImpls().length - 1].getClass().getName());
+				depends.add(createRequest(subSync, subCenter, syncType, requiresRecords,
+					storeSyncRecord, pi));
+			}
+		}
+		return evt;
 	}
 
 	private void sendSyncReceipt(prisms.util.PrismsServiceConnector conn, SyncRecord record,

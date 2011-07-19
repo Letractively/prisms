@@ -146,15 +146,543 @@ public class PrismsSynchronizer
 		}
 	}
 
+	class SyncTransaction
+	{
+		private SynchronizeImpl theImpl;
+
+		private SyncRecord theSyncRecord;
+
+		private boolean shouldStoreSyncRecord;
+
+		private prisms.ui.UI.DefaultProgressInformer thePI;
+
+		SyncTransaction(SynchronizeImpl impl, SyncRecord syncRecord, boolean storeSyncRecord,
+			prisms.ui.UI.DefaultProgressInformer pi)
+		{
+			theImpl = impl;
+			theSyncRecord = syncRecord;
+			shouldStoreSyncRecord = storeSyncRecord;
+			thePI = pi;
+		}
+
+		SynchronizeImpl getImpl()
+		{
+			if(theImpl == null) // Client didn't send version--use earliest sync impl
+				theImpl = PrismsSynchronizer.this.getImpls()[0];
+			return theImpl;
+		}
+
+		void setImpl(SynchronizeImpl impl)
+		{
+			theImpl = impl;
+		}
+
+		SyncRecord getSyncRecord()
+		{
+			return theSyncRecord;
+		}
+
+		boolean shouldStoreSyncRecord()
+		{
+			return shouldStoreSyncRecord;
+		}
+
+		prisms.ui.UI.DefaultProgressInformer getPI()
+		{
+			return thePI;
+		}
+
+		/**
+		 * Gets the type of an item
+		 * 
+		 * @param item The item to get the string type of
+		 * @return The string type of the given item
+		 * @throws PrismsRecordException If the item's type is not recognized
+		 */
+		String getType(Object item) throws PrismsRecordException
+		{
+			if(item instanceof PrismsCenter)
+				return "center";
+			else if(item instanceof AutoPurger)
+				return "purger";
+			else
+				return getImpl().getType(item.getClass());
+		}
+
+		/**
+		 * Gets the identifier of an item
+		 * 
+		 * @param item The item to get the identifier of
+		 * @return The item's identifier
+		 */
+		long getID(Object item)
+		{
+			if(item instanceof PrismsCenter)
+				return ((PrismsCenter) item).getID();
+			else if(item instanceof AutoPurger)
+				return 0;
+			else
+				return getImpl().getID(item);
+		}
+
+		Object [] getDepends(Object item) throws PrismsRecordException
+		{
+			if(item instanceof PrismsCenter || item instanceof AutoPurger)
+				return new Object [0];
+			else
+				return getImpl().getDepends(item);
+		}
+
+		/**
+		 * Screens out changes that should not be sent for synchronization. Such changes may be kept
+		 * only for record-keeping purposes on local data, as is the case with changes to PRISMS
+		 * centers and auto-purge functionality.
+		 * 
+		 * @param record The record to test
+		 * @return Whether the change record is one that should be sent to the remote center on sync
+		 */
+		boolean shouldSend(ChangeRecord record)
+		{
+			if(record instanceof ChangeRecordError)
+			{
+				for(PrismsChange pc : PrismsChange.values())
+					if(pc.name().equals(((ChangeRecordError) record).getSubjectType()))
+						return false;
+				return true;
+			}
+			else if(record.type.subjectType instanceof PrismsChange)
+				return false;
+			else
+				return getImpl().shouldSend(record);
+		}
+
+		Object getCurrentValue(ChangeRecord record) throws PrismsRecordException
+		{
+			if(record.type.subjectType instanceof PrismsChange)
+			{
+				switch((PrismsChange) record.type.subjectType)
+				{
+				case center:
+					PrismsCenter center = (PrismsCenter) record.majorSubject;
+					switch((PrismsChange.CenterChange) record.type.changeType)
+					{
+					case name:
+						return center.getName();
+					case url:
+						return center.getServerURL();
+					case serverCerts:
+						return center.getCertificates();
+					case serverUserName:
+						return center.getServerUserName();
+					case serverPassword:
+						return center.getServerPassword();
+					case syncFrequency:
+						return Long.valueOf(center.getServerSyncFrequency());
+					case clientUser:
+						return center.getClientUser();
+					case changeSaveTime:
+						return Long.valueOf(center.getChangeSaveTime());
+					}
+					break;
+				case autoPurge:
+					AutoPurger purger = (AutoPurger) record.majorSubject;
+					switch((PrismsChange.AutoPurgeChange) record.type.changeType)
+					{
+					case entryCount:
+						return Integer.valueOf(purger.getEntryCount());
+					case age:
+						return Long.valueOf(purger.getAge());
+					case excludeUser:
+					case excludeType:
+						return null;
+					}
+					break;
+				}
+				return null;
+			}
+			else
+				return getImpl().getCurrentValue(record);
+		}
+
+		void writeItem(Object item, prisms.util.json.JsonSerialWriter jsonWriter,
+			prisms.records.SynchronizeImpl.ItemWriter itemWriter, boolean justID)
+			throws IOException, PrismsRecordException
+		{
+			if(item instanceof PrismsCenter)
+			{
+				if(justID)
+					return;
+				PrismsCenter center = (PrismsCenter) item;
+				jsonWriter.startProperty("name");
+				jsonWriter.writeString(center.getName());
+				if(center.getCenterID() < 0)
+				{
+					jsonWriter.startProperty("centerID");
+					jsonWriter.writeNumber(Integer.valueOf(center.getCenterID()));
+				}
+				jsonWriter.startProperty("serverURL");
+				jsonWriter.writeString(center.getServerURL());
+				jsonWriter.startProperty("serverUserName");
+				jsonWriter.writeString(center.getServerUserName());
+				jsonWriter.startProperty("serverPassword");
+				jsonWriter.writeString(center.getServerPassword());
+				jsonWriter.startProperty("syncFrequency");
+				jsonWriter.writeNumber(Long.valueOf(center.getServerSyncFrequency()));
+				jsonWriter.startProperty("clientUser");
+				itemWriter.writeItem(center.getClientUser());
+				jsonWriter.startProperty("changeSaveTime");
+				jsonWriter.writeNumber(Long.valueOf(center.getChangeSaveTime()));
+				jsonWriter.startProperty("syncPriority");
+				jsonWriter.writeNumber(Integer.valueOf(center.getPriority()));
+				if(center.isDeleted())
+				{
+					jsonWriter.startProperty("deleted");
+					jsonWriter.writeBoolean(true);
+				}
+			}
+			else if(item instanceof AutoPurger)
+			{
+				if(justID)
+					return;
+				AutoPurger purger = (AutoPurger) item;
+				jsonWriter.startProperty("age");
+				jsonWriter.writeNumber(Long.valueOf(purger.getAge()));
+				jsonWriter.startProperty("entryCount");
+				jsonWriter.writeNumber(Integer.valueOf(purger.getEntryCount()));
+				if(purger.getExcludeUsers().length > 0)
+				{
+					jsonWriter.startProperty("excludeUsers");
+					jsonWriter.startArray();
+					for(RecordUser user : purger.getExcludeUsers())
+						itemWriter.writeItem(user);
+					jsonWriter.endArray();
+				}
+				if(purger.getExcludeTypes().length > 0)
+				{
+					jsonWriter.startProperty("excludeTypes");
+					jsonWriter.startArray();
+					for(RecordType type : purger.getExcludeTypes())
+					{
+						jsonWriter.startObject();
+						jsonWriter.startProperty("subjectType");
+						jsonWriter.writeString(type.subjectType.name());
+						if(type.changeType != null)
+						{
+							jsonWriter.startProperty("changeType");
+							jsonWriter.writeString(type.changeType.name());
+						}
+						jsonWriter.startProperty("additivity");
+						jsonWriter.writeString(type.additivity > 0 ? "+" : (type.additivity < 0
+							? "-" : "0"));
+						jsonWriter.endObject();
+					}
+					jsonWriter.endArray();
+				}
+			}
+			else
+				getImpl().writeItem(item, jsonWriter, itemWriter, justID);
+		}
+
+		Object parseID(JSONObject json, SynchronizeImpl.ItemReader reader, boolean [] newItem)
+			throws PrismsRecordException
+		{
+			/* Currently at least, centers and auto-purge settings are local only, so these will never
+			 * be sent across, meaning this code here will never be executed.  I'm leaving it in in case
+			 * this condition ever changes. */
+			if("center".equals(json.get("type")))
+			{
+				// Need to retrieve existing center
+				PrismsCenter center = new PrismsCenter(((Number) json.get("id")).intValue(),
+					(String) json.get("name"));
+				newItem[0] = true;
+				return center;
+			}
+			else if("purger".equals(json.get("type")))
+			{
+				// Need to retrieve existing auto-purger
+				AutoPurger purger = new AutoPurger();
+				newItem[0] = true;
+				return purger;
+			}
+			else
+				return getImpl().parseID(json, reader, newItem);
+		}
+
+		void parseContent(Object item, JSONObject json, boolean newItem,
+			prisms.records.SynchronizeImpl.ItemReader reader) throws PrismsRecordException
+		{
+			/* Currently at least, centers and auto-purge settings are local only, so these will never
+			 * be sent across, meaning this code here will never be executed.  I'm leaving it in in case
+			 * this condition ever changes. */
+			if(item instanceof PrismsCenter)
+			{
+				// Need to retrieve existing center
+				PrismsCenter center = (PrismsCenter) item;
+				if(json.get("centerID") != null)
+					center.setCenterID(((Number) json.get("centerID")).intValue());
+				center.setPriority(((Number) json.get("syncPriority")).intValue());
+				center.setServerURL((String) json.get("serverURL"));
+				center.setServerUserName((String) json.get("serverUserName"));
+				center.setServerPassword((String) json.get("serverPassword"));
+				center.setServerSyncFrequency(((Number) json.get("syncFrequency")).longValue());
+				center.setClientUser((RecordUser) reader.read((JSONObject) json.get("clientUser")));
+				center.setChangeSaveTime(((Number) json.get("changeSaveTime")).longValue());
+				if(json.get("deleted") != null && ((Boolean) json.get("deleted")).booleanValue())
+					center.setDeleted(true);
+				// Need to fire events here if changed
+			}
+			else if(item instanceof AutoPurger)
+			{
+				// Need to retrieve existing auto-purger
+				AutoPurger purger = (AutoPurger) item;
+				purger.setAge(((Number) json.get("age")).longValue());
+				purger.setEntryCount(((Number) json.get("entryCount")).intValue());
+				if(json.get("excludeUsers") != null)
+					for(Object user : (org.json.simple.JSONArray) json.get("excludeUsers"))
+						purger.addExcludeUser((RecordUser) reader.read((JSONObject) user));
+				if(json.get("excludeTypes") != null)
+					for(Object type : (org.json.simple.JSONArray) json.get("excludeUsers"))
+					{
+						JSONObject jsonType = (JSONObject) type;
+						SubjectType subject = getSubjectType((String) jsonType.get("subjectType"));
+						ChangeType change = null;
+						if(jsonType.get("changeType") != null)
+							change = RecordUtils.getChangeType(subject,
+								(String) jsonType.get("changeType"));
+						char addCh = ((String) jsonType.get("additivity")).charAt(0);
+						int add = addCh == '+' ? 1 : (addCh == '-' ? -1 : 0);
+						purger.addExcludeType(new RecordType(subject, change, add));
+					}
+				// Need to fire events here if changed
+			}
+			else
+				getImpl().parseContent(item, json, newItem, reader);
+		}
+
+		prisms.records.ChangeRecord parseChange(JSONObject json, PS2ItemReader reader)
+		{
+			if(json.containsKey("error"))
+				return parseErrorChange(json, reader);
+			long id = ((Number) json.get("id")).longValue();
+			long time = ((Number) json.get("time")).longValue();
+			long userID = ((Number) json.get("user")).longValue();
+			SubjectType subjectType;
+			try
+			{
+				subjectType = getSubjectType((String) json.get("subjectType"));
+			} catch(PrismsRecordException e)
+			{
+				return parseErrorChange(json, reader);
+			}
+			if(subjectType == ChangeRecordError.ErrorSubjectType)
+				return parseErrorChange(json, reader);
+			String ctName = (String) json.get("changeType");
+			prisms.records.ChangeType changeType = null;
+			if(ctName != null)
+			{
+				for(prisms.records.ChangeType ct : (prisms.records.ChangeType[]) subjectType
+					.getChangeTypes().getEnumConstants())
+					if(ct.name().equals(ctName))
+					{
+						changeType = ct;
+						break;
+					}
+				if(changeType == null)
+					return parseErrorChange(json, reader);
+			}
+			char addChar = ((String) json.get("additivity")).charAt(0);
+			int add = addChar == '+' ? 1 : (addChar == '-' ? -1 : 0);
+			reader.setChangeData(new RecordType(subjectType, changeType, add), time, userID);
+			RecordUser user;
+			Object major = json.get("majorSubject");
+			if(major instanceof JSONObject)
+			{
+				try
+				{
+					major = reader.read((JSONObject) major);
+				} catch(Throwable e)
+				{
+					log.error("Could not parse major subject", e);
+					return parseErrorChange(json, reader);
+				}
+			}
+			if(major instanceof RecordUser && ((RecordUser) major).getID() == userID)
+				user = (RecordUser) major;
+			else
+			{
+				try
+				{
+					user = getImpl().getUser(userID, reader);
+				} catch(PrismsRecordException e)
+				{
+					log.error("Could not get user", e);
+					return parseErrorChange(json, reader);
+				}
+			}
+			Object data1 = json.get("data1");
+			Object data2 = json.get("data2");
+			Object minor = json.get("minorSubject");
+			Object preValue = json.get("preValue");
+			try
+			{
+				if(data1 instanceof JSONObject)
+					data1 = reader.read((JSONObject) data1);
+				if(data2 instanceof JSONObject)
+					data2 = reader.read((JSONObject) data2);
+				if(minor instanceof JSONObject)
+					minor = reader.read((JSONObject) minor);
+				if(preValue instanceof JSONObject)
+					preValue = reader.read((JSONObject) preValue);
+			} catch(Throwable e)
+			{
+				log.error("Could not parse change data", e);
+				return parseErrorChange(json, reader);
+			}
+			prisms.records.RecordPersister.ChangeData data;
+			try
+			{
+				data = getImpl().getData(subjectType, changeType, major, minor, data1, data2,
+					preValue, reader);
+			} catch(Throwable e)
+			{
+				log.error("Could not get change data", e);
+				return parseErrorChange(json, reader);
+			}
+			try
+			{
+				if(data.data1 != null)
+					reader.store(getType(data.data1), getID(data.data1), data.data1);
+				if(data.data2 != null)
+					reader.store(getType(data.data2), getID(data.data2), data.data2);
+				if(data.minorSubject != null)
+					reader.store(getType(data.minorSubject), getID(data.minorSubject),
+						data.minorSubject);
+				if(data.preValue != null)
+				{
+					String type = getType(data.preValue);
+					if(type != null)
+						reader.store(type, getID(data.preValue), data.preValue);
+				}
+			} catch(PrismsRecordException e)
+			{
+				log.error("Could not store data", e);
+			}
+			if(changeType != null && !changeType.isObjectIdentifiable() && data.preValue != null
+				&& Number.class.isAssignableFrom(changeType.getObjectType())
+				&& !changeType.getObjectType().equals(data.preValue.getClass()))
+			{
+				if(Long.class.equals(changeType.getObjectType()))
+					data.preValue = Long.valueOf(((Number) data.preValue).longValue());
+				else if(Integer.class.equals(changeType.getObjectType()))
+					data.preValue = Integer.valueOf(((Number) data.preValue).intValue());
+				else if(Double.class.equals(changeType.getObjectType()))
+					data.preValue = Double.valueOf(((Number) data.preValue).doubleValue());
+				else if(Float.class.equals(changeType.getObjectType()))
+					data.preValue = Float.valueOf(((Number) data.preValue).floatValue());
+				else if(Short.class.equals(changeType.getObjectType()))
+					data.preValue = Short.valueOf(((Number) data.preValue).shortValue());
+				else if(Byte.class.equals(changeType.getObjectType()))
+					data.preValue = Byte.valueOf(((Number) data.preValue).byteValue());
+			}
+			try
+			{
+				return new prisms.records.ChangeRecord(id, false, time, user, subjectType,
+					changeType, add, data.majorSubject, data.minorSubject, data.preValue,
+					data.data1, data.data2);
+			} catch(IllegalArgumentException e)
+			{
+				log.error("Could not instantiate change record with id " + id, e);
+				return parseErrorChange(json, reader);
+			}
+		}
+
+		SubjectType getSubjectType(String name) throws PrismsRecordException
+		{
+			if(ChangeRecordError.ErrorSubjectType.name().equals(name))
+				return ChangeRecordError.ErrorSubjectType;
+			for(PrismsChange ch : PrismsChange.values())
+				if(ch.name().equals(name))
+					return ch;
+			return getImpl().getSubjectType(name);
+		}
+
+		ChangeRecordError parseErrorChange(JSONObject json, ItemGetter getter)
+		{
+			long id = ((Number) json.get("id")).longValue();
+			long time = ((Number) json.get("time")).longValue();
+			final long userID = ((Number) json.get("user")).longValue();
+			RecordUser user;
+			try
+			{
+				user = getImpl().getUser(userID, getter);
+			} catch(PrismsRecordException e)
+			{
+				user = new RecordUser()
+				{
+
+					public long getID()
+					{
+						return userID;
+					}
+
+					public String getName()
+					{
+						return "Unknown";
+					}
+
+					public boolean isDeleted()
+					{
+						return false;
+					}
+				};
+			}
+			ChangeRecordError ret = new ChangeRecordError(id, false, time, user);
+			ret.setSubjectType((String) json.get("subjectType"));
+			ret.setChangeType((String) json.get("changeType"));
+			String add = (String) json.get("additivity");
+			ret.setAdditivity(add.equals("+") ? 1 : (add.equals("-") ? -1 : 0));
+
+			Object major = json.get("majorSubject");
+			Object data1 = json.get("data1");
+			Object data2 = json.get("data2");
+			Object minor = json.get("minorSubject");
+			Object preValue = json.get("preValue");
+			if(major instanceof Number)
+				ret.setMajorSubject(null, ((Number) major).longValue());
+			else
+				ret.setMajorSubject(null, ((Number) ((JSONObject) major).get("id")).longValue());
+
+			if(minor instanceof Number)
+				ret.setMinorSubject(null, ((Number) minor).longValue());
+			else if(minor != null)
+				ret.setMinorSubject(null, ((Number) ((JSONObject) minor).get("id")).longValue());
+
+			if(data1 instanceof Number)
+				ret.setData1(null, ((Number) data1).longValue());
+			else if(data1 != null)
+				ret.setData1(null, ((Number) ((JSONObject) data1).get("id")).longValue());
+
+			if(data2 instanceof Number)
+				ret.setData2(null, ((Number) data2).longValue());
+			else if(data2 != null)
+				ret.setData2(null, ((Number) ((JSONObject) data2).get("id")).longValue());
+
+			if(preValue instanceof Boolean)
+				preValue = preValue.toString();
+			else if(preValue instanceof JSONObject)
+				preValue = ((JSONObject) preValue).get("id");
+			ret.setPreValue(null, preValue);
+			return ret;
+		}
+	}
+
 	class PS2ItemWriter implements ItemWriter
 	{
+		final SyncTransaction theTrans;
+
 		final prisms.util.json.JsonStreamWriter theWriter;
 
-		private final SyncRecord theSyncRecord;
-
 		private final LatestCenterChange [] theLatestChanges;
-
-		private boolean storeSyncRecord;
 
 		private final java.util.HashSet<ObjectID> theBag;
 
@@ -164,14 +692,12 @@ public class PrismsSynchronizer
 
 		private java.util.HashSet<ObjectID> theOldItems;
 
-		PS2ItemWriter(Writer writer, SyncRecord syncRecord, LatestCenterChange [] changes,
-			boolean storeSR)
+		PS2ItemWriter(SyncTransaction trans, Writer writer, LatestCenterChange [] changes)
 		{
+			theTrans = trans;
 			theWriter = new prisms.util.json.JsonStreamWriter(writer);
-			theSyncRecord = syncRecord;
 			theBag = new java.util.HashSet<ObjectID>();
 			theLatestChanges = changes;
-			storeSyncRecord = storeSR;
 			theNewItems = new java.util.HashSet<ObjectID>();
 			theOldItems = new java.util.HashSet<ObjectID>();
 		}
@@ -194,12 +720,12 @@ public class PrismsSynchronizer
 				theWriter.writeNull();
 			else
 			{
-				String type = getImpl().getType(item.getClass());
-				long id = type == null ? -1 : getImpl().getID(item);
+				String type = theTrans.getType(item);
+				long id = type == null ? -1 : theTrans.getID(item);
 				ObjectID oid = null;
-				if(type != null)
+				if(type != null && id >= 0)
 					oid = new ObjectID(type, id);
-				if(type == null)
+				if(type == null || id < 0)
 					doWrite(item);
 				else if(theBag.contains(oid))
 				{
@@ -222,7 +748,7 @@ public class PrismsSynchronizer
 					theWriter.writeNumber(Long.valueOf(id));
 					theWriter.startProperty("-localstore-");
 					theWriter.writeBoolean(true);
-					PrismsSynchronizer.this.writeItem(item, theWriter, this, true);
+					theTrans.writeItem(item, theWriter, this, true);
 					theWriter.endObject();
 				}
 				else
@@ -289,15 +815,15 @@ public class PrismsSynchronizer
 				break;
 			}
 			if(!ret)
-				for(Object depend : getDepends(item))
+				for(Object depend : theTrans.getDepends(item))
 				{
-					String type = getType(depend);
+					String type = theTrans.getType(depend);
 					if(type == null)
 					{
 						log.error("Type of depend " + depend.getClass() + " is null");
 						continue;
 					}
-					ObjectID dependID = new ObjectID(type, getID(depend));
+					ObjectID dependID = new ObjectID(type, theTrans.getID(depend));
 					if(isNewItem(depend, dependID))
 					{
 						ret = true;
@@ -325,20 +851,23 @@ public class PrismsSynchronizer
 				theWriter.writeBoolean(((Boolean) item).booleanValue());
 			else
 			{
-				String type = getType(item);
+				String type = theTrans.getType(item);
 				if(type != null)
 				{
-					long id = getID(item);
+					long id = theTrans.getID(item);
 					theWriter.startObject();
 					theWriter.startProperty("type");
 					theWriter.writeString(type);
-					theWriter.startProperty("id");
-					theWriter.writeNumber(Long.valueOf(id));
-					PrismsSynchronizer.this.writeItem(item, theWriter, this, false);
+					if(id >= 0)
+					{
+						theWriter.startProperty("id");
+						theWriter.writeNumber(Long.valueOf(id));
+					}
+					theTrans.writeItem(item, theWriter, this, false);
 					theWriter.endObject();
 				}
 				else
-					PrismsSynchronizer.this.writeItem(item, theWriter, this, false);
+					theTrans.writeItem(item, theWriter, this, false);
 			}
 		}
 
@@ -411,8 +940,8 @@ public class PrismsSynchronizer
 					try
 					{
 						theWriter.startProperty("majorSubject");
-						long id = getID(change.majorSubject);
-						ObjectID oid = new ObjectID(getType(change.majorSubject), id);
+						long id = theTrans.getID(change.majorSubject);
+						ObjectID oid = new ObjectID(theTrans.getType(change.majorSubject), id);
 						if(theBag.contains(oid)
 							|| (!preError && !isNewItem(change.majorSubject, oid)))
 							theWriter.writeNumber(Long.valueOf(id));
@@ -425,8 +954,8 @@ public class PrismsSynchronizer
 						if(change.data1 != null)
 						{
 							theWriter.startProperty("data1");
-							id = getID(change.data1);
-							oid = new ObjectID(getType(change.data1), id);
+							id = theTrans.getID(change.data1);
+							oid = new ObjectID(theTrans.getType(change.data1), id);
 							if(theBag.contains(oid) || (!preError && !isNewItem(change.data1, oid)))
 								theWriter.writeNumber(Long.valueOf(id));
 							else
@@ -436,8 +965,8 @@ public class PrismsSynchronizer
 						if(change.data2 != null)
 						{
 							theWriter.startProperty("data2");
-							id = getID(change.data2);
-							oid = new ObjectID(getType(change.data2), id);
+							id = theTrans.getID(change.data2);
+							oid = new ObjectID(theTrans.getType(change.data2), id);
 							if(theBag.contains(oid) || (!preError && !isNewItem(change.data2, oid)))
 								theWriter.writeNumber(Long.valueOf(id));
 							else
@@ -447,8 +976,8 @@ public class PrismsSynchronizer
 						if(change.minorSubject != null)
 						{
 							theWriter.startProperty("minorSubject");
-							id = getID(change.minorSubject);
-							oid = new ObjectID(getType(change.minorSubject), id);
+							id = theTrans.getID(change.minorSubject);
+							oid = new ObjectID(theTrans.getType(change.minorSubject), id);
 							if(theBag.contains(oid)
 								|| (!preError && !isNewItem(change.minorSubject, oid)))
 								theWriter.writeNumber(Long.valueOf(id));
@@ -461,8 +990,8 @@ public class PrismsSynchronizer
 							theWriter.startProperty("preValue");
 							if(change.type.changeType.isObjectIdentifiable())
 							{
-								id = getID(change.previousValue);
-								oid = new ObjectID(getType(change.previousValue), id);
+								id = theTrans.getID(change.previousValue);
+								oid = new ObjectID(theTrans.getType(change.previousValue), id);
 								if(theBag.contains(oid)
 									|| (!preError && !isNewItem(change.previousValue, oid)))
 									theWriter.writeNumber(Long.valueOf(id));
@@ -474,7 +1003,7 @@ public class PrismsSynchronizer
 						}
 						Object currentValue = null;
 						if(change.type.changeType != null)
-							currentValue = getCurrentValue(change);
+							currentValue = theTrans.getCurrentValue(change);
 						if(currentValue != null)
 						{
 							theWriter.startProperty("currentValue");
@@ -486,14 +1015,14 @@ public class PrismsSynchronizer
 							+ ")", e);
 						error = true;
 					}
-					if(storeSyncRecord)
+					if(theTrans.shouldStoreSyncRecord())
 						try
 						{
-							getKeeper().associate(change, theSyncRecord, error);
+							getKeeper().associate(change, theTrans.getSyncRecord(), error);
 						} catch(PrismsRecordException e)
 						{
 							log.error("Could not associate change " + change.id
-								+ " with sync record " + theSyncRecord, e);
+								+ " with sync record " + theTrans.getSyncRecord(), e);
 						}
 				}
 				theWriter.endObject();
@@ -579,10 +1108,6 @@ public class PrismsSynchronizer
 
 		private final SyncInputHandler theSyncInput;
 
-		private final SyncRecord theSyncRecord;
-
-		private prisms.ui.UI.DefaultProgressInformer thePI;
-
 		private final java.util.HashMap<ObjectID, Integer> theObjectPositions;
 
 		private final java.util.LinkedHashSet<ObjectID> theExportedObjects;
@@ -605,12 +1130,9 @@ public class PrismsSynchronizer
 
 		private java.util.ArrayList<boolean []> theNewItems;
 
-		PS2ItemReader(SyncInputHandler syncInput, SyncRecord record,
-			prisms.ui.UI.DefaultProgressInformer pi)
+		PS2ItemReader(SyncInputHandler syncInput)
 		{
 			theSyncInput = syncInput;
-			theSyncRecord = record;
-			thePI = pi;
 			theObjectPositions = new java.util.HashMap<ObjectID, Integer>();
 			theExportedObjects = new java.util.LinkedHashSet<ObjectID>();
 			thePreRegisters = new java.util.HashMap<ObjectID, JSONObject>();
@@ -644,8 +1166,13 @@ public class PrismsSynchronizer
 			try
 			{
 				String type = (String) json.get("type");
-				long id = ((Number) json.get("id")).longValue();
-				value = theBag.get(type, id);
+				Number idNum = (Number) json.get("id");
+				long id;
+				if(idNum != null)
+					id = idNum.longValue();
+				else
+					id = -1;
+				value = id < 0 ? null : theBag.get(type, id);
 				if(value != null)
 				{}
 				else if(Boolean.TRUE.equals(json.get("-syncstore-")))
@@ -656,7 +1183,7 @@ public class PrismsSynchronizer
 				else if(Boolean.TRUE.equals(json.get("-localstore-")))
 				{
 					newItem[0] = false;
-					value = PrismsSynchronizer.this.parseID(json, this, newItem);
+					value = theSyncInput.getTrans().parseID(json, this, newItem);
 					if(newItem[0])
 						throw new PrismsRecordException("Item " + type + "/" + id
 							+ " not present in data source");
@@ -665,10 +1192,11 @@ public class PrismsSynchronizer
 				else
 				{
 					newItem[0] = false;
-					value = PrismsSynchronizer.this.parseID(json, this, newItem);
-					theBag.add(type, id, value);
+					value = theSyncInput.getTrans().parseID(json, this, newItem);
+					if(id >= 0)
+						theBag.add(type, id, value);
 					parseEmptyContent();
-					if(type != null)
+					if(type != null && id >= 0)
 					{
 						if(theDepth == 1)
 							parseContent(value, new ObjectID(type, id), json, newItem[0]);
@@ -729,7 +1257,7 @@ public class PrismsSynchronizer
 			throws PrismsRecordException
 		{
 			if(newItem || theExportedObjects.contains(id))
-				PrismsSynchronizer.this.parseContent(value, json, newItem, this);
+				theSyncInput.getTrans().parseContent(value, json, newItem, this);
 		}
 
 		private void addEmptyContent(Object ref, ObjectID id, JSONObject json, boolean isNew)
@@ -799,8 +1327,8 @@ public class PrismsSynchronizer
 				tempFile = theFile.getFile();
 			java.io.Writer writer = new java.io.BufferedWriter(new java.io.FileWriter(tempFile));
 			ParseReader parseReader = new ParseReader(reader, writer);
-			thePI.setProgress(0);
-			thePI.setProgressScale(itemCount);
+			theSyncInput.getTrans().getPI().setProgress(0);
+			theSyncInput.getTrans().getPI().setProgressScale(itemCount);
 			new prisms.util.json.SAJParser().parse(parseReader, this);
 			writer.close();
 		}
@@ -808,7 +1336,7 @@ public class PrismsSynchronizer
 		@Override
 		public void startObject(ParseState state)
 		{
-			if(thePI.isCanceled())
+			if(theSyncInput.getTrans().getPI().isCanceled())
 				throw new prisms.util.CancelException();
 			super.startObject(state);
 			thePosition = state.getIndex() - 1;
@@ -817,7 +1345,7 @@ public class PrismsSynchronizer
 		@Override
 		public void startProperty(ParseState state, String name)
 		{
-			if(thePI.isCanceled())
+			if(theSyncInput.getTrans().getPI().isCanceled())
 				throw new prisms.util.CancelException();
 			super.startProperty(state, name);
 			if(!name.equals("id"))
@@ -835,7 +1363,7 @@ public class PrismsSynchronizer
 		@Override
 		public void valueNumber(ParseState state, Number value)
 		{
-			if(thePI.isCanceled())
+			if(theSyncInput.getTrans().getPI().isCanceled())
 				throw new prisms.util.CancelException();
 			super.valueNumber(state, value);
 			if("id".equals(state.top().getPropertyName()) && theType != null)
@@ -843,7 +1371,8 @@ public class PrismsSynchronizer
 				ObjectID id = new ObjectID(theType, value.longValue());
 				if(state.getDepth() == 3) // Array, object, property. Exported item.
 				{
-					thePI.setProgress(thePI.getTaskProgress() + 1);
+					theSyncInput.getTrans().getPI()
+						.setProgress(theSyncInput.getTrans().getPI().getTaskProgress() + 1);
 					theExportedObjects.add(id);
 					Integer centerID = Integer.valueOf(RecordUtils.getCenterID(id.id));
 					if(!ArrayUtils.containsP(theCenterIDs, centerID))
@@ -896,10 +1425,10 @@ public class PrismsSynchronizer
 				rootProgress = "Importing remote items";
 			else
 				rootProgress = "Importing remote items (stage " + stage + " of " + stages + ")";
-			thePI.setProgressText(rootProgress);
+			theSyncInput.getTrans().getPI().setProgressText(rootProgress);
 
-			thePI.setProgress(0);
-			thePI.setProgressScale(theExportedObjects.size());
+			theSyncInput.getTrans().getPI().setProgress(0);
+			theSyncInput.getTrans().getPI().setProgressScale(theExportedObjects.size());
 			int items = 0;
 			/* For each item in the full list that was not sync'ed already from being needed by a
 			 * change, sync the item with the data set. */
@@ -928,19 +1457,25 @@ public class PrismsSynchronizer
 					newItem[0] = false;
 					try
 					{
-						item = PrismsSynchronizer.this.parseID(json, this, newItem);
+						item = theSyncInput.getTrans().parseID(json, this, newItem);
 						theBag.add(id.type, id.id, item);
 						parseEmptyContent();
 						if(!json.containsKey("-localstore-"))
 						{
-							if(newItem[0] || relativePriority(theSyncRecord.getCenter()) >= 0)
+							if(newItem[0]
+								|| relativePriority(theSyncInput.getTrans().getSyncRecord()
+									.getCenter()) >= 0)
 								parseContent(item, id, json, newItem[0]);
 						}
 						else if(newItem[0])
 							log.error("Item " + id + " not locally stored!");
 						parseEmptyContent();
-						thePI.setProgressText(rootProgress + "\nImported " + id.type + " "
-							+ prisms.util.PrismsUtils.encodeUnicode("" + item));
+						theSyncInput
+							.getTrans()
+							.getPI()
+							.setProgressText(
+								rootProgress + "\nImported " + id.type + " "
+									+ prisms.util.PrismsUtils.encodeUnicode("" + item));
 					} catch(PrismsRecordException e)
 					{
 						log.error("Failed to import " + id, e);
@@ -950,13 +1485,13 @@ public class PrismsSynchronizer
 					}
 				}
 				items++;
-				thePI.setProgress(items);
+				theSyncInput.getTrans().getPI().setProgress(items);
 			}
 			stage++;
-			thePI.setProgressScale(0);
-			thePI.setProgress(0);
-			thePI.setProgressText(rootProgress);
-			if(relativePriority(theSyncRecord.getCenter()) >= 0)
+			theSyncInput.getTrans().getPI().setProgressScale(0);
+			theSyncInput.getTrans().getPI().setProgress(0);
+			theSyncInput.getTrans().getPI().setProgressText(rootProgress);
+			if(relativePriority(theSyncInput.getTrans().getSyncRecord().getCenter()) >= 0)
 			{
 				/* For each item in the data set that has no representation in the sent item list,
 				 * delete the item */
@@ -968,8 +1503,9 @@ public class PrismsSynchronizer
 					rootProgress = "Removing remotely deleted items (stage 3 of " + stages + ")";
 				java.util.ArrayList<Object> toDelete = new java.util.ArrayList<Object>();
 				java.util.ArrayList<ObjectID> delIDs = new java.util.ArrayList<ObjectID>();
-				prisms.records.SynchronizeImpl.ItemIterator iter = getImpl().getAllItems(
-					theCenterIDs, theSyncRecord.getCenter());
+				prisms.records.SynchronizeImpl.ItemIterator iter = theSyncInput.getTrans()
+					.getImpl()
+					.getAllItems(theCenterIDs, theSyncInput.getTrans().getSyncRecord().getCenter());
 				while(true)
 				{
 					Object item;
@@ -983,14 +1519,15 @@ public class PrismsSynchronizer
 						log.error("Could not retrieve item from full set", e);
 						continue;
 					}
-					ObjectID id = new ObjectID(getType(item), getID(item));
+					ObjectID id = new ObjectID(theSyncInput.getTrans().getType(item), theSyncInput
+						.getTrans().getID(item));
 					if(!theExportedObjects.contains(id) && !theSyncInput.isNewItem(item, id.id))
 					{
 						toDelete.add(item);
 						delIDs.add(id);
 					}
 				}
-				thePI.setProgressScale(toDelete.size());
+				theSyncInput.getTrans().getPI().setProgressScale(toDelete.size());
 				theExportedObjects.clear();
 				items = 0;
 				for(int i = 0; i < toDelete.size(); i++)
@@ -999,10 +1536,12 @@ public class PrismsSynchronizer
 					ObjectID id = delIDs.get(i);
 					try
 					{
-						getImpl().delete(item, theSyncRecord);
+						theSyncInput.getTrans().getImpl()
+							.delete(item, theSyncInput.getTrans().getSyncRecord());
 						items++;
-						thePI.setProgress(items);
-						thePI.setProgressText(rootProgress + "\nDeleted " + id.type + " " + item);
+						theSyncInput.getTrans().getPI().setProgress(items);
+						theSyncInput.getTrans().getPI()
+							.setProgressText(rootProgress + "\nDeleted " + id.type + " " + item);
 					} catch(Throwable e)
 					{
 						log.error("Could not delete item " + id.type + "/" + id.id, e);
@@ -1010,9 +1549,9 @@ public class PrismsSynchronizer
 				}
 				toDelete.clear();
 				delIDs.clear();
-				thePI.setProgressText("Finished importing remote values");
-				thePI.setProgressScale(0);
-				thePI.setProgress(0);
+				theSyncInput.getTrans().getPI().setProgressText("Finished importing remote values");
+				theSyncInput.getTrans().getPI().setProgressScale(0);
+				theSyncInput.getTrans().getPI().setProgress(0);
 			}
 		}
 
@@ -1033,30 +1572,24 @@ public class PrismsSynchronizer
 
 	private class ChangeReader extends prisms.util.json.SAJParser.DefaultHandler
 	{
+		private final SyncTransaction theTrans;
+
 		private final Reader theReader;
 
-		private final SyncRecord theSyncRecord;
-
 		private PS2ItemReader theGetter;
-
-		private prisms.ui.UI.DefaultProgressInformer thePI;
 
 		private int theTotalChangeCount;
 
 		private int theChangeCount;
 
-		private boolean storeSyncRecord;
-
-		ChangeReader(Reader reader, SyncRecord record, PS2ItemReader getter, int totalChangeCount,
-			prisms.ui.UI.DefaultProgressInformer pi, boolean storeSR)
+		ChangeReader(SyncTransaction trans, Reader reader, PS2ItemReader getter,
+			int totalChangeCount)
 		{
+			theTrans = trans;
 			theReader = reader;
-			theSyncRecord = record;
 			theGetter = getter;
 			theTotalChangeCount = totalChangeCount;
-			thePI = pi;
-			thePI.setProgressScale(totalChangeCount);
-			storeSyncRecord = storeSR;
+			theTrans.getPI().setProgressScale(totalChangeCount);
 		}
 
 		int parse() throws java.io.IOException, prisms.util.json.SAJParser.ParseException
@@ -1077,18 +1610,18 @@ public class PrismsSynchronizer
 		public void endObject(ParseState state)
 		{
 			super.endObject(state);
-			if(thePI != null && thePI.isCanceled())
+			if(theTrans.getPI().isCanceled())
 				throw new prisms.util.CancelException();
 			JSONObject json = (JSONObject) finalValue();
 			if(getDepth() == 1)
 			{ // Change-level
 				theChangeCount++;
-				if(thePI != null && theTotalChangeCount > 0)
-					thePI.setProgress(theChangeCount);
+				if(theTotalChangeCount > 0)
+					theTrans.getPI().setProgress(theChangeCount);
 				if(Boolean.TRUE.equals(json.get("skipped")))
 					return;
 				boolean store = true;
-				ChangeRecord change = parseChange(json, theGetter);
+				ChangeRecord change = theTrans.parseChange(json, theGetter);
 				try
 				{
 					if(getKeeper().hasChange(change.id))
@@ -1102,7 +1635,7 @@ public class PrismsSynchronizer
 					log.error("Could not check existence of change", e);
 					return;
 				}
-				if(thePI.isCanceled())
+				if(theTrans.getPI().isCanceled())
 					throw new prisms.util.CancelException();
 				boolean error = change instanceof ChangeRecordError;
 				try
@@ -1115,12 +1648,14 @@ public class PrismsSynchronizer
 							currentValue = theGetter.read((JSONObject) currentValue);
 						if(currentValue != null
 							&& change.type.changeType.getObjectType().isInstance(currentValue))
-							thePI.setProgressText(prisms.util.PrismsUtils
-								.encodeUnicode("Importing " + change.toString(currentValue)));
+							theTrans.getPI().setProgressText(
+								prisms.util.PrismsUtils.encodeUnicode("Importing "
+									+ change.toString(currentValue)));
 						else
-							thePI.setProgressText(prisms.util.PrismsUtils
-								.encodeUnicode("Importing " + change.toString()));
-						getImpl().doChange(change, currentValue);
+							theTrans.getPI().setProgressText(
+								prisms.util.PrismsUtils.encodeUnicode("Importing "
+									+ change.toString()));
+						theTrans.getImpl().doChange(change, currentValue);
 					}
 				} catch(Exception e)
 				{
@@ -1131,8 +1666,8 @@ public class PrismsSynchronizer
 				{
 					if(store)
 						getKeeper().persist(change);
-					if(storeSyncRecord)
-						getKeeper().associate(change, theSyncRecord, error);
+					if(theTrans.shouldStoreSyncRecord())
+						getKeeper().associate(change, theTrans.getSyncRecord(), error);
 				} catch(PrismsRecordException e2)
 				{
 					log.error("Could not persist change " + change.id, e2);
@@ -1143,11 +1678,9 @@ public class PrismsSynchronizer
 
 	private class SyncInputHandler extends prisms.util.json.SAJParser.DefaultHandler
 	{
+		final SyncTransaction theTrans;
+
 		final Reader theReader;
-
-		final SyncRecord theSyncRecord;
-
-		final prisms.ui.UI.DefaultProgressInformer thePI;
 
 		final PostIDSet thePIDS;
 
@@ -1165,8 +1698,6 @@ public class PrismsSynchronizer
 
 		private int theTotalChangeCount;
 
-		boolean storeSyncRecord;
-
 		private boolean hasDoneChanges;
 
 		private int theStageCount;
@@ -1175,24 +1706,26 @@ public class PrismsSynchronizer
 
 		private java.util.ArrayList<LatestCenterChange> theLatestChanges;
 
-		SyncInputHandler(Reader reader, SyncRecord record, prisms.ui.UI.DefaultProgressInformer pi,
-			PostIDSet pids, boolean storeSR)
+		SyncInputHandler(SyncTransaction trans, Reader reader, PostIDSet pids)
 		{
+			theTrans = trans;
 			theReader = reader;
-			theSyncRecord = record;
-			thePI = pi;
 			thePIDS = pids;
-			theItemReader = new PS2ItemReader(this, record, thePI);
+			theItemReader = new PS2ItemReader(this);
 			theTotalChangeCount = -1;
-			storeSyncRecord = storeSR;
 			theLatestChanges = new java.util.ArrayList<LatestCenterChange>();
+		}
+
+		SyncTransaction getTrans()
+		{
+			return theTrans;
 		}
 
 		@Override
 		public void separator(ParseState state)
 		{
 			super.separator(state);
-			if(thePI.isCanceled())
+			if(theTrans.getPI().isCanceled())
 				throw new prisms.util.CancelException();
 			try
 			{
@@ -1226,16 +1759,20 @@ public class PrismsSynchronizer
 								PrismsCenter subCenter;
 								try
 								{
-									subCenter = getDependCenter(subSync, theSyncRecord.getCenter());
+									subCenter = getDependCenter(subSync, theTrans.getSyncRecord()
+										.getCenter());
 									if(subCenter == null)
 										throw new PrismsRecordException("No dependent center"
-											+ " parallel to " + theSyncRecord.getCenter().getName()
+											+ " parallel to "
+											+ theTrans.getSyncRecord().getCenter().getName()
 											+ " for synchronizer with impl "
-											+ subSync.getImpl().getClass().getName());
+											+ subSync.getImpls()[subSync.getImpls().length - 1]
+												.getClass().getName());
 									// TODO Perhaps adjust the progress input to append something
 									// like "Synchronizing REA: "
-									subSync.doSyncInput(subCenter, theSyncRecord.getSyncType(),
-										theReader, thePI, thePIDS, storeSyncRecord);
+									subSync.doSyncInput(subCenter, theTrans.getSyncRecord()
+										.getSyncType(), theReader, theTrans.getPI(), thePIDS,
+										theTrans.shouldStoreSyncRecord());
 									state2.spoofValue();
 								} catch(IOException e)
 								{
@@ -1258,10 +1795,11 @@ public class PrismsSynchronizer
 				{
 					checkStage();
 					if(theStageCount == 0)
-						thePI.setProgressText("Retrieving and storing remote values");
+						theTrans.getPI().setProgressText("Retrieving and storing remote values");
 					else
-						thePI.setProgressText("Retrieving and storing remote values (Stage "
-							+ theCurrentStage[0] + " of " + theStageCount + ")");
+						theTrans.getPI().setProgressText(
+							"Retrieving and storing remote values (Stage " + theCurrentStage[0]
+								+ " of " + theStageCount + ")");
 					if(!isCenterIDSet)
 						throw new prisms.util.json.SAJParser.ParseException(
 							"Can't import items before remote center ID is sent", state);
@@ -1269,9 +1807,9 @@ public class PrismsSynchronizer
 					state.spoofValue();
 					theItemReader.parse(theReader, theTotalItemCount);
 					theCurrentStage[0]++;
-					if(thePI.isCanceled())
+					if(theTrans.getPI().isCanceled())
 						throw new prisms.util.CancelException();
-					thePI.setProgressScale(0);
+					theTrans.getPI().setProgressScale(0);
 				}
 				else if(CHANGES.equals(state.top().getPropertyName()))
 				{
@@ -1280,10 +1818,11 @@ public class PrismsSynchronizer
 					hasDoneChanges = true;
 					checkStage();
 					if(theStageCount == 0)
-						thePI.setProgressText("Importing changes");
+						theTrans.getPI().setProgressText("Importing changes");
 					else
-						thePI.setProgressText("Importing changes (Stage " + theCurrentStage[0]
-							+ " of " + theStageCount + ")");
+						theTrans.getPI().setProgressText(
+							"Importing changes (Stage " + theCurrentStage[0] + " of "
+								+ theStageCount + ")");
 					if(!isCenterIDSet)
 						throw new prisms.util.json.SAJParser.ParseException(
 							"Can't import changes before center ID is sent", state);
@@ -1292,13 +1831,13 @@ public class PrismsSynchronizer
 					// First, read in the changes from the remote center
 					try
 					{
-						new ChangeReader(theReader, theSyncRecord, theItemReader,
-							theTotalChangeCount, thePI, storeSyncRecord).parse();
+						new ChangeReader(theTrans, theReader, theItemReader, theTotalChangeCount)
+							.parse();
 					} catch(prisms.util.CancelException e)
 					{}
 					if(theTotalChangeCount > 0)
 						theCurrentStage[0]++;
-					thePI.setCancelable(false);
+					theTrans.getPI().setCancelable(false);
 					// Next, synchronize this center's item set with the remote center's items
 					try
 					{
@@ -1331,9 +1870,9 @@ public class PrismsSynchronizer
 						else
 							baseText = "Recovering local changes (stage " + theStageCount + " of "
 								+ theStageCount + ")";
-						thePI.setProgressText(baseText);
-						thePI.setProgress(0);
-						thePI.setProgressScale(0);
+						theTrans.getPI().setProgressText(baseText);
+						theTrans.getPI().setProgress(0);
+						theTrans.getPI().setProgressScale(0);
 						theCreations = null;
 						long [] batch = new long [theNewChanges.length < 100 ? theNewChanges.length
 							: 100];
@@ -1352,10 +1891,10 @@ public class PrismsSynchronizer
 									+ (i + batch.length - 1), e);
 								continue;
 							}
-							thePI.setProgressScale(theNewChanges.length);
+							theTrans.getPI().setProgressScale(theNewChanges.length);
 							for(int j = 0; j < records.length; j++)
 							{
-								thePI.setProgress(i + j);
+								theTrans.getPI().setProgress(i + j);
 								if(records[j] instanceof ChangeRecordError)
 								{
 									log.error("Could not redo change " + records[j].id
@@ -1364,10 +1903,11 @@ public class PrismsSynchronizer
 								}
 								try
 								{
-									if(shouldSend(records[j])
+									if(theTrans.shouldSend(records[j])
 										&& getKeeper().search(
 											getKeeper().getSuccessorSearch(records[j]), null).length == 0)
-										getImpl().doChange(records[j], theCurrentValues[i + j]);
+										theTrans.getImpl().doChange(records[j],
+											theCurrentValues[i + j]);
 								} catch(PrismsRecordException e)
 								{
 									log.error("Could not perform change " + records[j].id, e);
@@ -1379,88 +1919,104 @@ public class PrismsSynchronizer
 						theNewChanges = null;
 						theCurrentValues = null;
 					}
-					thePI.setProgressScale(0);
-					thePI.setProgress(0);
-					thePI.setProgressText("Finalizing import and refreshing client");
+					theTrans.getPI().setProgressScale(0);
+					theTrans.getPI().setProgress(0);
+					theTrans.getPI().setProgressText("Finalizing import and refreshing client");
 					theItemReader.close();
 				}
+				else if("subSync".equals(state.top().getPropertyName()))
+					subSync(state);
 				else if("latestChanges".equals(state.top().getPropertyName()))
-				{
-					if(!isCenterIDSet)
-						throw new prisms.util.json.SAJParser.ParseException(
-							"Can't import changes before center ID is sent", state);
-					super.valueNull(state);
-					state.spoofValue();
-					thePI.setCancelable(false);
-					prisms.util.json.SAJParser.DefaultHandler handler = new prisms.util.json.SAJParser.DefaultHandler();
-					new prisms.util.json.SAJParser().parse(theReader, handler);
-					org.json.simple.JSONArray changes = (org.json.simple.JSONArray) handler
-						.finalValue();
-					for(JSONObject change : (JSONObject []) changes.toArray(new JSONObject [changes
-						.size()]))
-					{
-						int centerID = ((Number) change.get("centerID")).intValue();
-						int subjectCenter = ((Number) change.get("subjectCenter")).intValue();
-						long remoteTime = ((Number) change.get("latestChange")).longValue();
-						theLatestChanges.add(new LatestCenterChange(centerID, subjectCenter,
-							remoteTime));
-					}
-					/* If all items are sent from the remote center, then the synchronization
-					 * is a destructive sync. We need to get all changes that we have since the
-					 * last time the remote center synchronized with the local center and re-apply
-					 * them after importing the remote center's data as-is. If, however, the remote
-					 * center is not a priority, then the sync will not be evaluated destructively,
-					 * so no post-destruct changes are needed. */
-					if(relativePriority(theSyncRecord.getCenter()) < 0)
-						return;
-					try
-					{
-						theStageCount++;
-						if(thePI.isCanceled())
-							throw new prisms.util.CancelException();
-						SyncOutput sync = getSyncOutput(theSyncRecord.getCenter(),
-							theLatestChanges.toArray(new LatestCenterChange [theLatestChanges
-								.size()]), true, true);
-						theNewChanges = sync.theChangeIDs;
-						theCreations = new long [theNewChanges.length];
-						java.util.Arrays.fill(theCreations, -1);
-						theCurrentValues = new Object [theNewChanges.length];
-						long [] batch = new long [theNewChanges.length < 100 ? theNewChanges.length
-							: 100];
-						for(int i = 0; i < theNewChanges.length; i += batch.length)
-						{
-							int len = theNewChanges.length - i;
-							if(len < batch.length)
-								batch = new long [len];
-							else
-								len = batch.length;
-							System.arraycopy(theNewChanges, i, batch, 0, len);
-							ChangeRecord [] records = getKeeper().getItems(batch);
-							for(int j = 0; j < records.length; j++)
-							{
-								if(records[j] instanceof ChangeRecordError)
-									continue;
-								if(records[j].type.additivity == 0)
-									theCurrentValues[i + j] = getCurrentValue(records[j]);
-								if(records[j].type.changeType == null
-									&& records[j].type.additivity > 0)
-									theCreations[i] = getID(records[j].majorSubject);
-							}
-						}
-						if(theNewChanges.length > 0)
-							theStageCount++;
-					} catch(PrismsRecordException e)
-					{
-						throw new RuntimeWrapper("Could not retrieve changes"
-							+ " since last sync by remote center", e);
-					}
-				}
+					subSyncOld(state);
 			} catch(IOException e)
 			{
 				throw new RuntimeWrapper("Could not read synchronization stream", e);
 			} catch(prisms.util.json.SAJParser.ParseException e)
 			{
 				throw new RuntimeWrapper("Could not parse synchronization stream", e);
+			}
+		}
+
+		private void subSync(ParseState state) throws IOException,
+			prisms.util.json.SAJParser.ParseException
+		{
+			if(!isCenterIDSet)
+				throw new prisms.util.json.SAJParser.ParseException(
+					"Can't import changes before center ID is sent", state);
+			super.valueNull(state);
+			state.spoofValue();
+			theTrans.getPI().setCancelable(false);
+			// TODO
+		}
+
+		private void subSyncOld(ParseState state) throws IOException,
+			prisms.util.json.SAJParser.ParseException
+		{
+			if(!isCenterIDSet)
+				throw new prisms.util.json.SAJParser.ParseException(
+					"Can't import changes before center ID is sent", state);
+			super.valueNull(state);
+			state.spoofValue();
+			theTrans.getPI().setCancelable(false);
+			org.json.simple.JSONArray changes = (org.json.simple.JSONArray) prisms.util.json.SAJParser
+				.parse(theReader);
+			for(JSONObject change : (java.util.List<JSONObject>) changes)
+			{
+				int centerID = ((Number) change.get("centerID")).intValue();
+				int subjectCenter = ((Number) change.get("subjectCenter")).intValue();
+				long remoteTime = ((Number) change.get("latestChange")).longValue();
+				theLatestChanges.add(new LatestCenterChange(centerID, subjectCenter, remoteTime));
+			}
+			/* If all items are sent from the remote center, then the synchronization
+			 * is a destructive sync. We need to get all changes that we have since the
+			 * last time the remote center synchronized with the local center and re-apply
+			 * them after importing the remote center's data as-is. If, however, the remote
+			 * center is not a priority, then the sync will not be evaluated destructively,
+			 * so no post-destruct changes are needed. */
+			if(relativePriority(theTrans.getSyncRecord().getCenter()) < 0)
+				return;
+			try
+			{
+				theStageCount++;
+				if(theTrans.getPI().isCanceled())
+					throw new prisms.util.CancelException();
+				SyncRequest req = new SyncRequest(theTrans.getSyncRecord().getCenter(), theTrans
+					.getSyncRecord().getSyncType(),
+					theLatestChanges.toArray(new LatestCenterChange [theLatestChanges.size()]),
+					null);
+				req.setWithRecords(true);
+				req.setStoreSyncRecord(theTrans.shouldStoreSyncRecord());
+				SyncOutput sync = getSyncOutput(theTrans, req, true);
+				theNewChanges = sync.theChangeIDs;
+				theCreations = new long [theNewChanges.length];
+				java.util.Arrays.fill(theCreations, -1);
+				theCurrentValues = new Object [theNewChanges.length];
+				long [] batch = new long [theNewChanges.length < 100 ? theNewChanges.length : 100];
+				for(int i = 0; i < theNewChanges.length; i += batch.length)
+				{
+					int len = theNewChanges.length - i;
+					if(len < batch.length)
+						batch = new long [len];
+					else
+						len = batch.length;
+					System.arraycopy(theNewChanges, i, batch, 0, len);
+					ChangeRecord [] records = getKeeper().getItems(batch);
+					for(int j = 0; j < records.length; j++)
+					{
+						if(records[j] instanceof ChangeRecordError)
+							continue;
+						if(records[j].type.additivity == 0)
+							theCurrentValues[i + j] = theTrans.getCurrentValue(records[j]);
+						if(records[j].type.changeType == null && records[j].type.additivity > 0)
+							theCreations[i] = theTrans.getID(records[j].majorSubject);
+					}
+				}
+				if(theNewChanges.length > 0)
+					theStageCount++;
+			} catch(PrismsRecordException e)
+			{
+				throw new RuntimeWrapper("Could not retrieve changes"
+					+ " since last sync by remote center", e);
 			}
 		}
 
@@ -1474,7 +2030,7 @@ public class PrismsSynchronizer
 				count = 2;
 				if(theTotalChangeCount > 0)
 					count++;
-				if(relativePriority(theSyncRecord.getCenter()) >= 0)
+				if(relativePriority(theTrans.getSyncRecord().getCenter()) >= 0)
 					count++;
 			}
 			theStageCount = count;
@@ -1482,42 +2038,52 @@ public class PrismsSynchronizer
 		}
 
 		@Override
+		public void valueString(ParseState state, String value)
+		{
+			super.valueString(state, value);
+			if("version".equals(state.top().getPropertyName()) && theTrans.getImpl() == null)
+				theTrans.setImpl(getImpl(value, true));
+		}
+
+		@Override
 		public void valueNumber(ParseState state, Number value)
 		{
 			super.valueNumber(state, value);
 			if(PARALLEL_ID.equals(state.top().getPropertyName()))
-				theSyncRecord.setParallelID(value.intValue());
+				theTrans.getSyncRecord().setParallelID(value.intValue());
 			else if(CENTER_ID.equals(state.top().getPropertyName()))
 			{
 				isCenterIDSet = true;
-				if(theSyncRecord.getCenter().getCenterID() < 0)
+				if(theTrans.getSyncRecord().getCenter().getCenterID() < 0)
 				{
 					if(getKeeper().getCenterID() == value.intValue())
 						throw new RuntimeWrapper("A center cannot synchronize with itself", null);
-					theSyncRecord.getCenter().setCenterID(value.intValue());
+					theTrans.getSyncRecord().getCenter().setCenterID(value.intValue());
 					try
 					{
-						getKeeper().putCenter(theSyncRecord.getCenter(), null);
+						getKeeper().putCenter(theTrans.getSyncRecord().getCenter(), null);
 						if(thePIDS != null)
-							thePIDS.postIDSet(PrismsSynchronizer.this, theSyncRecord.getCenter());
+							thePIDS.postIDSet(PrismsSynchronizer.this, theTrans.getSyncRecord()
+								.getCenter());
 					} catch(PrismsRecordException e)
 					{
 						throw new RuntimeWrapper("Could not set center ID", e);
 					}
 				}
-				else if(theSyncRecord.getCenter().getCenterID() != value.intValue())
+				else if(theTrans.getSyncRecord().getCenter().getCenterID() != value.intValue())
 					throw new RuntimeWrapper("Synchronization data not sent from center "
-						+ theSyncRecord.getCenter(), new PrismsRecordException(
-						"Synchronization data not sent from center " + theSyncRecord.getCenter()));
+						+ theTrans.getSyncRecord().getCenter(), new PrismsRecordException(
+						"Synchronization data not sent from center "
+							+ theTrans.getSyncRecord().getCenter()));
 			}
 			else if("syncPriority".equals(state.top().getPropertyName()))
 			{
-				if(theSyncRecord.getCenter().getPriority() != value.intValue())
+				if(theTrans.getSyncRecord().getCenter().getPriority() != value.intValue())
 				{
-					theSyncRecord.getCenter().setPriority(value.intValue());
+					theTrans.getSyncRecord().getCenter().setPriority(value.intValue());
 					try
 					{
-						getKeeper().putCenter(theSyncRecord.getCenter(), null);
+						getKeeper().putCenter(theTrans.getSyncRecord().getCenter(), null);
 					} catch(PrismsRecordException e)
 					{
 						throw new RuntimeWrapper("Could not set center sync priority", e);
@@ -1787,7 +2353,7 @@ public class PrismsSynchronizer
 
 	private RecordKeeper theKeeper;
 
-	private SynchronizeImpl theImpl;
+	private SynchronizeImpl [] theImpls;
 
 	SyncListener theSyncListener;
 
@@ -1799,13 +2365,34 @@ public class PrismsSynchronizer
 	 * Creates a synchronizer
 	 * 
 	 * @param keeper The record keeper to keep track of changes
-	 * @param impl The implementation to perform the synchronization of the data
+	 * @param impls The implementations to perform the synchronization of the data
 	 */
-	public PrismsSynchronizer(RecordKeeper keeper, SynchronizeImpl impl)
+	public PrismsSynchronizer(RecordKeeper keeper, SynchronizeImpl... impls)
 	{
 		theKeeper = keeper;
-		theImpl = impl;
 		theDepends = new PrismsSynchronizer [0];
+		java.util.Arrays.sort(impls, new java.util.Comparator<SynchronizeImpl>()
+		{
+			public int compare(SynchronizeImpl s1, SynchronizeImpl s2)
+			{
+				return prisms.arch.PrismsConfig.compareVersions(s1.getVersion(), s2.getVersion());
+			}
+		});
+		for(int i = 0; i < impls.length - 1; i++)
+			if(prisms.arch.PrismsConfig.compareVersions(impls[i].getVersion(),
+				impls[i + 1].getVersion()) == 0)
+				throw new IllegalArgumentException("All synchronize implementations in a"
+					+ " synchronizer must have differing versions");
+		theImpls = impls;
+	}
+
+	/**
+	 * @return All synchronize implementations available to this synchronizer for synchronizing with
+	 *         various versions of the data set schema
+	 */
+	public SynchronizeImpl [] getImpls()
+	{
+		return theImpls;
 	}
 
 	/** @param listener The listener to listen for new sync records */
@@ -1899,8 +2486,8 @@ public class PrismsSynchronizer
 		prisms.util.json.SAJParser parser = new prisms.util.json.SAJParser();
 		try
 		{
-			parser.parse(reader,
-				new SyncInputHandler(reader, syncRecord, pi, pids, storeSyncRecord));
+			parser.parse(reader, new SyncInputHandler(new SyncTransaction(null, syncRecord,
+				storeSyncRecord, pi), reader, pids));
 			syncRecord.setSyncError(null);
 			if(storeSyncRecord)
 				center.setLastImport(syncRecord.getSyncTime());
@@ -2003,8 +2590,8 @@ public class PrismsSynchronizer
 	 * @return The synchronization output to send to the remote center
 	 * @throws PrismsRecordException If an error occurs generating the data
 	 */
-	SyncOutput getSyncOutput(final PrismsCenter center, LatestCenterChange [] changes,
-		boolean withRecords, boolean exclusiveForSubjects) throws PrismsRecordException
+	SyncOutput getSyncOutput(SyncTransaction trans, final SyncRequest request,
+		boolean exclusiveForSubjects) throws PrismsRecordException
 	{
 		final int [] centerIDs = theKeeper.getAllCenterIDs();
 		LatestCenterChange [] localChanges;
@@ -2016,7 +2603,7 @@ public class PrismsSynchronizer
 					if(exclusiveForSubjects)
 					{
 						boolean hit = false;
-						for(LatestCenterChange lcc : changes)
+						for(LatestCenterChange lcc : request.getLatestChanges())
 							if(lcc.getSubjectCenter() == subjectCenter)
 							{
 								hit = true;
@@ -2038,7 +2625,7 @@ public class PrismsSynchronizer
 		ArrayUtils
 			.adjust(
 				localChanges,
-				changes,
+				request.getLatestChanges(),
 				new ArrayUtils.DifferenceListenerE<LatestCenterChange, LatestCenterChange, PrismsRecordException>()
 				{
 					public boolean identity(LatestCenterChange o1, LatestCenterChange o2)
@@ -2074,8 +2661,8 @@ public class PrismsSynchronizer
 							if(!lateIDs.contains(o1.getSubjectCenter()))
 								lateIDs.add(o1.getSubjectCenter());
 						}
-						errorChanges.addAll(RecordUtils.getSyncErrorChanges(getKeeper(), center,
-							o1.getCenterID(), o1.getSubjectCenter()));
+						errorChanges.addAll(RecordUtils.getSyncErrorChanges(getKeeper(),
+							request.getRequestingCenter(), o1.getCenterID(), o1.getSubjectCenter()));
 						if(o1.getLatestChange() > o2.getLatestChange())
 							updateChanges.add(o2);
 						return o1;
@@ -2085,13 +2672,14 @@ public class PrismsSynchronizer
 		prisms.util.LongList changeIDs = new prisms.util.LongList();
 		for(LatestCenterChange updateChange : updateChanges)
 		{
-			if(lateIDs.contains(updateChange.getSubjectCenter()) && !withRecords)
+			if(lateIDs.contains(updateChange.getSubjectCenter()) && !request.isWithRecords())
 				continue;
 			long [] ids;
 			try
 			{
-				ids = RecordUtils.getSyncChanges(theKeeper, center, updateChange.getCenterID(),
-					updateChange.getSubjectCenter(), updateChange.getLatestChange() + 1);
+				ids = RecordUtils.getSyncChanges(theKeeper, request.getRequestingCenter(),
+					updateChange.getCenterID(), updateChange.getSubjectCenter(),
+					updateChange.getLatestChange() + 1);
 				changeIDs.addAll(ids);
 			} catch(PrismsRecordException e)
 			{
@@ -2105,7 +2693,7 @@ public class PrismsSynchronizer
 			{
 				ChangeRecord [] records = theKeeper.getItems(changeIDs.toArray());
 				for(ChangeRecord record : records)
-					if(record != null && !shouldSend(record))
+					if(record != null && !trans.shouldSend(record))
 						changeIDs.remove(record.id);
 			} catch(PrismsRecordException e)
 			{
@@ -2124,28 +2712,25 @@ public class PrismsSynchronizer
 	 * Writes to a synchronization stream, performing the operations required to synchronize the
 	 * remote center's data with the local center
 	 * 
-	 * @param center The center synchronizing with this center
-	 * @param changes The latest change times for each center that has changes on the remote center
-	 * @param type The type of synchronization
+	 * @param request The synchronization request (and dependents) to use to get synchronization
+	 *        data
 	 * @param writer The synchronization stream
 	 * @param pi The progress to use to inform the user of the status of the operation
-	 * @param withRecords Whether the remote center makes use of record-keeping. If false,
-	 *        synchronization can be optimized further in some cases.
-	 * @param storeSyncRecord Whether to store the sync record and associated changes
 	 * @return The record of the synchronization export
 	 * @throws IOException If the stream cannot be completely written
 	 * @throws PrismsRecordException If an error occurs gathering the data to write to the stream
 	 */
-	public SyncRecord doSyncOutput(PrismsCenter center, ValueTree<LatestCenterChange []> changes,
-		SyncRecord.Type type, Writer writer, prisms.ui.UI.DefaultProgressInformer pi,
-		boolean withRecords, boolean storeSyncRecord) throws IOException, PrismsRecordException
+	public SyncRecord doSyncOutput(ValueTree<SyncRequest> request, Writer writer,
+		prisms.ui.UI.DefaultProgressInformer pi) throws IOException, PrismsRecordException
 	{
 		if(pi == null)
 			pi = new prisms.ui.UI.DefaultProgressInformer();
 		pi.setProgressText("Starting synchronization data generation");
-		final SyncRecord syncRecord = new SyncRecord(center, type, System.currentTimeMillis(),
-			false);
+		PrismsCenter center = request.getValue().getRequestingCenter();
+		final SyncRecord syncRecord = new SyncRecord(center, request.getValue().getSyncType(),
+			System.currentTimeMillis(), false);
 		syncRecord.setSyncError("?");
+		boolean storeSyncRecord = request.getValue().shouldStoreSyncRecord();
 		if(storeSyncRecord)
 			try
 			{
@@ -2156,10 +2741,12 @@ public class PrismsSynchronizer
 			}
 		if(theSyncListener != null && storeSyncRecord)
 			theSyncListener.syncAttempted(syncRecord);
+		SyncTransaction trans = new SyncTransaction(
+			getImpl(request.getValue().getVersion(), false), syncRecord, storeSyncRecord, pi);
 		SyncOutput sync;
 		try
 		{
-			sync = getSyncOutput(center, changes.getValue(), withRecords, false);
+			sync = getSyncOutput(trans, request.getValue(), false);
 		} catch(PrismsRecordException e)
 		{
 			log.error("Sync output failed", e);
@@ -2202,6 +2789,8 @@ public class PrismsSynchronizer
 		}
 		final prisms.util.json.JsonStreamWriter jsw = new prisms.util.json.JsonStreamWriter(writer);
 		jsw.startObject();
+		jsw.startProperty("version");
+		jsw.writeString(trans.getImpl().getVersion());
 		jsw.startProperty(CENTER_ID);
 		jsw.writeNumber(Integer.valueOf(theKeeper.getCenterID()));
 		if(theDepends.length > 0)
@@ -2211,15 +2800,9 @@ public class PrismsSynchronizer
 			for(int d = 0; d < theDepends.length; d++)
 			{
 				PrismsSynchronizer subSync = theDepends[d];
-				PrismsCenter subCenter = getDependCenter(subSync, center);
-				if(subCenter == null)
-					throw new PrismsRecordException("No dependent center" + " parallel to "
-						+ center.getName() + " for synchronizer with impl "
-						+ subSync.getImpl().getClass().getName());
 				// TODO Possibly prefix the pi with something like "Creating REA Sync Output: "
 				jsw.writeCustomValue();
-				subSync.doSyncOutput(subCenter, changes.getChildren()[d], type, writer, pi,
-					withRecords, storeSyncRecord);
+				subSync.doSyncOutput(request.getChildren()[d], writer, pi);
 			}
 			jsw.endArray();
 		}
@@ -2237,8 +2820,8 @@ public class PrismsSynchronizer
 		int stage = 1;
 		try
 		{
-			PS2ItemWriter itemWriter = new PS2ItemWriter(writer, syncRecord, changes.getValue(),
-				storeSyncRecord);
+			PS2ItemWriter itemWriter = new PS2ItemWriter(trans, writer, request.getValue()
+				.getLatestChanges());
 			jsw.startObject();
 			if(!sync.theLateIDs.isEmpty())
 			{
@@ -2247,7 +2830,7 @@ public class PrismsSynchronizer
 				prisms.records.SynchronizeImpl.ItemIterator allItems;
 				try
 				{
-					allItems = theImpl.getAllItems(sync.theLateIDs.toArray(), center);
+					allItems = trans.getImpl().getAllItems(sync.theLateIDs.toArray(), center);
 				} catch(PrismsRecordException e)
 				{
 					throw new prisms.records.PrismsRecordException(
@@ -2297,7 +2880,7 @@ public class PrismsSynchronizer
 				itemWriter.start();
 				try
 				{
-					allItems = theImpl.getAllItems(sync.theLateIDs.toArray(), center);
+					allItems = trans.getImpl().getAllItems(sync.theLateIDs.toArray(), center);
 				} catch(PrismsRecordException e)
 				{
 					throw new prisms.records.PrismsRecordException(
@@ -2330,7 +2913,7 @@ public class PrismsSynchronizer
 						throw new prisms.records.PrismsRecordException(
 							"Could not retrieve item for synchronization", e);
 					}
-					pi.setProgressText(baseText + "\nWriting " + getType(next) + " "
+					pi.setProgressText(baseText + "\nWriting " + trans.getType(next) + " "
 						+ prisms.util.PrismsUtils.encodeUnicode("" + next));
 					itemWriter.writeItem(next);
 				}
@@ -2428,7 +3011,7 @@ public class PrismsSynchronizer
 					}
 					i++;
 					pi.setProgress(i);
-					if(!shouldSend(record))
+					if(!trans.shouldSend(record))
 						continue;
 					if(record instanceof ChangeRecordError
 						&& sync.theLateIDs.contains(RecordUtils
@@ -2438,7 +3021,7 @@ public class PrismsSynchronizer
 					if(record instanceof ChangeRecordError)
 						subjectID = ((ChangeRecordError) record).getMajorSubjectID();
 					else
-						subjectID = getID(record.majorSubject);
+						subjectID = trans.getID(record.majorSubject);
 					if(sync.theLateIDs.contains(RecordUtils.getCenterID(subjectID)))
 						itemWriter.writeSkippedChange();
 					else
@@ -2515,9 +3098,12 @@ public class PrismsSynchronizer
 			{
 				PrismsCenter subCenter = getDependCenter(theDepends[d], center);
 				if(subCenter == null)
-					throw new PrismsRecordException("No dependent center" + " parallel to "
-						+ center.getName() + " for synchronizer with impl "
-						+ theDepends[d].getImpl().getClass().getName());
+					throw new PrismsRecordException("No dependent center"
+						+ " parallel to "
+						+ center.getName()
+						+ " for synchronizer with impl "
+						+ theDepends[d].getImpls()[theDepends[d].getImpls().length - 1].getClass()
+							.getName());
 				SyncRecord [] dependSRs = theDepends[d].getKeeper().getSyncRecords(subCenter,
 					Boolean.TRUE);
 				int i;
@@ -2589,27 +3175,27 @@ public class PrismsSynchronizer
 	 * Checks for the number of items that this center needs to send a remote center in order to get
 	 * the remote center's data set up-to-date with this center
 	 * 
-	 * @param center The remote center to check
-	 * @param changes The latest change times for each center that has changes on the remote center
-	 * @param withRecords Whether the remote center makes use of record-keeping. If false,
-	 *        synchronization can be optimized further in some cases.
+	 * @param request The synchronization request (and dependents) to use to check the
+	 *        synchronization status
 	 * @return The number of changes needed to update the remote center--[0] is the number of items
 	 *         that must be sent as a result of being out-of-date; [1] is the number of changes
 	 *         needed to be sent.
 	 * @throws PrismsRecordException If an error occurs accessing the data
 	 */
-	public int [] checkSync(final PrismsCenter center, ValueTree<LatestCenterChange []> changes,
-		boolean withRecords) throws PrismsRecordException
+	public int [] checkSync(ValueTree<SyncRequest> request) throws PrismsRecordException
 	{
-		SyncOutput sync = getSyncOutput(center, changes.getValue(), withRecords, false);
+		SyncTransaction trans = new SyncTransaction(
+			getImpl(request.getValue().getVersion(), false), null, false, null);
+		SyncOutput sync = getSyncOutput(trans, request.getValue(), false);
 
+		PrismsCenter center = request.getValue().getRequestingCenter();
 		int [] ret = new int [] {0, 0};
 		if(!sync.theLateIDs.isEmpty())
 		{
 			prisms.records.SynchronizeImpl.ItemIterator allItems;
 			try
 			{
-				allItems = theImpl.getAllItems(sync.theLateIDs.toArray(), center);
+				allItems = trans.getImpl().getAllItems(sync.theLateIDs.toArray(), center);
 			} catch(PrismsRecordException e)
 			{
 				throw new prisms.records.PrismsRecordException(
@@ -2632,13 +3218,7 @@ public class PrismsSynchronizer
 		if(ret[0] > 0 || ret[1] > 0)
 			for(int d = 0; d < theDepends.length; d++)
 			{
-				PrismsCenter subCenter = getDependCenter(theDepends[d], center);
-				if(subCenter == null)
-					throw new PrismsRecordException("No dependent center" + " parallel to "
-						+ center.getName() + " for synchronizer with impl "
-						+ theDepends[d].getImpl().getClass().getName());
-				int [] subRet = theDepends[d].checkSync(subCenter, changes.getChildren()[d],
-					withRecords);
+				int [] subRet = theDepends[d].checkSync(request.getChildren()[d]);
 				ret[0] += subRet[0];
 				ret[1] += subRet[1];
 			}
@@ -2659,59 +3239,39 @@ public class PrismsSynchronizer
 	}
 
 	/**
+	 * @param version The version to interface with
+	 * @param isImport If the impl is for an import or an export
 	 * @return The implementation that interfaces specific sets of java objects with this PRISMS
 	 *         synchronizer
 	 */
-	public SynchronizeImpl getImpl()
+	public SynchronizeImpl getImpl(String version, boolean isImport)
 	{
-		return theImpl;
+		if(version == null)
+			return theImpls[0];
+		for(int i = 0; i < theImpls.length; i++)
+		{
+			int comp = prisms.arch.PrismsConfig.compareVersions(version, theImpls[i].getVersion());
+			if(comp == 0)
+				return theImpls[i];
+			else if(comp > 0)
+				continue;
+			else
+			{
+				if(i == 0)
+					return theImpls[i];
+				else if(isImport)
+					return theImpls[i];
+				else
+					return theImpls[i - 1];
+			}
+		}
+		return theImpls[theImpls.length - 1];
 	}
 
 	/** @return The record keeper that this synchronizer uses to keep track of changes */
 	public RecordKeeper getKeeper()
 	{
 		return theKeeper;
-	}
-
-	/**
-	 * Gets the type of an item
-	 * 
-	 * @param item The item to get the string type of
-	 * @return The string type of the given item
-	 * @throws PrismsRecordException If the item's type is not recognized
-	 */
-	public String getType(Object item) throws PrismsRecordException
-	{
-		if(item instanceof PrismsCenter)
-			return "center";
-		else if(item instanceof AutoPurger)
-			return "purger";
-		else
-			return theImpl.getType(item.getClass());
-	}
-
-	/**
-	 * Gets the identifier of an item
-	 * 
-	 * @param item The item to get the identifier of
-	 * @return The item's identifier
-	 */
-	public long getID(Object item)
-	{
-		if(item instanceof PrismsCenter)
-			return ((PrismsCenter) item).getID();
-		else if(item instanceof AutoPurger)
-			return 0;
-		else
-			return theImpl.getID(item);
-	}
-
-	Object [] getDepends(Object item) throws PrismsRecordException
-	{
-		if(item instanceof PrismsCenter || item instanceof AutoPurger)
-			return new Object [0];
-		else
-			return theImpl.getDepends(item);
 	}
 
 	boolean verifySyncSuccess(SyncRecord syncRecord) throws PrismsRecordException
@@ -2737,447 +3297,8 @@ public class PrismsSynchronizer
 		return ret;
 	}
 
-	/**
-	 * Screens out changes that should not be sent for synchronization. Such changes may be kept
-	 * only for record-keeping purposes on local data, as is the case with changes to PRISMS centers
-	 * and auto-purge functionality.
-	 * 
-	 * @param record The record to test
-	 * @return Whether the change record is one that should be sent to the remote center on sync
-	 */
-	protected boolean shouldSend(ChangeRecord record)
-	{
-		if(record instanceof ChangeRecordError)
-		{
-			for(PrismsChange pc : PrismsChange.values())
-				if(pc.name().equals(((ChangeRecordError) record).getSubjectType()))
-					return false;
-			return true;
-		}
-		else
-			return !(record.type.subjectType instanceof PrismsChange);
-	}
-
-	Object getCurrentValue(ChangeRecord record) throws PrismsRecordException
-	{
-		if(record.type.subjectType instanceof PrismsChange)
-		{
-			switch((PrismsChange) record.type.subjectType)
-			{
-			case center:
-				PrismsCenter center = (PrismsCenter) record.majorSubject;
-				switch((PrismsChange.CenterChange) record.type.changeType)
-				{
-				case name:
-					return center.getName();
-				case url:
-					return center.getServerURL();
-				case serverCerts:
-					return center.getCertificates();
-				case serverUserName:
-					return center.getServerUserName();
-				case serverPassword:
-					return center.getServerPassword();
-				case syncFrequency:
-					return Long.valueOf(center.getServerSyncFrequency());
-				case clientUser:
-					return center.getClientUser();
-				case changeSaveTime:
-					return Long.valueOf(center.getChangeSaveTime());
-				}
-				break;
-			case autoPurge:
-				AutoPurger purger = (AutoPurger) record.majorSubject;
-				switch((PrismsChange.AutoPurgeChange) record.type.changeType)
-				{
-				case entryCount:
-					return Integer.valueOf(purger.getEntryCount());
-				case age:
-					return Long.valueOf(purger.getAge());
-				case excludeUser:
-				case excludeType:
-					return null;
-				}
-				break;
-			}
-			return null;
-		}
-		else
-			return getImpl().getCurrentValue(record);
-	}
-
-	void writeItem(Object item, prisms.util.json.JsonSerialWriter jsonWriter,
-		prisms.records.SynchronizeImpl.ItemWriter itemWriter, boolean justID) throws IOException,
-		PrismsRecordException
-	{
-		if(item instanceof PrismsCenter)
-		{
-			if(justID)
-				return;
-			PrismsCenter center = (PrismsCenter) item;
-			jsonWriter.startProperty("name");
-			jsonWriter.writeString(center.getName());
-			if(center.getCenterID() < 0)
-			{
-				jsonWriter.startProperty("centerID");
-				jsonWriter.writeNumber(Integer.valueOf(center.getCenterID()));
-			}
-			jsonWriter.startProperty("serverURL");
-			jsonWriter.writeString(center.getServerURL());
-			jsonWriter.startProperty("serverUserName");
-			jsonWriter.writeString(center.getServerUserName());
-			jsonWriter.startProperty("serverPassword");
-			jsonWriter.writeString(center.getServerPassword());
-			jsonWriter.startProperty("syncFrequency");
-			jsonWriter.writeNumber(Long.valueOf(center.getServerSyncFrequency()));
-			jsonWriter.startProperty("clientUser");
-			itemWriter.writeItem(center.getClientUser());
-			jsonWriter.startProperty("changeSaveTime");
-			jsonWriter.writeNumber(Long.valueOf(center.getChangeSaveTime()));
-			jsonWriter.startProperty("syncPriority");
-			jsonWriter.writeNumber(Integer.valueOf(center.getPriority()));
-			if(center.isDeleted())
-			{
-				jsonWriter.startProperty("deleted");
-				jsonWriter.writeBoolean(true);
-			}
-		}
-		else if(item instanceof AutoPurger)
-		{
-			if(justID)
-				return;
-			AutoPurger purger = (AutoPurger) item;
-			jsonWriter.startProperty("age");
-			jsonWriter.writeNumber(Long.valueOf(purger.getAge()));
-			jsonWriter.startProperty("entryCount");
-			jsonWriter.writeNumber(Integer.valueOf(purger.getEntryCount()));
-			if(purger.getExcludeUsers().length > 0)
-			{
-				jsonWriter.startProperty("excludeUsers");
-				jsonWriter.startArray();
-				for(RecordUser user : purger.getExcludeUsers())
-					itemWriter.writeItem(user);
-				jsonWriter.endArray();
-			}
-			if(purger.getExcludeTypes().length > 0)
-			{
-				jsonWriter.startProperty("excludeTypes");
-				jsonWriter.startArray();
-				for(RecordType type : purger.getExcludeTypes())
-				{
-					jsonWriter.startObject();
-					jsonWriter.startProperty("subjectType");
-					jsonWriter.writeString(type.subjectType.name());
-					if(type.changeType != null)
-					{
-						jsonWriter.startProperty("changeType");
-						jsonWriter.writeString(type.changeType.name());
-					}
-					jsonWriter.startProperty("additivity");
-					jsonWriter.writeString(type.additivity > 0 ? "+" : (type.additivity < 0 ? "-"
-						: "0"));
-					jsonWriter.endObject();
-				}
-				jsonWriter.endArray();
-			}
-		}
-		else
-			theImpl.writeItem(item, jsonWriter, itemWriter, justID);
-	}
-
-	Object parseID(JSONObject json, SynchronizeImpl.ItemReader reader, boolean [] newItem)
-		throws PrismsRecordException
-	{
-		/* Currently at least, centers and auto-purge settings are local only, so these will never
-		 * be sent across, meaning this code here will never be executed.  I'm leaving it in in case
-		 * this condition ever changes. */
-		if("center".equals(json.get("type")))
-		{
-			// Need to retrieve existing center
-			PrismsCenter center = new PrismsCenter(((Number) json.get("id")).intValue(),
-				(String) json.get("name"));
-			newItem[0] = true;
-			return center;
-		}
-		else if("purger".equals(json.get("type")))
-		{
-			// Need to retrieve existing auto-purger
-			AutoPurger purger = new AutoPurger();
-			newItem[0] = true;
-			return purger;
-		}
-		else
-			return theImpl.parseID(json, reader, newItem);
-	}
-
-	void parseContent(Object item, JSONObject json, boolean newItem,
-		prisms.records.SynchronizeImpl.ItemReader reader) throws PrismsRecordException
-	{
-		/* Currently at least, centers and auto-purge settings are local only, so these will never
-		 * be sent across, meaning this code here will never be executed.  I'm leaving it in in case
-		 * this condition ever changes. */
-		if(item instanceof PrismsCenter)
-		{
-			// Need to retrieve existing center
-			PrismsCenter center = (PrismsCenter) item;
-			if(json.get("centerID") != null)
-				center.setCenterID(((Number) json.get("centerID")).intValue());
-			center.setPriority(((Number) json.get("syncPriority")).intValue());
-			center.setServerURL((String) json.get("serverURL"));
-			center.setServerUserName((String) json.get("serverUserName"));
-			center.setServerPassword((String) json.get("serverPassword"));
-			center.setServerSyncFrequency(((Number) json.get("syncFrequency")).longValue());
-			center.setClientUser((RecordUser) reader.read((JSONObject) json.get("clientUser")));
-			center.setChangeSaveTime(((Number) json.get("changeSaveTime")).longValue());
-			if(json.get("deleted") != null && ((Boolean) json.get("deleted")).booleanValue())
-				center.setDeleted(true);
-			// Need to fire events here if changed
-		}
-		else if(item instanceof AutoPurger)
-		{
-			// Need to retrieve existing auto-purger
-			AutoPurger purger = (AutoPurger) item;
-			purger.setAge(((Number) json.get("age")).longValue());
-			purger.setEntryCount(((Number) json.get("entryCount")).intValue());
-			if(json.get("excludeUsers") != null)
-				for(Object user : (org.json.simple.JSONArray) json.get("excludeUsers"))
-					purger.addExcludeUser((RecordUser) reader.read((JSONObject) user));
-			if(json.get("excludeTypes") != null)
-				for(Object type : (org.json.simple.JSONArray) json.get("excludeUsers"))
-				{
-					JSONObject jsonType = (JSONObject) type;
-					SubjectType subject = getSubjectType((String) jsonType.get("subjectType"));
-					ChangeType change = null;
-					if(jsonType.get("changeType") != null)
-						change = RecordUtils.getChangeType(subject,
-							(String) jsonType.get("changeType"));
-					char addCh = ((String) jsonType.get("additivity")).charAt(0);
-					int add = addCh == '+' ? 1 : (addCh == '-' ? -1 : 0);
-					purger.addExcludeType(new RecordType(subject, change, add));
-				}
-			// Need to fire events here if changed
-		}
-		else
-			theImpl.parseContent(item, json, newItem, reader);
-	}
-
-	prisms.records.ChangeRecord parseChange(JSONObject json, PS2ItemReader reader)
-	{
-		if(json.containsKey("error"))
-			return parseErrorChange(json, reader);
-		long id = ((Number) json.get("id")).longValue();
-		long time = ((Number) json.get("time")).longValue();
-		long userID = ((Number) json.get("user")).longValue();
-		SubjectType subjectType;
-		try
-		{
-			subjectType = getSubjectType((String) json.get("subjectType"));
-		} catch(PrismsRecordException e)
-		{
-			return parseErrorChange(json, reader);
-		}
-		if(subjectType == ChangeRecordError.ErrorSubjectType)
-			return parseErrorChange(json, reader);
-		String ctName = (String) json.get("changeType");
-		prisms.records.ChangeType changeType = null;
-		if(ctName != null)
-		{
-			for(prisms.records.ChangeType ct : (prisms.records.ChangeType[]) subjectType
-				.getChangeTypes().getEnumConstants())
-				if(ct.name().equals(ctName))
-				{
-					changeType = ct;
-					break;
-				}
-			if(changeType == null)
-				return parseErrorChange(json, reader);
-		}
-		char addChar = ((String) json.get("additivity")).charAt(0);
-		int add = addChar == '+' ? 1 : (addChar == '-' ? -1 : 0);
-		reader.setChangeData(new RecordType(subjectType, changeType, add), time, userID);
-		RecordUser user;
-		Object major = json.get("majorSubject");
-		if(major instanceof JSONObject)
-		{
-			try
-			{
-				major = reader.read((JSONObject) major);
-			} catch(Throwable e)
-			{
-				log.error("Could not parse major subject", e);
-				return parseErrorChange(json, reader);
-			}
-		}
-		if(major instanceof RecordUser && ((RecordUser) major).getID() == userID)
-			user = (RecordUser) major;
-		else
-		{
-			try
-			{
-				user = theImpl.getUser(userID, reader);
-			} catch(PrismsRecordException e)
-			{
-				log.error("Could not get user", e);
-				return parseErrorChange(json, reader);
-			}
-		}
-		Object data1 = json.get("data1");
-		Object data2 = json.get("data2");
-		Object minor = json.get("minorSubject");
-		Object preValue = json.get("preValue");
-		try
-		{
-			if(data1 instanceof JSONObject)
-				data1 = reader.read((JSONObject) data1);
-			if(data2 instanceof JSONObject)
-				data2 = reader.read((JSONObject) data2);
-			if(minor instanceof JSONObject)
-				minor = reader.read((JSONObject) minor);
-			if(preValue instanceof JSONObject)
-				preValue = reader.read((JSONObject) preValue);
-		} catch(Throwable e)
-		{
-			log.error("Could not parse change data", e);
-			return parseErrorChange(json, reader);
-		}
-		prisms.records.RecordPersister.ChangeData data;
-		try
-		{
-			data = theImpl.getData(subjectType, changeType, major, minor, data1, data2, preValue,
-				reader);
-		} catch(Throwable e)
-		{
-			log.error("Could not get change data", e);
-			return parseErrorChange(json, reader);
-		}
-		try
-		{
-			if(data.data1 != null)
-				reader.store(getType(data.data1.getClass()), getID(data.data1), data.data1);
-			if(data.data2 != null)
-				reader.store(getType(data.data2.getClass()), getID(data.data2), data.data2);
-			if(data.minorSubject != null)
-				reader.store(getType(data.minorSubject.getClass()), getID(data.minorSubject),
-					data.minorSubject);
-			if(data.preValue != null)
-			{
-				String type = getType(data.preValue);
-				if(type != null)
-					reader.store(type, getID(data.preValue), data.preValue);
-			}
-		} catch(PrismsRecordException e)
-		{
-			log.error("Could not store data", e);
-		}
-		if(changeType != null && !changeType.isObjectIdentifiable() && data.preValue != null
-			&& Number.class.isAssignableFrom(changeType.getObjectType())
-			&& !changeType.getObjectType().equals(data.preValue.getClass()))
-		{
-			if(Long.class.equals(changeType.getObjectType()))
-				data.preValue = Long.valueOf(((Number) data.preValue).longValue());
-			else if(Integer.class.equals(changeType.getObjectType()))
-				data.preValue = Integer.valueOf(((Number) data.preValue).intValue());
-			else if(Double.class.equals(changeType.getObjectType()))
-				data.preValue = Double.valueOf(((Number) data.preValue).doubleValue());
-			else if(Float.class.equals(changeType.getObjectType()))
-				data.preValue = Float.valueOf(((Number) data.preValue).floatValue());
-			else if(Short.class.equals(changeType.getObjectType()))
-				data.preValue = Short.valueOf(((Number) data.preValue).shortValue());
-			else if(Byte.class.equals(changeType.getObjectType()))
-				data.preValue = Byte.valueOf(((Number) data.preValue).byteValue());
-		}
-		try
-		{
-			return new prisms.records.ChangeRecord(id, false, time, user, subjectType, changeType,
-				add, data.majorSubject, data.minorSubject, data.preValue, data.data1, data.data2);
-		} catch(IllegalArgumentException e)
-		{
-			log.error("Could not instantiate change record with id " + id, e);
-			return parseErrorChange(json, reader);
-		}
-	}
-
 	int relativePriority(PrismsCenter center)
 	{
 		return center.getPriority() - theKeeper.getLocalPriority();
-	}
-
-	private SubjectType getSubjectType(String name) throws PrismsRecordException
-	{
-		if(ChangeRecordError.ErrorSubjectType.name().equals(name))
-			return ChangeRecordError.ErrorSubjectType;
-		for(PrismsChange ch : PrismsChange.values())
-			if(ch.name().equals(name))
-				return ch;
-		return theImpl.getSubjectType(name);
-	}
-
-	private ChangeRecordError parseErrorChange(JSONObject json, ItemGetter getter)
-	{
-		long id = ((Number) json.get("id")).longValue();
-		long time = ((Number) json.get("time")).longValue();
-		final long userID = ((Number) json.get("user")).longValue();
-		RecordUser user;
-		try
-		{
-			user = theImpl.getUser(userID, getter);
-		} catch(PrismsRecordException e)
-		{
-			user = new RecordUser()
-			{
-
-				public long getID()
-				{
-					return userID;
-				}
-
-				public String getName()
-				{
-					return "Unknown";
-				}
-
-				public boolean isDeleted()
-				{
-					return false;
-				}
-			};
-		}
-		ChangeRecordError ret = new ChangeRecordError(id, false, time, user);
-		ret.setSubjectType((String) json.get("subjectType"));
-		ret.setChangeType((String) json.get("changeType"));
-		String add = (String) json.get("additivity");
-		ret.setAdditivity(add.equals("+") ? 1 : (add.equals("-") ? -1 : 0));
-
-		Object major = json.get("majorSubject");
-		Object data1 = json.get("data1");
-		Object data2 = json.get("data2");
-		Object minor = json.get("minorSubject");
-		Object preValue = json.get("preValue");
-		if(major instanceof Number)
-			ret.setMajorSubject(null, ((Number) major).longValue());
-		else
-			ret.setMajorSubject(null, ((Number) ((JSONObject) major).get("id")).longValue());
-
-		if(minor instanceof Number)
-			ret.setMinorSubject(null, ((Number) minor).longValue());
-		else if(minor != null)
-			ret.setMinorSubject(null, ((Number) ((JSONObject) minor).get("id")).longValue());
-
-		if(data1 instanceof Number)
-			ret.setData1(null, ((Number) data1).longValue());
-		else if(data1 != null)
-			ret.setData1(null, ((Number) ((JSONObject) data1).get("id")).longValue());
-
-		if(data2 instanceof Number)
-			ret.setData2(null, ((Number) data2).longValue());
-		else if(data2 != null)
-			ret.setData2(null, ((Number) ((JSONObject) data2).get("id")).longValue());
-
-		if(preValue instanceof Boolean)
-			preValue = preValue.toString();
-		else if(preValue instanceof JSONObject)
-			preValue = ((JSONObject) preValue).get("id");
-		ret.setPreValue(null, preValue);
-		return ret;
 	}
 }

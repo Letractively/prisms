@@ -42,6 +42,16 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 		return theUserSource;
 	}
 
+	public String getVersion()
+	{
+		return "3.0.1";
+	}
+
+	public boolean shouldSend(ChangeRecord change)
+	{
+		return true;
+	}
+
 	public User getUser(long id) throws PrismsRecordException
 	{
 		User ret;
