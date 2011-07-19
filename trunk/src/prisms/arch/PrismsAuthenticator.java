@@ -22,13 +22,10 @@ public interface PrismsAuthenticator
 		 * through the given request at all.
 		 * 
 		 * @param request The PRISMS request that the user is using to access PRISMS
-		 * @param secure Whether this request is being made over a secure connection that has not
-		 *        been jeopardized
 		 * @return Either an {@link AuthenticationError} or the decrypted data parameter
 		 * @throws PrismsException If an error occurs accessing the needed information
 		 */
-		RequestAuthenticator getRequestAuthenticator(PrismsRequest request, boolean secure)
-			throws PrismsException;
+		RequestAuthenticator getRequestAuthenticator(PrismsRequest request) throws PrismsException;
 
 		/**
 		 * Allows this authenticator to request authentication in a custom manner
@@ -36,7 +33,7 @@ public interface PrismsAuthenticator
 		 * @param request The request made by the client before login
 		 * @return An event to send to the client to ask the user to login. The response to this
 		 *         event will be passed to
-		 *         {@link SessionAuthenticator#getRequestAuthenticator(PrismsRequest, boolean)}
+		 *         {@link SessionAuthenticator#getRequestAuthenticator(PrismsRequest)}
 		 * @throws PrismsException If an error occurs accessing the needed information
 		 */
 		org.json.simple.JSONObject requestLogin(PrismsRequest request) throws PrismsException;

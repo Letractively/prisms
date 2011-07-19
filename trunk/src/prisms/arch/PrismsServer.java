@@ -276,8 +276,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		/** The version of the client--only valid for M2M clients */
 		public final String version;
 
-		String sessionID;
-
 		String serverMethod;
 
 		String appName;
@@ -303,7 +301,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theResponse = resp;
 			theSerializer = serializer;
 			version = req.getParameter("version");
-			sessionID = req.getParameter("sessionID");
 			serverMethod = req.getParameter("method");
 			appName = req.getParameter("app");
 			clientName = req.getParameter("client");
@@ -338,8 +335,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						appName = (String) data.get("app");
 					if(clientName == null)
 						clientName = (String) data.get("service");
-					if(sessionID == null)
-						sessionID = (String) data.get("sessionID");
 				} catch(Exception e)
 				{
 					return error(ErrorCode.RequestInvalid,
@@ -416,8 +411,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 	private class SecuritySession
 	{
-		private final HttpSession theHttpSession;
-
 		private final PrismsAuthenticator theAuth;
 
 		private final User theUser;
@@ -442,10 +435,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private long theLastUsed;
 
-		SecuritySession(HttpSession session, PrismsAuthenticator auth, User user,
-			HttpServletRequest req) throws PrismsException
+		SecuritySession(PrismsAuthenticator auth, User user, HttpServletRequest req)
+			throws PrismsException
 		{
-			theHttpSession = session;
 			theAuth = auth;
 			theUser = user;
 			if(req != null)
@@ -571,7 +563,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			prisms.arch.PrismsAuthenticator.RequestAuthenticator reqAuth;
 			try
 			{
-				reqAuth = theSessionAuth.getRequestAuthenticator(req, theHttpSession.isSecure());
+				reqAuth = theSessionAuth.getRequestAuthenticator(req);
 			} catch(PrismsException e)
 			{
 				log.error("Could not authenticate session", e);
@@ -1362,7 +1354,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private prisms.arch.PrismsSession.SessionMetadata createMetadata()
 		{
-			return new PrismsSession.SessionMetadata(theHttpSession.getID(), theSecurity.getAuth(),
+			return new PrismsSession.SessionMetadata(
+				Integer.toHexString(theHttpSession.hashCode()), theSecurity.getAuth(),
 				theSecurity.getRemoteAddr(), theSecurity.getRemoteHost(),
 				theSecurity.getClientEnv(), theHttpSession.getGovernor());
 		}
@@ -1421,8 +1414,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	{
 		private final String theID;
 
-		private boolean isSecure;
-
 		private SecuritySession [] theSecurities;
 
 		private PrismsSessionHolder [] theSessionHolders;
@@ -1431,34 +1422,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private ClientGovernor theGovernor;
 
-		HttpSession(String id, boolean secure, ClientGovernor gov)
+		HttpSession(String id, ClientGovernor gov)
 		{
 			theID = id;
-			isSecure = secure;
 			theSecurities = new SecuritySession [0];
 			theSessionHolders = new PrismsSessionHolder [0];
 			theLastUsed = System.currentTimeMillis();
 			theGovernor = gov;
 		}
 
-		String getID()
-		{
-			return theID;
-		}
-
-		boolean isSecure()
-		{
-			return isSecure;
-		}
-
 		ClientGovernor getGovernor()
 		{
 			return theGovernor;
-		}
-
-		void unsecure()
-		{
-			isSecure = false;
 		}
 
 		SecuritySession getSecurity(PrismsAuthenticator auth, User user)
@@ -1476,7 +1451,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			for(SecuritySession sec : theSecurities)
 				if(sec.getAuth().equals(auth) && sec.getUser().equals(user))
 					return sec;
-			SecuritySession newSec = new SecuritySession(this, auth, user, req);
+			SecuritySession newSec = new SecuritySession(auth, user, req);
 			theSecurities = ArrayUtils.add(theSecurities, newSec);
 			return newSec;
 		}
@@ -1537,9 +1512,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						PrismsSessionHolder holder = theSessionHolders[s];
 						if(holder.untilExpires() <= 0 || holder.isKilled())
 						{
-							String key = getID() + "/" + holder.getClient().getApp().getName()
-								+ "/" + holder.getClient().getName() + "/"
-								+ holder.getUser().getName();
+							String key = theID + "/" + holder.getClient().getApp().getName() + "/"
+								+ holder.getClient().getName() + "/" + holder.getUser().getName();
 							if(theSessionHolders[s].isKilled())
 								theEpitaphs.put(key, new SessionEpitaph(
 									"Session has been killed by an administrator."));
@@ -1635,14 +1609,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 	private static class SessionEpitaph
 	{
-		final String theMessage;
+		final String message;
 
-		final long theTime;
+		final long time;
 
-		SessionEpitaph(String message)
+		SessionEpitaph(String msg)
 		{
-			theMessage = message;
-			theTime = System.currentTimeMillis();
+			message = msg;
+			time = System.currentTimeMillis();
 		}
 	}
 
@@ -2965,75 +2939,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return;
 		}
 
+		final String sessionID;
 		if(pReq.client.isCommonSession())
-			pReq.sessionID = pReq.user.getName() + "/" + pReq.app.getName() + "/"
+			sessionID = pReq.user.getName() + "/" + pReq.app.getName() + "/"
 				+ pReq.client.getName();
-		else if(pReq.client.isService() && pReq.sessionID == null)
-		{
-			/* Prior to service client version 2.1.0, all PRISMS web services used common sessions
-			 * and the setSessionID method was unrecognized by the client. We accommodate this
-			 * legacy. */
-			if(pReq.version == null || compareVersions(pReq.version, "2.1.0") < 0)
-				pReq.sessionID = req.getRemoteAddr() + "/" + pReq.user.getName() + "/"
-					+ pReq.app.getName() + "/" + pReq.client.getName();
-		}
+		else
+			sessionID = rh;
 
-		HttpSession httpSession = null;
-		if(pReq.sessionID == null)
-		{
-			if(req.getCookies() != null)
-				for(javax.servlet.http.Cookie c : req.getCookies())
-					if(c.getName().equals("prismsSessionID"))
-						pReq.sessionID = c.getValue();
-			if(pReq.sessionID != null)
-				events.add(toEvent("setSessionID", "sessionID", pReq.sessionID));
-			else
-			{
-				if(pReq.serverMethod.equals("init") || pReq.client.isService())
-				{
-					/* If no session ID was sent on initialization, we create a session, send them
-					 * the correct session ID and go on */
-					httpSession = createSession(pReq, clientGovernor);
-					pReq.sessionID = httpSession.getID();
-					if(!pReq.client.isService())
-					{
-						javax.servlet.http.Cookie cookie = new javax.servlet.http.Cookie(
-							"prismsSessionID", pReq.sessionID);
-						cookie.setComment("Allows PRISMS to keep track of sessions"
-							+ " between refreshes");
-						cookie.setMaxAge(-1);
-						resp.addCookie(cookie);
-					}
-					events.add(toEvent("setSessionID", "sessionID", pReq.sessionID));
-				}
-				else
-				{
-					/* If no session ID was sent for anything but initialization, this is an error */
-					events.add(error(ErrorCode.RequestInvalid,
-						"Request is missing the sessionID parameter"));
-					pReq.send(events);
-					return;
-				}
-			}
-		}
-		if(httpSession == null)
-			httpSession = theSessions.get(pReq.sessionID);
+		HttpSession httpSession = theSessions.get(sessionID);
 		if(httpSession == null)
 		{
 			if(pReq.client.isCommonSession() || pReq.isWMS || "init".equals(pReq.serverMethod))
 			{
 				/* If init is being called, they're already restarting--no need to tell them again. */
-				httpSession = createSession(pReq, null);
-				pReq.sessionID = httpSession.getID();
-				if(!pReq.client.isService())
-				{
-					javax.servlet.http.Cookie cookie = new javax.servlet.http.Cookie(
-						"prismsSessionID", pReq.sessionID);
-					cookie.setComment("Allows PRISMS to keep track of sessions between refreshes");
-					cookie.setMaxAge(-1);
-					resp.addCookie(cookie);
-					events.add(toEvent("setSessionID", "sessionID", pReq.sessionID));
-				}
+				httpSession = createSession(sessionID, clientGovernor);
 			}
 			else
 			{
@@ -3041,27 +2960,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				events.add(toEvent("restart", "message", "Server has been restarted."
 					+ " Refresh required."));
 				pReq.send(events);
-
-				javax.servlet.http.Cookie cookie = new javax.servlet.http.Cookie("prismsSessionID",
-					pReq.sessionID);
-				cookie.setMaxAge(0);
-				resp.addCookie(cookie);
 				return;
 			}
 		}
 		if(httpSession.getGovernor() != null && httpSession.getGovernor() != clientGovernor)
 			httpSession.getGovernor().hit(null);
-		/* If the session is being access in an unsecure manner, this compromises every other PRISMS
-		 * session being used with the same ID because the sessionID could be stolen and used to
-		 * connect, via HTTPS, to a PRISMS session without requiring a password. Therefore
-		 * connectiong to PRISMS over HTTP "ruins" every HTTPS session's security. We will therefore
-		 * need to require encryption for every PRISMS session within the HTTP session from now on.
-		 * 
-		 * Web service clients need send no sessionID, therefore encryption must always be required
-		 * for web services.
-		 */
-		if(httpSession.isSecure() && (!req.isSecure() || pReq.client.isService()))
-			httpSession.unsecure();
 
 		// Now we check the user's credentials
 		SecuritySession security = httpSession.getSecurity(pReq.auth, pReq.user);
@@ -3081,16 +2984,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				pReq.send(events);
 				return;
 			}
-		}
-		if(!pReq.client.isCommonSession() && security.getRemoteAddr() != null
-			&& !security.getRemoteAddr().equals(req.getRemoteAddr()))
-		{
-			log.error("Host " + req.getRemoteAddr() + " cannot access the given session--different"
-				+ " from original host (" + security.getRemoteAddr() + ")");
-			events.add(error(ErrorCode.ServerError, "Host " + req.getRemoteAddr()
-				+ " cannot access the given session--different from original host"));
-			pReq.send(events);
-			return;
 		}
 		PrismsResponse pResp = security.validate(pReq);
 		if(pResp.toReturn != null && pResp.toProcess == null)
@@ -3122,19 +3015,24 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			else
 			{
-				SessionEpitaph epitaph = theEpitaphs.get(pReq.sessionID + "/" + pReq.app.getName()
-					+ "/" + pReq.client.getName() + "/" + pReq.user.getName());
+				SessionEpitaph epitaph = theEpitaphs.get(sessionID + "/" + pReq.app.getName() + "/"
+					+ pReq.client.getName() + "/" + pReq.user.getName());
 				if(epitaph != null)
 				{
-					events.add(toEvent("restart", "message", epitaph.theMessage
-						+ " Refresh to use " + pReq.appName + "."));
+					events.add(toEvent("restart", "message", epitaph.message + " Refresh to use "
+						+ pReq.appName + "."));
 					pReq.send(events);
 				}
 				else
 				{
-					/* Don't know what happened to the session.  We'll assume the they timed out a while back. */
-					events.add(toEvent("restart", "message",
-						"Session may have timed out! Refresh to use " + pReq.appName + "."));
+					/* Don't know what happened to the session. A couple possibilities:
+					 * 1) The server was restarted, but then another page on the same client logged
+					 * 		in and both page are using HTTPS. This is the more common case.
+					 * 2) They haven't contacted the PRISMS server in a long time and they timed
+					 * 		out a while back.
+					 * We'll assume the former--the consequences of being wrong are negligible. */
+					events.add(toEvent("restart", "message", "Server has been restarted."
+						+ " Refresh required."));
 					pReq.send(events);
 				}
 				return;
@@ -3282,24 +3180,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * @param req The request to create the session for
 	 * @return The new session
 	 */
-	private HttpSession createSession(PrismsRequest req, ClientGovernor cc)
+	private synchronized HttpSession createSession(String sessionID, ClientGovernor cc)
 	{
-		String id = req.sessionID;
-		if(id == null)
-			id = newSessionID() + "/" + req.httpRequest.isSecure();
-		HttpSession ret = new HttpSession(id, req.httpRequest.isSecure(), cc);
-		theSessions.put(id, ret);
-		return ret;
-	}
-
-	private String newSessionID()
-	{
-		String ret;
-		do
-		{
-			ret = Integer.toHexString((int) ((Math.random()
-				* ((double) Integer.MAX_VALUE - (double) Integer.MIN_VALUE) + Integer.MIN_VALUE)));
-		} while(theSessions.containsKey(ret));
+		HttpSession ret = theSessions.get(sessionID);
+		if(ret != null)
+			return ret;
+		ret = new HttpSession(sessionID, cc);
+		theSessions.put(sessionID, ret);
 		return ret;
 	}
 
@@ -3326,7 +3213,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		while(epitaphs.hasNext())
 		{
 			SessionEpitaph ep = epitaphs.next();
-			if(time - ep.theTime > WARN_EXPIRE_THRESHOLD)
+			if(time - ep.time > WARN_EXPIRE_THRESHOLD)
 				epitaphs.remove();
 		}
 		theCleanTimer = time;
