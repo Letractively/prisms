@@ -49,6 +49,12 @@ public abstract class AllCentersList extends prisms.ui.list.SelectableList<Prism
 				{
 					setListData(evt.getNewValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return getSession().getApp().getName() + " Center List Content Updater";
+				}
 			});
 		final prisms.ui.list.SelectableList<PrismsCenter> self = this;
 		prisms.arch.event.PrismsEventListener centerListener = new prisms.arch.event.PrismsEventListener()
@@ -62,6 +68,12 @@ public abstract class AllCentersList extends prisms.ui.list.SelectableList<Prism
 					if(node instanceof prisms.ui.list.SelectableList<?>.ItemNode
 						&& ((ItemNode) node).getObject().equals(center))
 						((ItemNode) node).check();
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager Center List Element Updater";
 			}
 		};
 		session.addEventListener("centerChanged", centerListener);
@@ -78,6 +90,12 @@ public abstract class AllCentersList extends prisms.ui.list.SelectableList<Prism
 					setSelectedObjects(sel2 == null ? new PrismsCenter [0]
 						: new PrismsCenter [] {sel2});
 				}
+
+				@Override
+				public String toString()
+				{
+					return getSession().getApp().getName() + " Center List Highlight Updater";
+				}
 			});
 		session.addEventListener("createCenterClicked", new prisms.arch.event.PrismsEventListener()
 		{
@@ -89,6 +107,12 @@ public abstract class AllCentersList extends prisms.ui.list.SelectableList<Prism
 				getSession().setProperty(theCentersProp,
 					prisms.util.ArrayUtils.add(allCenters, newCenter));
 				getSession().setProperty(theSelectedCenterProp, newCenter);
+			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Center List createClicked Listener";
 			}
 		});
 	}
