@@ -108,6 +108,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				theRecordCount = ((Integer) pEvt.getValue()).intValue();
 				sendSyncRecords(false);
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Center Editor Preference Applier";
+			}
 		});
 		prisms.util.preferences.Preferences prefs = theSession.getPreferences();
 		if(prefs.get(theCountPref) == null)
@@ -147,6 +153,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 					theCenter = evt.getNewValue();
 					sendCenter(true, true);
 				}
+
+				@Override
+				public String toString()
+				{
+					return getSession().getApp().getName() + " Center Editor Content Updater";
+				}
 			});
 		session.addEventListener("centerChanged", new prisms.arch.event.PrismsEventListener()
 		{
@@ -157,6 +169,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 					theServerCerts = null;
 					sendCenter(false, false);
 				}
+			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Center Editor Content Changer";
 			}
 		});
 		prisms.arch.event.PrismsEventListener recordListener = new prisms.arch.event.PrismsEventListener()
@@ -207,6 +225,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				}
 				sendSyncRecords(false);
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Center Editor Sync Record Updater";
+			}
 		};
 		session.addEventListener("syncAttempted", recordListener);
 		session.addEventListener("syncAttemptChanged", recordListener);
@@ -225,6 +249,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				else
 					theExportRecords.remove(holder);
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Center Editor Sync Record Remover";
+			}
 		});
 		session.addEventListener("genSyncReceipt", new prisms.arch.event.PrismsEventListener()
 		{
@@ -239,6 +269,12 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 					theSession.getUI().error(
 						"Could not generate synchronization receipt: " + e.getMessage());
 				}
+			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Center Editor Sync Receipt Requester";
 			}
 		});
 	}
@@ -1271,6 +1307,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 		} catch(prisms.records.PrismsRecordException e)
 		{
 			if(e.getCause() != null
+				&& e.getCause().getMessage() != null
 				&& e.getCause().getMessage()
 					.contains(java.security.cert.CertificateException.class.getName()))
 			{
