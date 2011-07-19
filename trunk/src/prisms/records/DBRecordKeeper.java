@@ -2368,7 +2368,7 @@ public class DBRecordKeeper implements RecordKeeper
 				{
 					log.error("Could not get record " + template, e);
 					ret[i] = getChangeError(stmt, template.id);
-				} catch(IllegalArgumentException e)
+				} catch(RuntimeException e)
 				{
 					log.error("Could not instantiate record " + template, e);
 					ret[i] = getChangeError(stmt, i);
@@ -2902,6 +2902,12 @@ public class DBRecordKeeper implements RecordKeeper
 							new java.io.StringReader(PrismsUtils.encodeUnicode(serialized)),
 							serialized.length());
 					}
+				}
+				else
+				{
+					pStmt.setNull(11, java.sql.Types.NUMERIC);
+					pStmt.setNull(12, java.sql.Types.VARCHAR);
+					pStmt.setNull(13, java.sql.Types.CLOB);
 				}
 				if(error.getData1ID() >= 0)
 					pStmt.setLong(14, error.getData1ID());

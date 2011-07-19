@@ -141,6 +141,25 @@ public interface SynchronizeImpl
 
 	// End common methods
 
+	/* Versioning methods
+	 * These methods allow data sources that are synchronized to be schema-modified without the need
+	 * to distribute the schema change to every installation */
+
+	/**
+	 * @return The version of this synchronization implementation. See
+	 *         {@link prisms.arch.PrismsConfig#compareVersions(String, String)} for the forms this
+	 *         string may take
+	 */
+	String getVersion();
+
+	/**
+	 * @param change The change record to check
+	 * @return Whether the given change record should be sent to the client
+	 */
+	boolean shouldSend(ChangeRecord change);
+
+	// End versioning methods
+
 	/**
 	 * Gets a type name by java class
 	 * 

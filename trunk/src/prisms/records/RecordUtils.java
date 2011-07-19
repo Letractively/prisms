@@ -693,7 +693,7 @@ public class RecordUtils
 						+ " has not been initialized";
 				else
 					return "Synchronization dependency failed: "
-						+ depend.getImpl().getClass().getName();
+						+ depend.getImpls()[depend.getImpls().length - 1].getClass().getName();
 			}
 		return null;
 	}

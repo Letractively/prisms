@@ -67,6 +67,12 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 					generateSyncRequest((PrismsCenter) evt.getProperty("center"),
 						((Boolean) evt.getProperty("withRecords")).booleanValue());
 				}
+
+				@Override
+				public String toString()
+				{
+					return getSession().getApp().getName() + " Sync Request Download Starter";
+				}
 			});
 		theSession.addEventListener("downloadSyncData", new prisms.arch.event.PrismsEventListener()
 		{
@@ -75,6 +81,12 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 				startRequestUpload((PrismsCenter) evt.getProperty("center"),
 					(PrismsSynchronizer.PostIDSet) evt.getProperty("pids"));
 			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Sync Download Starter";
+			}
 		});
 		theSession.addEventListener("uploadSyncData", new prisms.arch.event.PrismsEventListener()
 		{
@@ -82,6 +94,12 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 			{
 				startSyncUpload((PrismsCenter) evt.getProperty("center"),
 					(PrismsSynchronizer.PostIDSet) evt.getProperty("pids"));
+			}
+
+			@Override
+			public String toString()
+			{
+				return getSession().getApp().getName() + " Sync Upload Starter";
 			}
 		});
 	}
@@ -126,12 +144,13 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 			else if(center.getCenterID() != centerID)
 				throw new IllegalStateException("This center is not mapped to user "
 					+ center.getClientUser());
-			ValueTree<LatestCenterChange []> changes = parseCenterChanges(evt.get("changes"));
+
 			int [] check;
 			try
 			{
-				check = sync.checkSync(center, changes,
-					!Boolean.FALSE.equals(evt.get("withRecords")));
+				ValueTree<SyncRequest> request = parseRequest(evt, getSynchronizer(), center,
+					SyncRecord.Type.MANUAL_REMOTE);
+				check = getSynchronizer().checkSync(request);
 			} catch(PrismsRecordException e)
 			{
 				throw new IllegalStateException("Could not check synchronization status: "
@@ -453,7 +472,6 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 					log.error("Could not persist center's priority", e);
 				}
 			}
-			ValueTree<LatestCenterChange []> changes = parseCenterChanges(event.get("changes"));
 			java.io.Writer writer = new java.io.OutputStreamWriter(
 				new java.io.BufferedOutputStream(stream));
 			if(DEBUG)
@@ -461,9 +479,9 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 			// "C:\\Documents and Settings\\Andrew\\Desktop\\temp\\SyncData.json");
 			try
 			{
-				sync.doSyncOutput(center, changes, syncType, writer, null,
-					!Boolean.FALSE.equals(event.get("withRecords")),
-					!Boolean.FALSE.equals(event.get("storeSyncRecord")));
+				ValueTree<SyncRequest> request = parseRequest(event, getSynchronizer(), center,
+					syncType);
+				sync.doSyncOutput(request, writer, null);
 			} catch(Throwable e)
 			{
 				throw new IllegalStateException(e.getMessage(), e);
@@ -598,7 +616,6 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 						log.error("Could not persist center's priority", e);
 					}
 				}
-				ValueTree<LatestCenterChange []> changes = parseCenterChanges(params.get("changes"));
 				stream = new prisms.util.ExportStream(stream);
 				java.io.Writer writer = new java.io.OutputStreamWriter(stream);
 				if(DEBUG)
@@ -606,9 +623,9 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 						"C:\\Documents and Settings\\Andrew\\Desktop\\temp\\SyncData.json");
 				try
 				{
-					sync.doSyncOutput(center, changes, SyncRecord.Type.FILE, writer,
-						metadata.thePI, !Boolean.FALSE.equals(params.get("withRecords")),
-						!Boolean.FALSE.equals(params.get("storeSyncRecord")));
+					ValueTree<SyncRequest> request = parseRequest(params, getSynchronizer(),
+						center, SyncRecord.Type.FILE);
+					sync.doSyncOutput(request, writer, metadata.thePI);
 				} catch(PrismsRecordException e)
 				{
 					ui.error("Could not output sync data: " + e.getMessage());
@@ -627,7 +644,46 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 				+ event);
 	}
 
-	private ValueTree<LatestCenterChange []> parseCenterChanges(Object json)
+	private static ValueTree<SyncRequest> parseRequest(JSONObject evt, PrismsSynchronizer sync,
+		PrismsCenter center, SyncRecord.Type type) throws PrismsRecordException
+	{
+		String version = (String) evt.get("syncVersion");
+		if(version != null)
+		{
+			SyncRequest req = new SyncRequest(center, type, parseCenterChanges(evt.get("changes"))
+				.getValue(), version);
+			req.setWithRecords(!Boolean.FALSE.equals(evt.get("withRecords")));
+			req.setStoreSyncRecord(!Boolean.FALSE.equals(evt.get("storeSyncRecord")));
+			ValueTree<SyncRequest> ret = new ValueTree<SyncRequest>(req);
+			PrismsSynchronizer [] subSyncs = sync.getDepends();
+			JSONArray subSyncReqs = (JSONArray) evt.get("subSyncs");
+			if(subSyncs.length > 0 && subSyncReqs == null || subSyncReqs.size() != subSyncs.length)
+				throw new PrismsRecordException("Expected " + subSyncs.length
+					+ " sub-sync requests--received "
+					+ (subSyncReqs == null ? "none" : subSyncReqs.size() + ""));
+			for(int i = 0; i < subSyncs.length; i++)
+			{
+				PrismsCenter subCenter = sync.getDependCenter(subSyncs[i], center);
+				if(subCenter == null)
+					throw new PrismsRecordException("No dependent center"
+						+ " parallel to "
+						+ center.getName()
+						+ " for synchronizer with impl "
+						+ subSyncs[i].getImpls()[subSyncs[i].getImpls().length - 1].getClass()
+							.getName());
+				ret.addChild(parseRequest((JSONObject) subSyncReqs.get(i), subSyncs[i], subCenter,
+					type));
+			}
+			return ret;
+		}
+		else
+		{
+			ValueTree<LatestCenterChange []> centerChanges = parseCenterChanges(evt.get("changes"));
+			return convertToSyncRequest(sync, center, type, centerChanges);
+		}
+	}
+
+	private static ValueTree<LatestCenterChange []> parseCenterChanges(Object json)
 	{
 		if(json instanceof JSONArray)
 		{
@@ -651,6 +707,25 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 				ret.addChild(parseCenterChanges(depend));
 			return ret;
 		}
+	}
+
+	private static ValueTree<SyncRequest> convertToSyncRequest(PrismsSynchronizer sync,
+		PrismsCenter center, SyncRecord.Type type, ValueTree<LatestCenterChange []> changes)
+		throws PrismsRecordException
+	{
+		ValueTree<SyncRequest> ret = new ValueTree<SyncRequest>(new SyncRequest(center, type,
+			changes.getValue(), null));
+		for(int c = 0; c < changes.getChildren().length; c++)
+		{
+			PrismsSynchronizer subSync = sync.getDepends()[c];
+			PrismsCenter subCenter = sync.getDependCenter(subSync, center);
+			if(subCenter == null)
+				throw new PrismsRecordException("No dependent center" + " parallel to "
+					+ center.getName() + " for synchronizer with impl "
+					+ subSync.getImpls()[subSync.getImpls().length - 1].getClass().getName());
+			ret.addChild(convertToSyncRequest(subSync, subCenter, type, changes.getChildren()[c]));
+		}
+		return ret;
 	}
 
 	public void doUpload(JSONObject event, String fileName, String contentType,
