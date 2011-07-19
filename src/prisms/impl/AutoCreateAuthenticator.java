@@ -16,7 +16,7 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 	/** A {@link PrismsAuthenticator.SessionAuthenticator} for auto-create authenticators */
 	protected static class AutoCreateSessionAuthenticator implements SessionAuthenticator
 	{
-		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request, boolean secure)
+		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request)
 			throws PrismsException
 		{
 			return new AutoCreateRequestAuthenticator(request);

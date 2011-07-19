@@ -116,7 +116,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				}, 5000, 15L * 60 * 1000);
 		}
 
-		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request, boolean secure)
+		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request)
 			throws PrismsException
 		{
 			DummySessionData data = theEncryptions.get(request.getUser().getName());
@@ -309,7 +309,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return checkAuthenticationData(true);
 		}
 
-		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request, boolean secure)
+		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request)
 			throws PrismsException
 		{
 			String dataStr = request.httpRequest.getParameter("data");
@@ -370,7 +370,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			}
 			else if(isAnonymous)
 				return new USReqAuth(request, null, dataStr);
-			else if(!hasLoggedIn || !loginOnce || !secure)
+			else if(!hasLoggedIn || !loginOnce || !request.httpRequest.isSecure())
 				return new USReqAuth(request, LOGIN_FAIL_MESSAGE, true);
 			return new USReqAuth(request, enc, dataStr);
 		}

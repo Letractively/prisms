@@ -787,6 +787,7 @@ public class PrismsServiceConnector
 					// Do nothing here--connection successful
 				}
 				else if("setSessionID".equals(json.get("method")))
+					// Used by older versions of the PRISMS server
 					theSessionID = (String) json.get("sessionID");
 				else
 					log.warn("Server message: " + json);
