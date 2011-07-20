@@ -757,11 +757,25 @@ public final class ArrayUtils
 	{
 		if(anArray == null)
 			return false;
-		for(int i = 0; i < anArray.length; i++)
-		{
-			if(equals(anArray[i], anElement))
+		for(T val : anArray)
+			if(equals(val, anElement))
 				return true;
-		}
+		return false;
+	}
+
+	/**
+	 * @param <T> The type of the iterable to search
+	 * @param aSet The iterable to search
+	 * @param anElement The element to search for
+	 * @return True if <code>aSet</code> contains <code>anElement</code>, false otherwise
+	 */
+	public static <T> boolean contains(Iterable<T> aSet, T anElement)
+	{
+		if(aSet == null)
+			return false;
+		for(T val : aSet)
+			if(equals(val, anElement))
+				return true;
 		return false;
 	}
 
