@@ -230,79 +230,85 @@ public class DBUtils
 	public static String addLimit(ConnType connType, String columns, String tables, String where,
 		String order, int offset, int limit)
 	{
-		String baseQuery = "SELECT " + columns;
-		baseQuery += " FROM " + tables;
+		StringBuilder baseQuery = new StringBuilder("SELECT ").append(columns);
+		baseQuery.append(" FROM ").append(tables);
 		if(where != null)
-			baseQuery += " WHERE " + where;
+			baseQuery.append(" WHERE ").append(where);
 		if(order != null)
-			baseQuery += " ORDER BY " + order;
+			baseQuery.append(" ORDER BY ").append(order);
 		if(offset <= 0 && limit <= 0)
-			return baseQuery;
+			return baseQuery.toString();
 		switch(connType)
 		{
 		case HSQL:
-			String ret = baseQuery;
+			StringBuilder ret = new StringBuilder(baseQuery);
 			if(limit > 0)
 			{
-				ret += " LIMIT " + limit;
+				ret.append(" LIMIT ").append(limit);
 				if(offset > 0)
-					ret += " OFFSET " + offset;
+					ret.append(" OFFSET ").append(offset);
 			}
 			else if(offset > 0)
 				System.err.println("Offset requires limit in HSQL");
-			return ret;
+			return ret.toString();
 		case ORACLE:
-			ret = "SELECT " + columns + ", ROWNUM FROM (" + baseQuery + ") WHERE ROWNUM";
+			ret = new StringBuilder("SELECT ").append(columns).append(", ROWNUM FROM (")
+				.append(baseQuery).append(") WHERE ROWNUM");
 			if(limit > 0)
 			{
 				if(offset > 0)
-					ret += " BETWEEN " + (offset + 1) + " AND " + (offset + limit + 1);
+					ret.append(" BETWEEN ").append(offset + 1).append(" AND ")
+						.append(offset + limit + 1);
 				else
-					ret += "<=" + limit;
+					ret.append("<=").append(limit);
 			}
 			else
-				ret += ">" + offset;
-			return ret;
+				ret.append(">").append(offset);
+			return ret.toString();
 		case MSSQL:
 			int rsID = (int) Math.round(Math.random() * Integer.MAX_VALUE);
 			if(order != null)
 			{
-				ret = "SELECT " + columns + " FROM (\n\tSELECT " + columns
-					+ ", ROW_NUMBER() OVER (" + order + ") AS RowNumber FROM " + tables
-					+ ") AS ResultSet" + rsID + " WHERE ResultSet" + rsID;
+				ret = new StringBuilder("SELECT ").append(columns).append(" FROM (\n\tSELECT ")
+					.append(columns).append(", ROW_NUMBER() OVER (").append(order)
+					.append(") AS RowNumber FROM ").append(tables).append(") AS ResultSet")
+					.append(rsID).append(" WHERE ResultSet").append(rsID);
 				if(limit > 0)
 				{
 					if(offset > 0)
-						ret += " BETWEEN " + (offset + 1) + " AND " + (offset + limit + 1);
+						ret.append(" BETWEEN ").append(offset + 1).append(" AND ")
+							.append(offset + limit + 1);
 					else
-						ret += "<=" + limit;
+						ret.append("<=").append(limit);
 				}
 				else
-					ret += ">" + offset;
+					ret.append(">").append(offset);
 			}
 			else
 			{
-				ret = "SELECT " + columns + " FROM " + tables + " INTO #ResultSet" + rsID;
+				ret = new StringBuilder("SELECT ").append(columns).append(" FROM ").append(tables)
+					.append(" INTO #ResultSet").append(rsID);
 				if(where != null)
-					ret += "WHERE " + where;
-				ret += ";\n\nSELECT * FROM (\n\tSELECT *, ROW_NUMBER() OVER"
-					+ " (ORDER BY SortConst ASC) As RowNumber FROM (\n\t\tSELECT *, 1"
-					+ " As SortConst FROM #ResultSet" + rsID + "\n\t) AS ResultSet\n)"
-					+ " AS Page WHERE RowNumber";
+					ret.append("WHERE ").append(where);
+				ret.append(";\n\nSELECT * FROM (\n\tSELECT *, ROW_NUMBER() OVER")
+					.append(" (ORDER BY SortConst ASC) As RowNumber FROM (\n\t\tSELECT *, 1")
+					.append(" As SortConst FROM #ResultSet" + rsID + "\n\t) AS ResultSet\n)")
+					.append(" AS Page WHERE RowNumber");
 
 				if(limit > 0)
 				{
 					if(offset > 0)
-						ret += " BETWEEN " + (offset + 1) + " AND " + (offset + limit + 1);
+						ret.append(" BETWEEN ").append(offset + 1).append(" AND ")
+							.append(offset + limit + 1);
 					else
-						ret += "<=" + limit;
+						ret.append("<=").append(limit);
 				}
 				else
-					ret += ">" + offset;
+					ret.append(">").append(offset);
 
-				ret += ";\n\nDROP TABLE #ResultSet" + rsID + ";";
+				ret.append(";\n\nDROP TABLE #ResultSet").append(rsID).append(';');
 			}
-			return ret;
+			return ret.toString();
 		default:
 			// TODO Implement for more DBMS's
 			throw new IllegalStateException("offset/limit not implemented for " + connType);
