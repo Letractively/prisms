@@ -320,24 +320,45 @@ public abstract class PrismsConfig
 	}
 
 	/**
-	 * Parses a boolean from an attribute of this config. Care should be taken when using this
-	 * method in an environment where JDK5 auto-unboxing is enabled since this method can return
-	 * null if the given attribute is missing. This condition can be checked before a call to this
-	 * method with {@link #get(String)}.
+	 * Parses a float from an attribute of this config
 	 * 
 	 * @param key The name of the attribute to get the value of
-	 * @return The boolean parsed from the given attribute of this config, or null if the attribute
-	 *         is missing
+	 * @param def The value to return if the attribute is missing from the config
+	 * @return The float parsed from the given attribute of this config, or the given default value
+	 *         if the attribute is missing
 	 */
-	public Boolean is(String key)
+	public float getFloat(String key, float def)
 	{
 		String ret = get(key);
 		if(ret == null)
-			return null;
+			return def;
+		try
+		{
+			return Float.parseFloat(ret);
+		} catch(NumberFormatException e)
+		{
+			throw new IllegalArgumentException("Value of property " + key + " (" + ret
+				+ ") is not a float", e);
+		}
+	}
+
+	/**
+	 * Parses a boolean from an attribute of this config
+	 * 
+	 * @param key The name of the attribute to get the value of
+	 * @param def The value to return if the given key is missing from this config
+	 * @return The boolean parsed from the given attribute of this config, or <code>def</code> if
+	 *         the attribute is missing
+	 */
+	public boolean is(String key, boolean def)
+	{
+		String ret = get(key);
+		if(ret == null)
+			return def;
 		if("true".equalsIgnoreCase(ret))
-			return Boolean.TRUE;
+			return true;
 		else if("false".equalsIgnoreCase(ret))
-			return Boolean.FALSE;
+			return false;
 		else
 			throw new IllegalArgumentException("Value of property " + key + " (" + ret
 				+ ") is not a boolean");
@@ -356,6 +377,23 @@ public abstract class PrismsConfig
 		String ret = get(key);
 		if(ret == null)
 			return -1;
+		return parseEnglishTime(ret);
+	}
+
+	/**
+	 * Parses a time from an attribute of this config. This method uses
+	 * {@link #parseEnglishTime(String)} to parse the time.
+	 * 
+	 * @param key The name of the attribute to get the value of
+	 * @param def The default value to return if the given key does not exist in this config
+	 * @return The time parsed from the given attribute of this config, or <code>def</code> if the
+	 *         attribute is missing
+	 */
+	public long getTime(String key, long def)
+	{
+		String ret = get(key);
+		if(ret == null)
+			return def;
 		return parseEnglishTime(ret);
 	}
 
@@ -438,8 +476,9 @@ public abstract class PrismsConfig
 				subConfigs[c].toString(ret, indent + 1);
 				ret.append('\n');
 			}
-			for(int i = 0; i < indent; i++)
-				ret.append('\t');
+			if(withChildren > 0)
+				for(int i = 0; i < indent; i++)
+					ret.append('\t');
 			ret.append('<').append('/').append(getName()).append('>');
 		}
 	}

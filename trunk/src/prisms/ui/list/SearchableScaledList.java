@@ -208,7 +208,7 @@ public abstract class SearchableScaledList<T> extends SearchableListPlugin<T>
 	{
 		super.initPlugin(session, config);
 		if(isScaled && config.get("scaled") != null)
-			isScaled = !Boolean.FALSE.equals(config.is("scaled"));
+			isScaled = config.is("scaled", true);
 		if(!isScaled)
 			return;
 		clearListener();

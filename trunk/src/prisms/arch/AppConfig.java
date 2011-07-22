@@ -45,7 +45,11 @@ public class AppConfig
 					addPropertyManager(app, propConfig);
 				} catch(Exception e)
 				{
-					log.error("Could not add property manager: " + propConfig, e);
+					if(!propConfig.is("optional", false))
+						throw new IllegalStateException("Could not add property manager: "
+							+ propConfig, e);
+					else
+						log.error("Could not add property manager: " + propConfig, e);
 				}
 			for(PropertyManager<?> pm : app.getManagers())
 			{
@@ -148,6 +152,7 @@ public class AppConfig
 		{
 			PropertyManager<?> [] mgrs = app.getEnvironment().getManagers(globalName);
 			PrismsConfig [] configs = app.getEnvironment().getManagerConfigs(globalName);
+
 			if(mgrs == null)
 			{
 				log.error("No global property managers named " + globalName);
@@ -160,11 +165,24 @@ public class AppConfig
 					mgrs[m].configure(app, configs[m]);
 				} catch(Exception e)
 				{
-					log.error("Could not configure manager: " + configs[m], e);
+					if(!configs[m].is("optional", false))
+						throw new IllegalStateException(
+							"Could not configure global property manager: " + configs[m], e);
+					else
+						log.error("Could not configure global manager: " + configs[m], e);
 					continue;
 				}
 				app.addManager(mgrs[m]);
 			}
+
+			PrismsConfig [] els = app.getEnvironment().getEventConfigs(globalName);
+			if(els != null)
+				for(PrismsConfig e : els)
+					addEventListener(app, null, e);
+			PrismsConfig [] monEls = app.getEnvironment().getMonitorConfigs(globalName);
+			if(monEls != null)
+				for(PrismsConfig m : monEls)
+					addMonitor(app, null, m);
 		}
 		else
 		{

@@ -10,6 +10,156 @@ import prisms.util.TrackerSet;
 /** Represents an environment in which the PRISMS architecture is accessed */
 public class PrismsEnv implements prisms.util.Sealable
 {
+	/**
+	 * An extension of {@link prisms.util.ProgramTracker.PrintConfig} with extra data used by
+	 * transactions to determine how or if the data is printed
+	 */
+	public static class GlobalPrintConfig extends prisms.util.ProgramTracker.PrintConfig
+	{
+		private long thePrintThreshold;
+
+		private long theDebugThreshold;
+
+		private long theInfoThreshold;
+
+		private long theWarnThreshold;
+
+		private long theErrorThreshold;
+
+		/** Creates a print config */
+		public GlobalPrintConfig()
+		{
+			thePrintThreshold = 0;
+			theDebugThreshold = Long.MAX_VALUE;
+			theInfoThreshold = Long.MAX_VALUE;
+			theWarnThreshold = Long.MAX_VALUE;
+			theErrorThreshold = Long.MAX_VALUE;
+		}
+
+		/**
+		 * @return The threshold below which no tracking data will be printed to System.out or the
+		 *         log
+		 */
+		public long getPrintThreshold()
+		{
+			return thePrintThreshold;
+		}
+
+		/**
+		 * @return The threshold above which tracking data will be written to the log as debug or
+		 *         higher
+		 */
+		public long getDebugThreshold()
+		{
+			return theDebugThreshold;
+		}
+
+		/**
+		 * @return The threshold above which tracking data will be written to the log as info or
+		 *         higher
+		 */
+		public long getInfoThreshold()
+		{
+			return theInfoThreshold;
+		}
+
+		/**
+		 * @return The threshold above which tracking data will be written to the log as warning or
+		 *         higher
+		 */
+		public long getWarningThreshold()
+		{
+			return theWarnThreshold;
+		}
+
+		/** @return The threshold above which tracking data will be written to the log as error */
+		public long getErrorThreshold()
+		{
+			return theErrorThreshold;
+		}
+
+		/** @param thresh The threshold below which no tracking data will be printed anywhere */
+		public void setPrintThreshold(long thresh)
+		{
+			thePrintThreshold = thresh;
+			if(thresh > theDebugThreshold)
+				theDebugThreshold = thresh;
+			if(thresh > theInfoThreshold)
+				theInfoThreshold = thresh;
+			if(thresh > theWarnThreshold)
+				theWarnThreshold = thresh;
+			if(thresh >= theErrorThreshold)
+				theErrorThreshold = thresh;
+		}
+
+		/**
+		 * @param thresh The threshold above which tracking data will be printed to the log as debug
+		 *        or higher
+		 */
+		public void setDebugThreshold(long thresh)
+		{
+			theDebugThreshold = thresh;
+			if(thresh < thePrintThreshold)
+				thePrintThreshold = thresh;
+			if(thresh > theInfoThreshold)
+				theInfoThreshold = thresh;
+			if(thresh > theWarnThreshold)
+				theWarnThreshold = thresh;
+			if(thresh > theErrorThreshold)
+				theErrorThreshold = thresh;
+		}
+
+		/**
+		 * @param thresh The threshold above which tracking data will be printed to the log as info
+		 *        or higher
+		 */
+		public void setInfoThreshold(long thresh)
+		{
+			theInfoThreshold = thresh;
+			if(thresh < thePrintThreshold)
+				thePrintThreshold = thresh;
+			if(thresh < theDebugThreshold)
+				theDebugThreshold = thresh;
+			if(thresh > theWarnThreshold)
+				theWarnThreshold = thresh;
+			if(thresh > theErrorThreshold)
+				theErrorThreshold = thresh;
+		}
+
+		/**
+		 * @param thresh The threshold above which tracking data will be printed to the log as
+		 *        warning or higher
+		 */
+		public void setWarningThreshold(long thresh)
+		{
+			theWarnThreshold = thresh;
+			if(thresh < thePrintThreshold)
+				thePrintThreshold = thresh;
+			if(thresh < theDebugThreshold)
+				theDebugThreshold = thresh;
+			if(thresh < theInfoThreshold)
+				theInfoThreshold = thresh;
+			if(thresh > theErrorThreshold)
+				theErrorThreshold = thresh;
+		}
+
+		/**
+		 * @param thresh The threshold above which tracking data will be printed to the log as error
+		 */
+		public void setErrorThreshold(long thresh)
+		{
+			theErrorThreshold = thresh;
+			if(thresh < thePrintThreshold)
+				thePrintThreshold = thresh;
+			if(thresh < theDebugThreshold)
+				theDebugThreshold = thresh;
+			if(thresh < theInfoThreshold)
+				theInfoThreshold = thresh;
+			if(thresh < theWarnThreshold)
+				theWarnThreshold = thresh;
+		}
+	}
+
 	private prisms.arch.ds.IDGenerator theIDs;
 
 	private UserSource theUserSource;
@@ -26,13 +176,17 @@ public class PrismsEnv implements prisms.util.Sealable
 
 	private final java.util.Map<String, PrismsConfig []> theGMConfigs;
 
+	private final java.util.Map<String, PrismsConfig []> theGEventConfigs;
+
+	private final java.util.Map<String, PrismsConfig []> theGMonitorConfigs;
+
 	private final prisms.util.ResourcePool<PrismsTransaction> theTransactionPool;
 
 	private final java.util.concurrent.ConcurrentHashMap<Thread, PrismsTransaction> theActiveTransactions;
 
 	private TrackerSet.TrackConfig[] theTrackConfigs;
 
-	private prisms.util.ProgramTracker.PrintConfig theDefaultPrintConfig;
+	private GlobalPrintConfig theDefaultPrintConfig;
 
 	private boolean isSealed;
 
@@ -42,6 +196,8 @@ public class PrismsEnv implements prisms.util.Sealable
 		theVariables = new java.util.LinkedHashMap<String, String>();
 		theGlobalManagers = new java.util.HashMap<String, PropertyManager<?> []>();
 		theGMConfigs = new java.util.HashMap<String, PrismsConfig []>();
+		theGEventConfigs = new java.util.HashMap<String, PrismsConfig []>();
+		theGMonitorConfigs = new java.util.HashMap<String, PrismsConfig []>();
 		theTransactionPool = new prisms.util.ResourcePool<PrismsTransaction>(
 			new prisms.util.ResourcePool.ResourceCreator<PrismsTransaction>()
 			{
@@ -56,8 +212,8 @@ public class PrismsEnv implements prisms.util.Sealable
 				}
 			}, Integer.MAX_VALUE);
 		theActiveTransactions = new java.util.concurrent.ConcurrentHashMap<Thread, PrismsTransaction>();
-		theDefaultPrintConfig = new prisms.util.ProgramTracker.PrintConfig();
-		theDefaultPrintConfig.setOverallDisplayThreshold(1500);
+		theDefaultPrintConfig = new GlobalPrintConfig();
+		theDefaultPrintConfig.setPrintThreshold(1500);
 		theDefaultPrintConfig.setTaskDisplayThreshold(100);
 		theDefaultPrintConfig.setAccentThreshold(8);
 	}
@@ -169,7 +325,7 @@ public class PrismsEnv implements prisms.util.Sealable
 	}
 
 	/** @return The default print configuration that PRISMS will use to print tracking data */
-	public prisms.util.ProgramTracker.PrintConfig getDefaultPrintConfig()
+	public GlobalPrintConfig getDefaultPrintConfig()
 	{
 		return theDefaultPrintConfig;
 	}
@@ -200,7 +356,7 @@ public class PrismsEnv implements prisms.util.Sealable
 	/**
 	 * Adds a global property manager to this environment
 	 * 
-	 * @param name The name of the manager to be referenced later
+	 * @param name The name of the listener set to be referenced later
 	 * @param manager The manager to add
 	 * @param config The configuration to use to configure the manager for each application that
 	 *        will use it
@@ -227,8 +383,48 @@ public class PrismsEnv implements prisms.util.Sealable
 	}
 
 	/**
-	 * @param name The name of the manger to get
-	 * @return The global property manager with the given name
+	 * Adds a global event listener to this environment
+	 * 
+	 * @param name The name of the listener set to be referenced later
+	 * @param config The configuration to use to configure the listener for each application that
+	 *        will use it
+	 */
+	public void addGlobalEventListener(String name, PrismsConfig config)
+	{
+		if(isSealed)
+			throw new IllegalStateException("Cannot add global event listener after the"
+				+ " environment has been configured");
+		PrismsConfig [] configs = theGEventConfigs.get(name);
+		if(configs == null)
+			configs = new PrismsConfig [] {config};
+		else
+			configs = prisms.util.ArrayUtils.add(configs, config);
+		theGEventConfigs.put(name, configs);
+	}
+
+	/**
+	 * Adds a global session monitor to this environment
+	 * 
+	 * @param name The name of the listener set to be referenced later
+	 * @param config The configuration to use to configure the monitor for each application that
+	 *        will use it
+	 */
+	public void addGlobalMonitorListener(String name, PrismsConfig config)
+	{
+		if(isSealed)
+			throw new IllegalStateException("Cannot add global session monitor after the"
+				+ " environment has been configured");
+		PrismsConfig [] configs = theGMonitorConfigs.get(name);
+		if(configs == null)
+			configs = new PrismsConfig [] {config};
+		else
+			configs = prisms.util.ArrayUtils.add(configs, config);
+		theGMonitorConfigs.put(name, configs);
+	}
+
+	/**
+	 * @param name The name of the listener set to get property managers of
+	 * @return The global property managers from the given listener set
 	 */
 	public PropertyManager<?> [] getManagers(String name)
 	{
@@ -236,12 +432,30 @@ public class PrismsEnv implements prisms.util.Sealable
 	}
 
 	/**
-	 * @param name The name of the manger to get the configuration for
-	 * @return The configuration for the global property manager with the given name
+	 * @param name The name of the listener set to get the property manager configurations for
+	 * @return The configurations for the global property managers from the given listener set
 	 */
 	public PrismsConfig [] getManagerConfigs(String name)
 	{
 		return theGMConfigs.get(name);
+	}
+
+	/**
+	 * @param name The name of the event listener to get the event configurations for
+	 * @return The configurations for the global event listeners from the given listener set
+	 */
+	public PrismsConfig [] getEventConfigs(String name)
+	{
+		return theGEventConfigs.get(name);
+	}
+
+	/**
+	 * @param name The name of the listener set to get the monitor configuration for
+	 * @return The configurations for the global session monitors from the given listener set
+	 */
+	public PrismsConfig [] getMonitorConfigs(String name)
+	{
+		return theGMonitorConfigs.get(name);
 	}
 
 	PrismsTransaction transact(PrismsSession session, PrismsTransaction.Stage stage)

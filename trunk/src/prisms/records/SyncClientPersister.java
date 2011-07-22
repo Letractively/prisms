@@ -43,20 +43,20 @@ public class SyncClientPersister implements prisms.arch.Persister<SyncServiceCli
 					log.error("Trust store " + trustStore + " could not be read", e);
 				}
 			}
-			if(Boolean.TRUE.equals(config.is("https-allow-all")))
+			if(config.is("https-allow-all", false))
 				theClient.setAllowAllCerts(true);
-			if(Boolean.TRUE.equals(config.is("requires-records")))
+			if(config.is("requires-records", false))
 				theClient.setRequiresRecords(true);
 		}
-		String intervalS = config.get("auto-sync-interval");
-		if(intervalS != null)
+		long interval = config.getTime("auto-sync-interval", -1);
+		if(interval > 0)
 			app.scheduleRecurringTask(new Runnable()
 			{
 				public void run()
 				{
 					doAutoSynchronize();
 				}
-			}, Long.parseLong(intervalS));
+			}, interval);
 	}
 
 	public SyncServiceClient getValue()

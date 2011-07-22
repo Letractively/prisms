@@ -60,8 +60,6 @@ public class PrismsTransaction
 
 	private ProgramTracker.PrintConfig thePrintConfig;
 
-	long lastLogged;
-
 	private FinishListener [] theListeners;
 
 	private java.util.ArrayList<ProgramTracker.TrackNode> theRoutines;
@@ -141,7 +139,12 @@ public class PrismsTransaction
 			else
 			{
 				thePrintConfig = thePrintConfig.clone();
-				thePrintConfig.setOverallDisplayThreshold(0);
+				if(thePrintConfig instanceof prisms.arch.PrismsEnv.GlobalPrintConfig)
+				{
+					prisms.arch.PrismsEnv.GlobalPrintConfig pc = (prisms.arch.PrismsEnv.GlobalPrintConfig) thePrintConfig;
+					pc.setPrintThreshold(0);
+					pc.setDebugThreshold(Long.MAX_VALUE);
+				}
 				thePrintConfig.setTaskDisplayThreshold(0);
 			}
 		}
@@ -220,34 +223,9 @@ public class PrismsTransaction
 
 			if(theTracker.getCurrentTask().getParent() == null && theRoutines.size() > 1)
 			{
-				/* ERROR This is a bug that I can't track down. Its manifestation is that the
-				 * current task, which should have a depth of 2, has its parent field set to null.
-				 * The tracker's node set contains a single node with a single child that is the
-				 * same as the current task, but the child task doesn't link to its parent,
-				 * resulting in an error when the top-level task is ended.
-				 * 
-				 * There is some evidence that this may be a result of a concurrency issue, but the
-				 * only culprit I can think of would be my ResourcePool class, which I have tested
-				 * very thoroughly, I think.
-				 * 
-				 * The only 2 effects of this bug are slightly skewed performance statistics, since
-				 * a task cannot be ended and throws an exception before the tracking data can be
-				 * compiled into the session and application tracking sets; and a stack trace being
-				 * printed to the log. It's possible that if the tracking feature were used more
-				 * than it is, that this bug would cause problems there (this would certainly be
-				 * the case if the bug is concurrency, meaning 2 threads are using the same
-				 * transaction at the same time). I'll come back to this later, but for now I can't
-				 * find it so I'm documenting it, working around it (the return statement below),
-				 * and leaving it.
-				 * 
-				 * Edit: I have found a bug with the merge method in ProgramTracker that may have
-				 * been the cause of the problem. It caused the master trackers associated with
-				 * sessions and apps to incorporate TrackNodes of the transaction trackers that were
-				 * merged into them. When these nodes merged with other nodes, it cause those
-				 * intruders to be modified from a different thread than the one where the node was
-				 * being used correctly. I am keeping this doc here, but removing the workaround
-				 * return so it is more obvious if the problem recurs.
-				 */
+				/* This is the remnants of a workaround for a bug dealing with the tracking. The
+				 * tracking would get into an inconsistent state. I believe I have fixed this bug,
+				 * but I am leaving the indication that it has recurred in case it does. */
 				log.error("Transaction tracking error");
 				// return theEvents;
 			}
@@ -263,12 +241,26 @@ public class PrismsTransaction
 			theSession.getApp().getTrackSet().addTrackData(theTracker);
 
 			long runTime = theTracker.getData()[0].getLength();
-			if(thePrintConfig != null && runTime >= thePrintConfig.getTaskDisplayThreshold()
-				&& runTime >= thePrintConfig.getOverallDisplayThreshold())
+			if(thePrintConfig != null && runTime >= thePrintConfig.getTaskDisplayThreshold())
 			{
 				StringBuilder data = new StringBuilder();
 				theTracker.printData(data, thePrintConfig);
-				System.out.println(data.toString());
+				if(thePrintConfig instanceof prisms.arch.PrismsEnv.GlobalPrintConfig)
+				{
+					prisms.arch.PrismsEnv.GlobalPrintConfig pc = (prisms.arch.PrismsEnv.GlobalPrintConfig) thePrintConfig;
+					if(runTime >= pc.getErrorThreshold())
+						log.error(data.toString());
+					else if(runTime >= pc.getWarningThreshold())
+						log.warn(data.toString());
+					else if(runTime >= pc.getInfoThreshold())
+						log.info(data.toString());
+					else if(runTime >= pc.getDebugThreshold())
+						log.debug(data.toString());
+					else if(runTime >= pc.getPrintThreshold())
+						System.out.println(data.toString());
+				}
+				else
+					log.debug(data.toString());
 			}
 
 			return theEvents;

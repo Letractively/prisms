@@ -39,7 +39,7 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 		theActionName = config.get("actionname");
 		if(theActionName == null)
 			throw new IllegalArgumentException("No actionname configured: " + config);
-		requiresListeners = !Boolean.FALSE.equals(config.is("requireListeners"));
+		requiresListeners = config.is("requireListeners", true);
 		theEventName = config.get("eventname");
 		if(theEventName == null)
 			throw new IllegalArgumentException("No eventname configured: " + config);
@@ -68,7 +68,7 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 				throw new IllegalArgumentException("Class " + propConfigs[p].get("class")
 					+ " not found for property " + theEventPropertiesIn[p] + ": " + config, e);
 			}
-			theEventPropertyRequired[p] = !Boolean.FALSE.equals(propConfigs[p].is("required"));
+			theEventPropertyRequired[p] = propConfigs[p].is("required", true);
 		}
 
 		session.addEventListener("getUserActions", new prisms.arch.event.PrismsEventListener()
