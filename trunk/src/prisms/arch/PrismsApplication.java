@@ -729,29 +729,27 @@ public class PrismsApplication
 	 */
 	public void runSessionTask(PrismsSession session, final SessionTask task, boolean excludeSession)
 	{
+		if(session != null && !excludeSession)
+		{
+			prisms.util.ProgramTracker.TrackNode event = null;
+			PrismsTransaction trans = getEnvironment().getTransaction();
+			if(trans != null)
+				event = trans.getTracker()
+					.start(
+						"PRISMS: Running session task " + task + " synchronously on session "
+							+ session);
+			try
+			{
+				task.run(session);
+			} finally
+			{
+				if(event != null)
+					trans.getTracker().end(event);
+			}
+		}
 		for(PrismsSession session_i : getSessions())
 		{
-			if(session_i == session)
-			{
-				if(!excludeSession)
-				{
-					prisms.util.ProgramTracker.TrackNode event = null;
-					PrismsTransaction trans = getEnvironment().getTransaction();
-					if(trans != null)
-						event = trans.getTracker().start(
-							"PRISMS: Running session task " + task + " synchronously on session "
-								+ session);
-					try
-					{
-						task.run(session);
-					} finally
-					{
-						if(event != null)
-							trans.getTracker().end(event);
-					}
-				}
-			}
-			else
+			if(session_i != session)
 			{
 				final PrismsSession s = session_i;
 				final StackTraceElement [] trace = Thread.currentThread().getStackTrace();
@@ -778,6 +776,12 @@ public class PrismsApplication
 							if(event != null)
 								trans.getTracker().end(event);
 						}
+					}
+
+					@Override
+					public String toString()
+					{
+						return "Session Task Runner";
 					}
 				});
 			}
@@ -1011,6 +1015,12 @@ public class PrismsApplication
 					public void run(PrismsSession session)
 					{
 						session.setProperty(ppm.getProperty(), ppm.getCorrectValue(session));
+					}
+
+					@Override
+					public String toString()
+					{
+						return "Reloading global properties";
 					}
 				}, false);
 			}
