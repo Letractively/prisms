@@ -5,7 +5,6 @@ package prisms.util.persisters;
 
 import org.apache.log4j.Logger;
 
-import prisms.arch.Persister;
 import prisms.arch.PrismsSession;
 
 /**
@@ -49,7 +48,7 @@ public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<
 		if(theValue != null)
 			return;
 		prisms.arch.PrismsConfig persisterEl = config.subConfig("persister");
-		Persister<T> persister;
+		prisms.arch.Persister<T> persister;
 
 		if(persisterEl == null)
 			persister = null;
@@ -63,21 +62,42 @@ public class ReadOnlyManager<T> extends prisms.arch.event.GlobalPropertyManager<
 				theValue = persister.getValue();
 			} catch(Throwable e)
 			{
-				log.error("Could not deserialize property " + getProperty(), e);
+				log.error("Could not depersist property " + getProperty(), e);
 				return;
 			}
 		}
 		else
 		{
-			Class<? extends T> propType = getProperty().getType();
+			Class<? extends T> propType;
+			if(config.get("class") != null)
+			{
+				try
+				{
+					propType = Class.forName(config.get("class")).asSubclass(
+						getProperty().getType());
+				} catch(ClassNotFoundException e)
+				{
+					throw new IllegalStateException("Class configured for property "
+						+ getProperty() + " (" + config.get("class") + ") cannot be found", e);
+				} catch(ClassCastException e)
+				{
+					throw new IllegalStateException("Class configured for property "
+						+ getProperty() + " (" + config.get("class") + ") is not a subtype of "
+						+ getProperty().getType(), e);
+				}
+			}
+			else
+				propType = getProperty().getType();
 			try
 			{
 				theValue = propType.newInstance();
 			} catch(Exception e)
 			{
 				throw new IllegalStateException("ReadOnlyManager does not have initial value"
-					+ " and can't instantiate one.");
+					+ " and can't instantiate one.", e);
 			}
+			if(theValue instanceof ConfigurableResource)
+				((ConfigurableResource) theValue).configure(config, app);
 		}
 	}
 
