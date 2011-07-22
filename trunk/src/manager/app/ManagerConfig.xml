@@ -6,9 +6,7 @@
 	<config-class>prisms.arch.AppConfig</config-class>
 	<version>1.5.0</version>
 	<modified>27Apr2011</modified>
-	<worker>
-		<type>threadpool</type>
-	</worker>
+
 	<properties>
 		<property globalRef="prisms-users" />
 		<property globalRef="prisms-preferences" />
