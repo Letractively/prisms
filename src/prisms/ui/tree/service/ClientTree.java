@@ -326,6 +326,12 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				if(System.currentTimeMillis() - theLastHeartBeat > theHeartBeatFreq / 3)
 					heartBeat();
 			}
+
+			@Override
+			public String toString()
+			{
+				return "Client Tree Heartbeat";
+			}
 		};
 		String hb = config.get("heart-beat");
 		if(hb != null)

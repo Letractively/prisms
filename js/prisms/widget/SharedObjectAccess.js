@@ -1,3 +1,4 @@
+
 __dojo.require("dijit.form.CheckBox");
 
 __dojo.provide("prisms.widget.SharedObjectAccess");
