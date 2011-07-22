@@ -110,11 +110,7 @@ public abstract class SynchronizerPersister implements prisms.arch.Persister<Pri
 	public void valueChanged(prisms.arch.PrismsSession session, PrismsSynchronizer fullValue,
 		Object o, prisms.arch.event.PrismsEvent evt)
 	{
-		if(evt.name == "doAutoSynchronize")
-		{}
-		else
-			throw new IllegalArgumentException("Synchronizer cannot be affected by event "
-				+ evt.name);
+		throw new IllegalArgumentException("Synchronizer cannot be affected by event " + evt.name);
 	}
 
 	public void reload()
