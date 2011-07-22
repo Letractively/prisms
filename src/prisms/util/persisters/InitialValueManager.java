@@ -67,37 +67,41 @@ public class InitialValueManager<T> extends PropertyManager<T>
 		}
 		else if("true".equals(config.get("initNull")))
 			theValue = null;
+		else if(getProperty().getType().isArray())
+			theValue = (T) java.lang.reflect.Array.newInstance(getProperty().getType()
+				.getComponentType(), 0);
 		else
 		{
-			if(getProperty().getType().isArray())
-				theValue = (T) java.lang.reflect.Array.newInstance(getProperty().getType()
-					.getComponentType(), 0);
-			else
+			Class<? extends T> propType;
+			if(config.get("class") != null)
 			{
-				java.lang.reflect.Constructor<T> constructor;
 				try
 				{
-					constructor = (java.lang.reflect.Constructor<T>) getProperty().getType()
-						.getConstructor();
-				} catch(Exception e)
+					propType = Class.forName(config.get("class")).asSubclass(
+						getProperty().getType());
+				} catch(ClassNotFoundException e)
 				{
-					throw new IllegalArgumentException("Could not configure initial value of"
-						+ " property " + getProperty() + "--could not get no-argument constructor",
-						e);
+					throw new IllegalStateException("Class configured for property "
+						+ getProperty() + " (" + config.get("class") + ") cannot be found", e);
+				} catch(ClassCastException e)
+				{
+					throw new IllegalStateException("Class configured for property "
+						+ getProperty() + " (" + config.get("class") + ") is not a subtype of "
+						+ getProperty().getType(), e);
 				}
-				if(constructor == null)
-					throw new IllegalArgumentException("Could not configure initial value of"
-						+ " property " + getProperty() + "--no no-argument constructor found");
-				else
-					try
-					{
-						theValue = getProperty().getType().newInstance();
-					} catch(Exception e)
-					{
-						throw new IllegalArgumentException("Could not configure initial value of"
-							+ " property " + getProperty() + "--no-argument constructor failed", e);
-					}
 			}
+			else
+				propType = getProperty().getType();
+			try
+			{
+				theValue = propType.newInstance();
+			} catch(Exception e)
+			{
+				throw new IllegalStateException("ReadOnlyManager does not have initial value"
+					+ " and can't instantiate one.", e);
+			}
+			if(theValue instanceof ConfigurableResource)
+				((ConfigurableResource) theValue).configure(config, app);
 		}
 	}
 
