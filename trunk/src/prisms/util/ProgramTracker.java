@@ -15,14 +15,27 @@ public class ProgramTracker implements Cloneable
 
 	private static final int DEFAULT_INDENT_INCREMENT = 3;
 
-	static final SimpleDateFormat [] formats = new SimpleDateFormat [] {
-		new SimpleDateFormat("ddMMM HH:mm:ss.SSS"), new SimpleDateFormat("dd HH:mm:ss.SSS"),
-		new SimpleDateFormat("HH:mm:ss.SSS"), new SimpleDateFormat("mm:ss.SSS"),
-		new SimpleDateFormat("ss.SSS")};
+	static final SimpleDateFormat [][] formats;
 
-	static final java.text.NumberFormat PERCENT_FORMAT = new java.text.DecimalFormat("0.0");
+	static
+	{
+		String [] patterns = new String [] {"ddMMM HH:mm:ss.SSS", "dd HH:mm:ss.SSS",
+			"HH:mm:ss.SSS", "mm:ss.SSS", "ss.SSS"};
 
-	static final java.text.NumberFormat LENGTH_FORMAT = new java.text.DecimalFormat("0.000");
+		formats = new SimpleDateFormat [2] [patterns.length];
+		for(int p = 0; p < patterns.length; p++)
+		{
+			formats[0][p] = new SimpleDateFormat(patterns[p] + "'Z'");
+			formats[0][p].setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+			formats[1][p] = new SimpleDateFormat(patterns[p]);
+		}
+	}
+
+	/** The format used to print percentages */
+	public static final java.text.NumberFormat PERCENT_FORMAT = new java.text.DecimalFormat("0.0");
+
+	/** The format used to print time lengths */
+	public static final java.text.NumberFormat LENGTH_FORMAT = new java.text.DecimalFormat("0.000");
 
 	/** The format used to print length statistics */
 	public static final java.text.NumberFormat NANO_FORMAT = new java.text.DecimalFormat("0.00E0");
@@ -469,7 +482,7 @@ public class ProgramTracker implements Cloneable
 			}
 			sb.append(' ');
 			sb.append('(');
-			printTime(startTime, lastTime, sb);
+			printTime(startTime, lastTime, sb, false);
 			sb.append(')');
 			if(count > 1)
 			{
@@ -507,12 +520,21 @@ public class ProgramTracker implements Cloneable
 				sb.append(" *");
 		}
 
-		private void printTime(long time, long lastTime, StringBuilder sb)
+		/**
+		 * Prints a time relative to another time
+		 * 
+		 * @param time The time to print
+		 * @param lastTime The relative time
+		 * @param sb The string builder to print the result to
+		 * @param local Whether to print the time in local format or not
+		 */
+		public static void printTime(long time, long lastTime, StringBuilder sb, boolean local)
 		{
+			int gmt = local ? 1 : 0;
 			java.util.Date d = new java.util.Date(time);
 			if(lastTime == 0)
 			{
-				sb.append(formats[0].format(d));
+				sb.append(formats[gmt][0].format(d));
 				return;
 			}
 			long diff = time - lastTime;
@@ -525,13 +547,13 @@ public class ProgramTracker implements Cloneable
 			diff /= 24;
 			days = (int) diff;
 			if(days > 0)
-				sb.append(formats[1].format(d));
+				sb.append(formats[gmt][1].format(d));
 			else if(hrs > 0)
-				sb.append(formats[2].format(d));
+				sb.append(formats[gmt][2].format(d));
 			else if(mins > 0)
-				sb.append(formats[3].format(d));
+				sb.append(formats[gmt][3].format(d));
 			else
-				sb.append(formats[4].format(d));
+				sb.append(formats[gmt][4].format(d));
 		}
 
 		/**

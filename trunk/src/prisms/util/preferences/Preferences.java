@@ -14,7 +14,7 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 
 	private Listener [] theListeners;
 
-	private java.util.HashSet<Preference<?>> theActivePrefs;
+	private java.util.LinkedHashSet<Preference<?>> theActivePrefs;
 
 	/**
 	 * Creates the preferences set
@@ -27,7 +27,7 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 		theApp = app;
 		theOwner = user;
 		thePrefs = new java.util.TreeMap<Preference<?>, Object>();
-		theActivePrefs = new java.util.HashSet<Preference<?>>();
+		theActivePrefs = new java.util.LinkedHashSet<Preference<?>>();
 		theListeners = new Listener [0];
 	}
 
@@ -106,8 +106,6 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public <T, V extends T> void set(Preference<T> pref, V value)
 	{
-		if(value != null)
-			theActivePrefs.add(pref);
 		if(value != null)
 			pref.getType().validate(value);
 		thePrefs.put(pref, value);

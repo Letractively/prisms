@@ -4,9 +4,9 @@ __dojo.require("dijit.form.CheckBox");
 __dojo.require("dijit.form.TextBox");
 __dojo.require("dijit.form.NumberTextBox");
 __dojo.require("dijit.form.NumberSpinner");
-__dojo.require("dijit.form.Slider");
 __dojo.require("prisms.widget.PrismsDialog");
 __dojo.require("prisms.widget.ColorPicker");
+__dojo.require("prisms.widget.ProportionEditor");
 
 __dojo.provide("prisms.widget.Preferences");
 __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
@@ -182,8 +182,7 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 		}
 		else if(type=="PROPORTION")
 		{
-			editor=new __dijit.form.HorizontalSlider({minimum:0, maximum:1});
-			editor.domNode.style.width="140px";
+			editor=new prisms.widget.ProportionEditor();
 			editor.setValue(value);
 			this.connectors.push(__dojo.connect(editor, "onChange", function(){
 				self.datumChanged(domain, prefName, editor.getValue());

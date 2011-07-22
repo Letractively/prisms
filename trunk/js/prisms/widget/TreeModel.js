@@ -267,27 +267,33 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 		var self=this;
 		var childrenChanged=false;
 		node.children=PrismsUtils.adjust(node.children, pathNode.children, {
-	 		identity: function(node, item){
-	 			return self.itemsEqual(node, item);
-	 		},
-	 
-	 		added: function(item, idx2, retIdx){
-	 			childrenChanged=true;
-	 			return item;
-	 		},
-	 
-	 		removed: function(node, idx1, incMod, retIdx){
-	 			self.destroyNode(node);
-	 			childrenChanged=true;
-	 			return null;
-	 		},
-	 
-	 		set: function(node, idx1, incMod, item, idx2, retIdx){
-				__dojo.mixin(node, item);
-	 			self.onChange(node);
-	 			self.changeRecursive(node, item);
-	 			return node;
-	 		}
+			identity: function(node, item){
+				return self.itemsEqual(node, item);
+			},
+
+			added: function(item, idx2, retIdx){
+				childrenChanged=true;
+				return item;
+			},
+
+			removed: function(node, idx1, incMod, retIdx){
+				self.destroyNode(node);
+				childrenChanged=true;
+				return null;
+			},
+
+			set: function(node, idx1, incMod, item, idx2, retIdx){
+				for(var p in item)
+				{
+					if(typeof item[p] == "function")
+						continue;
+					if(p!="children" && p!="path")
+						node[p]=item[p];
+				}
+				self.onChange(node);
+				self.changeRecursive(node, item);
+				return node;
+			}
 		});
 		if(childrenChanged)
 			this.onChildrenChange(node, node.children);

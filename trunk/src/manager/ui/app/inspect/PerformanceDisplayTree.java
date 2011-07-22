@@ -5,23 +5,109 @@ package manager.ui.app.inspect;
 
 import prisms.arch.PrismsSession;
 import prisms.arch.event.PrismsEvent;
+import prisms.records.HistoryViewer.TimeZoneType;
 import prisms.ui.tree.CategoryNode;
 import prisms.util.ArrayUtils;
+import prisms.util.ProgramTracker;
 import prisms.util.ProgramTracker.TrackNode;
+import prisms.util.preferences.Preference;
 
 /** A tree that displays performance data selected by the user */
 public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 {
+	Preference<Float> theDisplayPref;
+
+	Preference<Float> theAccentPref;
+
+	Preference<TimeZoneType> theTimeZonePref;
+
 	long theTotalTime;
 
 	long theSnapshotTime;
 
 	prisms.util.TrackerSet.TrackConfig theSelection;
 
+	ProgramTracker theCurrentValue;
+
+	float theDisplayThresh;
+
+	float theAccentThresh;
+
+	TimeZoneType theTimeZone;
+
 	@Override
 	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		super.initPlugin(session, config);
+
+		theDisplayPref = new Preference<Float>("Performance Display", "Display Threshold",
+			Preference.Type.PROPORTION, Float.class, true);
+		theDisplayPref.setDescription("The percentage of the total interval below which tasks"
+			+ " will not be displayed in performance data");
+		theAccentPref = new Preference<Float>("Performance Display", "Accent Threshold",
+			Preference.Type.PROPORTION, Float.class, true);
+		theAccentPref.setDescription("The percentage of the total interval above which tasks"
+			+ " will be displayed in red");
+		theTimeZonePref = new Preference<TimeZoneType>("Performance Display", "Local Time",
+			Preference.Type.ENUM, TimeZoneType.class, true);
+		theTimeZonePref
+			.setDescription("Sets whether performance data will be displayed in local time"
+				+ " or GMT");
+
+		Float disp = session.getPreferences().get(theDisplayPref);
+		if(disp != null)
+			theDisplayThresh = disp.floatValue();
+		else
+		{
+			theDisplayThresh = .005f;
+			session.getPreferences().set(theDisplayPref, Float.valueOf(theDisplayThresh));
+		}
+		Float accent = session.getPreferences().get(theAccentPref);
+		if(accent != null)
+			theAccentThresh = accent.floatValue();
+		else
+		{
+			theAccentThresh = .08f;
+			session.getPreferences().set(theAccentPref, Float.valueOf(theAccentThresh));
+		}
+		theTimeZone = session.getPreferences().get(theTimeZonePref);
+		if(theTimeZone == null)
+		{
+			theTimeZone = TimeZoneType.GMT;
+			session.getPreferences().set(theTimeZonePref, theTimeZone);
+		}
+
+		session.addEventListener("preferencesChanged", new prisms.arch.event.PrismsEventListener()
+		{
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+			{
+				if(!(evt instanceof prisms.util.preferences.PreferenceEvent))
+					return;
+				prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
+				if(pEvt.getPreference().equals(theDisplayPref))
+				{
+					theDisplayThresh = ((Float) pEvt.getValue()).floatValue();
+					setPerformanceData(theCurrentValue);
+				}
+				else if(pEvt.getPreference().equals(theAccentPref))
+				{
+					theAccentThresh = ((Float) pEvt.getValue()).floatValue();
+					setPerformanceData(theCurrentValue);
+				}
+				else if(pEvt.getPreference().equals(theTimeZonePref))
+				{
+					theTimeZone = (TimeZoneType) pEvt.getValue();
+					setPerformanceData(theCurrentValue);
+				}
+			}
+
+			@Override
+			public String toString()
+			{
+				return "Manager Performance Display Preference Applier";
+			}
+		});
+
 		session.addEventListener("showPerformanceData", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(PrismsSession session2, PrismsEvent evt)
@@ -42,20 +128,14 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 		{
 			public void actionPerformed(java.awt.event.ActionEvent evt)
 			{
-				PrismsEvent evt2 = new PrismsEvent("getPerformanceData");
-				evt2.setProperty("config", theSelection);
-				theSnapshotTime = System.currentTimeMillis();
-				getSession().fireEvent(evt2);
-				getSession().setProperty(manager.app.ManagerProperties.performanceData,
-					(prisms.util.ProgramTracker) evt2.getProperty("data"));
+				refreshInternal();
 			}
 		});
 		setRoot(root);
 		session.addPropertyChangeListener(manager.app.ManagerProperties.performanceData,
-			new prisms.arch.event.PrismsPCL<prisms.util.ProgramTracker>()
+			new prisms.arch.event.PrismsPCL<ProgramTracker>()
 			{
-				public void propertyChange(
-					prisms.arch.event.PrismsPCE<prisms.util.ProgramTracker> evt)
+				public void propertyChange(prisms.arch.event.PrismsPCE<ProgramTracker> evt)
 				{
 					setPerformanceData(evt.getNewValue());
 				}
@@ -94,14 +174,25 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 				getSession().fireEvent(evt2);
 				theSnapshotTime = System.currentTimeMillis();
 				getSession().setProperty(manager.app.ManagerProperties.performanceData,
-					(prisms.util.ProgramTracker) evt2.getProperty("data"));
+					(ProgramTracker) evt2.getProperty("data"));
 			}
 		};
 		getSession().getUI().select("Choose a time interval", options, 0, sl);
 	}
 
-	void setPerformanceData(prisms.util.ProgramTracker tracker)
+	void refreshInternal()
 	{
+		PrismsEvent evt = new PrismsEvent("getPerformanceData");
+		evt.setProperty("config", theSelection);
+		theSnapshotTime = System.currentTimeMillis();
+		getSession().fireEvent(evt);
+		getSession().setProperty(manager.app.ManagerProperties.performanceData,
+			(ProgramTracker) evt.getProperty("data"));
+	}
+
+	void setPerformanceData(ProgramTracker tracker)
+	{
+		theCurrentValue = tracker;
 		final CategoryNode root = (CategoryNode) getRoot();
 		theTotalTime = 0;
 		if(tracker == null)
@@ -116,9 +207,14 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 			long actualLength = 0;
 			if(tracker.getData().length > 0)
 				actualLength = theSnapshotTime - tracker.getData()[0].getFirstStart();
-			root.setText(tracker.getName() + "--Actual Interval: "
-				+ prisms.util.PrismsUtils.printTimeLength(actualLength) + " Snapshot from "
-				+ prisms.util.PrismsUtils.TimePrecision.SECONDS.print(theSnapshotTime, false));
+			final long displayThresh = Math.round(theDisplayThresh * actualLength);
+			StringBuilder text = new StringBuilder();
+			text.append(tracker.getName()).append("--Actual Interval: ");
+			prisms.util.PrismsUtils.printTimeLength(actualLength, text, true);
+			text.append(" Snapshot from ").append(
+				prisms.util.PrismsUtils.TimePrecision.SECONDS.print(theSnapshotTime,
+					theTimeZone == TimeZoneType.LOCAL));
+			root.setText(text.toString());
 			root.setChildren(ArrayUtils.adjust((TrackTreeNode []) root.getChildren(),
 				tracker.getData(), new ArrayUtils.DifferenceListener<TrackTreeNode, TrackNode>()
 				{
@@ -129,6 +225,8 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 
 					public TrackTreeNode added(TrackNode o, int mIdx, int retIdx)
 					{
+						if(o.getLength() < displayThresh)
+							return null;
 						return new TrackTreeNode(root, o);
 					}
 
@@ -140,6 +238,8 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 					public TrackTreeNode set(TrackTreeNode o1, int idx1, int incMod, TrackNode o2,
 						int idx2, int retIdx)
 					{
+						if(o2.getLength() < displayThresh)
+							return null;
 						o1.setTrackNode(o2);
 						return o1;
 					}
@@ -167,15 +267,52 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 		void setTrackNode(TrackNode node)
 		{
 			theTrackNode = node;
+			final long displayThresh = Math.round(theDisplayThresh
+				* (theSnapshotTime - theCurrentValue.getData()[0].getFirstStart()));
 			long lastTime = 0;
 			if(getParent() instanceof TrackTreeNode)
 				lastTime = ((TrackTreeNode) getParent()).getTrackNode().getFirstStart();
-			setText(node.toString(0, lastTime, theTotalTime));
-			if(node.isAccented(8, theTotalTime))
+
+			StringBuilder text = new StringBuilder();
+			text.append(node.getName());
+			if(node.getCount() > 1)
+			{
+				text.append(" (x").append(node.getCount());
+				if(node.unfinished > 0)
+					text.append(", ").append(node.unfinished).append(" un");
+				text.append(')');
+			}
+			text.append(" @");
+			TrackNode.printTime(node.getFirstStart(), lastTime, text,
+				theTimeZone == TimeZoneType.LOCAL);
+			text.append(": ");
+			long localTime = node.getLocalLength(null);
+			prisms.util.PrismsUtils.printTimeLength(localTime, text, true);
+			if(localTime > 0)
+				text.append(" (")
+					.append(ProgramTracker.PERCENT_FORMAT.format(localTime * 100.0 / theTotalTime))
+					.append("%)");
+			setText(text.toString());
+
+			text.setLength(0);
+			long realLength = node.getRealLength();
+			prisms.util.PrismsUtils.printTimeLength(realLength, text, true);
+			text.append(" total");
+			if(node.getParent() != null && realLength > 0)
+				text.append(" (")
+					.append(ProgramTracker.PERCENT_FORMAT.format(realLength * 100.0 / theTotalTime))
+					.append("%)");
+			text.append("\n            ");
+			if(node.getLengthStats() != null && node.getLengthStats().isInteresting())
+				text.append(node.getLengthStats().toString(ProgramTracker.NANO_FORMAT));
+			setDescription(text.toString());
+
+			setIcon("manager/time");
+			if(node.isAccented(theAccentThresh * 100, theTotalTime))
 				setForeground(java.awt.Color.red);
 			else
 				setForeground(java.awt.Color.black);
-			setIcon("manager/time");
+
 			TrackTreeNode [] children;
 			if(getChildren() instanceof TrackTreeNode [])
 				children = (TrackTreeNode []) getChildren();
@@ -191,6 +328,8 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 
 					public TrackTreeNode added(TrackNode o, int mIdx, int retIdx)
 					{
+						if(o.getLength() < displayThresh)
+							return null;
 						return new TrackTreeNode(TrackTreeNode.this, o);
 					}
 
@@ -202,6 +341,8 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 					public TrackTreeNode set(TrackTreeNode o1, int idx1, int incMod, TrackNode o2,
 						int idx2, int retIdx)
 					{
+						if(o2.getLength() < displayThresh)
+							return null;
 						o1.setTrackNode(o2);
 						return o1;
 					}
