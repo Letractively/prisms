@@ -1882,7 +1882,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		PrismsConfig configXML = getPrismsConfig();
 		if(configXML.subConfig("load-immediately") != null)
-			configurePRISMS();
+			configurePRISMS(null);
 	}
 
 	/**
@@ -2015,17 +2015,19 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	/**
 	 * Configures this server
 	 * 
+	 * @param req The request that is requesting the initialization of this PRISMS server. May be
+	 *        null if no request is unavailable. Additional configuration may be required in this
+	 *        case.
 	 * @return null if successful, or an error message if something goes wrong
 	 * @throws IllegalStateException If an error occurs
 	 */
-	protected synchronized String configurePRISMS()
+	protected synchronized String configurePRISMS(HttpServletRequest req)
 	{
 		if(theConfigProgress.theStage == ConfigStage.CONFIGURED)
 			return null;
 		log.info("Configuring PRISMS...");
 		PrismsConfig pConfig = getPrismsConfig();
-		if(Boolean.FALSE.equals(pConfig.is("checkForRunaways")))
-			isCheckingForRunaways = false;
+		isCheckingForRunaways = pConfig.is("checkForRunaways", true);
 		String configXmlRef = getClass().getResource("PRISMSConfig.xml").toString();
 
 		if(theConfigProgress.theStage.compareTo(ConfigStage.NEW) <= 0)
@@ -2191,10 +2193,43 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			String localPath = pConfig.get("local-path");
 			if(localPort != null && localScheme != null && localPath != null)
 			{
-				ids.setLocalConnectInfo(localScheme, Integer.parseInt(localPort), localPath);
-				ids.setSecureInfo(pConfig.get("local-trust-store"),
-					pConfig.get("local-trust-password"));
+				int port = Integer.parseInt(localPort);
+				String addr;
+				try
+				{
+					addr = java.net.InetAddress.getLocalHost().getHostAddress();
+				} catch(java.net.UnknownHostException e)
+				{
+					log.error("Could not get local host address", e);
+					addr = null;
+				}
+				if((port == 80 && localScheme.equalsIgnoreCase("http"))
+					|| (port == 443 && localScheme.equalsIgnoreCase("https")))
+					port = -1;
+				if(localPath.startsWith("/"))
+					localPath = localPath.substring(1);
+				ids.setLocalConnectInfo(localScheme + "://" + addr + (port > 0 ? ":" + port : "")
+					+ "/" + localPath);
 			}
+			else if(req != null)
+			{
+				localScheme = req.getScheme();
+				int port = req.getLocalPort();
+				if((port == 80 && localScheme.equalsIgnoreCase("http"))
+					|| (port == 443 && localScheme.equalsIgnoreCase("https")))
+					port = -1;
+				String addr = req.getLocalName();
+				localPath = req.getContextPath();
+				localPath = req.getRequestURI().substring(req.getRequestURI().indexOf(localPath));
+				if(localPath.endsWith("/"))
+					localPath = localPath.substring(0, localPath.length() - 1);
+				ids.setLocalConnectInfo(localScheme + "://" + addr + (port > 0 ? ":" + port : "")
+					+ localPath);
+			}
+			else
+				log.warn("local-scheme, local-port, and local-path elements must be present in"
+					+ " config unless PRISMS is configured on demand. Enterprise and self"
+					+ " connections will not be available");
 			try
 			{
 				ids.setConfigured();
@@ -2223,15 +2258,19 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			PrismsConfig tracking = pConfig.subConfig("tracking");
 			if(tracking != null)
 				theEnv.setTrackConfigs(prisms.util.TrackerSet.parseTrackConfigs(tracking));
-			if(tracking.get("overall-display-threshold") != null)
-				theEnv.getDefaultPrintConfig().setOverallDisplayThreshold(
-					tracking.getTime("overall-display-threshold"));
-			if(tracking.get("task-display-threshold") != null)
-				theEnv.getDefaultPrintConfig().setTaskDisplayThreshold(
-					tracking.getTime("task-display-threshold"));
-			if(tracking.get("accent-threshold") != null)
-				theEnv.getDefaultPrintConfig().setAccentThreshold(
-					tracking.getTime("accent-threshold"));
+			PrismsConfig displayThresh = tracking.subConfig("display-thresholds");
+			if(displayThresh != null)
+			{
+				prisms.arch.PrismsEnv.GlobalPrintConfig gpc = theEnv.getDefaultPrintConfig();
+				gpc.setPrintThreshold(displayThresh.getTime("print", gpc.getPrintThreshold()));
+				gpc.setDebugThreshold(displayThresh.getTime("debug", gpc.getDebugThreshold()));
+				gpc.setInfoThreshold(displayThresh.getTime("info", gpc.getInfoThreshold()));
+				gpc.setWarningThreshold(displayThresh.getTime("warn", gpc.getWarningThreshold()));
+				gpc.setErrorThreshold(displayThresh.getTime("error", gpc.getErrorThreshold()));
+				gpc.setTaskDisplayThreshold(displayThresh.getTime("task",
+					gpc.getTaskDisplayThreshold()));
+				gpc.setAccentThreshold(displayThresh.getFloat("accent", gpc.getAccentThreshold()));
+			}
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
@@ -2285,6 +2324,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					}
 					theEnv.addGlobalManager(globalName, mgr, listEl);
 				}
+				for(PrismsConfig listEl : listSetEl.subConfigs("event"))
+					theEnv.addGlobalEventListener(globalName, listEl);
+				for(PrismsConfig listEl : listSetEl.subConfigs("monitor"))
+					theEnv.addGlobalMonitorListener(globalName, listEl);
 			}
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
@@ -2569,9 +2612,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					continue;
 				}
 				descrip = clientEl.get("description");
-				boolean service = !Boolean.FALSE.equals(clientEl.is("service"));
-				boolean commonSession = Boolean.TRUE.equals(clientEl.is("common-session"));
-				boolean anonymous = !Boolean.FALSE.equals(clientEl.is("allowAnonymous"));
+				boolean service = clientEl.is("service", false);
+				boolean commonSession = clientEl.is("common-session", false);
+				boolean anonymous = clientEl.is("allowAnonymous", false);
 				client = new ClientConfig(app, clientName, descrip, service, commonSession,
 					anonymous, ac.addClient(clientName, clientEl));
 				app.addClientConfig(client);
@@ -2729,11 +2772,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(userEl.get("admin") != null)
 			{
 				changed = true;
-				user.setAdmin(userEl.is("admin").booleanValue());
+				user.setAdmin(userEl.is("admin", false));
 			}
-			Boolean readOnly = null;
-			if(userEl.get("readonly") != null)
-				readOnly = userEl.is("readonly");
 			String password = userEl.get("password");
 			if(password != null && us.getPassword(user, us.getHashing()) == null)
 			{
@@ -2792,10 +2832,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						+ groupName);
 				}
 			}
-			if(readOnly != null)
+			if(userEl.get("readonly") != null)
 			{
 				changed = true;
-				user.setReadOnly(readOnly.booleanValue());
+				user.setReadOnly(userEl.is("readonly", false));
 			}
 			if(changed)
 				us.putUser(user, new prisms.records.RecordsTransaction(us.getSystemUser()));
@@ -2888,7 +2928,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			String error;
 			try
 			{
-				error = configurePRISMS();
+				error = configurePRISMS(req);
 			} catch(Throwable e)
 			{
 				log.error("PRISMS configuration failed", e);
@@ -3220,58 +3260,153 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		System.gc();
 	}
 
+	private long runawayCheckFreq;
+
+	private long lastRunawayCheck;
+
 	void checkRunaways()
 	{
+		if(runawayCheckFreq == 0)
+		{
+			runawayCheckFreq = theEnv.getDefaultPrintConfig().getErrorThreshold();
+			if(runawayCheckFreq < 0 || runawayCheckFreq > 365L * 20 * 60 * 60 * 1000)
+				runawayCheckFreq = 60000;
+		}
 		if(!isCheckingForRunaways)
 			return;
-		PrismsTransaction [] trans = theEnv.getActiveTransactions();
 		long now = System.currentTimeMillis();
-		for(PrismsTransaction t : trans)
+		if(now - lastRunawayCheck < runawayCheckFreq / 5)
+			return;
+		lastRunawayCheck = now;
+		reallyCheckRunaways(now);
+	}
+
+	static class RunawayCheck
+	{
+		String transID;
+
+		long lastLogged;
+	}
+
+	private prisms.util.ResourcePool<RunawayCheck> theCheckPool;
+
+	RunawayCheck [] theChecks;
+
+	private synchronized void reallyCheckRunaways(long now)
+	{
+		if(theCheckPool == null)
 		{
-			if(now - t.lastLogged < 30000)
+			theCheckPool = new prisms.util.ResourcePool<RunawayCheck>(
+				new prisms.util.ResourcePool.ResourceCreator<RunawayCheck>()
+				{
+
+					public RunawayCheck createResource()
+						throws prisms.util.ResourcePool.ResourceCreationException
+					{
+						return new RunawayCheck();
+					}
+
+					public void destroyResource(RunawayCheck resource)
+					{
+					}
+				}, 50);
+		}
+		if(lastRunawayCheck > now)
+			return;
+		PrismsTransaction [] trans = theEnv.getActiveTransactions();
+		if(theChecks == null)
+			theChecks = new RunawayCheck [0];
+		final ArrayUtils.ArrayAdjuster<RunawayCheck, PrismsTransaction, RuntimeException> [] adjuster;
+		adjuster = new ArrayUtils.ArrayAdjuster [1];
+		adjuster[0] = new ArrayUtils.ArrayAdjuster<RunawayCheck, PrismsTransaction, RuntimeException>(
+			theChecks, trans, new ArrayUtils.DifferenceListener<RunawayCheck, PrismsTransaction>()
+			{
+				public boolean identity(RunawayCheck o1, PrismsTransaction o2)
+				{
+					return o1.transID.equals(o2.getID());
+				}
+
+				public RunawayCheck added(PrismsTransaction o, int mIdx, int retIdx)
+				{
+					adjuster[0].nullElement();
+					return null;
+				}
+
+				public RunawayCheck removed(RunawayCheck o, int oIdx, int incMod, int retIdx)
+				{
+					theChecks = ArrayUtils.remove(theChecks, incMod);
+					return null;
+				}
+
+				public RunawayCheck set(RunawayCheck o1, int idx1, int incMod,
+					PrismsTransaction o2, int idx2, int retIdx)
+				{
+					return o1;
+				}
+			});
+		RunawayCheck [] checks = adjuster[0].adjust();
+		for(int t = 0; t < trans.length; t++)
+		{
+			long freq = theEnv.getDefaultPrintConfig().getErrorThreshold();
+			if(freq < 0 || freq > 365L * 20 * 60 * 60 * 1000)
+				freq = 60000;
+			if(runawayCheckFreq != freq)
+				runawayCheckFreq = freq;
+			if(checks[t] != null && now - checks[t].lastLogged < freq)
 				continue;
-			prisms.util.ProgramTracker.TrackNode ct = t.getTracker().getCurrentTask();
+			prisms.util.ProgramTracker.TrackNode ct = trans[t].getTracker().getCurrentTask();
 			if(ct == null)
 				return;
-			if(now - ct.getLatestStart() < 30000)
+			if(now - ct.getLatestStart() < freq)
 				continue;
 			prisms.util.ProgramTracker.TrackNode root = ct;
 			while(root.getParent() != null)
 				root = root.getParent();
-			synchronized(t)
+
+			if(trans[t].isFinished())
+				continue;
+			if(checks[t] == null)
 			{
-				if(now - t.lastLogged < 30000)
-					continue;
-				StringBuilder msg = new StringBuilder();
-				msg.append("Possible runaway transaction ID#");
-				msg.append(t.getID());
-				msg.append(':');
-				msg.append("\n\tTime (transaction, method): ");
-				PrismsUtils.printTimeLength(now - root.getFirstStart(), msg, false);
-				msg.append(", ");
-				PrismsUtils.printTimeLength(now - ct.getLatestStart(), msg, false);
-				msg.append("\n\tSession: ");
-				msg.append(t.getSession() == null ? "none" : t.getSession().toString());
-				msg.append("\n\tThread: ");
-				msg.append(t.getThread().getName());
-				msg.append("\n\tStage: ");
-				msg.append(t.getStage());
-				msg.append("\n\tCurrent Stack Trace:");
-				StackTraceElement [] trace = t.getThread().getStackTrace();
-				for(int i = 0; i < trace.length; i++)
+				try
 				{
-					msg.append("\n\t\tat ");
-					msg.append(trace[i]);
-				}
-				msg.append("\n\tTracking Data: ");
-				prisms.util.ProgramTracker.PrintConfig config = new prisms.util.ProgramTracker.PrintConfig();
-				config.setAccentThreshold(8);
-				config.setAsync(true);
-				config.setTaskDisplayThreshold(100);
-				t.getTracker().printData(msg, config);
-				log.warn(msg.toString());
-				t.lastLogged = now;
+					checks[t] = theCheckPool.getResource(false);
+				} catch(prisms.util.ResourcePool.ResourceCreationException e)
+				{}
+				if(checks[t] == null)
+					return;
+				checks[t].transID = trans[t].getID();
 			}
+			else if(now - checks[t].lastLogged < freq)
+				continue;
+			StringBuilder msg = new StringBuilder();
+			msg.append("Possible runaway transaction ID#");
+			msg.append(trans[t].getID());
+			msg.append(':');
+			msg.append("\n\tTime (transaction, method): ");
+			PrismsUtils.printTimeLength(now - root.getFirstStart(), msg, false);
+			msg.append(", ");
+			PrismsUtils.printTimeLength(now - ct.getLatestStart(), msg, false);
+			msg.append("\n\tSession: ");
+			msg.append(trans[t].getSession() == null ? "none" : trans[t].getSession().toString());
+			msg.append("\n\tThread: ");
+			msg.append(trans[t].getThread().getName());
+			msg.append("\n\tStage: ");
+			msg.append(trans[t].getStage());
+			msg.append("\n\tCurrent Stack Trace:");
+			StackTraceElement [] trace = trans[t].getThread().getStackTrace();
+			for(int i = 0; i < trace.length; i++)
+			{
+				msg.append("\n\t\tat ");
+				msg.append(trace[i]);
+			}
+			msg.append("\n\tTracking Data: ");
+			prisms.util.ProgramTracker.PrintConfig config = new prisms.util.ProgramTracker.PrintConfig();
+			config.setAccentThreshold(8);
+			config.setAsync(true);
+			config.setTaskDisplayThreshold(100);
+			trans[t].getTracker().printData(msg, config);
+			log.error(msg.toString());
+			checks[t].lastLogged = now;
 		}
 	}
 

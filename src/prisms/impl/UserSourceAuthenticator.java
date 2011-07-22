@@ -724,7 +724,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		}
 		else
 			theEncryptionClass = BlowfishEncryption.class;
-		loginOnce = Boolean.TRUE.equals(config.is("loginOnce"));
+		loginOnce = config.is("loginOnce", false);
 
 		String ucp = config.get("recheck-time");
 		if(ucp != null)
@@ -733,7 +733,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		String opt = config.get("password-tolerance-time");
 		if(opt != null)
 			theOldPasswordTolerance = Long.parseLong(opt);
-		revealLoginMistakes = Boolean.TRUE.equals(config.is("reveal-login-mistakes"));
+		revealLoginMistakes = config.is("reveal-login-mistakes", false);
 		if(!revealLoginMistakes)
 		{
 			int id = LOGIN_FAIL_MESSAGE.hashCode();

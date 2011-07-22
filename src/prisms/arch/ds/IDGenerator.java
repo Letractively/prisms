@@ -155,19 +155,7 @@ public class IDGenerator
 
 	private int theCenterID;
 
-	private String theLocalScheme;
-
-	private String theLocalAddress;
-
-	private int theLocalPort;
-
-	private String theLocalPath;
-
 	private String theLocalLocation;
-
-	private String theLocalTrustStore;
-
-	private String theLocalTrustPwd;
 
 	private boolean isConfigured;
 
@@ -232,61 +220,22 @@ public class IDGenerator
 				closePreparedCalls();
 			}
 		});
-		isShared = Boolean.TRUE.equals(connEl.is("shared"));
+		isShared = connEl.is("shared", false);
 		theCenterID = -1;
 		createPreparedCalls();
 	}
 
 	/**
-	 * Sets information that other enterprise instances can use to connect to this instance
+	 * Sets the location at which other enterprise instances can connect to this instance
 	 * 
-	 * @param scheme The scheme to use connect to this instance externally (e.g. HTTP or HTTPS)
-	 * @param port The local port that other instances on the enterprise can use to connect to this
-	 *        instance
-	 * @param path The serlvet path to this instance
+	 * @param location The URL location to connect to this instance with
 	 */
-	public void setLocalConnectInfo(String scheme, int port, String path)
+	public void setLocalConnectInfo(String location)
 	{
 		if(isConfigured)
 			throw new IllegalStateException("Local connection information cannot be set after the"
 				+ " ID generator has been configured");
-		theLocalScheme = scheme;
-		theLocalPort = port;
-		theLocalPath = path;
-		if(isShared && (theLocalScheme == null || theLocalPort <= 0 || theLocalPath == null))
-			log.error("\n\nNo local port configured for shared environment\n");
-		String addr;
-		try
-		{
-			addr = java.net.InetAddress.getLocalHost().getHostAddress();
-		} catch(java.net.UnknownHostException e)
-		{
-			log.error("Could not get local host address", e);
-			addr = null;
-		}
-		theLocalAddress = addr;
-		if(theLocalScheme != null && theLocalAddress != null && theLocalPort > 0
-			&& theLocalPath != null)
-			theLocalLocation = theLocalScheme + "://" + theLocalAddress + ":" + theLocalPort + "/"
-				+ theLocalPath;
-		else
-			theLocalLocation = null;
-	}
-
-	/**
-	 * Sets security information, if applicable, to use with HTTPS connections
-	 * 
-	 * @param trustStore The file location of the trust store to use when making connections to
-	 *        other instances on the enterprise
-	 * @param password The password to use with the trust store
-	 */
-	public void setSecureInfo(String trustStore, String password)
-	{
-		if(isConfigured)
-			throw new IllegalStateException("Local connection security information cannot be set"
-				+ " after the ID generator has been configured");
-		theLocalTrustStore = trustStore;
-		theLocalTrustPwd = password;
+		theLocalLocation = location;
 	}
 
 	/**
@@ -296,24 +245,12 @@ public class IDGenerator
 	 */
 	public void setConfigured() throws PrismsException
 	{
+		if(isConfigured)
+			throw new IllegalStateException("Local connection information cannot be set after the"
+				+ " ID generator has been configured");
 		isConfigured = true;
 		theInitTime = System.currentTimeMillis();
 		doStartup();
-	}
-
-	/**
-	 * @return The file location of the trust store to use when making connections to other
-	 *         instances on the enterprise
-	 */
-	public String getTrustStore()
-	{
-		return theLocalTrustStore;
-	}
-
-	/** @return The password to use with the trust store */
-	public String getTrustPassword()
-	{
-		return theLocalTrustPwd;
 	}
 
 	/** @return The ID of this PRISMS installation */
@@ -352,7 +289,7 @@ public class IDGenerator
 			unlock("prisms_installation", null);
 		}
 
-		if(theLocalAddress != null && isShared)
+		if(theLocalLocation != null && isShared)
 		{
 			String date = DBUtils.formatDate(theInitTime, isOracle());
 			String loc = DBUtils.toSQL(theLocalLocation);
@@ -615,7 +552,7 @@ public class IDGenerator
 	 */
 	public PrismsInstance getLocalInstance()
 	{
-		if(theLocalAddress == null)
+		if(theLocalLocation == null)
 			return null;
 		return new PrismsInstance(theLocalLocation, true, theInitTime, System.currentTimeMillis());
 	}

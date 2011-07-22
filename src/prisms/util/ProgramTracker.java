@@ -74,8 +74,6 @@ public class ProgramTracker implements Cloneable
 
 		private boolean isAsync;
 
-		private long theOverallDisplayThreshold;
-
 		private long theTaskDisplayThreshold;
 
 		private int theIndent;
@@ -85,27 +83,8 @@ public class ProgramTracker implements Cloneable
 		{
 			theAccentThreshold = 0;
 			isAsync = false;
-			theOverallDisplayThreshold = 0;
 			theTaskDisplayThreshold = 0;
 			theIndent = DEFAULT_INDENT_INCREMENT;
-		}
-
-		/**
-		 * @return The threshold below which no tracking data will be printed. This parameter is for
-		 *         external use only
-		 */
-		public long getOverallDisplayThreshold()
-		{
-			return theOverallDisplayThreshold;
-		}
-
-		/**
-		 * @param thresh The threshold below which no tracking data will be printed. This parameter
-		 *        is for external use only
-		 */
-		public void setOverallDisplayThreshold(long thresh)
-		{
-			theOverallDisplayThreshold = thresh;
 		}
 
 		/** @return The threshold below which tasks will be omitted from the results */

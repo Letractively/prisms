@@ -27,11 +27,13 @@
 
 	<!-- Which serializer type to use by default -->
 	<serializer>prisms.arch.JsonSerializer</serializer>
+	<worker type="threadpool" />
 
-	<!-- Instructs instances on the enterprise how to contact this instance -->
+	<!-- Instructs instances on the enterprise how to contact this instance.
+	  -- This information is only required if load-immediately (at top) is true. -->
+	<!--<local-scheme>http</local-scheme>
 	<local-port>8080</local-port>
-	<local-scheme>http</local-scheme>
-	<local-path>prisms/prisms</local-path>
+	<local-path>prisms/prisms</local-path>-->
 
 	<!-- Sets up the connection factory with all potential database connections we may need -->
 	<connection-factory>
@@ -55,10 +57,18 @@
 	<!-- Default users to load on initial install -->
 	<default-users>DefaultUsers.xml</default-users>
 
+	<!-- Controls how aggressivley program flow is compiled and printed -->
 	<tracking>
-		<overall-display-threshold>1500</overall-display-threshold>
-		<task-display-threshold>100</task-display-threshold>
-		<accent-threshold>8</accent-threshold>
+		<display-thresholds>
+			<print>1500</print>
+			<debug>5000</debug>
+			<info>15000</info>
+			<warn>30000</warn>
+			<error>120000</error>
+
+			<task>100</task>
+			<accent>8</accent>
+		</display-thresholds>
 		<track stats="true">30 seconds</track>
 		<track stats="true">1 minute</track>
 		<track stats="true">5 minutes</track>
