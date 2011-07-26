@@ -149,11 +149,11 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	showError: function(message, event){
 		this.containerNode.style.backgroundColor="#FF4040";
 		if(event.title)
-			this.setTitle(event.title);
+			this.setTitle(PrismsUtils.fixUnicodeString(event.title));
 		else
 			this.setTitle("Error");
 		if(event.okLabel)
-			this.okButton.setLabel(event.okLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.okLabel));
 		else
 			this.okButton.setLabel("OK");
 		this.labelNode.innerHTML=message;
@@ -163,12 +163,12 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 
 	showWarning: function(message, event){
 		this.containerNode.style.backgroundColor="#FFFF40";
-			if(event.title)
-			this.setTitle(event.title);
+		if(event.title)
+			this.setTitle(PrismsUtils.fixUnicodeString(event.title));
 		else
 			this.setTitle("Warning");
 		if(event.okLabel)
-			this.okButton.setLabel(event.okLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.okLabel));
 		else
 			this.okButton.setLabel("OK");
 		this.labelNode.innerHTML=message;
@@ -179,11 +179,11 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	showInfo: function(message, event){
 		this.containerNode.style.backgroundColor="#B0B0FF";
 		if(event.title)
-			this.setTitle(event.title);
+			this.setTitle(PrismsUtils.fixUnicodeString(event.title));
 		else
 			this.setTitle("Information Message");
 		if(event.okLabel)
-			this.okButton.setLabel(event.okLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.okLabel));
 		else
 			this.okButton.setLabel("OK");
 		this.labelNode.innerHTML=message;
@@ -194,15 +194,15 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	showConfirm: function(message, messageID, event){
 		this.containerNode.style.backgroundColor="#FFFFFF";
 		if(event.title)
-			this.setTitle(event.title);
+			this.setTitle(PrismsUtils.fixUnicodeString(event.title));
 		else
 			this.setTitle("Confirmation Required");
 		if(event.okLabel)
-			this.okButton.setLabel(event.okLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.okLabel));
 		else
 			this.okButton.setLabel("OK");
 		if(event.cancelLabel)
-			this.cancelButton.setLabel(event.cancelLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.cancelLabel));
 		else
 			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
@@ -214,22 +214,22 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	showInput: function(message, init, messageID, event){
 		this.containerNode.style.backgroundColor="#FFFFFF";
 		if(event.title)
-			this.setTitle(event.title);
+			this.setTitle(PrismsUtils.fixUnicodeString(event.title));
 		else
 			this.setTitle("Input Required");
 		if(event.okLabel)
-			this.okButton.setLabel(event.okLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.okLabel));
 		else
 			this.okButton.setLabel("OK");
 		if(event.cancelLabel)
-			this.cancelButton.setLabel(event.cancelLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.cancelLabel));
 		else
 			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
 		this.cancelDiv.style.display="block";
 		this.inputDiv.style.display="block";
 		if(init)
-			this.inputText.setValue(init);
+			this.inputText.setValue(PrismsUtils.fixUnicodeString(init));
 		this.returnType="text";
 		this.show();
 	},
@@ -237,15 +237,15 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	showSelect: function(message, options, init, messageID, event){
 		this.containerNode.style.backgroundColor="#FFFFFF";
 		if(event.title)
-			this.setTitle(event.title);
+			this.setTitle(PrismsUtils.fixUnicodeString(event.title));
 		else
 			this.setTitle("Selection Required");
 		if(event.okLabel)
-			this.okButton.setLabel(event.okLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.okLabel));
 		else
 			this.okButton.setLabel("OK");
 		if(event.cancelLabel)
-			this.cancelButton.setLabel(event.cancelLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.cancelLabel));
 		else
 			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
@@ -256,8 +256,8 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 		for(var i=0;i<options.length;i++)
 		{
 			var y=document.createElement("option");
-			y.text=options[i];
-		    y.value=options[i];
+			y.text=PrismsUtils.fixUnicodeString(options[i]);
+		    y.value=PrismsUtils.fixUnicodeString(options[i]);
 			var x=this.selectBox;
 			try{
 				x.add(y,null); // standards compliant
@@ -285,7 +285,7 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 		else
 			this.setTitle("Processing--Please Wait");
 		if(event.cancelLabel)
-			this.cancelButton.setLabel(event.cancelLabel);
+			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.cancelLabel));
 		else
 			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;
