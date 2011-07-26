@@ -713,13 +713,13 @@ public class PrismsSession
 			throw new IllegalArgumentException("Could not serialize event", e);
 		}
 		PrismsTransaction trans = theApp.getEnvironment().getTransaction();
-		if(trans != null && trans.isSynchronous())
+		if(trans != null && trans.getSession() == this && trans.isSynchronous())
 		{
 			trans.respond(evt);
 			return;
 		}
 		else if(theClient.isService())
-			return; // Events must be tied to an invocation if this session is for a web service
+			return; /* Events must be tied to a synchronous transaction if this session is for a web service */
 		theOutgoingQueue.add(evt);
 		if(theListener != null)
 			theListener.eventPosted(evt);
