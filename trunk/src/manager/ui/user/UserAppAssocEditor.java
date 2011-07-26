@@ -98,14 +98,7 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setEnabled");
-		evt.put(
-			"enabled",
-			Boolean.valueOf(theUser != null
-				&& theApp != null
-				&& !(theApp == theSession.getApp() && theUser.getName().equals(
-					theSession.getUser().getName()))
-				&& manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
-					theUser.getPermissions(theSession.getApp()))));
+		evt.put("enabled", Boolean.valueOf(isEnabled()));
 		theSession.postOutgoingEvent(evt);
 		evt = new JSONObject();
 		evt.put("plugin", theName);
@@ -114,6 +107,21 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		evt.put("app", theApp == null ? null : theApp.getName());
 		evt.put("accessible", Boolean.valueOf(isAccessible()));
 		theSession.postOutgoingEvent(evt);
+	}
+
+	private boolean isEnabled()
+	{
+		if(theUser == null || theApp == null)
+			return false;
+		if(theUser.isReadOnly())
+			return false;
+		if(theApp == theSession.getApp()
+			&& theUser.getName().equals(theSession.getUser().getName()))
+			return false;
+		if(!manager.app.ManagerUtils.canEdit(theSession.getPermissions(),
+			theUser.getPermissions(theSession.getApp())))
+			return false;
+		return true;
 	}
 
 	public void processEvent(JSONObject evt)
@@ -161,6 +169,8 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 				+ "'s access to application " + theApp.getName());
 		if(accessible == isAccessible())
 			return;
+		if(theUser.isReadOnly())
+			throw new IllegalStateException("User " + theUser + " is read-only");
 		if(theSession.getUser().getName().equals(theUser.getName())
 			&& theApp == theSession.getApp())
 			throw new IllegalArgumentException("A user cannot disallow his/her own access"
