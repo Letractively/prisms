@@ -63,7 +63,7 @@ public interface UI extends prisms.arch.AppPlugin
 			event.put("plugin", "UI");
 			event.put("messageID", id);
 			event.put("method", type.display);
-			event.put("message", message);
+			event.put("message", prisms.util.PrismsUtils.encodeUnicode(message));
 			for(int arg = 0; arg < options.length; arg += 2)
 			{
 				Object val = options[arg + 1];
@@ -78,22 +78,34 @@ public interface UI extends prisms.arch.AppPlugin
 			}
 		}
 
-		/** @param title The title that should be displayed for this event */
-		public void setTitle(String title)
+		/**
+		 * @param title The title that should be displayed for this event
+		 * @return This event object for more chained calls
+		 */
+		public EventObject setTitle(String title)
 		{
 			event.put("title", title);
+			return this;
 		}
 
-		/** @param label The label that should be displayed for the OK button for this event */
-		public void setOkLabel(String label)
+		/**
+		 * @param label The label that should be displayed for the OK button for this event
+		 * @return This event object for more chained calls
+		 */
+		public EventObject setOkLabel(String label)
 		{
 			event.put("okLabel", label);
+			return this;
 		}
 
-		/** @param label The label that should be displayed for the Cancel button for this event */
-		public void setCancelLabel(String label)
+		/**
+		 * @param label The label that should be displayed for the Cancel button for this event
+		 * @return This event object for more chained calls
+		 */
+		public EventObject setCancelLabel(String label)
 		{
 			event.put("cancelLabel", label);
+			return this;
 		}
 
 		/**
@@ -104,12 +116,14 @@ public interface UI extends prisms.arch.AppPlugin
 		 * @param okLabel The label that should be displayed for the OK button for this event
 		 * @param cancelLabel The label that should be displayed for the Cancel button for this
 		 *        event
+		 * @return This event object for more chained calls
 		 */
-		public void setAll(String title, String okLabel, String cancelLabel)
+		public EventObject setAll(String title, String okLabel, String cancelLabel)
 		{
 			event.put("title", title);
 			event.put("okLabel", okLabel);
 			event.put("cancelLabel", cancelLabel);
+			return this;
 		}
 
 		public int compareTo(EventObject o)
@@ -412,14 +426,16 @@ public interface UI extends prisms.arch.AppPlugin
 					if(value != null && !(value instanceof String))
 						throw new IllegalArgumentException(
 							"Input dialog requires string return value");
-					((InputListener) listener).inputed((String) value);
+					((InputListener) listener).inputed(prisms.util.PrismsUtils
+						.decodeUnicode((String) value));
 				}
 				else if(listener instanceof SelectListener)
 				{
 					if(value != null && !(value instanceof String))
 						throw new IllegalArgumentException(
 							"Select dialog requires string return value");
-					((SelectListener) listener).selected((String) value);
+					((SelectListener) listener).selected(prisms.util.PrismsUtils
+						.decodeUnicode((String) value));
 				}
 				else if(listener instanceof ProgressInformer)
 					throw new IllegalArgumentException(
@@ -507,12 +523,17 @@ public interface UI extends prisms.arch.AppPlugin
 
 		public EventObject input(String message, String def, InputListener L)
 		{
+			if(def != null)
+				def = prisms.util.PrismsUtils.encodeUnicode(def);
 			return addEvent(new EventObject(EventType.INPUT, message, L, "init", def));
 		}
 
 		public EventObject select(String message, String [] options, int init, SelectListener L)
 		{
-			return addEvent(new EventObject(EventType.SELECT, message, L, "options", options,
+			String [] copy = new String [options.length];
+			for(int i = 0; i < options.length; i++)
+				copy[i] = prisms.util.PrismsUtils.encodeUnicode(options[i]);
+			return addEvent(new EventObject(EventType.SELECT, message, L, "options", copy,
 				"initSelection", Integer.valueOf(init > 0 ? init : -1)));
 		}
 
