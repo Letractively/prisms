@@ -47,6 +47,13 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			appNodes[a] = new AppNode(root, apps[a]);
 		root.setChildren(appNodes);
 		setRoot(root);
+		session.addEventListener("destroy", new PrismsEventListener()
+		{
+			public void eventOccurred(PrismsSession session2, PrismsEvent evt)
+			{
+				((AppSessionRoot) getRoot()).destroy();
+			}
+		});
 		theGroupingLimit = 20;
 	}
 
@@ -199,6 +206,12 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			for(ServiceTreeNode child : getChildren())
 				((AppNode) child).check();
 		}
+
+		void destroy()
+		{
+			for(ServiceTreeNode child : getChildren())
+				((AppNode) child).destroy();
+		}
 	}
 
 	class AppNode extends ServiceTreeNode
@@ -332,6 +345,17 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				return;
 			for(ServiceTreeNode child : getChildren())
 				((ClientNode) child).check();
+		}
+
+		void destroy()
+		{
+			if(theWatcher != null)
+				theApp.stopWatching(theWatcher);
+			for(ServiceTreeNode cn : getChildren())
+			{
+				((ClientNode) cn).destroy();
+				cn.setChildren(new ServiceTreeNode [0]);
+			}
 		}
 	}
 

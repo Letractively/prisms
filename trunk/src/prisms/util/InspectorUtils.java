@@ -24,6 +24,8 @@ public class InspectorUtils
 
 		prisms.arch.event.PrismsEventListener[] els;
 
+		Runnable autoUpdater;
+
 		Listener(prisms.arch.PrismsSession s, ChangeListener list)
 		{
 			session = s;
@@ -31,11 +33,13 @@ public class InspectorUtils
 		}
 	}
 
-	private final prisms.arch.event.PrismsProperty<?> theProperty;
+	final prisms.arch.event.PrismsProperty<?> theProperty;
 
 	private ChangeEvent [] theChangeEvents;
 
 	private final java.util.ArrayList<Listener> theListeners;
+
+	private long theUpdateInterval;
 
 	/**
 	 * Creates an inspector utility
@@ -56,6 +60,16 @@ public class InspectorUtils
 		for(prisms.arch.PrismsConfig evtConfig : inspectorConfig.subConfigs("changeEvent"))
 			evts.add(prisms.arch.event.GlobalPropertyManager.parseChangeEvent(evtConfig));
 		theChangeEvents = evts.toArray(new ChangeEvent [evts.size()]);
+	}
+
+	/**
+	 * @param interval The interval over which this inspector should refresh the content of its
+	 *        property. The refresh task is run as a scheduled task within the application being
+	 *        inspected.
+	 */
+	public void setUpdateInterval(long interval)
+	{
+		theUpdateInterval = interval;
 	}
 
 	/**
@@ -93,6 +107,17 @@ public class InspectorUtils
 			};
 			session.addEventListener(cEvt.getEventName(), ret.els[e]);
 		}
+		if(theUpdateInterval > 0)
+		{
+			ret.autoUpdater = new Runnable()
+			{
+				public void run()
+				{
+					cl.propertyChanged(session.getProperty(theProperty));
+				}
+			};
+			session.getApp().scheduleRecurringTask(ret.autoUpdater, theUpdateInterval);
+		}
 		synchronized(theListeners)
 		{
 			theListeners.add(ret);
@@ -122,6 +147,8 @@ public class InspectorUtils
 		list.session.removePropertyChangeListener(theProperty, list.pcl);
 		for(int e = 0; e < list.els.length; e++)
 			list.session.removeEventListener(theChangeEvents[e].getEventName(), list.els[e]);
+		if(list.autoUpdater != null)
+			list.session.getApp().stopRecurringTask(list.autoUpdater);
 	}
 
 	void changeEvent(ChangeEvent cEvt, prisms.arch.PrismsSession session,
