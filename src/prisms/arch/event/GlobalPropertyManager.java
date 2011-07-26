@@ -64,53 +64,80 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	 */
 	public static final String CAUSE_APP = "causeApp";
 
-	private static class EventProperty
+	/** Represents a type of event that can affect the value of a global property */
+	public static class ChangeEvent
 	{
-		final String eventProp;
+		private final String theEventName;
 
-		final Class<?> propType;
+		private final String theEventProp;
 
-		final java.lang.reflect.AccessibleObject[] theReflectPath;
+		private final Class<?> thePropType;
 
-		EventProperty(String prop)
+		private final prisms.util.ReflectionPath<?> theReflectPath;
+
+		private final boolean isRecursive;
+
+		ChangeEvent(String eventName, String eventProp, boolean recursive)
 		{
-			this(prop, null, null);
+			this(eventName, eventProp, null, null, recursive);
 		}
 
-		EventProperty(String prop, Class<?> type, java.lang.reflect.AccessibleObject[] reflectPath)
+		ChangeEvent(String eventName, String eventProp, Class<?> type,
+			prisms.util.ReflectionPath<?> reflectPath, boolean recursive)
 		{
-			eventProp = prop;
-			propType = type;
+			theEventName = eventName;
+			theEventProp = eventProp;
+			thePropType = type;
 			theReflectPath = reflectPath;
+			isRecursive = recursive;
 		}
 
-		static EventProperty compile(String propName, Class<?> type, String [] reflectPath)
-			throws SecurityException, NoSuchMethodException, NoSuchFieldException
+		/** @return The name of this event */
+		public String getEventName()
 		{
-			Class<?> type_i = type;
-			java.lang.reflect.AccessibleObject[] realPath = new java.lang.reflect.AccessibleObject [reflectPath.length];
-			for(int i = 0; i < reflectPath.length; i++)
-			{
-				if(reflectPath[i].endsWith("()"))
-				{
-					String methodName = reflectPath[i].substring(0, reflectPath[i].length() - 2)
-						.trim();
-					java.lang.reflect.Method method = type_i.getMethod(methodName);
-					realPath[i] = method;
-					type_i = method.getReturnType();
-				}
-				else
-				{
-					java.lang.reflect.Field field = type_i.getField(reflectPath[i]);
-					realPath[i] = field;
-					type_i = field.getType();
-				}
-			}
-			return new EventProperty(propName, type, realPath);
+			return theEventName;
+		}
+
+		/** @return The name of the property within the event where the changed value is stored */
+		public String getEventProperty()
+		{
+			return theEventProp;
+		}
+
+		/** @return The type of the event property, if this is checked */
+		public Class<?> getPropertyType()
+		{
+			return thePropType;
+		}
+
+		/**
+		 * @return The reflection path to follow from the event property to a value of the manager's
+		 *         property's type
+		 */
+		public prisms.util.ReflectionPath<?> getReflectPath()
+		{
+			return theReflectPath;
+		}
+
+		/**
+		 * @return Whether events of this type represent a change to the event property's structure
+		 *         or just the event property itself
+		 */
+		public boolean isRecursive()
+		{
+			return isRecursive;
+		}
+
+		static ChangeEvent compile(String eventName, String eventProp, Class<?> propType,
+			String [] reflectPath, boolean recursive) throws SecurityException,
+			NoSuchMethodException, NoSuchFieldException
+		{
+			return new ChangeEvent(eventName, eventProp, propType,
+				prisms.util.ReflectionPath.compile(propType, reflectPath), recursive);
 		}
 	}
 
-	private java.util.HashMap<String, EventProperty> theEventProperties;
+	private java.util.LinkedHashMap<String, ChangeEvent> theEventProperties;
 
 	private String GLOBALIZED_PROPERTY;
 
@@ -122,7 +149,7 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	 */
 	public GlobalPropertyManager()
 	{
-		theEventProperties = new java.util.HashMap<String, EventProperty>();
+		theEventProperties = new java.util.LinkedHashMap<String, ChangeEvent>();
 		GLOBALIZED_PROPERTY = "PropertyGlobalizedEvent" + Integer.toHexString(hashCode());
 	}
 
@@ -164,58 +191,32 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	 */
 	protected void registerEventListener(prisms.arch.PrismsConfig eventConfig)
 	{
-		String eventName = eventConfig.get("name");
-		if(eventName == null)
-			throw new IllegalArgumentException("Cannot listen for change event on property "
-				+ getProperty() + ". No event name specified");
-
-		String propName = eventConfig.get("eventProperty");
-		if(propName != null)
+		ChangeEvent evt;
+		try
 		{
-			EventProperty ep;
-			String className = eventConfig.get("valueType");
-			String pathStr = eventConfig.get("path");
-			if(className != null)
-			{
-				try
-				{
-					Class<?> type = Class.forName(className);
-					if(pathStr == null)
-						ep = new EventProperty(propName, type, null);
-					else
-					{
-						String [] pathSplit;
-						if(pathStr.contains("."))
-							pathSplit = pathStr.split("\\.");
-						else
-							pathSplit = new String [] {pathStr};
-						for(int p = 0; p < pathSplit.length; p++)
-							pathSplit[p] = pathSplit[p].trim();
-						ep = EventProperty.compile(propName, type, pathSplit);
-					}
-				} catch(Throwable e)
-				{
-					log.error("Could not compile reflection path for event " + eventName
-						+ " on global property " + getProperty().getName(), e);
-					ep = null;
-				}
-			}
-			else if(pathStr != null)
-			{
-				log.error("In order to evaluate a reflection path on an event property,"
-					+ " the valueType element must also be specified");
-				ep = null;
-			}
-			else
-				ep = new EventProperty(propName);
-			if(ep != null)
-			{
-				if(theEventProperties.get(eventName) != null)
-					log.error("Multiple event handlers registered for event " + eventName
-						+ " on global property " + getProperty().getName() + ". Using last entry.");
-				theEventProperties.put(eventName, ep);
-			}
+			evt = parseChangeEvent(eventConfig);
+		} catch(IllegalArgumentException e)
+		{
+			IllegalArgumentException toThrow = new IllegalArgumentException(
+				"Could not parse change event \n" + eventConfig + "\nfor property " + getProperty()
+					+ ": " + e.getMessage(), e.getCause());
+			toThrow.setStackTrace(e.getStackTrace());
+			throw toThrow;
 		}
+
+		if(theEventProperties.get(evt.getEventName()) != null)
+			log.error("Multiple event handlers registered for event " + evt.getEventName()
+				+ " on global property " + getProperty().getName() + ". Using last entry.");
+		theEventProperties.put(evt.getEventName(), evt);
+	}
+
+	/**
+	 * @return All event types that this property manager responds to--typically those that may
+	 *         affect this property's value
+	 */
+	public ChangeEvent [] getChangeEvents()
+	{
+		return theEventProperties.values().toArray(new ChangeEvent [theEventProperties.size()]);
 	}
 
 	public final void eventOccurred(PrismsSession session, prisms.arch.event.PrismsEvent evt)
@@ -226,30 +227,23 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 			return;
 		evt.setProperty(GLOBALIZED_PROPERTY, Boolean.TRUE);
 
-		EventProperty prop = theEventProperties.get(evt.name);
+		ChangeEvent prop = theEventProperties.get(evt.name);
 		if(prop != null)
 		{
-			Object oProp = evt.getProperty(prop.eventProp);
-			if(prop.propType != null)
-				if(!prop.propType.isInstance(oProp))
+			Object oProp = evt.getProperty(prop.getEventProperty());
+			if(prop.getPropertyType() != null)
+				if(!prop.getPropertyType().isInstance(oProp))
 				{
-					log.error("Property " + prop.eventProp + " of event " + evt.name
+					log.error("Property " + prop.getPropertyType() + " of event " + evt.name
 						+ " on property " + getProperty().getName() + " is not an instance of "
-						+ prop.propType.getName());
+						+ prop.getPropertyType().getName());
 					prop = null;
 				}
-			if(prop != null && prop.theReflectPath != null)
+			if(prop != null && prop.getReflectPath() != null)
 				try
 				{
-					for(java.lang.reflect.AccessibleObject ao : prop.theReflectPath)
-					{
-						if(ao instanceof java.lang.reflect.Method)
-							oProp = ((java.lang.reflect.Method) ao).invoke(oProp);
-						else if(ao instanceof java.lang.reflect.Field)
-							oProp = ((java.lang.reflect.Field) ao).get(oProp);
-						else
-							throw new IllegalStateException();
-					}
+					oProp = ((prisms.util.ReflectionPath<Object>) prop.getReflectPath())
+						.follow(prop);
 				} catch(Exception e)
 				{
 					log.error("Could not evaluate reflection path for event " + evt.name
@@ -350,5 +344,67 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 	protected boolean applies(PrismsEvent evt)
 	{
 		return true;
+	}
+
+	/**
+	 * Parses a change event from a configuration
+	 * 
+	 * @param config The event configuration
+	 * @return The change event
+	 * @throws IllegalArgumentException If the configuration cannot be parsed
+	 */
+	public static ChangeEvent parseChangeEvent(prisms.arch.PrismsConfig config)
+		throws IllegalArgumentException
+	{
+		String eventName = config.get("name");
+		if(eventName == null)
+			throw new IllegalArgumentException("No event name specified.");
+
+		String propName = config.get("eventProperty");
+		if(propName == null)
+			throw new IllegalArgumentException("Event property not specified.");
+		ChangeEvent ep;
+		String className = config.get("valueType");
+		String pathStr = config.get("path");
+		if(className != null)
+		{
+			Class<?> type;
+			try
+			{
+				type = Class.forName(className);
+			} catch(ClassNotFoundException e)
+			{
+				throw new IllegalArgumentException("No such type: " + className);
+			}
+			if(pathStr == null)
+				ep = new ChangeEvent(eventName, propName, type, null, config.is("recursive", true));
+			else
+			{
+				String [] pathSplit;
+				if(pathStr.contains("."))
+					pathSplit = pathStr.split("\\.");
+				else
+					pathSplit = new String [] {pathStr};
+				for(int p = 0; p < pathSplit.length; p++)
+					pathSplit[p] = pathSplit[p].trim();
+				try
+				{
+					ep = ChangeEvent.compile(eventName, propName, type, pathSplit,
+						config.is("recursive", true));
+				} catch(Exception e)
+				{
+					throw new IllegalArgumentException("Could not compile path", e);
+				}
+			}
+		}
+		else if(pathStr != null)
+		{
+			throw new IllegalArgumentException(
+				"In order to evaluate a reflection path on an event property,"
+					+ " the valueType element must also be specified");
+		}
+		else
+			ep = new ChangeEvent(eventName, propName, config.is("recursive", true));
+		return ep;
 	}
 }

@@ -98,7 +98,7 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 			try
 			{
 				theInspector = inspectorConfig.getClass("class", DataInspector.class).newInstance();
-				theInspector.configure(theProperty, inspectorConfig);
+				theInspector.configure(theProperty, config, inspectorConfig);
 			} catch(Exception e)
 			{
 				log.error("Could not instantiate inspector for configuration " + inspectorConfig, e);

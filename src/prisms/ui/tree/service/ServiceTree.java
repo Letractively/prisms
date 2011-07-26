@@ -97,7 +97,7 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 			boolean doAdd = true;
 			if(evt.getType() == DataTreeEvent.Type.REFRESH)
 				theEventQueue.clear();
-			else if(evt.getType() == DataTreeEvent.Type.CHANGE && evt.isRecursive())
+			else if(evt.getType() == DataTreeEvent.Type.CHANGE)
 			{
 				java.util.Iterator<TreeEvent> iter = theEventQueue.iterator();
 				while(iter.hasNext())
@@ -105,7 +105,12 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 					DataTreeEvent itEvt = iter.next().event;
 					if(isAncestor(evt.getNode(), itEvt.getNode()))
 					{
-						if(evt.getNode() != itEvt.getNode() || evt.getType() == evt.getType())
+						if(evt.isRecursive()
+							&& (evt.getNode() != itEvt.getNode() || evt.getType() == itEvt
+								.getType()))
+							iter.remove();
+						else if(evt.getType() == itEvt.getType() && !itEvt.isRecursive()
+							&& evt.getNode() == itEvt.getNode())
 							iter.remove();
 					}
 				}

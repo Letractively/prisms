@@ -22,15 +22,10 @@ public interface DataInspector
 		/**
 		 * To be called if only a small part of a property's value has changed
 		 * 
-		 * @param path The path to the part of the property that changed. The first element should
-		 *        be the property itself or the element of the property array. The next element
-		 *        should be found in a call to {@link DataInspector#getChildren(NodeController)} for
-		 *        that value, and so on. If the path does not match an item in the display or if the
-		 *        path does not match the path of the item in the display, this method will have no
-		 *        effect.
+		 * @param item The item within the property's value that was changed
 		 * @param recursive Whether the target item's children have been affected by the change
 		 */
-		void valueChanged(Object [] path, boolean recursive);
+		void valueChanged(Object item, boolean recursive);
 	}
 
 	/** Represents a manager client's view of the data provided by this inspector */
@@ -50,8 +45,11 @@ public interface DataInspector
 		prisms.arch.PrismsApplication getApp();
 
 		/**
-		 * @return The session that is being inspected--will be null if the global
-		 *         (application)value is being inspected
+		 * @return The session that is being inspected--will be null if the global (application)
+		 *         value is being inspected. <b>Important:</b> If an inspector performs any actions
+		 *         that directly result in the session firing events, those actions MUST be wrapped
+		 *         with {@link prisms.arch.PrismsSession#runEventually(Runnable)}. Otherwise the
+		 *         events fired by the session will not make it to the appropriate client.
 		 */
 		prisms.arch.PrismsSession getSession();
 
@@ -79,9 +77,12 @@ public interface DataInspector
 	 * Configures the inspector
 	 * 
 	 * @param property The property that this inspector is for
-	 * @param config The inspector's configuration in the application configuration
+	 * @param pclConfig The configuration for the property change listener that this inspector is
+	 *        configured within
+	 * @param inspectorConfig The inspector's configuration in the application configuration
 	 */
-	void configure(PrismsProperty<?> property, prisms.arch.PrismsConfig config);
+	void configure(PrismsProperty<?> property, prisms.arch.PrismsConfig pclConfig,
+		prisms.arch.PrismsConfig inspectorConfig);
 
 	/**
 	 * @param session The session to display the icon to
@@ -228,7 +229,6 @@ public interface DataInspector
 	 * Registers a listener that will be notified whenever the session value of a property changes
 	 * 
 	 * @param session The session to listen to changes in
-	 * @param property The property to listen to
 	 * @param cl The change listener to register
 	 */
 	void registerSessionListener(prisms.arch.PrismsSession session, ChangeListener cl);

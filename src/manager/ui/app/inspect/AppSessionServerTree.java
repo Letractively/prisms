@@ -349,6 +349,12 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			isConfigured = theClient.isConfigured();
 		}
 
+		@Override
+		public AppNode getParent()
+		{
+			return (AppNode) super.getParent();
+		}
+
 		prisms.arch.ClientConfig getClient()
 		{
 			return theClient;
@@ -376,14 +382,14 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		protected void load(TreeClient client)
 		{
 			super.load(client);
-			((AppNode) getParent()).loadSessions();
+			getParent().loadSessions();
 		}
 
 		@Override
 		protected void unloaded()
 		{
 			super.unloaded();
-			((AppNode) getParent()).checkUnloadSessions();
+			getParent().checkUnloadSessions();
 		}
 
 		public String getText()
@@ -476,6 +482,12 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				}
 			};
 			addAction(theKillAction);
+		}
+
+		@Override
+		public ClientNode getParent()
+		{
+			return (ClientNode) super.getParent();
 		}
 
 		@Override
@@ -650,6 +662,9 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		void check()
 		{
+			for(ServiceTreeNode pn : getChildren())
+				if(pn instanceof PropertyNode)
+					((PropertyNode) pn).runEvents();
 			if(getParent() == null)
 				return;
 			theText = getSessionText();
@@ -713,12 +728,15 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		private DataInspector.ChangeListener theChangeListener;
 
+		java.util.ArrayList<Runnable> theEventQueue;
+
 		PropertyNode(SessionNode parent, PrismsProperty<?> property)
 		{
 			super(AppSessionServerTree.this, parent, false);
 			theSession = parent.getSession();
 			theProperty = property;
 			theInspector = getInspector(theSession, theProperty);
+			theEventQueue = new java.util.ArrayList<Runnable>();
 			theController = new DataInspector.NodeController()
 			{
 				public PrismsApplication getApp()
@@ -910,28 +928,45 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			destroy();
 			theChangeListener = new DataInspector.ChangeListener()
 			{
-				public synchronized void propertyChanged(Object value)
+				public void propertyChanged(final Object value)
 				{
-					Object [] values;
-					if(value instanceof Object [])
-						values = (Object []) value;
-					else if(value != null && value.getClass().isArray())
+					synchronized(this)
 					{
-						values = new Object [Array.getLength(value)];
-						for(int i = 0; i < values.length; i++)
-							values[i] = Array.get(value, i);
+						theEventQueue.add(new Runnable()
+						{
+							public void run()
+							{
+								Object [] values;
+								if(value instanceof Object [])
+									values = (Object []) value;
+								else if(value != null && value.getClass().isArray())
+								{
+									values = new Object [Array.getLength(value)];
+									for(int i = 0; i < values.length; i++)
+										values[i] = Array.get(value, i);
+								}
+								else
+									values = new Object [] {value};
+								setValueChildren(PropertyNode.this, values, theInspector, false,
+									true, null, 0, values.length);
+							}
+						});
 					}
-					else
-						values = new Object [] {value};
-					setValueChildren(PropertyNode.this, values, theInspector, false, true, null, 0,
-						values.length);
 				}
 
-				public synchronized void valueChanged(Object [] path, boolean recursive)
+				public void valueChanged(final Object item, final boolean recursive)
 				{
-					for(AbstractValueNode child : (AbstractValueNode []) getChildren())
-						if(child.valueChanged(path, 0, recursive))
-							break;
+					synchronized(this)
+					{
+						theEventQueue.add(new Runnable()
+						{
+							public void run()
+							{
+								for(AbstractValueNode child : (AbstractValueNode []) getChildren())
+									child.valueChanged(item, recursive);
+							}
+						});
+					}
 				}
 			};
 			synchronized(theChangeListener)
@@ -957,6 +992,22 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		void uninspect()
 		{
 			destroy();
+		}
+
+		synchronized void runEvents()
+		{
+			java.util.Iterator<Runnable> iter = theEventQueue.iterator();
+			while(iter.hasNext())
+			{
+				try
+				{
+					iter.next().run();
+				} catch(Exception e)
+				{
+					log.error("Could not update inspected properties", e);
+				}
+				iter.remove();
+			}
 		}
 
 		void destroy()
@@ -1047,8 +1098,16 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			else
 			{
 				for(int i = 0; i < parent.getChildren().length; i++)
-					((ValueSetNode) parent.getChildren()[i]).setValue(values, i * pLimit, (i + 1)
-						* pLimit, withEvents, children, discarded);
+				{
+					int _start = i * pLimit;
+					int _end;
+					if(i == parent.getChildren().length - 1)
+						_end = values.length - 1;
+					else
+						_end = (i + 1) * pLimit;
+					((ValueSetNode) parent.getChildren()[i]).setValue(values, _start, _end,
+						withEvents, children, discarded);
+				}
 				return true;
 			}
 		}
@@ -1203,7 +1262,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			return null;
 		}
 
-		abstract boolean valueChanged(Object [] path, int pathIdx, boolean recursive);
+		abstract boolean valueChanged(Object item, boolean recursive);
 	}
 
 	class ErrorValueNode extends AbstractValueNode
@@ -1217,7 +1276,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		}
 
 		@Override
-		boolean valueChanged(Object [] path, int pathIdx, boolean recursive)
+		boolean valueChanged(Object item, boolean recursive)
 		{
 			return true;
 		}
@@ -1442,46 +1501,27 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		void setValue(Object value, boolean init, boolean withEvents)
 		{
-			if(!init && theValue == value)
-			{
-				valueChanged(new Object [] {theValue}, 0, true);
-				return;
-			}
-			theValue = value;
+			if(init || theValue != value)
+				theValue = value;
 			check(true, withEvents);
 		}
 
 		@Override
-		boolean valueChanged(Object [] path, int pathIdx, boolean recursive)
+		boolean valueChanged(Object item, boolean recursive)
 		{
 			if(theValue == null)
-				return path[pathIdx] == null;
-			if(!theValue.equals(path[pathIdx]))
+				return item == null;
+			if(theValue.equals(item))
 			{
-				if(theValue instanceof Object []
-					|| (theValue != null && theValue.getClass().isArray()))
-				{
-					for(ServiceTreeNode child : getChildren())
-						if(((ValueNode) child).valueChanged(path, pathIdx, recursive))
-							return true;
-				}
-				return false;
-			}
-
-			if(pathIdx == path.length - 1)
-			{
-				check(true, true);
+				check(recursive, true);
 				return true;
 			}
-			else
-			{
+			boolean ret = false;
+			for(ServiceTreeNode child : getChildren())
+				ret |= ((ValueNode) child).valueChanged(item, recursive);
+			if(ret)
 				check(false, true);
-				if(pathIdx < path.length - 1)
-					for(ServiceTreeNode child : getChildren())
-						if(((ValueNode) child).valueChanged(path, pathIdx + 1, recursive))
-							return true;
-				return false;
-			}
+			return ret;
 		}
 
 		@Override
@@ -1763,12 +1803,12 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		}
 
 		@Override
-		boolean valueChanged(Object [] path, int pathIdx, boolean recursive)
+		boolean valueChanged(Object item, boolean recursive)
 		{
+			boolean ret = false;
 			for(AbstractValueNode child : getChildren())
-				if(child.valueChanged(path, pathIdx, recursive))
-					return true;
-			return false;
+				ret |= child.valueChanged(item, recursive);
+			return ret;
 		}
 	}
 
