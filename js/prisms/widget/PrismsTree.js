@@ -55,9 +55,9 @@ __dojo.declare("prisms.widget._PrismsTreeNode", __dijit._TreeNode, {
 		if(typeof item.textColor != "undefined")
 			this.labelNode.style.color=item.textColor;
 		if(item.description)
-			this.domNode.title=item.description;
+			this.contentNode.title=PrismsUtils.fixUnicodeString(item.description, false);
 		else
-			this.domNode.title="";
+			this.contentNode.title="";
 		if(changed)
 			this._checkWidths(true);
 	},

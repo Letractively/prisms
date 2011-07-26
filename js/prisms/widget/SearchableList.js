@@ -46,7 +46,7 @@ __dojo.declare("prisms.widget._SearchableListNode", [__dijit._Widget, __dijit._T
 		if(typeof item.textColor != "undefined")
 			this.labelNode.style.color=item.textColor;
 		if(item.description)
-			this.domNode.title=item.description;
+			this.domNode.title=PrismsUtils.fixUnicodeString(item.description, false);
 		else
 			this.domNode.title="";
 		this.labelNode.innerHTML=PrismsUtils.fixUnicodeString(this.item.text);
