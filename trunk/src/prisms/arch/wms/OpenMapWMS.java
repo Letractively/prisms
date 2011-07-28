@@ -72,7 +72,7 @@ public abstract class OpenMapWMS extends prisms.ui.PrismsOpenMapPlugin implement
 	 */
 	protected Projection createProjection(PrismsWmsRequest request)
 	{
-		PrismsWmsRequest.BoundingBox box = request.getBounds();
+		BoundingBox box = request.getBounds();
 		LatLonPoint center = new LatLonPoint(box.getCenterLat(), box.getCenterLon());
 		LLXY ret = new LLXY(center, 35000000, request.getWidth(), request.getHeight());
 		LatLonPoint ul = new LatLonPoint(box.maxLat, box.minLon);
