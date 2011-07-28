@@ -46,10 +46,7 @@ public interface DataInspector
 
 		/**
 		 * @return The session that is being inspected--will be null if the global (application)
-		 *         value is being inspected. <b>Important:</b> If an inspector performs any actions
-		 *         that directly result in the session firing events, those actions MUST be wrapped
-		 *         with {@link prisms.arch.PrismsSession#runEventually(Runnable)}. Otherwise the
-		 *         events fired by the session will not make it to the appropriate client.
+		 *         value is being inspected
 		 */
 		prisms.arch.PrismsSession getSession();
 
