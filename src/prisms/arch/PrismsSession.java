@@ -578,6 +578,8 @@ public class PrismsSession
 		else if(message.length() <= 5)
 			message = e.getClass().getName() + ": " + message;
 		ret.put("message", message);
+		if(e instanceof PrismsDetailException)
+			ret.put("params", ((PrismsDetailException) e).getParams());
 		return ret;
 	}
 

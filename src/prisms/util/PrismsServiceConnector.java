@@ -43,19 +43,23 @@ public class PrismsServiceConnector
 
 		private final String thePrismsMsg;
 
+		private JSONObject theParams;
+
 		/**
 		 * Creates a PrismsServiceException
 		 * 
 		 * @param msg The client message
 		 * @param errorCode The error code from the server
 		 * @param prismsMsg The error message from the server
+		 * @param params The error parameters from the servers
 		 */
 		public PrismsServiceException(String msg, prisms.arch.PrismsServer.ErrorCode errorCode,
-			String prismsMsg)
+			String prismsMsg, JSONObject params)
 		{
 			super(msg);
 			theErrorCode = errorCode;
 			thePrismsMsg = prismsMsg;
+			theParams = params;
 		}
 
 		/** @return The error code from the server */
@@ -68,6 +72,12 @@ public class PrismsServiceConnector
 		public String getPrismsMessage()
 		{
 			return thePrismsMsg;
+		}
+
+		/** @return Extra information describing the error or its cause. May be null. */
+		public JSONObject getParams()
+		{
+			return theParams;
 		}
 	}
 
@@ -726,7 +736,7 @@ public class PrismsServiceConnector
 					throw new PrismsServiceException("Error calling serverMethod " + serverMethod
 						+ " for event " + event + ":\n" + json.get("message"),
 						prisms.arch.PrismsServer.ErrorCode.fromDescrip((String) json.get("code")),
-						(String) json.get("message"));
+						(String) json.get("message"), (JSONObject) json.get("params"));
 				}
 				else if("callInit".equals(json.get("method")))
 				{
@@ -1291,7 +1301,7 @@ public class PrismsServiceConnector
 	{
 		if(thePasswordChanger == null)
 			throw new PrismsServiceException("Password change requested",
-				prisms.arch.PrismsServer.ErrorCode.ValidationFailed, message);
+				prisms.arch.PrismsServer.ErrorCode.ValidationFailed, message, null);
 		String newPwd = null;
 		do
 		{
