@@ -139,9 +139,12 @@ public class ScaledRecordKeeper extends DBRecordKeeper
 	}
 
 	@Override
-	public synchronized void persist(ChangeRecord record) throws PrismsRecordException
+	public void persist(ChangeRecord record) throws PrismsRecordException
 	{
-		theProcessedChanges.add(record.id);
+		synchronized(this)
+		{
+			theProcessedChanges.add(record.id);
+		}
 		super.persist(record);
 	}
 
