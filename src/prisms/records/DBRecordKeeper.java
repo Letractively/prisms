@@ -341,13 +341,6 @@ public class DBRecordKeeper implements RecordKeeper
 			}
 		});
 		theIDs = ids;
-		try
-		{
-			doStartup();
-		} catch(PrismsRecordException e)
-		{
-			log.error("Could not perform startup operations", e);
-		}
 	}
 
 	/** @return This record keeper's connection transactor */
@@ -368,6 +361,13 @@ public class DBRecordKeeper implements RecordKeeper
 		if(thePersister != null)
 			throw new IllegalArgumentException("The persister cannot be changed");
 		thePersister = persister;
+		try
+		{
+			doStartup();
+		} catch(PrismsRecordException e)
+		{
+			log.error("Could not perform startup operations", e);
+		}
 	}
 
 	/**
@@ -743,7 +743,7 @@ public class DBRecordKeeper implements RecordKeeper
 
 	boolean ignoreUser = false;
 
-	public synchronized void putCenter(final PrismsCenter center, final RecordsTransaction trans)
+	public void putCenter(final PrismsCenter center, final RecordsTransaction trans)
 		throws PrismsRecordException
 	{
 		if(center.getNamespace() != null)
@@ -1187,7 +1187,7 @@ public class DBRecordKeeper implements RecordKeeper
 		return bytes.toByteArray();
 	}
 
-	public synchronized void removeCenter(final PrismsCenter center, final RecordsTransaction trans)
+	public void removeCenter(final PrismsCenter center, final RecordsTransaction trans)
 		throws PrismsRecordException
 	{
 		theTransactor.performTransaction(new TransactionOperation<PrismsRecordException>()
@@ -1283,7 +1283,7 @@ public class DBRecordKeeper implements RecordKeeper
 		return ret.toArray(new SyncRecord [ret.size()]);
 	}
 
-	public synchronized void putSyncRecord(final SyncRecord record) throws PrismsRecordException
+	public void putSyncRecord(final SyncRecord record) throws PrismsRecordException
 	{
 		theTransactor.performTransaction(new TransactionOperation<PrismsRecordException>()
 		{
@@ -2632,8 +2632,9 @@ public class DBRecordKeeper implements RecordKeeper
 			return -1;
 	}
 
-	String serialize(Object obj) throws PrismsRecordException
+	String serializePreValue(ChangeRecord change) throws PrismsRecordException
 	{
+		Object obj = change.previousValue;
 		if(obj == null)
 			return null;
 		if(obj instanceof RecordType)
@@ -2669,7 +2670,7 @@ public class DBRecordKeeper implements RecordKeeper
 		else if(obj instanceof Boolean || obj instanceof Integer || obj instanceof Long
 			|| obj instanceof Float || obj instanceof Double || obj instanceof String)
 			return obj.toString();
-		return thePersister.serialize(obj);
+		return thePersister.serializePreValue(change);
 	}
 
 	// TODO This code might be useful somewhere
@@ -2730,7 +2731,7 @@ public class DBRecordKeeper implements RecordKeeper
 	 * @param user The user that caused this change
 	 * @throws PrismsRecordException If an error occurs setting the data
 	 */
-	public synchronized void setAutoPurger(final AutoPurger purger, final RecordsTransaction user)
+	public void setAutoPurger(final AutoPurger purger, final RecordsTransaction user)
 		throws PrismsRecordException
 	{
 		theTransactor.performTransaction(new TransactionOperation<PrismsRecordException>()
@@ -2749,7 +2750,7 @@ public class DBRecordKeeper implements RecordKeeper
 	 *         were set
 	 * @throws PrismsRecordException If an error occurs performing the calculation
 	 */
-	public synchronized int previewAutoPurge(final AutoPurger purger) throws PrismsRecordException
+	public int previewAutoPurge(final AutoPurger purger) throws PrismsRecordException
 	{
 		Statement stmt = null;
 		try
@@ -2774,7 +2775,7 @@ public class DBRecordKeeper implements RecordKeeper
 		}
 	}
 
-	public synchronized ChangeRecord persist(RecordsTransaction trans, SubjectType subjectType,
+	public ChangeRecord persist(RecordsTransaction trans, SubjectType subjectType,
 		ChangeType changeType, int additivity, Object majorSubject, Object minorSubject,
 		Object previousValue, Object data1, Object data2) throws PrismsRecordException
 	{
@@ -2804,14 +2805,18 @@ public class DBRecordKeeper implements RecordKeeper
 					log.error("Connection error", e);
 				}
 		}
-		long time = System.currentTimeMillis();
-		if(time <= theLastChange)
+		long time;
+		synchronized(this)
 		{
-			theLastChange++;
-			time = theLastChange;
+			time = System.currentTimeMillis();
+			if(time <= theLastChange)
+			{
+				theLastChange++;
+				time = theLastChange;
+			}
+			else
+				theLastChange = time;
 		}
-		else
-			theLastChange = time;
 		ChangeRecord record = new ChangeRecord(id, !trans.shouldRecord(), time, trans.getUser(),
 			subjectType, changeType, additivity, majorSubject, minorSubject, previousValue, data1,
 			data2);
@@ -2819,7 +2824,7 @@ public class DBRecordKeeper implements RecordKeeper
 		return record;
 	}
 
-	public synchronized void persist(ChangeRecord record) throws PrismsRecordException
+	public void persist(ChangeRecord record) throws PrismsRecordException
 	{
 		Statement stmt = null;
 		ResultSet rs = null;
@@ -2849,130 +2854,125 @@ public class DBRecordKeeper implements RecordKeeper
 					{
 						log.error("Connection error", e);
 					}
-				if(stmt != null)
-					try
-					{
-						stmt.close();
-					} catch(SQLException e)
-					{
-						log.error("Connection error", e);
-					}
 			}
-			java.sql.PreparedStatement pStmt = theChangeInserter;
-			pStmt.clearParameters();
-			pStmt.setLong(1, record.id);
-			pStmt.setString(2, boolToSqlP(record.localOnly));
-			pStmt.setTimestamp(3, getUtcTimestamp(record.time));
-			pStmt.setLong(4, record.user.getID());
-			if(record instanceof ChangeRecordError)
+			synchronized(this)
 			{
-				ChangeRecordError error = (ChangeRecordError) record;
-				pStmt.setString(5, error.getSubjectType());
-				if(error.getChangeType() == null)
-					pStmt.setNull(6, java.sql.Types.VARCHAR);
-				else
-					pStmt.setString(6, error.getChangeType());
-				pStmt.setString(7, error.getAdditivity() < 0 ? "-" : (error.getAdditivity() > 0
-					? "+" : "0"));
-				pStmt.setInt(8, RecordUtils.getCenterID(error.getMajorSubjectID()));
-				pStmt.setLong(9, error.getMajorSubjectID());
-				if(error.getMinorSubjectID() >= 0)
-					pStmt.setLong(10, error.getMinorSubjectID());
-				else
-					pStmt.setNull(10, java.sql.Types.NUMERIC);
-				if(error.getSerializedPreValue() instanceof Number)
+				java.sql.PreparedStatement pStmt = theChangeInserter;
+				pStmt.clearParameters();
+				pStmt.setLong(1, record.id);
+				pStmt.setString(2, boolToSqlP(record.localOnly));
+				pStmt.setTimestamp(3, getUtcTimestamp(record.time));
+				pStmt.setLong(4, record.user.getID());
+				if(record instanceof ChangeRecordError)
 				{
-					pStmt.setLong(11, ((Number) error.getSerializedPreValue()).longValue());
-					pStmt.setNull(12, java.sql.Types.VARCHAR);
-					pStmt.setNull(13, java.sql.Types.CLOB);
-				}
-				else if(error.getSerializedPreValue() != null)
-				{
-					pStmt.setNull(11, java.sql.Types.NUMERIC);
-					String serialized = (String) error.getSerializedPreValue();
-					if(serialized.length() <= 100)
+					ChangeRecordError error = (ChangeRecordError) record;
+					pStmt.setString(5, error.getSubjectType());
+					if(error.getChangeType() == null)
+						pStmt.setNull(6, java.sql.Types.VARCHAR);
+					else
+						pStmt.setString(6, error.getChangeType());
+					pStmt.setString(7, error.getAdditivity() < 0 ? "-" : (error.getAdditivity() > 0
+						? "+" : "0"));
+					pStmt.setInt(8, RecordUtils.getCenterID(error.getMajorSubjectID()));
+					pStmt.setLong(9, error.getMajorSubjectID());
+					if(error.getMinorSubjectID() >= 0)
+						pStmt.setLong(10, error.getMinorSubjectID());
+					else
+						pStmt.setNull(10, java.sql.Types.NUMERIC);
+					if(error.getSerializedPreValue() instanceof Number)
 					{
-						pStmt.setString(12, PrismsUtils.encodeUnicode(serialized));
+						pStmt.setLong(11, ((Number) error.getSerializedPreValue()).longValue());
+						pStmt.setNull(12, java.sql.Types.VARCHAR);
+						pStmt.setNull(13, java.sql.Types.CLOB);
+					}
+					else if(error.getSerializedPreValue() != null)
+					{
+						pStmt.setNull(11, java.sql.Types.NUMERIC);
+						String serialized = (String) error.getSerializedPreValue();
+						if(serialized.length() <= 100)
+						{
+							pStmt.setString(12, PrismsUtils.encodeUnicode(serialized));
+							pStmt.setNull(13, java.sql.Types.CLOB);
+						}
+						else
+						{
+							pStmt.setNull(12, java.sql.Types.VARCHAR);
+							pStmt.setCharacterStream(13,
+								new java.io.StringReader(PrismsUtils.encodeUnicode(serialized)),
+								serialized.length());
+						}
+					}
+					else
+					{
+						pStmt.setNull(11, java.sql.Types.NUMERIC);
+						pStmt.setNull(12, java.sql.Types.VARCHAR);
+						pStmt.setNull(13, java.sql.Types.CLOB);
+					}
+					if(error.getData1ID() >= 0)
+						pStmt.setLong(14, error.getData1ID());
+					else
+						pStmt.setNull(14, java.sql.Types.NUMERIC);
+					if(error.getData2ID() >= 0)
+						pStmt.setLong(15, error.getData2ID());
+					else
+						pStmt.setNull(15, java.sql.Types.NUMERIC);
+				}
+				else
+				{
+					pStmt.setString(5, record.type.subjectType.name());
+					if(record.type.changeType == null)
+						pStmt.setNull(6, java.sql.Types.VARCHAR);
+					else
+						pStmt.setString(6, record.type.changeType.name());
+					pStmt.setString(7, record.type.additivity < 0 ? "-"
+						: (record.type.additivity > 0 ? "+" : "0"));
+					pStmt.setInt(8, getSubjectCenter(record.majorSubject));
+					pStmt.setLong(9, getDataID(record.majorSubject));
+					if(record.minorSubject == null)
+						pStmt.setNull(10, java.sql.Types.NUMERIC);
+					else
+						pStmt.setLong(10, getDataID(record.minorSubject));
+					if(record.previousValue == null)
+					{
+						pStmt.setNull(11, java.sql.Types.NUMERIC);
+						pStmt.setNull(12, java.sql.Types.VARCHAR);
+						pStmt.setNull(13, java.sql.Types.CLOB);
+					}
+					else if(record.type.changeType.isObjectIdentifiable())
+					{
+						pStmt.setLong(11, getDataID(record.previousValue));
+						pStmt.setNull(12, java.sql.Types.VARCHAR);
 						pStmt.setNull(13, java.sql.Types.CLOB);
 					}
 					else
 					{
-						pStmt.setNull(12, java.sql.Types.VARCHAR);
-						pStmt.setCharacterStream(13,
-							new java.io.StringReader(PrismsUtils.encodeUnicode(serialized)),
-							serialized.length());
+						pStmt.setNull(11, java.sql.Types.NUMERIC);
+						String serialized = serializePreValue(record);
+						if(serialized.length() <= 100)
+						{
+							pStmt.setString(12, PrismsUtils.encodeUnicode(serialized));
+							pStmt.setNull(13, java.sql.Types.CLOB);
+						}
+						else
+						{
+							pStmt.setNull(12, java.sql.Types.VARCHAR);
+							pStmt.setCharacterStream(13,
+								new java.io.StringReader(PrismsUtils.encodeUnicode(serialized)),
+								serialized.length());
+						}
 					}
-				}
-				else
-				{
-					pStmt.setNull(11, java.sql.Types.NUMERIC);
-					pStmt.setNull(12, java.sql.Types.VARCHAR);
-					pStmt.setNull(13, java.sql.Types.CLOB);
-				}
-				if(error.getData1ID() >= 0)
-					pStmt.setLong(14, error.getData1ID());
-				else
-					pStmt.setNull(14, java.sql.Types.NUMERIC);
-				if(error.getData2ID() >= 0)
-					pStmt.setLong(15, error.getData2ID());
-				else
-					pStmt.setNull(15, java.sql.Types.NUMERIC);
-			}
-			else
-			{
-				pStmt.setString(5, record.type.subjectType.name());
-				if(record.type.changeType == null)
-					pStmt.setNull(6, java.sql.Types.VARCHAR);
-				else
-					pStmt.setString(6, record.type.changeType.name());
-				pStmt.setString(7, record.type.additivity < 0 ? "-" : (record.type.additivity > 0
-					? "+" : "0"));
-				pStmt.setInt(8, getSubjectCenter(record.majorSubject));
-				pStmt.setLong(9, getDataID(record.majorSubject));
-				if(record.minorSubject == null)
-					pStmt.setNull(10, java.sql.Types.NUMERIC);
-				else
-					pStmt.setLong(10, getDataID(record.minorSubject));
-				if(record.previousValue == null)
-				{
-					pStmt.setNull(11, java.sql.Types.NUMERIC);
-					pStmt.setNull(12, java.sql.Types.VARCHAR);
-					pStmt.setNull(13, java.sql.Types.CLOB);
-				}
-				else if(record.type.changeType.isObjectIdentifiable())
-				{
-					pStmt.setLong(11, getDataID(record.previousValue));
-					pStmt.setNull(12, java.sql.Types.VARCHAR);
-					pStmt.setNull(13, java.sql.Types.CLOB);
-				}
-				else
-				{
-					pStmt.setNull(11, java.sql.Types.NUMERIC);
-					String serialized = serialize(record.previousValue);
-					if(serialized.length() <= 100)
-					{
-						pStmt.setString(12, PrismsUtils.encodeUnicode(serialized));
-						pStmt.setNull(13, java.sql.Types.CLOB);
-					}
+					if(record.data1 == null)
+						pStmt.setNull(14, java.sql.Types.NUMERIC);
 					else
-					{
-						pStmt.setNull(12, java.sql.Types.VARCHAR);
-						pStmt.setCharacterStream(13,
-							new java.io.StringReader(PrismsUtils.encodeUnicode(serialized)),
-							serialized.length());
-					}
+						pStmt.setLong(14, getDataID(record.data1));
+					if(record.data2 == null)
+						pStmt.setNull(15, java.sql.Types.NUMERIC);
+					else
+						pStmt.setLong(15, getDataID(record.data2));
 				}
-				if(record.data1 == null)
-					pStmt.setNull(14, java.sql.Types.NUMERIC);
-				else
-					pStmt.setLong(14, getDataID(record.data1));
-				if(record.data2 == null)
-					pStmt.setNull(15, java.sql.Types.NUMERIC);
-				else
-					pStmt.setLong(15, getDataID(record.data2));
+				pStmt.execute();
+				pStmt.clearParameters();
 			}
-			pStmt.execute();
-			pStmt.clearParameters();
 			if(theAutoPurger == null)
 				getAutoPurger();
 			theAutoPurger.doPurge(this, stmt, theTransactor.getTablePrefix()
@@ -2982,10 +2982,20 @@ public class DBRecordKeeper implements RecordKeeper
 		{
 			throw new PrismsRecordException("Could not persist " + record.type.subjectType
 				+ " change: SQL=" + sql, e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
 		}
 	}
 
-	public synchronized void associate(ChangeRecord change, SyncRecord syncRecord, boolean error)
+	public void associate(ChangeRecord change, SyncRecord syncRecord, boolean error)
 		throws PrismsRecordException
 	{
 		Statement stmt = null;
@@ -3070,8 +3080,7 @@ public class DBRecordKeeper implements RecordKeeper
 	 * @param stmt The optional statement to use for the operation
 	 * @throws PrismsRecordException If an error occurs deleting the data
 	 */
-	public synchronized void purge(ChangeRecord record, Statement stmt)
-		throws PrismsRecordException
+	public void purge(ChangeRecord record, Statement stmt) throws PrismsRecordException
 	{
 		boolean closeStmt = false;
 		if(stmt == null)
@@ -3469,8 +3478,8 @@ public class DBRecordKeeper implements RecordKeeper
 		return ret;
 	}
 
-	synchronized void dbSetAutoPurger(final Statement stmt, AutoPurger purger,
-		final RecordsTransaction trans) throws PrismsRecordException
+	void dbSetAutoPurger(final Statement stmt, AutoPurger purger, final RecordsTransaction trans)
+		throws PrismsRecordException
 	{
 		final AutoPurger dbPurger = dbGetAutoPurger(stmt);
 		theAutoPurger = purger;

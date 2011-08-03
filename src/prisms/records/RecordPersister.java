@@ -139,11 +139,11 @@ public interface RecordPersister
 	 * Boolean, Integer, Long, Float, Double, or String. Serialization of these types is handled
 	 * internally.
 	 * 
-	 * @param data The change object to serialize
+	 * @param change The change to serialize the previous value of
 	 * @return The serialized object
 	 * @throws PrismsRecordException If an error occurs serializing the object
 	 */
-	String serialize(Object data) throws PrismsRecordException;
+	String serializePreValue(ChangeRecord change) throws PrismsRecordException;
 
 	/**
 	 * Called when a modification is purged that is the last link to an item in the records. The

@@ -6,20 +6,11 @@ package prisms.records;
 /**
  * An interface with methods required by {@link ScaledRecordKeeper} to implements scaling an
  * application across multiple servers with a common database. This method has much in common with
- * {@link RecordPersister} and {@link SynchronizeImpl}, so an implementation of one or both of
- * those interfaces will have less trouble to implement this interface as well.
+ * {@link RecordPersister} and {@link SynchronizeImpl}, so an implementation of one or both of those
+ * interfaces will have less trouble to implement this interface as well.
  */
 public interface ScaleImpl
 {
-	/**
-	 * @param type The name of the given type
-	 * @return The java type to get the implementation name for
-	 * @throws PrismsRecordException If the type is unrecognized
-	 * 
-	 * @see SynchronizeImpl#getType(Class)
-	 */
-	String getType(Class<?> type) throws PrismsRecordException;
-
 	/**
 	 * @param item The item to get the ID of
 	 * @return The item's ID

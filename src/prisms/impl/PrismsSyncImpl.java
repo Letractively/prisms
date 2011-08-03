@@ -220,10 +220,10 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 			return new SubjectType [0];
 	}
 
-	public String serialize(Object data) throws PrismsRecordException
+	public String serializePreValue(ChangeRecord change) throws PrismsRecordException
 	{
 		throw new PrismsRecordException("Unrecognized serializable PRISMS type: "
-			+ data.getClass().getName());
+			+ change.previousValue.getClass().getName());
 	}
 
 	public void checkItemForDelete(Object item, Statement stmt) throws PrismsRecordException
