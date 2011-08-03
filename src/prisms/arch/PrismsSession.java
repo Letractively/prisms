@@ -165,6 +165,8 @@ public class PrismsSession
 
 	private final prisms.util.TrackerSet theTrackSet;
 
+	private long theAsyncWait;
+
 	/**
 	 * Creates a PluginAppSession
 	 * 
@@ -207,6 +209,8 @@ public class PrismsSession
 		theStatus = new prisms.ui.StatusPlugin();
 		theStatus.initPlugin(this, null);
 		theStandardPlugins.put("Status", theStatus);
+
+		theAsyncWait = 100;
 	}
 
 	/**
@@ -272,6 +276,13 @@ public class PrismsSession
 					+ ": preferences will not be persisted");
 				thePreferences = new prisms.util.preferences.Preferences(theApp, theUser);
 			}
+			thePreferences.addListener(new prisms.util.preferences.Preferences.Listener()
+			{
+				public <T> void prefChanged(prisms.util.preferences.PreferenceEvent evt)
+				{
+					fireEvent(evt);
+				}
+			});
 		}
 		return thePreferences;
 	}
@@ -362,7 +373,8 @@ public class PrismsSession
 	 */
 	public JSONArray processSync(JSONObject event)
 	{
-		PrismsTransaction trans = theApp.getEnvironment().getTransaction();
+		PrismsTransaction trans = theApp.getEnvironment().transact(this,
+			PrismsTransaction.Stage.processEvent);
 		trans.setSynchronous();
 		JSONArray ret;
 		try
@@ -392,25 +404,33 @@ public class PrismsSession
 		if(event.get("plugin") == null && "getEvents".equals(event.get("method"))
 			&& event.containsKey("taskID"))
 		{
-			java.util.Iterator<boolean []> values = theRunningTasks.values().iterator();
-			while(values.hasNext())
+			prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getApp()
+				.getEnvironment(), "Check Running Tasks");
+			try
 			{
-				if(values.next()[0])
-					values.remove();
-			}
+				java.util.Iterator<boolean []> values = theRunningTasks.values().iterator();
+				while(values.hasNext())
+				{
+					if(values.next()[0])
+						values.remove();
+				}
 
-			String taskID = (String) event.get("taskID");
-			finished = theRunningTasks.get(taskID);
-			JSONArray ret = getEvents();
-			if(finished != null && !finished[0])
+				String taskID = (String) event.get("taskID");
+				finished = theRunningTasks.get(taskID);
+				JSONArray ret = getEvents();
+				if(finished != null && !finished[0] && !getUI().isProgressShowing())
+				{
+					JSONObject getEvents = new JSONObject();
+					getEvents.put("method", "getEvents");
+					getEvents.put("taskID", taskID);
+					ret.add(getEvents);
+				}
+				return ret;
+			} finally
 			{
-				JSONObject getEvents = new JSONObject();
-				getEvents.put("method", "getEvents");
-				getEvents.put("taskID", taskID);
-				ret.add(getEvents);
+				prisms.util.PrismsUtils.end(getApp().getEnvironment(), track);
+				fFinished[0] = true;
 			}
-			fFinished[0] = true;
-			return ret;
 		}
 		Runnable toRun = new Runnable()
 		{
@@ -440,23 +460,35 @@ public class PrismsSession
 				postOutgoingEvent(wrapError("Background task runtime exception", e));
 			}
 		});
-		/*
-		 * This code checks every tenth of a second to see if the event has been processed.
-		 * If the processing isn't finished after 1/2 second, this method returns, leaving
-		 * the final results of the event on the queue to be retrieved at the next client
-		 * poll or user action. This allows progress bars to be shown to the user quickly
-		 * while a long operation progresses.
-		 */
-		int waitCount = 0;
-		do
+		if(theAsyncWait > 0)
 		{
-			try
+			/*
+			 * This code checks often to see if the event has been processed. If the processing
+			 * isn't finished after theAsyncWait, this method returns, leaving the final results of
+			 * the event on the queue to be retrieved at the next client poll or user action. This
+			 * allows progress bars to be shown to the user quickly while a long operation
+			 * progresses, as well as releasing the server thread to be reused by other requests.
+			 */
+			prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getApp()
+				.getEnvironment(), "Wait For Async Results");
+			long waitInc = theAsyncWait / 5;
+			if(waitInc < 50)
 			{
-				Thread.sleep(100);
-			} catch(InterruptedException e)
-			{}
-			waitCount++;
-		} while(!finished[0] && waitCount < 5);
+				waitInc = 50;
+				if(waitInc > theAsyncWait)
+					waitInc = theAsyncWait;
+			}
+			long now = System.currentTimeMillis();
+			do
+			{
+				try
+				{
+					Thread.sleep(waitInc);
+				} catch(InterruptedException e)
+				{}
+			} while(!finished[0] && System.currentTimeMillis() - now < theAsyncWait);
+			prisms.util.PrismsUtils.end(getApp().getEnvironment(), track);
+		}
 		if(!finished[0])
 		{
 			String taskID = Integer.toHexString(toRun.hashCode());
@@ -509,8 +541,8 @@ public class PrismsSession
 			AppPlugin plugin = getPlugin((String) pName);
 			if(plugin == null)
 				throw new IllegalArgumentException("No such plugin: " + pName);
-			TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(), "PRISMS: "
-				+ pName + ".processEvent(" + evt.get("method") + ")");
+			TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(),
+				"PRISMS: Plugin " + pName + "." + evt.get("method") + "()");
 			try
 			{
 				plugin.processEvent(evt);
@@ -539,29 +571,36 @@ public class PrismsSession
 		}
 		if(tasks.length > 0 && tasks[0] != null)
 		{
-			Exception outerE = new Exception();
-			for(Runnable task : tasks)
+			TrackNode totalTrack = prisms.util.PrismsUtils.track(theApp.getEnvironment(),
+				"Session Tasks");
+			try
 			{
-				/* If a task was removed between the time when the tasks array was created and when
-				 * the item would have been reached in the iteration, the tasks array may not be
-				 * full. */
-				if(task == null)
-					break;
-				TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(),
-					"PRISMS: Running session task " + task);
-				try
+				Exception outerE = new Exception();
+				for(Runnable task : tasks)
 				{
-					task.run();
-				} catch(Throwable e)
-				{
-					e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e.getStackTrace(),
-						outerE.getStackTrace(), getClass().getName(), "_process"));
-					log.error("Error Processing Task " + task, e);
-					postOutgoingEvent(wrapError("Error Processing Task " + task, e));
-				} finally
-				{
-					prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
+					/* If a task was removed between the time when the tasks array was created and when
+					 * the item would have been reached in the iteration, the tasks array may not be
+					 * full. */
+					if(task == null)
+						break;
+					TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(), task);
+					try
+					{
+						task.run();
+					} catch(Throwable e)
+					{
+						e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e.getStackTrace(),
+							outerE.getStackTrace(), getClass().getName(), "_process"));
+						log.error("Error Processing Task " + task, e);
+						postOutgoingEvent(wrapError("Error Processing Task " + task, e));
+					} finally
+					{
+						prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
+					}
 				}
+			} finally
+			{
+				prisms.util.PrismsUtils.end(theApp.getEnvironment(), totalTrack);
 			}
 		}
 	}
@@ -602,6 +641,7 @@ public class PrismsSession
 	/** Initializes this session for a client that has just connected or reconnected to it */
 	public void init()
 	{
+		getPreferences();
 		clearOutgoingQueue();
 		final boolean [] finished = new boolean [] {false};
 		final PrismsTransaction trans = getApp().getEnvironment().transact(PrismsSession.this,
@@ -802,34 +842,34 @@ public class PrismsSession
 	 * Sets the value of a property, notifying all listeners registered for the property
 	 * 
 	 * @param <T> The type of property to set
-	 * @param propName The name of the property to change
+	 * @param property The property to change
 	 * @param propValue The new value for the property
 	 * @param eventProps Event properties for the property change event that is fired. Must be in
 	 *        the form of name, value, name, value, where name is a string.
 	 */
-	public <T> void setProperty(PrismsProperty<T> propName, T propValue, Object... eventProps)
+	public <T> void setProperty(PrismsProperty<T> property, T propValue, Object... eventProps)
 	{
 		// Generics *can* be defeated--check the type here
-		if(propValue != null && !propName.getType().isInstance(propValue))
+		if(propValue != null && !property.getType().isInstance(propValue))
 			throw new IllegalArgumentException("Cannot set an instance of "
-				+ propValue.getClass().getName() + " for property " + propName + ", type "
-				+ propName.getType().getName());
+				+ propValue.getClass().getName() + " for property " + property + ", type "
+				+ property.getType().getName());
 		if(eventProps.length % 2 != 0)
 			throw new IllegalArgumentException("Event properties for property change event must be"
 				+ " in the form of name, value, name, value, etc.--" + eventProps.length
 				+ " arguments illegal");
 		/* Many property sets can be going on at once, but only one for each property in a session */
-		synchronized(getPropertyLock(propName))
+		synchronized(getPropertyLock(property))
 		{
-			PrismsPCE<T> propEvt = new PrismsPCE<T>(getApp(), this, propName,
-				(T) theProperties.get(propName), propValue);
+			PrismsPCE<T> propEvt = new PrismsPCE<T>(getApp(), this, property,
+				(T) theProperties.get(property), propValue);
 			PrismsPCL<T> [] listeners;
-			thePropertyStack.put(propName, this);
+			thePropertyStack.put(property, this);
 			if(propValue == null)
-				theProperties.remove(propName);
+				theProperties.remove(property);
 			else
-				theProperties.put(propName, propValue);
-			listeners = getPropertyChangeListeners(propName);
+				theProperties.put(property, propValue);
+			listeners = getPropertyChangeListeners(property);
 
 			for(int i = 0; i < eventProps.length; i += 2)
 			{
@@ -839,29 +879,29 @@ public class PrismsSession
 						+ "] is not a string");
 				propEvt.set((String) eventProps[i], eventProps[i + 1]);
 			}
-			PrismsTransaction trans = theApp.getEnvironment().getTransaction();
+			PrismsEnv env = getApp().getEnvironment();
 			for(PrismsPCL<T> l : listeners)
 			{
-				TrackNode track = null;
-				if(trans != null)
-					track = trans.getTracker().start(
-						"PRISMS: Listener " + l + " to property " + propName + " notified");
+				TrackNode [] tracks = new TrackNode [3];
+				tracks[0] = prisms.util.PrismsUtils.track(env, "PrismsPCL");
+				tracks[1] = prisms.util.PrismsUtils.track(env, "Property " + property.getName());
+				tracks[2] = prisms.util.PrismsUtils.track(env, l);
 				try
 				{
 					l.propertyChange(propEvt);
 				} finally
 				{
-					if(track != null)
-						trans.getTracker().end(track);
+					for(int i = tracks.length - 1; i >= 0; i--)
+						prisms.util.PrismsUtils.end(env, tracks[i]);
 				}
 				/* If this property is changed as a result of the above PCL, stop this notification */
-				if(!thePropertyStack.containsKey(propName))
+				if(!thePropertyStack.containsKey(property))
 				{
 					propEvt.set("canceled", Boolean.TRUE);
 					break;
 				}
 			}
-			thePropertyStack.remove(propName);
+			thePropertyStack.remove(property);
 		}
 	}
 
@@ -946,21 +986,21 @@ public class PrismsSession
 	 */
 	public void fireEvent(PrismsEvent event)
 	{
-		PrismsTransaction trans = theApp.getEnvironment().getTransaction();
+		PrismsEnv env = theApp.getEnvironment();
 		PrismsEventListener [] listeners = getEventListeners(event.name);
 		for(PrismsEventListener l : listeners)
 		{
-			TrackNode track = null;
-			if(trans != null)
-				track = trans.getTracker().start(
-					"PRISMS: Listener " + l + " for event " + event.name + " notified");
+			TrackNode [] tracks = new TrackNode [3];
+			tracks[0] = prisms.util.PrismsUtils.track(env, "Event Listener");
+			tracks[1] = prisms.util.PrismsUtils.track(env, "Event " + event.name);
+			tracks[2] = prisms.util.PrismsUtils.track(env, l);
 			try
 			{
 				l.eventOccurred(this, event);
 			} finally
 			{
-				if(track != null)
-					trans.getTracker().end(track);
+				for(int i = tracks.length - 1; i >= 0; i--)
+					prisms.util.PrismsUtils.end(env, tracks[i]);
 			}
 		}
 	}
@@ -1074,7 +1114,7 @@ public class PrismsSession
 	public void destroy()
 	{
 		getApp().removeSession(this);
-		fireEvent(new PrismsEvent("destroy"));
+		fireEvent("destroy");
 	}
 
 	@Override

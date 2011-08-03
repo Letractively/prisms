@@ -203,13 +203,15 @@ public class Preference<T> implements Comparable<Preference<?>>
 		}
 	}
 
-	private final Type theType;
+	private long theID;
 
 	private final String theDomain;
 
 	private final String theName;
 
 	private String theDescrip;
+
+	private final Type theType;
 
 	private final boolean isDisplayed;
 
@@ -224,6 +226,7 @@ public class Preference<T> implements Comparable<Preference<?>>
 	 */
 	public Preference(String domain, String name, Type type, Class<T> javaType, boolean displayed)
 	{
+		theID = -1;
 		theType = type;
 		theDomain = domain;
 		theName = name;
@@ -235,6 +238,18 @@ public class Preference<T> implements Comparable<Preference<?>>
 		if(displayed && type == Type.ARBITRARY)
 			throw new IllegalArgumentException(
 				"Cannot create a displayed preference of arbitrary type");
+	}
+
+	/** @return This preference's ID */
+	public long getID()
+	{
+		return theID;
+	}
+
+	/** @param id The ID for this preference */
+	public void setID(long id)
+	{
+		theID = id;
 	}
 
 	/** @return This preference's domain */

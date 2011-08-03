@@ -21,6 +21,8 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 
 	Preference<TimeZoneType> theTimeZonePref;
 
+	Preference<String> theTimeIntSelectPref;
+
 	long theTotalTime;
 
 	long theSnapshotTime;
@@ -50,9 +52,12 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 			+ " will be displayed in red");
 		theTimeZonePref = new Preference<TimeZoneType>("Performance Display", "Local Time",
 			Preference.Type.ENUM, TimeZoneType.class, true);
-		theTimeZonePref
-			.setDescription("Sets whether performance data will be displayed in local time"
-				+ " or GMT");
+		theTimeZonePref.setDescription("Sets whether performance data will be displayed in"
+			+ " local time or GMT");
+		theTimeIntSelectPref = new Preference<String>("Performance Display",
+			"Time Interval Selection", Preference.Type.STRING, String.class, false);
+		theTimeIntSelectPref.setDescription("Stores the user's time interval choice so they don't"
+			+ " have to re-choose that time interval every time");
 
 		Float disp = session.getPreferences().get(theDisplayPref);
 		if(disp != null)
@@ -86,17 +91,17 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 				prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
 				if(pEvt.getPreference().equals(theDisplayPref))
 				{
-					theDisplayThresh = ((Float) pEvt.getValue()).floatValue();
+					theDisplayThresh = ((Float) pEvt.getNewValue()).floatValue();
 					setPerformanceData(theCurrentValue);
 				}
 				else if(pEvt.getPreference().equals(theAccentPref))
 				{
-					theAccentThresh = ((Float) pEvt.getValue()).floatValue();
+					theAccentThresh = ((Float) pEvt.getNewValue()).floatValue();
 					setPerformanceData(theCurrentValue);
 				}
 				else if(pEvt.getPreference().equals(theTimeZonePref))
 				{
-					theTimeZone = (TimeZoneType) pEvt.getValue();
+					theTimeZone = (TimeZoneType) pEvt.getNewValue();
 					setPerformanceData(theCurrentValue);
 				}
 			}
@@ -162,6 +167,10 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 		final String [] options = new String [configs.length];
 		for(int o = 0; o < options.length; o++)
 			options[o] = prisms.util.PrismsUtils.printTimeLength(configs[o].getKeepTime());
+		final String preSelectOption = getSession().getPreferences().get(theTimeIntSelectPref);
+		int selIdx = ArrayUtils.indexOf(options, preSelectOption);
+		if(selIdx < 0)
+			selIdx = 0;
 		prisms.ui.UI.SelectListener sl = new prisms.ui.UI.SelectListener()
 		{
 			public void selected(String option)
@@ -175,9 +184,11 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 				theSnapshotTime = System.currentTimeMillis();
 				getSession().setProperty(manager.app.ManagerProperties.performanceData,
 					(ProgramTracker) evt2.getProperty("data"));
+				if(!option.equals(preSelectOption))
+					getSession().getPreferences().set(theTimeIntSelectPref, option);
 			}
 		};
-		getSession().getUI().select("Choose a time interval", options, 0, sl);
+		getSession().getUI().select("Choose a time interval", options, selIdx, sl);
 	}
 
 	void refreshInternal()
@@ -298,7 +309,7 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 			long realLength = node.getRealLength();
 			prisms.util.PrismsUtils.printTimeLength(realLength, text, true);
 			text.append(" total");
-			if(node.getParent() != null && realLength > 0)
+			if(realLength > 0)
 				text.append(" (")
 					.append(ProgramTracker.PERCENT_FORMAT.format(realLength * 100.0 / theTotalTime))
 					.append("%)");
@@ -308,7 +319,8 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 			setDescription(text.toString());
 
 			setIcon("manager/time");
-			if(node.isAccented(theAccentThresh * 100, theTotalTime))
+			// if(node.isAccented(theAccentThresh * 100, theTotalTime))
+			if(node.getLength() > theAccentThresh * theTotalTime)
 				setForeground(java.awt.Color.red);
 			else
 				setForeground(java.awt.Color.black);

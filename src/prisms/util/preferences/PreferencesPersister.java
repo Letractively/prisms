@@ -1,4 +1,4 @@
-/**
+/*
  * PreferencesPersister.java Created Jul 7, 2008 by Andrew Butler, PSL
  */
 package prisms.util.preferences;
@@ -13,6 +13,7 @@ import prisms.arch.ds.Transactor;
 import prisms.arch.ds.User;
 import prisms.arch.event.PrismsPCE;
 import prisms.arch.event.PrismsProperty;
+import prisms.records.PrismsRecordException;
 import prisms.util.DBUtils;
 import prisms.util.DualKey;
 
@@ -20,24 +21,84 @@ import prisms.util.DualKey;
 public class PreferencesPersister implements
 	prisms.util.persisters.UserSpecificPersister<Preferences>
 {
-	private static final Logger log = Logger.getLogger(PreferencesPersister.class);
+	static final Logger log = Logger.getLogger(PreferencesPersister.class);
+
+	private PrismsEnv theEnv;
 
 	Transactor<SQLException> theTransactor;
 
 	private java.util.concurrent.ConcurrentHashMap<DualKey<PrismsApplication, User>, Preferences> thePrefs;
 
+	prisms.records.ScaledRecordKeeper theScaler;
+
 	public void configure(PrismsConfig config, PrismsEnv env,
 		PrismsProperty<? super Preferences> property)
 	{
-		theTransactor = env.getConnectionFactory().getConnection(config, null, null);
-		thePrefs = new java.util.concurrent.ConcurrentHashMap<DualKey<PrismsApplication, User>, Preferences>();
+		theEnv = env;
+		if(theTransactor == null)
+			theTransactor = env.getConnectionFactory().getConnection(config, null, null);
+		if(thePrefs == null)
+			thePrefs = new java.util.concurrent.ConcurrentHashMap<DualKey<PrismsApplication, User>, Preferences>();
+		if(theScaler == null && theTransactor.getConnectionConfig().is("shared", false))
+		{
+			theScaler = new prisms.records.ScaledRecordKeeper("PRISMS Prefs", config,
+				env.getConnectionFactory(), env.getIDs());
+			PreferencesScaleImpl impl = new PreferencesScaleImpl();
+			impl.setPrefPersister(this);
+			theScaler.setPersister(impl);
+			theScaler.setScaleImpl(impl);
+			prisms.records.AutoPurger purger = new prisms.records.AutoPurger();
+			purger.setAge(30L * 60 * 1000);
+			try
+			{
+				theScaler.setAutoPurger(purger, new prisms.records.RecordsTransaction());
+			} catch(PrismsRecordException e)
+			{
+				log.error("Could not set preference auto-purger", e);
+			}
+			theScaler.setCheckInterval(config.getTime("check-time", 5000));
+		}
 	}
 
-	@SuppressWarnings("rawtypes")
+	/** @return The environment in which this preferences persister is used */
+	public PrismsEnv getEnv()
+	{
+		return theEnv;
+	}
+
 	public Preferences getValue(PrismsSession session)
 	{
-		DualKey<PrismsApplication, User> key = new DualKey<PrismsApplication, User>(
-			session.getApp(), session.getUser());
+		return getValue(session.getApp(), session.getUser());
+	}
+
+	/**
+	 * Gets the preferences for a user's view of an application
+	 * 
+	 * @param app The application to get the preferences for
+	 * @param user The user to get the preferences for
+	 * @return The Preferences for the user's view of the application
+	 */
+	@SuppressWarnings("rawtypes")
+	public Preferences getValue(PrismsApplication app, User user)
+	{
+		if(theScaler != null)
+		{
+			if(((PreferencesScaleImpl) theScaler.getPersister()).addApp(app))
+				app.scheduleRecurringTask(new Runnable()
+				{
+					public void run()
+					{
+						theScaler.checkChanges(false);
+					}
+
+					@Override
+					public String toString()
+					{
+						return "Preferences Scaling Checker";
+					}
+				}, 2000);
+		}
+		DualKey<PrismsApplication, User> key = new DualKey<PrismsApplication, User>(app, user);
 		Preferences ret = thePrefs.get(key);
 		if(ret != null)
 			return ret;
@@ -49,7 +110,7 @@ public class PreferencesPersister implements
 
 			java.sql.Statement stmt = null;
 			java.sql.ResultSet rs = null;
-			String sql = "SELECT pDomain, pName, pType, pDisplayed, pValue FROM "
+			String sql = "SELECT id, pDomain, pName, pType, pDisplayed, pValue FROM "
 				+ theTransactor.getTablePrefix() + "prisms_preference WHERE pApp="
 				+ DBUtils.toSQL(key.getKey1().getName()) + " AND pUser="
 				+ DBUtils.toSQL(key.getKey2().getName());
@@ -84,8 +145,10 @@ public class PreferencesPersister implements
 							+ " type " + type + " value=" + valueS, e);
 						continue;
 					}
-					ret.set(new Preference(domain, propName, type, type.getType(), displayed),
-						value);
+					Preference pref = new Preference(domain, propName, type, type.getType(),
+						displayed);
+					pref.setID(rs.getLong("id"));
+					ret.set(pref, value);
 				}
 			} catch(Exception e)
 			{
@@ -108,18 +171,55 @@ public class PreferencesPersister implements
 			}
 			ret.addListener(new Preferences.Listener()
 			{
-				public void domainRemoved(Preferences p, String domain)
+				public <T> void prefChanged(PreferenceEvent evt)
 				{
-					removeDomain(p.getApp(), p.getOwner(), domain);
-				}
-
-				public <T, V extends T> void prefChanged(Preferences p, Preference<T> pref, V value)
-				{
-					setValue(p.getApp(), p.getOwner(), pref, value);
+					if(evt.isWithRecord())
+						setValue(evt.getPrefSet().getApp(), evt.getPrefSet().getOwner(),
+							evt.getPreference(), evt.getOldValue(), evt.getNewValue());
 				}
 			});
 			thePrefs.put(key, ret);
 			return ret;
+		}
+	}
+
+	/**
+	 * @param <T> The type of the preference
+	 * @param prefs The preference set that the preference belongs to
+	 * @param pref The preference to get the current value of
+	 * @return The value of the preference in the database right now
+	 */
+	public <T> T getDBValue(Preferences prefs, Preference<T> pref)
+	{
+		java.sql.Statement stmt = null;
+		java.sql.ResultSet rs = null;
+		String sql = "SELECT pValue FROM " + theTransactor.getTablePrefix()
+			+ "prisms_preference WHERE id=" + pref.getID();
+		try
+		{
+			stmt = theTransactor.getConnection().createStatement();
+			rs = stmt.executeQuery(sql);
+			if(!rs.next())
+				return null;
+			return (T) pref.getType().deserialize(rs.getString("pValue"));
+		} catch(Exception e)
+		{
+			log.error("Could not retrieve preferences: SQL=" + sql, e);
+			return prefs.get(pref);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{}
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{}
 		}
 	}
 
@@ -130,7 +230,7 @@ public class PreferencesPersister implements
 	}
 
 	void setValue(final PrismsApplication app, final User user, final Preference<?> pref,
-		final Object value)
+		final Object oldValue, final Object value)
 	{
 		final String whereClause = "WHERE pUser = " + DBUtils.toSQL(user.getName())
 			+ " AND pDomain = " + DBUtils.toSQL(pref.getDomain()) + " AND pName = "
@@ -158,9 +258,20 @@ public class PreferencesPersister implements
 									+ "prisms_preference SET pValue = " + DBUtils.toSQL(valueS)
 									+ " " + whereClause);
 							else
+							{
+								long id;
+								try
+								{
+									id = getEnv().getIDs().getNextID("prisms_preference", "id",
+										stmt, theTransactor.getTablePrefix(), null);
+								} catch(prisms.arch.PrismsException e)
+								{
+									throw new IllegalStateException(
+										"Could not get next preference ID", e);
+								}
 								stmt.execute("INSERT INTO " + theTransactor.getTablePrefix()
-									+ "prisms_preference (pApp, pUser, pDomain, pName, pType,"
-									+ " pDisplayed, pValue) VALUES ("
+									+ "prisms_preference (id, pApp, pUser, pDomain, pName, pType,"
+									+ " pDisplayed, pValue) VALUES (" + id + ", "
 									+ DBUtils.toSQL(app.getName()) + ", "
 									+ DBUtils.toSQL(user.getName()) + ", "
 									+ DBUtils.toSQL(pref.getDomain()) + ", "
@@ -168,6 +279,7 @@ public class PreferencesPersister implements
 									+ DBUtils.toSQL(pref.getType().name()) + ", "
 									+ DBUtils.boolToSql(pref.isDisplayed()) + ", "
 									+ DBUtils.toSQL(valueS) + ")");
+							}
 						} finally
 						{
 							if(rs != null)
@@ -178,36 +290,23 @@ public class PreferencesPersister implements
 								{}
 						}
 					}
+					if(theScaler != null)
+						try
+						{
+							theScaler.persist(new prisms.records.RecordsTransaction(user),
+								PreferenceSubjectType.Preference,
+								PreferenceSubjectType.PreferenceChange.Value, 0, pref, null,
+								oldValue, app, user);
+						} catch(PrismsRecordException e)
+						{
+							log.error("Could not persist preference change", e);
+						}
 					return null;
 				}
 			}, "Could not set preference " + pref);
 		} catch(SQLException e)
 		{
 			log.error("Could not persist preference " + pref + " of user " + user.getName(), e);
-		}
-	}
-
-	void removeDomain(final PrismsApplication app, final User user, final String domain)
-	{
-		final String sql = "DELETE FROM " + theTransactor.getTablePrefix()
-			+ "prisms_preference WHERE pUser = " + DBUtils.toSQL(user.getName())
-			+ " AND pDomain = " + DBUtils.toSQL(domain) + " AND pApp="
-			+ DBUtils.toSQL(app.getName());
-		try
-		{
-			theTransactor.performTransaction(new Transactor.TransactionOperation<SQLException>()
-			{
-				public Object run(Statement stmt) throws SQLException
-				{
-					stmt.execute(sql);
-					return null;
-				}
-			}, "Could not remove preference domain " + domain);
-		} catch(SQLException e)
-		{
-			log.error(
-				"Could not remove preference domain " + domain + " for user " + user.getName()
-					+ ": SQL=" + sql, e);
 		}
 	}
 }

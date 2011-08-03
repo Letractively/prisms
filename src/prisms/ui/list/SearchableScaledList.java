@@ -229,7 +229,7 @@ public abstract class SearchableScaledList<T> extends SearchableListPlugin<T>
 				prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
 				if(pEvt.getPreference().equals(theDisplayCountPref))
 				{
-					setDisplayCount(((Integer) pEvt.getValue()).intValue());
+					setDisplayCount(((Integer) pEvt.getNewValue()).intValue());
 				}
 			}
 

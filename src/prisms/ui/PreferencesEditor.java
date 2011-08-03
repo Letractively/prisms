@@ -1,4 +1,4 @@
-/**
+/*
  * PreferencesEditor.java Created Mar 19, 2008 by Andrew Butler, PSL
  */
 package prisms.ui;
@@ -32,13 +32,35 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 					if(theDataLock || !(evt instanceof prisms.util.preferences.PreferenceEvent))
 						return;
 					prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
+					if(!pEvt.getPreference().isDisplayed())
+						return;
 					JSONObject postEvt = new JSONObject();
 					postEvt.put("plugin", NAME);
 					postEvt.put("method", "set");
 					postEvt.put("domain", pEvt.getPreference().getDomain());
 					postEvt.put("prefName", pEvt.getPreference().getName());
 					postEvt.put("type", pEvt.getPreference().getType().name());
-					postEvt.put("value", pEvt.getValue());
+					Object value = pEvt.getNewValue();
+					switch(pEvt.getPreference().getType())
+					{
+					case ENUM:
+						JSONObject enumPref = new JSONObject();
+						enumPref.put("value", value.toString());
+						org.json.simple.JSONArray options = new org.json.simple.JSONArray();
+						enumPref.put("options", options);
+						for(Enum<?> option : ((Enum<?>) value).getDeclaringClass()
+							.getEnumConstants())
+							options.add(option.toString());
+						postEvt.put("value", enumPref);
+						break;
+					case COLOR:
+						postEvt.put("value", prisms.util.ColorUtils.toHTML((Color) value));
+						break;
+					default:
+						postEvt.put("value", value);
+					}
+					postEvt.put("value", pEvt.getNewValue());
+					session2.postOutgoingEvent(postEvt);
 				}
 			});
 	}
@@ -104,8 +126,6 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 			try
 			{
 				prefs.set((Preference<Object>) pref, value);
-				theSession.fireEvent(new prisms.util.preferences.PreferenceEvent(
-					prisms.util.preferences.PreferenceEvent.Type.CHANGED, pref, value));
 			} finally
 			{
 				theDataLock = false;

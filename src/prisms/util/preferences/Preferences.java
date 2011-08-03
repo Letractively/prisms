@@ -1,4 +1,4 @@
-/**
+/*
  * Preferences.java Created Mar 18, 2008 by Andrew Butler, PSL
  */
 package prisms.util.preferences;
@@ -6,11 +6,30 @@ package prisms.util.preferences;
 /** A set of preferences for a user */
 public class Preferences implements prisms.util.persisters.OwnedObject
 {
+	/**
+	 * An association between a preference and a value. Used internally to keep track of
+	 * preferences.
+	 */
+	public static class PrefValue
+	{
+		/** The preference */
+		public final Preference<?> pref;
+
+		/** The value */
+		public Object value;
+
+		PrefValue(Preference<?> p, Object v)
+		{
+			pref = p;
+			value = v;
+		}
+	}
+
 	private prisms.arch.PrismsApplication theApp;
 
 	private prisms.arch.ds.User theOwner;
 
-	private java.util.Map<Preference<?>, Object> thePrefs;
+	private java.util.Map<Preference<?>, PrefValue> thePrefs;
 
 	private Listener [] theListeners;
 
@@ -26,7 +45,7 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	{
 		theApp = app;
 		theOwner = user;
-		thePrefs = new java.util.TreeMap<Preference<?>, Object>();
+		thePrefs = new java.util.TreeMap<Preference<?>, PrefValue>();
 		theActivePrefs = new java.util.LinkedHashSet<Preference<?>>();
 		theListeners = new Listener [0];
 	}
@@ -77,10 +96,13 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public <T> T get(Preference<T> pref)
 	{
-		T ret = (T) thePrefs.get(pref);
-		if(ret != null)
-			theActivePrefs.add(pref);
-		return ret;
+		PrefValue val = thePrefs.get(pref);
+		if(val == null)
+			return null;
+		val.pref.setDescription(pref.getDescription());
+		pref.setID(val.pref.getID());
+		theActivePrefs.add(pref);
+		return (T) val.value;
 	}
 
 	/**
@@ -106,41 +128,32 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public <T, V extends T> void set(Preference<T> pref, V value)
 	{
+		set(pref, value, true);
+	}
+
+	<T, V extends T> void set(Preference<T> pref, V value, boolean withRecord)
+	{
 		if(value != null)
 			pref.getType().validate(value);
-		thePrefs.put(pref, value);
-		for(Listener L : theListeners)
-			L.prefChanged(this, pref, value);
-	}
-
-	/**
-	 * Removes a preference
-	 * 
-	 * @param pref The preference to remove
-	 */
-	public void remove(Preference<?> pref)
-	{
-		thePrefs.remove(pref);
-		for(Listener L : theListeners)
-			L.prefChanged(this, pref, null);
-	}
-
-	/**
-	 * Removes an entire domain of preferences
-	 * 
-	 * @param domain The name of the domain to remove
-	 */
-	public void removeDomain(String domain)
-	{
-		java.util.Iterator<Preference<?>> keys = thePrefs.keySet().iterator();
-		while(keys.hasNext())
+		PrefValue val = thePrefs.get(pref);
+		T oldVal;
+		if(val == null)
 		{
-			Preference<?> pref = keys.next();
-			if(pref.getDomain().equals(domain))
-				keys.remove();
+			oldVal = null;
+			if(value == null)
+				return;
+			thePrefs.put(pref, new PrefValue(pref, value));
 		}
+		else
+		{
+			oldVal = (T) val.value;
+			if(value == null)
+				thePrefs.remove(pref);
+			val.value = value;
+		}
+		PreferenceEvent evt = new PreferenceEvent(this, pref, oldVal, value, withRecord);
 		for(Listener L : theListeners)
-			L.domainRemoved(this, domain);
+			L.prefChanged(evt);
 	}
 
 	/** @return All domains contained in this set of preferences */
@@ -196,19 +209,8 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 		 * Called when a particular preference changes
 		 * 
 		 * @param <T> The type of the preference being changed
-		 * @param <V> The type of the value being set
-		 * @param prefs The preferences set that was modified
-		 * @param pref The preference that was modified
-		 * @param value The new value for the preference
+		 * @param evt The change event
 		 */
-		<T, V extends T> void prefChanged(Preferences prefs, Preference<T> pref, V value);
-
-		/**
-		 * Called when a domain is removed
-		 * 
-		 * @param prefs The preferences set that was modified
-		 * @param domain The domain that was removed
-		 */
-		void domainRemoved(Preferences prefs, String domain);
+		<T> void prefChanged(PreferenceEvent evt);
 	}
 }

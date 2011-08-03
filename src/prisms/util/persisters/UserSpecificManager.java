@@ -1,5 +1,5 @@
-/**
- * UserSpecific.java Created Jul 7, 2008 by Andrew Butler, PSL
+/*
+ * UserSpecificManager.java Created Jul 7, 2008 by Andrew Butler, PSL
  */
 package prisms.util.persisters;
 
@@ -29,6 +29,12 @@ public class UserSpecificManager<T> extends prisms.arch.event.PropertyManager<T>
 			if(persisterEl != null)
 				thePersister = createUSPersister(persisterEl, app.getEnvironment(), getProperty());
 		}
+	}
+
+	/** @return The persister that persists this manager's property */
+	public UserSpecificPersister<T> getPersister()
+	{
+		return thePersister;
 	}
 
 	@Override
