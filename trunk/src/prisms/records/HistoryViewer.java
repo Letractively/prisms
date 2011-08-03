@@ -177,17 +177,17 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				if(pEvt.getPreference().equals(theCountPref))
 				{
 					theStart = 1;
-					theCount = ((Integer) pEvt.getValue()).intValue();
+					theCount = ((Integer) pEvt.getNewValue()).intValue();
 					refresh(false);
 				}
 				else if(pEvt.getPreference().equals(theTimePref))
 				{
-					theTimePrecision = (PrismsUtils.TimePrecision) pEvt.getValue();
+					theTimePrecision = (PrismsUtils.TimePrecision) pEvt.getNewValue();
 					sendDisplay(false, false);
 				}
 				else if(pEvt.getPreference().equals(theTimeZonePref))
 				{
-					theTimeZone = (TimeZoneType) pEvt.getValue();
+					theTimeZone = (TimeZoneType) pEvt.getNewValue();
 					sendDisplay(false, false);
 				}
 			}
@@ -1395,7 +1395,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 					{
 						throw new IllegalStateException("Can't set auto-purger", e);
 					}
-					getSession().fireEvent(new PrismsEvent(theAutoPurgeChangeEvent));
+					getSession().fireEvent(theAutoPurgeChangeEvent);
 					getSession().runEventually(new Runnable()
 					{
 						public void run()
@@ -1864,7 +1864,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 			log.error("Could not re-exclude user " + user + " from auto-purge", e);
 			return "Could not re-exclude user " + user + " from auto-purge: " + e.getMessage();
 		}
-		getSession().fireEvent(new PrismsEvent("autoPurgeChanged"));
+		getSession().fireEvent("autoPurgeChanged");
 		return null;
 	}
 
@@ -1886,7 +1886,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 			log.error("Could not re-exclude type " + type + " from auto-purge", e);
 			return "Could not re-exclude type " + type + " from auto-purge: " + e.getMessage();
 		}
-		getSession().fireEvent(new PrismsEvent("autoPurgeChanged"));
+		getSession().fireEvent("autoPurgeChanged");
 		return null;
 	}
 
@@ -1927,7 +1927,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 			log.error("Could not re-include user " + user + " in auto-purge", e);
 			return "Could not re-include user " + user + " in auto-purge: " + e.getMessage();
 		}
-		getSession().fireEvent(new PrismsEvent(theAutoPurgeChangeEvent));
+		getSession().fireEvent(theAutoPurgeChangeEvent);
 		return null;
 	}
 
@@ -1949,7 +1949,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 			log.error("Could not re-include type " + type + " in auto-purge", e);
 			return "Could not re-include type " + type + " in auto-purge: " + e.getMessage();
 		}
-		getSession().fireEvent(new PrismsEvent(theAutoPurgeChangeEvent));
+		getSession().fireEvent(theAutoPurgeChangeEvent);
 		return null;
 	}
 
@@ -2040,7 +2040,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 			log.error("Could not set auto-purger", e);
 			return "Could not set auto-purger: " + e.getMessage();
 		}
-		getSession().fireEvent(new PrismsEvent(theAutoPurgeChangeEvent));
+		getSession().fireEvent(theAutoPurgeChangeEvent);
 		return null;
 	}
 }

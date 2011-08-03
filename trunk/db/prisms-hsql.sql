@@ -125,6 +125,7 @@ CREATE TABLE prisms_group_permissions (
 
 -- The PRISMS preference table allows applications to store small user-specific data persistently
 CREATE TABLE prisms_preference (
+	id NUMERIC(20) NOT NULL,
 	pApp VARCHAR(64) NOT NULL,
 	pUser VARCHAR(64) NOT NULL,
 	pDomain VARCHAR(64) NOT NULL,
@@ -133,6 +134,7 @@ CREATE TABLE prisms_preference (
 	pDisplayed CHAR(1) NOT NULL,
 	pValue VARCHAR(1024) NULL,
 
+	CONSTRAINT prisms_pref_pk PRIMARY KEY(id),
 	CONSTRAINT prisms_pref_unq UNIQUE(pApp, pUser, pDomain, pName)
 );
 

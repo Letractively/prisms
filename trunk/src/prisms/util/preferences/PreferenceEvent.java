@@ -8,40 +8,40 @@ import prisms.arch.event.PrismsEvent;
 /** An event fired when the preferences change */
 public class PreferenceEvent extends PrismsEvent
 {
-	/** The type of event that occurred */
-	public static enum Type
-	{
-		/** The event type when a preference is introduced or changed */
-		CHANGED,
-		/** The event type when a preference is removed */
-		REMOVED;
-	}
-
-	private final Type theType;
+	private final Preferences thePrefs;
 
 	private Preference<?> thePreference;
 
-	private final Object theValue;
+	private final Object theOldValue;
+
+	private final Object theNewValue;
+
+	private final boolean isWithRecord;
 
 	/**
 	 * Creates a PreferenceEvent
 	 * 
-	 * @param type The type of the event
+	 * @param prefs The preferences set that this event is for
 	 * @param pref The preference that was changed
+	 * @param old The previous value of the preference before this event
 	 * @param value The new value for the preference
+	 * @param withRecord Whether this event should be persisted for scaling
 	 */
-	public PreferenceEvent(Type type, Preference<?> pref, Object value)
+	public PreferenceEvent(Preferences prefs, Preference<?> pref, Object old, Object value,
+		boolean withRecord)
 	{
 		super("preferencesChanged");
-		theType = type;
+		thePrefs = prefs;
 		thePreference = pref;
-		theValue = value;
+		theOldValue = old;
+		theNewValue = value;
+		isWithRecord = withRecord;
 	}
 
-	/** @return This event's type */
-	public Type getType()
+	/** @return The preferences set that this event is for */
+	public Preferences getPrefSet()
 	{
-		return theType;
+		return thePrefs;
 	}
 
 	/** @return The preference that was changed */
@@ -50,9 +50,21 @@ public class PreferenceEvent extends PrismsEvent
 		return thePreference;
 	}
 
-	/** @return The new value of this event's preference */
-	public Object getValue()
+	/** @return The previous value of the preference before this event */
+	public Object getOldValue()
 	{
-		return theValue;
+		return theOldValue;
+	}
+
+	/** @return The new value of this event's preference */
+	public Object getNewValue()
+	{
+		return theNewValue;
+	}
+
+	/** @return Whether this event should be persisted for scaling in an enterprise */
+	public boolean isWithRecord()
+	{
+		return isWithRecord;
 	}
 }

@@ -57,7 +57,7 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 		{
 			if(!this.open)
 				return;
-			this.setDatum(event.domain, event.prefName, event.value);
+			this.setDatum(event.domain, event.prefName, event.type, event.value);
 		}
 		else if(event.method=="setVisible")
 			this.setVisible(event.visible);
@@ -114,7 +114,7 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 		this.tabPane.resize();
 	},
 
-	setDatum: function(domain, prefName, value){
+	setDatum: function(domain, prefName, type, value){
 		var domainMap=this._editors[domain];
 		var editor;
 		if(domainMap)
@@ -123,19 +123,19 @@ __dojo.declare("prisms.widget.Preferences", prisms.widget.PrismsDialog, {
 			throw new Error("No such preference: "+domain+"::"+prefName);
 		this.dataLock=true;
 		try{
-			if(value.type=="ENUM")
+			if(type=="ENUM")
 			{
 				for(var i=0;i<editor.options.length;i++)
-					if(editor.options[i].text==value.value)
+					if(editor.options[i].text==value)
 					{
 						editor.selectedIndex=i;
 						break;
 					}
 			}
-			else if(value.type=="COLOR")
-			{}
-			else if(editor.getValue()!=value.value)
-				editor.setValue(value.value);
+			else if(type=="COLOR")
+				editor.setValue(value, false);
+			else if(editor.getValue()!=value)
+				editor.setValue(value);
 		} finally{
 			this.dataLock=false;
 		}

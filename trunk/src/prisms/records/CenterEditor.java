@@ -105,7 +105,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 					return;
 				theImportStart = 1;
 				theExportStart = 1;
-				theRecordCount = ((Integer) pEvt.getValue()).intValue();
+				theRecordCount = ((Integer) pEvt.getNewValue()).intValue();
 				sendSyncRecords(false);
 			}
 
@@ -403,9 +403,8 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 			String newName = (String) evt.get("name");
 			if(newName.length() > theNameLength)
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("sendStatusError",
-					"message", "Data center name must be less than " + (theNameLength + 1)
-						+ " characters"));
+				theSession.getStatus().sendStatusError(
+					"Data center name must be less than " + (theNameLength + 1) + " characters");
 				isError = true;
 			}
 			else
@@ -420,9 +419,8 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 			String newURL = (String) evt.get("url");
 			if(newURL.length() > theUrlLength)
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("sendStatusError",
-					"message", "Data center URL must be less than " + (theUrlLength + 1)
-						+ " characters"));
+				theSession.getStatus().sendStatusError(
+					"Data center URL must be less than " + (theUrlLength + 1) + " characters");
 				isError = true;
 			}
 			else
@@ -440,9 +438,9 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 			String newName = (String) evt.get("userName");
 			if(newName.length() > theUserNameLength)
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("sendStatusError",
-					"message", "Data center server user name must be less than "
-						+ (theUserNameLength + 1) + " characters"));
+				theSession.getStatus().sendStatusError(
+					"Data center server user name must be less than " + (theUserNameLength + 1)
+						+ " characters");
 				isError = true;
 			}
 			else
@@ -461,9 +459,9 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 			newPassword = xorEnc(newPassword, 93);
 			if(newPassword.length() > thePasswordLength)
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("sendStatusError",
-					"message", "Data center password must be less than " + (thePasswordLength + 1)
-						+ " characters"));
+				theSession.getStatus().sendStatusError(
+					"Data center password must be less than " + (thePasswordLength + 1)
+						+ " characters");
 				isError = true;
 			}
 			else
@@ -543,6 +541,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 									"Could not parse URL " + theCenter.getServerURL());
 								return;
 							}
+							getSession().getUI().startTimedTask(pi);
 							java.security.cert.X509Certificate[] certs;
 							try
 							{
@@ -556,8 +555,8 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 							{
 								log.error("Certificate retrieval failed", e2);
 								getSession().getUI().info(
-									"Could not contact center " + theCenter
-										+ ": SSL authentication failed");
+									"Could not contact center " + theCenter + ": "
+										+ e2.getMessage());
 							} finally
 							{
 								pi.setDone();
@@ -622,14 +621,11 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 
 		if(!isError && status != null)
 		{
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("centerChanged", "center",
-				theCenter));
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("sendStatusUpdate", "message",
-				status));
+			theSession.fireEvent("centerChanged", "center", theCenter);
+			theSession.getStatus().sendStatusUpdate(status);
 		}
 		else if(status != null)
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("sendStatusError", "message",
-				status));
+			theSession.getStatus().sendStatusError(status);
 	}
 
 	/**
@@ -879,7 +875,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				{
 					certs = null;
 					log.error("Certificate retrieval failed", e2);
-					ui.info("Could not contact center " + theCenter + ": SSL authentication failed");
+					ui.info("Could not contact center " + theCenter + ": " + e2.getMessage());
 				}
 				if(certs != null)
 					promptCerts(certs, Boolean.FALSE);
@@ -1320,7 +1316,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 				{
 					certs = null;
 					log.error("Certificate retrieval failed", e2);
-					ui.info("Could not contact center " + theCenter + ": SSL authentication failed");
+					ui.info("Could not contact center " + theCenter + ": " + e2.getMessage());
 				}
 				if(certs != null)
 					promptCerts(certs, Boolean.TRUE);
