@@ -36,6 +36,12 @@ public interface DataInspector
 
 		/** @return The UI widget to use to communicate with the user */
 		prisms.ui.UI getUI();
+
+		/** @return The status plugin to use to communicate with the user */
+		prisms.ui.StatusPlugin getStatus();
+
+		/** @return The client user's preferences */
+		prisms.util.preferences.Preferences getPreferences();
 	}
 
 	/** Represents a piece of data represented to the manager users */

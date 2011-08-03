@@ -54,9 +54,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		/** The PRISMS instance where the {@link ServiceTree} is located */
 		public final PrismsInstance instance;
 
-		boolean isOpen;
-
-		boolean isConfirmed;
+		final java.util.ArrayList<JSONObject> theEventQueue;
 
 		prisms.util.PrismsServiceConnector conn;
 
@@ -65,7 +63,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		RemoteSource(PrismsInstance pi)
 		{
 			instance = pi;
-			isOpen = true;
+			theEventQueue = new ArrayList<JSONObject>();
 		}
 
 		private void connect()
@@ -103,6 +101,67 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			}
 		}
 
+		void sendEvents()
+		{
+			if(theEventQueue.isEmpty())
+				return;
+			synchronized(theEventQueue)
+			{
+				for(int i = 0; i < theEventQueue.size(); i++)
+				{
+					final JSONObject evt = theEventQueue.get(i);
+					if(evt.get("clientTreeLocked") != null)
+						continue;
+					final long now = System.currentTimeMillis();
+					conn.getResultsAsync(getServicePlugin(), (String) evt.get("method"),
+						new prisms.util.PrismsServiceConnector.AsyncReturns()
+						{
+							public void doReturn(JSONArray returnVals)
+							{
+								synchronized(theEventQueue)
+								{
+									for(int i2 = 0; i2 < theEventQueue.size(); i2++)
+										if(theEventQueue.get(i2) == evt)
+										{
+											theEventQueue.remove(i2);
+											break;
+										}
+								}
+								theLastCheck = now;
+								if(!returnVals.isEmpty())
+									processServiceEvents(RemoteSource.this, returnVals);
+							}
+
+							public void doError(IOException e)
+							{
+								evt.remove("clientTreeLocked");
+								/*Presumably we've already had the error. Don't want to fill up the log. */
+							}
+						}, toParams(evt));
+					evt.put("clientTreeLocked", Boolean.TRUE);
+				}
+			}
+		}
+
+		private Object [] toParams(JSONObject evt)
+		{
+			int len = evt.size();
+			if(evt.get("method") != null)
+				len--;
+			len *= 2;
+			Object [] ret = new Object [len];
+			int i = 0;
+			for(java.util.Map.Entry<?, ?> entry : ((java.util.Map<?, ?>) evt).entrySet())
+			{
+				if(entry.getKey().equals("method"))
+					continue;
+				ret[i] = entry.getKey();
+				ret[i + 1] = entry.getValue();
+				i += 2;
+			}
+			return ret;
+		}
+
 		/**
 		 * Sends a request to the source without waiting for the result
 		 * 
@@ -111,12 +170,12 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		 */
 		public void sendAsync(final String method, Object... params)
 		{
-			if(!isOpen)
-				return;
 			if(conn == null)
 				connect();
+			sendEvents();
 			params = prisms.util.ArrayUtils.addAll(params, "clientID", theClientID, "user",
 				getSession().getUser().getName(), "lastCheck", Long.valueOf(theLastCheck));
+			final Object [] fParams = params;
 			final long now = System.currentTimeMillis();
 			conn.getResultsAsync(getServicePlugin(), method,
 				new prisms.util.PrismsServiceConnector.AsyncReturns()
@@ -126,14 +185,17 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						theLastCheck = now;
 						if(!returnVals.isEmpty())
 							processServiceEvents(RemoteSource.this, returnVals);
-						isConfirmed = true;
 					}
 
 					public void doError(IOException e)
 					{
 						log.error("Could not call method " + method + " at " + instance.location, e);
-						if(!isConfirmed)
-							isOpen = false;
+						JSONObject event = prisms.util.PrismsUtils.rEventProps(fParams);
+						event.put("method", method);
+						synchronized(theEventQueue)
+						{
+							theEventQueue.add(event);
+						}
 					}
 				}, params);
 		}
@@ -146,10 +208,9 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		 */
 		public void sendSync(String method, Object... params)
 		{
-			if(!isOpen)
-				return;
 			if(conn == null)
 				connect();
+			sendEvents();
 			params = prisms.util.ArrayUtils.addAll(params, "clientID", theClientID, "user",
 				getSession().getUser().getName(), "lastCheck", Long.valueOf(theLastCheck));
 			long now = System.currentTimeMillis();
@@ -157,12 +218,15 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			try
 			{
 				events = conn.getResults(getServicePlugin(), method, params);
-				isConfirmed = true;
 			} catch(IOException e)
 			{
 				log.error("Could not call method " + method + " at " + instance.location, e);
-				if(!isConfirmed)
-					isOpen = false;
+				JSONObject event = prisms.util.PrismsUtils.rEventProps(params);
+				event.put("method", method);
+				synchronized(theEventQueue)
+				{
+					theEventQueue.add(event);
+				}
 				return;
 			}
 			theLastCheck = now;
@@ -183,12 +247,12 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		public void callMethodAsync(final String method, final String returnMethod,
 			final Return ret, Object... params)
 		{
-			if(!isOpen)
-				return;
 			if(conn == null)
 				connect();
+			sendEvents();
 			params = prisms.util.ArrayUtils.addAll(params, "clientID", theClientID, "user",
 				getSession().getUser().getName(), "lastCheck", Long.valueOf(theLastCheck));
+			final Object [] fParams = params;
 			final long now = System.currentTimeMillis();
 			conn.getResultsAsync(getServicePlugin(), method,
 				new prisms.util.PrismsServiceConnector.AsyncReturns()
@@ -206,15 +270,18 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						theLastCheck = now;
 						if(!returnVals.isEmpty())
 							processServiceEvents(RemoteSource.this, returnVals);
-						isConfirmed = true;
 						ret.returned(retEvt);
 					}
 
 					public void doError(IOException e)
 					{
 						log.error("Could not call method " + method + " at " + instance.location, e);
-						if(!isConfirmed)
-							isOpen = false;
+						JSONObject event = prisms.util.PrismsUtils.rEventProps(fParams);
+						event.put("method", method);
+						synchronized(theEventQueue)
+						{
+							theEventQueue.add(event);
+						}
 					}
 				}, params);
 		}
@@ -231,22 +298,24 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		 */
 		public JSONObject callMethod(String method, String returnMethod, Object... params)
 		{
-			if(!isOpen)
-				return null;
 			if(conn == null)
 				connect();
+			sendEvents();
 			params = prisms.util.ArrayUtils.addAll(params, "clientID", theClientID, "user",
 				getSession().getUser().getName(), "lastCheck", Long.valueOf(theLastCheck));
 			JSONArray events;
 			try
 			{
 				events = conn.getResults(getServicePlugin(), method, params);
-				isConfirmed = true;
 			} catch(IOException e)
 			{
 				log.error("Could not call method " + method + " at " + instance.location, e);
-				if(!isConfirmed)
-					isOpen = false;
+				JSONObject event = prisms.util.PrismsUtils.rEventProps(params);
+				event.put("method", method);
+				synchronized(theEventQueue)
+				{
+					theEventQueue.add(event);
+				}
 				return null;
 			}
 			long now = System.currentTimeMillis();
@@ -503,6 +572,8 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			|| "confirm".equals(method) || "input".equals(method) || "select".equals(method)
 			|| "progress".equals(method) || "close".equals(method))
 			doUI(source, event); // UI event
+		else if("showStatus".equals(method) || "showError".equals(method))
+			doStatus(source, event); // Status event
 		else
 			log.error("Unrecognized service method: " + method);
 	}
@@ -700,6 +771,16 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		}
 		else
 			throw new IllegalStateException("Unrecognized UI event: " + event);
+	}
+
+	private void doStatus(RemoteSource source, JSONObject event)
+	{
+		if("showStatus".equals(event.get("method")))
+			getSession().getStatus().sendStatusUpdate((String) event.get("message"));
+		else if("showError".equals(event.get("method")))
+			getSession().getStatus().sendStatusError((String) event.get("message"));
+		else
+			throw new IllegalStateException("Unrecognized Status event: " + event);
 	}
 
 	private ClientTreeNode navigate(RemoteSource source, JSONArray path, int depth)
@@ -1192,17 +1273,14 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		 * @param withEvents Whether to fire events if content has changed
 		 * @return Whether the node or any of its descendants were changed by this call
 		 */
-		protected boolean setContent(JSONObject content, final RemoteSource source,
+		protected synchronized boolean setContent(JSONObject content, final RemoteSource source,
 			boolean withChildren, boolean withEvents)
 		{
 			if(!ArrayUtils.contains(theNodeSources, source))
-				synchronized(this)
+				if(!ArrayUtils.contains(theNodeSources, source))
 				{
-					if(!ArrayUtils.contains(theNodeSources, source))
-					{
-						theNodeSources = ArrayUtils.add(theNodeSources, source);
-						java.util.Arrays.sort(theNodeSources);
-					}
+					theNodeSources = ArrayUtils.add(theNodeSources, source);
+					java.util.Arrays.sort(theNodeSources);
 				}
 			String text = (String) content.get("text");
 			String desc = (String) content.get("description");
@@ -1364,10 +1442,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		 */
 		protected void removed(RemoteSource source, boolean withEvents)
 		{
-			synchronized(this)
-			{
-				theNodeSources = ArrayUtils.remove(theNodeSources, source);
-			}
+			theNodeSources = ArrayUtils.remove(theNodeSources, source);
 			if(theNodeSources.length == 0)
 			{
 				if(withEvents)

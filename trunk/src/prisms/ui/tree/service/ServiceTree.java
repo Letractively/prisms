@@ -50,6 +50,11 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 		/** The UI widget to use to communicate with the client */
 		public final prisms.ui.UI ui;
 
+		/** The status plugin to use to communicate with the client */
+		public final prisms.ui.StatusPlugin status;
+
+		private prisms.util.preferences.Preferences thePrefs;
+
 		private java.util.ArrayList<TreeEvent> theEventQueue;
 
 		private long theLastCheck;
@@ -65,6 +70,20 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 			clientID = id;
 			user = u;
 			ui = new prisms.ui.UI.NormalUI(getSession());
+			status = new prisms.ui.StatusPlugin();
+			status.initPlugin(getSession(), null);
+			prisms.util.preferences.PreferencesPersister prefPersister = null;
+			for(prisms.arch.event.PrismsPCL<?> pm : getSession().getPropertyChangeListeners(
+				prisms.arch.event.PrismsProperties.preferences))
+				if(pm instanceof prisms.util.persisters.UserSpecificManager
+					&& ((prisms.util.persisters.UserSpecificManager<?>) pm).getPersister() instanceof prisms.util.preferences.PreferencesPersister)
+				{
+					prefPersister = (prisms.util.preferences.PreferencesPersister) ((prisms.util.persisters.UserSpecificManager<?>) pm)
+						.getPersister();
+					break;
+				}
+			if(prefPersister != null)
+				thePrefs = prefPersister.getValue(getSession().getApp(), u);
 			theEventQueue = new java.util.ArrayList<TreeEvent>();
 		}
 
@@ -78,6 +97,18 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 		public prisms.ui.UI getUI()
 		{
 			return ui;
+		}
+
+		/** @return The status plugin to use to communicate with the client */
+		public prisms.ui.StatusPlugin getStatus()
+		{
+			return status;
+		}
+
+		/** @return The preferences of the client user */
+		public prisms.util.preferences.Preferences getPreferences()
+		{
+			return thePrefs;
 		}
 
 		void checked()
