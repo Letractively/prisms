@@ -1,4 +1,4 @@
-/**
+/*
  * PersistingPropertyManager.java Created Feb 24, 2009 by Andrew Butler, PSL
  */
 package prisms.util.persisters;

@@ -1,4 +1,4 @@
-/**
+/*
  * AbstractPersister.java Created Jul 7, 2008 by Andrew Butler, PSL
  */
 package prisms.util.persisters;

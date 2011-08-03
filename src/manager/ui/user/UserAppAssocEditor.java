@@ -1,4 +1,4 @@
-/**
+/*
  * UserAppAssocEditor.java Created Feb 23, 2009 by Andrew Butler, PSL
  */
 package manager.ui.user;
@@ -187,8 +187,6 @@ public class UserAppAssocEditor implements prisms.arch.AppPlugin
 		{
 			throw new IllegalStateException("Could not set user-application accessibility", e);
 		}
-		theSession.fireEvent(new prisms.arch.event.PrismsEvent("appChanged", "app", theApp));
-		theSession
-			.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user", theUser));
+		theSession.fireEvent("prismsUserChanged", "user", theUser);
 	}
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * JsonUtils.java Created Oct 16, 2007 by Andrew Butler, PSL
  */
 package prisms.util;

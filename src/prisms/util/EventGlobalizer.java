@@ -1,4 +1,4 @@
-/**
+/*
  * EventGlobalizer.java Created Mar 5, 2009 by Andrew Butler, PSL
  */
 package prisms.util;

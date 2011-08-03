@@ -1,4 +1,4 @@
-/**
+/*
  * DataEvent.java Created Oct 11, 2007 by Andrew Butler, PSL
  */
 package prisms.ui;

@@ -1,4 +1,4 @@
-/**
+/*
  * OpenMapWMS.java Created Mar 19, 2009 by Andrew Butler, PSL
  */
 package prisms.arch.wms;

@@ -1,4 +1,4 @@
-/**
+/*
  * ArrayInitializer.java Created Mar 11, 2009 by Andrew Butler, PSL
  */
 package prisms.util;

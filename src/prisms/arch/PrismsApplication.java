@@ -1,5 +1,5 @@
-/**
- * PluginApplication.java Created Aug 2, 2007 by Andrew Butler, PSL
+/*
+ * PrismsApplication.java Created Aug 2, 2007 by Andrew Butler, PSL
  */
 package prisms.arch;
 
@@ -9,9 +9,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.log4j.Logger;
 
 import prisms.arch.event.*;
+import prisms.util.ProgramTracker.TrackNode;
 
 /**
- * PluginApplication represents a type of application from which sessions may be instantiated that
+ * PrismsApplication represents a type of application from which sessions may be instantiated that
  * interact with clients. A PluginAppSession is to its PluginApplication what an object is to its
  * class.
  */
@@ -584,28 +585,45 @@ public class PrismsApplication
 		PropertyManager<T> manager = null;
 		synchronized(getPropertyLock(prop))
 		{
-			PrismsTransaction trans = theEnv.getTransaction();
-			for(PropertyManager<?> mgr : theManagers)
+			TrackNode [] track = new TrackNode [3];
+			track[0] = prisms.util.PrismsUtils.track(theEnv, "PrismsPCL");
+			track[1] = prisms.util.PrismsUtils.track(theEnv, "Property " + prop.getName());
+			try
 			{
-				if(mgr != manager && mgr.getProperty().equals(prop))
+				for(PropertyManager<?> mgr : theManagers)
 				{
-					PropertyManager<T> propMgr = (PropertyManager<T>) mgr;
-					if(manager == null && propMgr.getApplicationValue(this) != null)
-						manager = propMgr;
-					prisms.util.ProgramTracker.TrackNode track = null;
-					if(trans != null)
-						track = trans.getTracker().start(
-							"PRISMS: Global listener " + propMgr + " to property " + prop
-								+ " notified");
-					try
+					if(mgr != manager && mgr.getProperty().equals(prop))
 					{
-						propMgr.propertyChange(propEvt);
-					} finally
-					{
-						if(track != null)
-							trans.getTracker().end(track);
+						PropertyManager<T> propMgr = (PropertyManager<T>) mgr;
+						if(manager == null && propMgr.getApplicationValue(this) != null)
+							manager = propMgr;
+						track[2] = prisms.util.PrismsUtils.track(theEnv,
+							prisms.util.PrismsUtils.taskToString(propMgr) + " (global)");
+						try
+						{
+							propMgr.propertyChange(propEvt);
+						} finally
+						{
+							prisms.util.PrismsUtils.end(theEnv, track[2]);
+						}
 					}
 				}
+				for(PrismsPCL<T> pcl : thePCLs.getListeners(prop))
+				{
+					track[2] = prisms.util.PrismsUtils.track(theEnv,
+						prisms.util.PrismsUtils.taskToString(pcl) + " (global)");
+					try
+					{
+						pcl.propertyChange(propEvt);
+					} finally
+					{
+						prisms.util.PrismsUtils.end(theEnv, track[2]);
+					}
+				}
+			} finally
+			{
+				prisms.util.PrismsUtils.end(theEnv, track[1]);
+				prisms.util.PrismsUtils.end(theEnv, track[0]);
 			}
 			value = getGlobalProperty(prop);
 			thePropertyStack.put(prop, this);
@@ -731,13 +749,12 @@ public class PrismsApplication
 	{
 		if(session != null && !excludeSession)
 		{
-			prisms.util.ProgramTracker.TrackNode event = null;
+			TrackNode event = null;
 			PrismsTransaction trans = getEnvironment().getTransaction();
 			if(trans != null)
-				event = trans.getTracker()
-					.start(
-						"PRISMS: Running session task " + task + " synchronously on session "
-							+ session);
+				event = trans.getTracker().start(
+					"PRISMS: Running session task " + prisms.util.PrismsUtils.taskToString(task)
+						+ " synchronously");
 			try
 			{
 				task.run(session);
@@ -757,12 +774,13 @@ public class PrismsApplication
 				{
 					public void run()
 					{
-						prisms.util.ProgramTracker.TrackNode event = null;
+						TrackNode event = null;
 						PrismsTransaction trans = getEnvironment().getTransaction();
 						if(trans != null)
 							event = trans.getTracker().start(
-								"PRISMS: Running session task " + task
-									+ " asynchronously on session " + s);
+								"PRISMS: Running session task "
+									+ prisms.util.PrismsUtils.taskToString(task)
+									+ " asynchronously");
 						try
 						{
 							task.run(s);
@@ -841,15 +859,26 @@ public class PrismsApplication
 		addEventListeners(session);
 		addSessionMonitors(session);
 		theSessions.add(session);
-		for(SessionWatcher watcher : theWatchers)
+		TrackNode track = prisms.util.PrismsUtils.track(theEnv, "Watcher.sessionAdded");
+		try
 		{
-			try
+			for(SessionWatcher watcher : theWatchers)
 			{
-				watcher.sessionAdded(session);
-			} catch(Throwable e)
-			{
-				log.error("Session watcher failed", e);
+				TrackNode track2 = prisms.util.PrismsUtils.track(theEnv, watcher);
+				try
+				{
+					watcher.sessionAdded(session);
+				} catch(Throwable e)
+				{
+					log.error("Session watcher failed", e);
+				} finally
+				{
+					prisms.util.PrismsUtils.end(theEnv, track2);
+				}
 			}
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theEnv, track);
 		}
 	}
 
@@ -877,7 +906,7 @@ public class PrismsApplication
 	 */
 	public void scheduleRecurringTask(Runnable task, long freq)
 	{
-		synchronized(theRecurringTasks)
+		synchronized(theOneTimeTasks)
 		{
 			theRecurringTasks.add(new ScheduledTask(task, System.currentTimeMillis(), freq));
 		}
@@ -890,7 +919,7 @@ public class PrismsApplication
 	 */
 	public void stopRecurringTask(Runnable task)
 	{
-		synchronized(theRecurringTasks)
+		synchronized(theOneTimeTasks)
 		{
 			java.util.Iterator<ScheduledTask> iter = theRecurringTasks.iterator();
 			while(iter.hasNext())
@@ -1047,23 +1076,26 @@ public class PrismsApplication
 			tasks = prisms.util.ArrayUtils.mergeInclusive(ScheduledTask.class, tasks,
 				theRecurringTasks.toArray(new ScheduledTask [0]));
 		}
-		for(ScheduledTask t : tasks)
+		TrackNode track = prisms.util.PrismsUtils.track(theEnv, "Scheduled Tasks");
+		try
 		{
-			prisms.util.ProgramTracker.TrackNode event = null;
-			PrismsTransaction trans = getEnvironment().getTransaction();
-			if(trans != null)
-				event = trans.getTracker().start("PRISMS: Executing scheduled task " + t);
-			try
+			for(ScheduledTask t : tasks)
 			{
-				t.run(currentTime);
-			} catch(Throwable e)
-			{
-				log.error("Could not execute scheduled task " + t, e);
-			} finally
-			{
-				if(event != null)
-					trans.getTracker().end(event);
+				TrackNode event = prisms.util.PrismsUtils.track(theEnv, t);
+				try
+				{
+					t.run(currentTime);
+				} catch(Throwable e)
+				{
+					log.error("Could not execute scheduled task " + t, e);
+				} finally
+				{
+					prisms.util.PrismsUtils.end(theEnv, event);
+				}
 			}
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theEnv, track);
 		}
 	}
 
@@ -1080,21 +1112,32 @@ public class PrismsApplication
 		{
 			mgrs = theManagers.toArray(new PropertyManager [0]);
 		}
-		for(PropertyManager mgr : mgrs)
+		TrackNode track = prisms.util.PrismsUtils.track(theEnv, "Add Property Manager");
+		try
 		{
-			try
+			for(PropertyManager mgr : mgrs)
 			{
-				if(!mgr.isValueCorrect(session, session.getProperty(mgr.getProperty())))
-					session.setProperty(mgr.getProperty(), mgr.getCorrectValue(session),
-						"prismsPersisted", Boolean.TRUE);
-				session.addPropertyChangeListener(mgr.getProperty(), mgr);
-			} catch(RuntimeException e)
-			{
-				log.error(
-					"Could not add property manager " + mgr + " for property " + mgr.getProperty()
-						+ " to session", e);
-				throw e;
+				TrackNode track2 = prisms.util.PrismsUtils.track(theEnv, mgr);
+				try
+				{
+					if(!mgr.isValueCorrect(session, session.getProperty(mgr.getProperty())))
+						session.setProperty(mgr.getProperty(), mgr.getCorrectValue(session),
+							"prismsPersisted", Boolean.TRUE);
+					session.addPropertyChangeListener(mgr.getProperty(), mgr);
+				} catch(RuntimeException e)
+				{
+					log.error(
+						"Could not add property manager " + mgr + " for property "
+							+ mgr.getProperty() + " to session", e);
+					throw e;
+				} finally
+				{
+					prisms.util.PrismsUtils.end(theEnv, track2);
+				}
 			}
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theEnv, track);
 		}
 	}
 
@@ -1105,43 +1148,54 @@ public class PrismsApplication
 	 */
 	protected void addEventListeners(PrismsSession session)
 	{
-		for(java.util.Map.Entry<String, PrismsEventListener []> globalEvent : theGlobalListeners
-			.entrySet())
-			for(PrismsEventListener listener : globalEvent.getValue())
-			{
-				if(globalEvent.getKey() == null)
-					session.addEventListener(listener);
-				else
-					session.addEventListener(globalEvent.getKey(), listener);
-			}
-		for(EventListenerType elt : theELTypes)
+		TrackNode track = prisms.util.PrismsUtils.track(theEnv, "Add Event Listener");
+		try
 		{
-			PrismsEventListener pel;
-			try
+			for(java.util.Map.Entry<String, PrismsEventListener []> globalEvent : theGlobalListeners
+				.entrySet())
+				for(PrismsEventListener listener : globalEvent.getValue())
+				{
+					if(globalEvent.getKey() == null)
+						session.addEventListener(listener);
+					else
+						session.addEventListener(globalEvent.getKey(), listener);
+				}
+			for(EventListenerType elt : theELTypes)
 			{
-				pel = elt.theListenerType.newInstance();
-			} catch(Exception e)
-			{
-				log.error("Could not instantiate event listener " + elt.theEventName + ", type "
-					+ elt.theListenerType.getName(), e);
-				continue;
-			}
-			if(pel instanceof ConfiguredPEL)
-			{
+				PrismsEventListener pel;
 				try
 				{
-					((ConfiguredPEL) pel).configure(session, elt.theConfig);
-				} catch(Throwable e)
+					pel = elt.theListenerType.newInstance();
+				} catch(Exception e)
 				{
-					log.error("Could not configure listener " + elt.theEventName
-						+ " for application " + theName, e);
+					log.error("Could not instantiate event listener " + elt.theEventName
+						+ ", type " + elt.theListenerType.getName(), e);
 					continue;
 				}
+				if(pel instanceof ConfiguredPEL)
+				{
+					TrackNode track2 = prisms.util.PrismsUtils.track(theEnv, pel);
+					try
+					{
+						((ConfiguredPEL) pel).configure(session, elt.theConfig);
+					} catch(Throwable e)
+					{
+						log.error("Could not configure listener " + elt.theEventName
+							+ " for application " + theName, e);
+						continue;
+					} finally
+					{
+						prisms.util.PrismsUtils.end(theEnv, track2);
+					}
+				}
+				if(elt.theEventName == null)
+					session.addEventListener(pel);
+				else
+					session.addEventListener(elt.theEventName, pel);
 			}
-			if(elt.theEventName == null)
-				session.addEventListener(pel);
-			else
-				session.addEventListener(elt.theEventName, pel);
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theEnv, track);
 		}
 	}
 
@@ -1152,25 +1206,36 @@ public class PrismsApplication
 	 */
 	protected void addSessionMonitors(PrismsSession session)
 	{
-		for(MonitorType mt : theMonitorTypes)
+		TrackNode track = prisms.util.PrismsUtils.track(theEnv, "Add Session Monitor");
+		try
 		{
-			SessionMonitor sm;
-			try
+			for(MonitorType mt : theMonitorTypes)
 			{
-				sm = mt.theMonitorType.newInstance();
-			} catch(Exception e)
-			{
-				log.error("Could not instantiate session monitor " + mt.theMonitorType, e);
-				continue;
+				SessionMonitor sm;
+				try
+				{
+					sm = mt.theMonitorType.newInstance();
+				} catch(Exception e)
+				{
+					log.error("Could not instantiate session monitor " + mt.theMonitorType, e);
+					continue;
+				}
+				TrackNode track2 = prisms.util.PrismsUtils.track(theEnv, sm);
+				try
+				{
+					sm.register(session, mt.theConfig);
+				} catch(Throwable e)
+				{
+					log.error("could not register session monitor " + mt.theMonitorType
+						+ " for application " + theName, e);
+				} finally
+				{
+					prisms.util.PrismsUtils.end(theEnv, track2);
+				}
 			}
-			try
-			{
-				sm.register(session, mt.theConfig);
-			} catch(Throwable e)
-			{
-				log.error("could not register session monitor " + mt.theMonitorType
-					+ " for application " + theName, e);
-			}
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theEnv, track);
 		}
 	}
 
@@ -1302,7 +1367,7 @@ public class PrismsApplication
 		@Override
 		public String toString()
 		{
-			return theTask.toString();
+			return prisms.util.PrismsUtils.taskToString(theTask);
 		}
 	}
 

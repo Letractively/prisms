@@ -227,30 +227,30 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 			return;
 		evt.setProperty(GLOBALIZED_PROPERTY, Boolean.TRUE);
 
-		ChangeEvent prop = theEventProperties.get(evt.name);
-		if(prop != null)
+		ChangeEvent changeEvent = theEventProperties.get(evt.name);
+		if(changeEvent != null)
 		{
-			Object oProp = evt.getProperty(prop.getEventProperty());
-			if(prop.getPropertyType() != null)
-				if(!prop.getPropertyType().isInstance(oProp))
+			Object oProp = evt.getProperty(changeEvent.getEventProperty());
+			if(changeEvent.getPropertyType() != null)
+				if(!changeEvent.getPropertyType().isInstance(oProp))
 				{
-					log.error("Property " + prop.getPropertyType() + " of event " + evt.name
+					log.error("Property " + changeEvent.getPropertyType() + " of event " + evt.name
 						+ " on property " + getProperty().getName() + " is not an instance of "
-						+ prop.getPropertyType().getName());
-					prop = null;
+						+ changeEvent.getPropertyType().getName());
+					changeEvent = null;
 				}
-			if(prop != null && prop.getReflectPath() != null)
+			if(changeEvent != null && changeEvent.getReflectPath() != null)
 				try
 				{
-					oProp = ((prisms.util.ReflectionPath<Object>) prop.getReflectPath())
-						.follow(prop);
+					oProp = ((prisms.util.ReflectionPath<Object>) changeEvent.getReflectPath())
+						.follow(oProp);
 				} catch(Exception e)
 				{
 					log.error("Could not evaluate reflection path for event " + evt.name
 						+ " on property " + getProperty().getName(), e);
-					prop = null;
+					changeEvent = null;
 				}
-			if(prop != null)
+			if(changeEvent != null)
 			{
 				PrismsApplication app;
 				if(session != null)

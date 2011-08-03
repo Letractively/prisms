@@ -1,4 +1,4 @@
-/**
+/*
  * AppConfig.java Created Oct 24, 2007 by Andrew Butler, PSL
  */
 package prisms.arch;
@@ -43,11 +43,10 @@ public class AppConfig
 				try
 				{
 					addPropertyManager(app, propConfig);
-				} catch(Exception e)
+				} catch(RuntimeException e)
 				{
 					if(!propConfig.is("optional", false))
-						throw new IllegalStateException("Could not add property manager: "
-							+ propConfig, e);
+						throw e;
 					else
 						log.error("Could not add property manager: " + propConfig, e);
 				}
@@ -160,18 +159,7 @@ public class AppConfig
 			}
 			for(int m = 0; m < mgrs.length; m++)
 			{
-				try
-				{
-					mgrs[m].configure(app, configs[m]);
-				} catch(Exception e)
-				{
-					if(!configs[m].is("optional", false))
-						throw new IllegalStateException(
-							"Could not configure global property manager: " + configs[m], e);
-					else
-						log.error("Could not configure global manager: " + configs[m], e);
-					continue;
-				}
+				mgrs[m].configure(app, configs[m]);
 				app.addManager(mgrs[m]);
 			}
 
@@ -196,14 +184,7 @@ public class AppConfig
 				log.error("Could not instantiate manager type " + mgrType, e);
 				return;
 			}
-			try
-			{
-				mgr.configure(app, propConfig);
-			} catch(Exception e)
-			{
-				log.error("Could not configure manager: " + propConfig, e);
-				return;
-			}
+			mgr.configure(app, propConfig);
 			app.addManager(mgr);
 		}
 	}

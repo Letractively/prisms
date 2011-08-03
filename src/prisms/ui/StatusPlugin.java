@@ -1,4 +1,4 @@
-/**
+/*
  * StatusPlugin.java Created Apr 28, 2009 by Andrew Butler, PSL
  */
 package prisms.ui;
@@ -10,8 +10,8 @@ import prisms.arch.PrismsSession;
 import prisms.util.PrismsUtils;
 
 /**
- * A very simple plugin that listens for "sendStatusUpdate" events and posts their messages to the
- * client
+ * A very simple plugin that listens for "sendStatusUpdate" and "sendStatusError" events and posts
+ * their messages to the client
  */
 public class StatusPlugin implements AppPlugin
 {

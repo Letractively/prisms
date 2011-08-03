@@ -1,4 +1,4 @@
-/**
+/*
  * UI.java Created Oct 10, 2007 by Andrew Butler, PSL
  */
 package prisms.ui;
@@ -375,21 +375,24 @@ public interface UI extends prisms.arch.AppPlugin
 			}
 			if(first != null)
 			{
+				JSONObject evt = (JSONObject) first.event.clone();
 				if(first.listener instanceof ProgressInformer)
 				{
 					ProgressInformer pi = (ProgressInformer) first.listener;
-					first.event.put("message", pi.getTaskText());
-					first.event.put("length", Integer.valueOf(pi.getTaskScale()));
-					first.event.put("progress", Integer.valueOf(pi.getTaskProgress()));
-					first.event.put("cancelable", Boolean.valueOf(pi.isCancelable()));
+					evt.put("message", pi.getTaskText());
+					evt.put("length", Integer.valueOf(pi.getTaskScale()));
+					evt.put("progress", Integer.valueOf(pi.getTaskProgress()));
+					evt.put("cancelable", Boolean.valueOf(pi.isCancelable()));
 				}
-				theSession.postOutgoingEvent(first.event);
+				evt.put("timeStamp", Long.valueOf(System.currentTimeMillis()));
+				theSession.postOutgoingEvent(evt);
 			}
 			else
 			{
 				JSONObject evt = new JSONObject();
 				evt.put("plugin", "UI");
 				evt.put("method", "close");
+				evt.put("timeStamp", Long.valueOf(System.currentTimeMillis()));
 				theSession.postOutgoingEvent(evt);
 			}
 		}

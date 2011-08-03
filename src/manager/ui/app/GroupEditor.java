@@ -1,5 +1,5 @@
-/**
- * ApplicationEditor.java Created Oct 1, 2008 by Andrew Butler, PSL
+/*
+ * GroupEditor.java Created Oct 1, 2008 by Andrew Butler, PSL
  */
 package manager.ui.app;
 
@@ -131,8 +131,7 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			theDataLock = true;
 			try
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupChanged", "group",
-					theGroup));
+				theSession.fireEvent("groupChanged", "group", theGroup);
 			} finally
 			{
 				theDataLock = false;
@@ -161,8 +160,7 @@ public class GroupEditor implements prisms.arch.AppPlugin
 			theDataLock = true;
 			try
 			{
-				theSession.fireEvent(new prisms.arch.event.PrismsEvent("groupChanged", "group",
-					theGroup));
+				theSession.fireEvent("groupChanged", "group", theGroup);
 			} finally
 			{
 				theDataLock = false;

@@ -86,7 +86,7 @@ public class ActionTreeNode extends SimpleTreePluginNode
 		{
 			DataTreeMgrPlugin plugin = (DataTreeMgrPlugin) getManager();
 			plugin.setSelected(this, false);
-			plugin.getSession().fireEvent(new prisms.arch.event.PrismsEvent(theEventName, "node", this));
+			plugin.getSession().fireEvent(theEventName, "node", this);
 		}
 	}
 }

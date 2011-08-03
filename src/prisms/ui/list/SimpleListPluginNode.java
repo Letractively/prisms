@@ -20,9 +20,6 @@ public abstract class SimpleListPluginNode extends AbstractSimpleListNode
 		hasPublicActions = publicActions;
 	}
 
-	/**
-	 * @see prisms.ui.list.AbstractSimpleListNode#setSelected(boolean)
-	 */
 	@Override
 	public final void setSelected(boolean selected)
 	{
@@ -39,9 +36,6 @@ public abstract class SimpleListPluginNode extends AbstractSimpleListNode
 		hasPublicActions = pa;
 	}
 
-	/**
-	 * @see prisms.ui.tree.AbstractSimpleTreeNode#getActions()
-	 */
 	@Override
 	public NodeAction [] getActions()
 	{
@@ -52,8 +46,9 @@ public abstract class SimpleListPluginNode extends AbstractSimpleListNode
 			for(int a = 0; a < actions.length; a++)
 				if(actions[a].getValue("temporary") != null)
 					removeAction(actions[a]);
-			prisms.arch.event.PrismsEvent actionsEvent = new prisms.arch.event.PrismsEvent("getUserActions",
-				"plugin", plugin.getName(), "node", this, "actions", new javax.swing.Action [0]);
+			prisms.arch.event.PrismsEvent actionsEvent = new prisms.arch.event.PrismsEvent(
+				"getUserActions", "plugin", plugin.getName(), "node", this, "actions",
+				new javax.swing.Action [0]);
 			addEventProperties(actionsEvent);
 			plugin.getSession().fireEvent(actionsEvent);
 			javax.swing.Action[] newActions = (javax.swing.Action[]) actionsEvent

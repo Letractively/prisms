@@ -21,6 +21,7 @@ import prisms.arch.wms.PrismsWmsRequest;
 import prisms.arch.wms.WmsPlugin;
 import prisms.util.ArrayUtils;
 import prisms.util.PrismsUtils;
+import prisms.util.ProgramTracker.TrackNode;
 
 /**
  * This server is the root of the PRISMS architecture. It takes HTTP requests that conform to the
@@ -1019,14 +1020,22 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			final PrismsTransaction trans = getEnv().transact(theSession,
 				PrismsTransaction.Stage.processEvent);
+			TrackNode track = trans.getTracker().start("Server Calls");
 			try
 			{
 				if("logout".equals(req.serverMethod))
 				{
-					theHttpSession.removeSession(this);
-					destroy();
-					return theSecurity.sendLogin(reqAuth, req,
-						"You have been successfully logged out", false, false);
+					TrackNode track2 = trans.getTracker().start("Logout");
+					try
+					{
+						theHttpSession.removeSession(this);
+						destroy();
+						return theSecurity.sendLogin(reqAuth, req,
+							"You have been successfully logged out", false, false);
+					} finally
+					{
+						trans.getTracker().end(track2);
+					}
 				}
 
 				// Do application methods (processEvent, generateImage, doDownload, doUpload)
@@ -1076,8 +1085,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 			} finally
 			{
-				if(!trans.isFinished())
-					getEnv().finish(trans);
+				trans.getTracker().end(track);
+				getEnv().finish(trans);
 			}
 			return error(reqAuth, req, ErrorCode.RequestInvalid,
 				"Unable to process request: serverMethod " + req.serverMethod + " not defined");
@@ -1136,9 +1145,27 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			JSONArray ret = null;
 			if(theSession.getClient().isService()
 				|| Boolean.TRUE.equals(event.get("prisms-synchronous")))
-				ret = theSession.processSync(event);
+			{
+				TrackNode track = PrismsUtils.track(getEnv(), "processSync");
+				try
+				{
+					ret = theSession.processSync(event);
+				} finally
+				{
+					PrismsUtils.end(getEnv(), track);
+				}
+			}
 			else
-				ret = theSession.processAsync(event, null);
+			{
+				TrackNode track = PrismsUtils.track(getEnv(), "processAsync");
+				try
+				{
+					ret = theSession.processAsync(event, null);
+				} finally
+				{
+					PrismsUtils.end(getEnv(), track);
+				}
+			}
 			long exp = untilExpires();
 			if(exp <= WARN_EXPIRE_THRESHOLD)
 			{
@@ -1159,6 +1186,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(plugin == null)
 				return error(reqAuth, req, ErrorCode.RequestInvalid, "No plugin " + pluginName
 					+ " loaded");
+			TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName + ".wms("
+				+ wms.getRequest().name() + ")");
 			try
 			{
 				theSession.runTasks();
@@ -1189,7 +1218,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(1, 1,
 							java.awt.image.BufferedImage.TYPE_4BYTE_ABGR), wms.getFormat(), out);
 					else
-						plugin.drawMapOverlay(wms, event, out);
+					{
+						java.io.BufferedOutputStream bos = new java.io.BufferedOutputStream(out);
+						plugin.drawMapOverlay(wms, event, bos);
+						bos.flush();
+					}
 					out.close();
 					break;
 				case GetFeatureInfo:
@@ -1216,6 +1249,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				log.error("Could not fulfill " + wms.getRequest() + " typed WMS request", e);
 				return error(reqAuth, req, ErrorCode.ApplicationError, e.getClass().getName()
 					+ ": " + e.getMessage());
+			} finally
+			{
+				PrismsUtils.end(getEnv(), track);
 			}
 			return new PrismsResponse(reqAuth, null);
 		}
@@ -1240,8 +1276,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				return;
 			}
 			theSession.runTasks();
-			((ImagePlugin) theSession.getPlugin(pluginName)).writeImage(method, format, xOffset,
-				yOffset, refWidth, refHeight, imWidth, imHeight, out);
+			TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName
+				+ ".writeImage()");
+			try
+			{
+				((ImagePlugin) theSession.getPlugin(pluginName)).writeImage(method, format,
+					xOffset, yOffset, refWidth, refHeight, imWidth, imHeight, out);
+			} finally
+			{
+				PrismsUtils.end(getEnv(), track);
+			}
 		}
 
 		private void getDownload(HttpServletResponse response, JSONObject event) throws IOException
@@ -1261,6 +1305,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			response.setContentType(contentType);
 			response.setHeader("Content-Disposition",
 				"attachment; filename=\"" + plugin.getFileName(event) + "\"");
+			TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName
+				+ ".doDownload");
 			try
 			{
 				plugin.doDownload(event, response.getOutputStream());
@@ -1270,13 +1316,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(Error e)
 			{
 				log.error("Download failed", e);
+			} finally
+			{
+				PrismsUtils.end(getEnv(), track);
 			}
 		}
 
 		private void doUpload(HttpServletRequest request, final JSONObject event)
 			throws IOException
 		{
-			String pluginName = (String) event.get("plugin");
+			final String pluginName = (String) event.get("plugin");
 			if(theSession.getPlugin(pluginName) == null)
 			{
 				log.debug("No plugin " + pluginName + " loaded");
@@ -1327,6 +1376,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				{
 					public void run()
 					{
+						TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName
+							+ ".doUpload");
 						try
 						{
 							plugin.doUpload(event, fileName, item.getContentType(),
@@ -1342,6 +1393,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 							log.error("Upload failed", e);
 						} finally
 						{
+							PrismsUtils.end(getEnv(), track);
 							item.delete();
 						}
 					}
@@ -2213,18 +2265,33 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			else if(req != null)
 			{
-				localScheme = req.getScheme();
-				int port = req.getLocalPort();
-				if((port == 80 && localScheme.equalsIgnoreCase("http"))
-					|| (port == 443 && localScheme.equalsIgnoreCase("https")))
-					port = -1;
 				String addr = req.getLocalName();
-				localPath = req.getContextPath();
-				localPath = req.getRequestURI().substring(req.getRequestURI().indexOf(localPath));
-				if(localPath.endsWith("/"))
-					localPath = localPath.substring(0, localPath.length() - 1);
-				ids.setLocalConnectInfo(localScheme + "://" + addr + (port > 0 ? ":" + port : "")
-					+ localPath);
+				if(addr == null || addr.equalsIgnoreCase("localhost") || addr.equals("127.0.0.1"))
+				{
+					try
+					{
+						addr = java.net.InetAddress.getLocalHost().getCanonicalHostName();
+					} catch(java.net.UnknownHostException e)
+					{
+						log.error("Could not get local host address", e);
+						addr = null;
+					}
+				}
+				if(addr != null)
+				{
+					localScheme = req.getScheme();
+					int port = req.getLocalPort();
+					if((port == 80 && localScheme.equalsIgnoreCase("http"))
+						|| (port == 443 && localScheme.equalsIgnoreCase("https")))
+						port = -1;
+					localPath = req.getContextPath();
+					localPath = req.getRequestURI().substring(
+						req.getRequestURI().indexOf(localPath));
+					if(localPath.endsWith("/"))
+						localPath = localPath.substring(0, localPath.length() - 1);
+					ids.setLocalConnectInfo(localScheme + "://" + addr
+						+ (port > 0 ? ":" + port : "") + localPath);
+				}
 			}
 			else
 				log.warn("local-scheme, local-port, and local-path elements must be present in"
@@ -3354,12 +3421,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				runawayCheckFreq = freq;
 			if(checks[t] != null && now - checks[t].lastLogged < freq)
 				continue;
-			prisms.util.ProgramTracker.TrackNode ct = trans[t].getTracker().getCurrentTask();
+			TrackNode ct = trans[t].getTracker().getCurrentTask();
 			if(ct == null)
 				return;
 			if(now - ct.getLatestStart() < freq)
 				continue;
-			prisms.util.ProgramTracker.TrackNode root = ct;
+			TrackNode root = ct;
 			while(root.getParent() != null)
 				root = root.getParent();
 

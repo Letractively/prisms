@@ -1,4 +1,4 @@
-/**
+/*
  * UserSpecificPersister.java Created Jul 8, 2008 by Andrew Butler, PSL
  */
 package prisms.util.persisters;

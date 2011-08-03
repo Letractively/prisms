@@ -1,4 +1,4 @@
-/**
+/*
  * ReadOnlyManager.java Created Oct 25, 2007 by Andrew Butler, PSL
  */
 package prisms.util.persisters;

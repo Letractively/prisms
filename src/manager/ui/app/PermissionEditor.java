@@ -1,5 +1,5 @@
-/**
- * UserGroupAssoc.java Created Feb 23, 2009 by Andrew Butler, PSL
+/*
+ * PermissionEditor.java Created Feb 23, 2009 by Andrew Butler, PSL
  */
 package manager.ui.app;
 

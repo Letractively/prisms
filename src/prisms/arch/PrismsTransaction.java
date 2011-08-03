@@ -12,9 +12,6 @@ public class PrismsTransaction
 {
 	private static final Logger log = Logger.getLogger(PrismsTransaction.class);
 
-	/** The event that is the base of the tracker in a transaction */
-	public static final String TRACKER_ROUTINE = "PRISMS: prisms.process";
-
 	/** Various stages of initialization of a session */
 	public static enum Stage
 	{
@@ -30,7 +27,9 @@ public class PrismsTransaction
 		 * PrismsSession.processAsync} or
 		 * {@link PrismsSession#processSync(org.json.simple.JSONObject) processSync}
 		 */
-		processEvent;
+		processEvent,
+		/** Represents a transaction instantiated outside the PRISMS framework */
+		external;
 	}
 
 	/** A listener to be notified when a transaction finishes its work */
@@ -43,6 +42,8 @@ public class PrismsTransaction
 	private String theID;
 
 	private ProgramTracker.PrintConfig theDefaultPrintConfig;
+
+	private PrismsApplication theApp;
 
 	private PrismsSession theSession;
 
@@ -64,10 +65,12 @@ public class PrismsTransaction
 
 	private java.util.ArrayList<ProgramTracker.TrackNode> theRoutines;
 
+	int theDuplicateStartCount;
+
 	PrismsTransaction(ProgramTracker.PrintConfig defaultPrintConfig)
 	{
 		theDefaultPrintConfig = defaultPrintConfig;
-		theTracker = new ProgramTracker(TRACKER_ROUTINE);
+		theTracker = new ProgramTracker("Not in use");
 		theListeners = new FinishListener [0];
 		theRoutines = new java.util.ArrayList<ProgramTracker.TrackNode>();
 	}
@@ -78,7 +81,13 @@ public class PrismsTransaction
 		return theID;
 	}
 
-	/** @return The session that this transaction is for */
+	/** @return The application that this transaction is for */
+	public PrismsApplication getApp()
+	{
+		return theApp;
+	}
+
+	/** @return The session that this transaction is for. May be null. */
 	public PrismsSession getSession()
 	{
 		return theSession;
@@ -107,8 +116,11 @@ public class PrismsTransaction
 	{
 		if(theEvents != null)
 			theEvents.add(event);
-		else
+		else if(theSession != null)
 			theSession.postOutgoingEvent(event);
+		else
+			throw new IllegalStateException("This transaction is global for " + theApp
+				+ ": Events cannot be posted to it.");
 	}
 
 	/** @return The thread that is using this transaction */
@@ -181,26 +193,36 @@ public class PrismsTransaction
 	 */
 	void init(PrismsSession session, Stage stage)
 	{
+		theTracker.setName("PRISMS " + stage + " for " + session.getApp().getName()
+			+ " session for " + session.getUser().getName());
+		init(session.getApp(), stage);
+		theSession = session;
+	}
+
+	void init(PrismsApplication app, Stage stage)
+	{
 		if(isStarted)
 			throw new IllegalStateException("This transaction is already in use");
 		isFinished = false;
 		isStarted = true;
 		theID = prisms.util.PrismsUtils.getRandomString(16);
-		theTracker.setName("PRISMS " + stage + " for " + session.getApp().getName()
-			+ " session for " + session.getUser().getName());
-		theRoutines.add(theTracker.start(TRACKER_ROUTINE));
-		theRoutines.add(theTracker.start("PRISMS." + stage));
-		// if(theTracker.getCurrentTask().getDepth() != theRoutines.size())
-		// log.error("Tracking error!");
+		theApp = app;
 		theThread = Thread.currentThread();
-		theSession = session;
 		theStage = stage;
+		if(theTracker.getName().equals("Not in use"))
+			theTracker.setName("PRISMS " + stage + " for " + app.getName() + " (global)");
+		theRoutines.add(theTracker.start("PRISMS." + stage));
 	}
 
 	void setSynchronous()
 	{
 		if(theEvents == null)
 			theEvents = new org.json.simple.JSONArray();
+	}
+
+	org.json.simple.JSONArray getEvents()
+	{
+		return theEvents;
 	}
 
 	org.json.simple.JSONArray finish()
@@ -213,13 +235,20 @@ public class PrismsTransaction
 		try
 		{
 			for(FinishListener L : theListeners)
+			{
+				prisms.util.ProgramTracker.TrackNode track = theTracker
+					.start("Transaction Finish Listener " + L);
 				try
 				{
 					L.finished(this);
 				} catch(Throwable e)
 				{
 					log.error("Finish listener threw exception: ", e);
+				} finally
+				{
+					theTracker.end(track);
 				}
+			}
 
 			if(theTracker.getCurrentTask().getParent() == null && theRoutines.size() > 1)
 			{
@@ -237,8 +266,9 @@ public class PrismsTransaction
 			{
 				return theEvents;
 			}
-			theSession.getTrackSet().addTrackData(theTracker);
-			theSession.getApp().getTrackSet().addTrackData(theTracker);
+			if(theSession != null)
+				theSession.getTrackSet().addTrackData(theTracker);
+			theApp.getTrackSet().addTrackData(theTracker);
 
 			long runTime = theTracker.getData()[0].getLength();
 			if(thePrintConfig != null && runTime >= thePrintConfig.getTaskDisplayThreshold())
@@ -278,10 +308,13 @@ public class PrismsTransaction
 		thePrintConfig = theDefaultPrintConfig;
 		theEvents = null;
 		theSession = null;
+		theApp = null;
 		theStage = null;
 		theID = null;
 		if(theListeners.length > 0)
 			theListeners = new FinishListener [0];
 		theTracker.clear();
+		theTracker.setName("Not in use");
+		theDuplicateStartCount = 0;
 	}
 }

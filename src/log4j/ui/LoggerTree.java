@@ -1,5 +1,5 @@
-/**
- * logegoryTree.java Created Apr 17, 2009 by Andrew Butler, PSL
+/*
+ * LoggerTree.java Created Apr 17, 2009 by Andrew Butler, PSL
  */
 package log4j.ui;
 
