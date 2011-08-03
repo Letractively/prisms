@@ -111,6 +111,24 @@ public class IDGenerator
 			}
 			return result != null && result.toString().equals("success");
 		}
+
+		@Override
+		public String toString()
+		{
+			return location;
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return o instanceof PrismsInstance && ((PrismsInstance) o).location.equals(location);
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return location.hashCode();
+		}
 	}
 
 	/**
@@ -220,9 +238,8 @@ public class IDGenerator
 				closePreparedCalls();
 			}
 		});
-		isShared = connEl.is("shared", false);
+		isShared = theTransactor.getConnectionConfig().is("shared", false);
 		theCenterID = -1;
-		createPreparedCalls();
 	}
 
 	/**
@@ -275,6 +292,7 @@ public class IDGenerator
 	 */
 	protected void doStartup() throws PrismsException
 	{
+		createPreparedCalls();
 		lock("prisms_installation", null);
 		try
 		{
@@ -983,6 +1001,8 @@ public class IDGenerator
 		{
 			throw new IllegalStateException("Could not get connection", e);
 		}
+		if(theSyncStatement != null)
+			return;
 		String sql;
 		try
 		{
@@ -1049,6 +1069,13 @@ public class IDGenerator
 			if(!e.getMessage().contains("compilation"))
 				log.error("Error", e);
 		}
+		theSyncStatement = null;
+		theUnsyncStatement = null;
+		thePurgeSyncStatement = null;
+		theAISelector = null;
+		theAIUpdater = null;
+		theInstanceUpdate = null;
+		theInstanceGetter = null;
 	}
 
 	/**

@@ -1,5 +1,5 @@
-/**
- * ExportPlugin.java Created Apr 16, 2009 by Andrew Butler, PSL
+/*
+ * SampleDownloadPlugin.java Created Apr 16, 2009 by Andrew Butler, PSL
  */
 package prisms.impl;
 

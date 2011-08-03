@@ -84,6 +84,8 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	},
 
 	processEvent: function(event){
+		if(event.timeStamp && this.event && this.event.timeStamp>event.timeStamp)
+			return;
 		if(this.open && this.event && this.event.method!=event.method)
 			this._reset();
 		if(this.event && this.event.refreshed && this.event.method==event.method)

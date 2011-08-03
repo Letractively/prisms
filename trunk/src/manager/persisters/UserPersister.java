@@ -1,5 +1,5 @@
-/**
- * AppPersister.java Created Jul 10, 2008 by Andrew Butler, PSL
+/*
+ * UserPersister.java Created Jul 10, 2008 by Andrew Butler, PSL
  */
 package manager.persisters;
 

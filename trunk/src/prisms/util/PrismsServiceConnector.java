@@ -1,5 +1,5 @@
-/**
- * PRISMSConnector.java Created Feb 27, 2009 by Andrew Butler, PSL
+/*
+ * PrismsServiceConnector.java Created Feb 27, 2009 by Andrew Butler, PSL
  */
 package prisms.util;
 

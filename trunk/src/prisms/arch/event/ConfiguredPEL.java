@@ -1,4 +1,4 @@
-/**
+/*
  * ConfiguredPEL.java Created Dec 10, 2007 by Andrew Butler, PSL
  */
 package prisms.arch.event;

@@ -458,11 +458,23 @@ public class PrismsEnv implements prisms.util.Sealable
 		return theGMonitorConfigs.get(name);
 	}
 
-	PrismsTransaction transact(PrismsSession session, PrismsTransaction.Stage stage)
+	/**
+	 * Initiates a transaction if one does not already exist for the current thread. Code after this
+	 * method MUST be enclosed in a try/finally with a call to {@link #finish(PrismsTransaction)} in
+	 * the finally block.
+	 * 
+	 * @param session The session that the transaction is for
+	 * @param stage The stage of the transaction
+	 * @return A transaction to use in this PRISMS environment
+	 */
+	public PrismsTransaction transact(PrismsSession session, PrismsTransaction.Stage stage)
 	{
 		PrismsTransaction ret = theActiveTransactions.get(Thread.currentThread());
 		if(ret != null)
+		{
+			ret.theDuplicateStartCount++;
 			return ret;
+		}
 		try
 		{
 			ret = theTransactionPool.getResource(true);
@@ -477,6 +489,35 @@ public class PrismsEnv implements prisms.util.Sealable
 	}
 
 	/**
+	 * Initiates a transaction if one does not already exist for the current thread. Code after this
+	 * method MUST be enclosed in a try/finally with a call to {@link #finish(PrismsTransaction)} in
+	 * the finally block.
+	 * 
+	 * @param app The application that the transaction is for
+	 * @return A transaction to use in this PRISMS environment
+	 */
+	public PrismsTransaction transact(PrismsApplication app)
+	{
+		PrismsTransaction ret = theActiveTransactions.get(Thread.currentThread());
+		if(ret != null)
+		{
+			ret.theDuplicateStartCount++;
+			return ret;
+		}
+		try
+		{
+			ret = theTransactionPool.getResource(true);
+		} catch(prisms.util.ResourcePool.ResourceCreationException e)
+		{
+			// This exception is not thrown from this implementation
+			throw new IllegalStateException("Should not be thrown from here!", e);
+		}
+		ret.init(app, PrismsTransaction.Stage.external);
+		theActiveTransactions.put(Thread.currentThread(), ret);
+		return ret;
+	}
+
+	/**
 	 * Gets the transaction associated with the current thread
 	 * 
 	 * @return The current thread's transaction
@@ -486,8 +527,19 @@ public class PrismsEnv implements prisms.util.Sealable
 		return theActiveTransactions.get(Thread.currentThread());
 	}
 
-	org.json.simple.JSONArray finish(PrismsTransaction trans)
+	/**
+	 * Finishes a transaction
+	 * 
+	 * @param trans The transaction to finish
+	 * @return The events that have been posted to the transaction
+	 */
+	public org.json.simple.JSONArray finish(PrismsTransaction trans)
 	{
+		if(trans.theDuplicateStartCount > 0)
+		{
+			trans.theDuplicateStartCount--;
+			return trans.getEvents();
+		}
 		org.json.simple.JSONArray ret = trans.finish();
 		theActiveTransactions.remove(Thread.currentThread());
 		theTransactionPool.releaseResource(trans);

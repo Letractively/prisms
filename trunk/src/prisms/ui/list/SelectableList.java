@@ -1,5 +1,5 @@
-/**
- * AreaList.java Created Jan 29, 2008 by Andrew Butler, PSL
+/*
+ * SelectableList.java Created Jan 29, 2008 by Andrew Butler, PSL
  */
 package prisms.ui.list;
 

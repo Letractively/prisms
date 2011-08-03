@@ -1,4 +1,4 @@
-/**
+/*
  * PrismsWmsRequest.java Created Mar 9, 2009 by Andrew Butler, PSL
  */
 package prisms.arch.wms;

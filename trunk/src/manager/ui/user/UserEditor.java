@@ -1,4 +1,4 @@
-/**
+/*
  * UserEditor.java Created Jul 21, 2008 by Andrew Butler, PSL
  */
 package manager.ui.user;
@@ -23,7 +23,6 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 	private String theName;
 
 	User theUser;
-
 	private prisms.arch.ds.Hashing theValidationParams;
 
 	private long theValidationRequestTime;
@@ -121,8 +120,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			if(newName == null)
 				throw new IllegalArgumentException("No name to set");
 			theUser.setName(newName);
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
-				theUser));
+			theSession.fireEvent("prismsUserChanged", "user", theUser);
 		}
 		else if("passwordExpirationChanged".equals(evt.get("method")))
 		{
@@ -147,8 +145,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 			}
 			log.info("User " + theSession.getUser() + " changing expiration of user " + theUser
 				+ " to " + newExpire);
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
-				theUser));
+			theSession.fireEvent("prismsUserChanged", "user", theUser);
 		}
 		else if("changePassword".equals(evt.get("method")))
 		{
@@ -175,8 +172,7 @@ public class UserEditor extends Object implements prisms.arch.AppPlugin
 				log.info("User " + theSession.getUser() + " locked user " + theUser);
 			else
 				log.info("User " + theSession.getUser() + " unlocked user " + theUser);
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
-				theUser));
+			theSession.fireEvent("prismsUserChanged", "user", theUser);
 		}
 		else
 			throw new IllegalArgumentException("Unrecognized event " + evt);

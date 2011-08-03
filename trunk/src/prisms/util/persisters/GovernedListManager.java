@@ -1,5 +1,5 @@
 /*
- * SharedObjectManager.java Created Jun 26, 2009 by Andrew Butler, PSL
+ * GovernedListManager.java Created Jun 26, 2009 by Andrew Butler, PSL
  */
 package prisms.util.persisters;
 

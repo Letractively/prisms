@@ -1,4 +1,4 @@
-/**
+/*
  * ListenerManager.java Created Feb 11, 2008 by Andrew Butler, PSL
  */
 package prisms.arch.event;

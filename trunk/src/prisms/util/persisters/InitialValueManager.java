@@ -1,4 +1,4 @@
-/**
+/*
  * InitialValueManager.java Created Oct 30, 2007 by Andrew Butler, PSL
  */
 package prisms.util.persisters;

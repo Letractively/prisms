@@ -57,7 +57,7 @@
 	<!-- Default users to load on initial install -->
 	<default-users>DefaultUsers.xml</default-users>
 
-	<!-- Controls how aggressivley program flow is compiled and printed -->
+	<!-- Controls how aggressively program flow is compiled and printed -->
 	<tracking>
 		<display-thresholds>
 			<print>1500</print>

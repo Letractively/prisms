@@ -1,5 +1,5 @@
 /*
- * AppGroupTree.java Created Jun 24, 2009 by Andrew Butler, PSL
+ * AppGroups.java Created Jun 24, 2009 by Andrew Butler, PSL
  */
 package manager.ui.app;
 
@@ -77,9 +77,7 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 				{
 					throw new IllegalStateException("Could not get user groups", e);
 				}
-				getSession().fireEvent(
-					new prisms.arch.event.PrismsEvent("appGroupsChanged", "app", theApp, "groups",
-						groups));
+				getSession().fireEvent("appGroupsChanged", "app", theApp, "groups", groups);
 			}
 
 			@Override
@@ -243,17 +241,14 @@ public class AppGroups extends prisms.ui.list.SelectableList<UserGroup>
 								}
 								try
 								{
-									getSession().fireEvent(
-										new prisms.arch.event.PrismsEvent("appGroupsChanged",
-											"app", theApp, "groups", mus.getGroups(theApp)));
+									getSession().fireEvent("appGroupsChanged", "app", theApp,
+										"groups", mus.getGroups(theApp));
 								} catch(prisms.arch.PrismsException e)
 								{
 									throw new IllegalStateException("Could not get user groups", e);
 								}
 								for(int u = 0; u < users.length; u++)
-									getSession().fireEvent(
-										new prisms.arch.event.PrismsEvent("prismsUserChanged",
-											"user", users[u]));
+									getSession().fireEvent("prismsUserChanged", "user", users[u]);
 							}
 						});
 				}

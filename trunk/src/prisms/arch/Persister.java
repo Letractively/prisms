@@ -1,4 +1,4 @@
-/**
+/*
  * Persister.java Created Jul 7, 2008 by Andrew Butler, PSL
  */
 package prisms.arch;

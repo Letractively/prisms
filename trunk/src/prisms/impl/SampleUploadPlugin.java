@@ -1,5 +1,5 @@
-/**
- * SampleFileUpload.java Created Apr 16, 2009 by Andrew Butler, PSL
+/*
+ * SampleUploadPlugin.java Created Apr 16, 2009 by Andrew Butler, PSL
  */
 package prisms.impl;
 

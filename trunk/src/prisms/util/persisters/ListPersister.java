@@ -1,5 +1,5 @@
 /*
- * DBPersister.java Created Jul 23, 2009 by Andrew Butler, PSL
+ * ListPersister.java Created Jul 23, 2009 by Andrew Butler, PSL
  */
 package prisms.util.persisters;
 
@@ -134,7 +134,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 						.getTransaction();
 					if(trans != null)
 						track = trans.getTracker().start(
-							"PRISMS: Adding value " + o + " in persister " + this);
+							"PRISMS: Adding value " + o + " in persister "
+								+ prisms.util.PrismsUtils.taskToString(this));
 					T dbItem;
 					try
 					{
@@ -166,7 +167,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 						.getTransaction();
 					if(trans != null)
 						track = trans.getTracker().start(
-							"PRISMS: Removing value " + o + " from persister " + this);
+							"PRISMS: Removing value " + o + " from persister "
+								+ prisms.util.PrismsUtils.taskToString(this));
 					synchronized(o.theDBValue)
 					{
 						try
@@ -231,7 +233,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 							.getTransaction();
 						if(trans != null)
 							track = trans.getTracker().start(
-								"PRISMS: Value " + el.theDBValue + " changed in persister " + this);
+								"PRISMS: Value " + el.theDBValue + " changed in persister "
+									+ prisms.util.PrismsUtils.taskToString(this));
 						try
 						{
 							update(session, el.theDBValue, (T) o, evt);

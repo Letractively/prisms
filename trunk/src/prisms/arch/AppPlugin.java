@@ -1,4 +1,4 @@
-/**
+/*
  * AppPlugin.java Created Aug 1, 2007 by Andrew Butler, PSL
  */
 package prisms.arch;

@@ -1,4 +1,4 @@
-/**
+/*
  * AllUsersList.java Created Jul 10, 2008 by Andrew Butler, PSL
  */
 package manager.ui.user;

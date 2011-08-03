@@ -1,4 +1,4 @@
-/**
+/*
  * PrismsUtils.java Created Sep 11, 2008 by Andrew Butler, PSL
  */
 package prisms.util;
@@ -548,7 +548,7 @@ public class PrismsUtils
 	 * @param task The name of the task to start
 	 * @return The tracking node created by the tracker--may be null
 	 */
-	public static prisms.util.ProgramTracker.TrackNode track(prisms.arch.PrismsEnv env, String task)
+	public static ProgramTracker.TrackNode track(prisms.arch.PrismsEnv env, String task)
 	{
 		prisms.arch.PrismsTransaction trans = env.getTransaction();
 		if(trans == null)
@@ -557,12 +557,45 @@ public class PrismsUtils
 	}
 
 	/**
+	 * Like {@link #track(prisms.arch.PrismsEnv, String)}, but this utility makes a more intelligent
+	 * string of with an unknown type than just calling toString() blindly. Unless the object
+	 * implements toString(), the object's class name is returned
+	 * 
+	 * @param env The PRISMS environment to get the transactional tracking data from
+	 * @param taskObj The Object representing the task to start
+	 * @return The tracking node created by the tracker--may be null
+	 */
+	public static ProgramTracker.TrackNode track(prisms.arch.PrismsEnv env, Object taskObj)
+	{
+		return track(env, taskToString(taskObj));
+	}
+
+	/**
+	 * A more intelligent toString() for task objects--returns the object's class name unless the
+	 * object implements toString()
+	 * 
+	 * @param taskObj The object to string
+	 * @return The string representing the object or its type
+	 */
+	public static String taskToString(Object taskObj)
+	{
+		if(taskObj == null)
+			return "null";
+		String className = taskObj.getClass().getName();
+		String str = taskObj.toString();
+		if(str.startsWith(className))
+			return className;
+		else
+			return taskObj.toString();
+	}
+
+	/**
 	 * Ends a task, typically one started with {@link #track(prisms.arch.PrismsEnv, String)}
 	 * 
 	 * @param env The PRISMS environment to get the transactional tracking data from
 	 * @param track The track node created by the tracker. May be null.
 	 */
-	public static void end(prisms.arch.PrismsEnv env, prisms.util.ProgramTracker.TrackNode track)
+	public static void end(prisms.arch.PrismsEnv env, ProgramTracker.TrackNode track)
 	{
 		if(track == null)
 			return;

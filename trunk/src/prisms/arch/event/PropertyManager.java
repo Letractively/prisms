@@ -1,4 +1,4 @@
-/**
+/*
  * PropertyManager.java Created Oct 25, 2007 by Andrew Butler, PSL
  */
 package prisms.arch.event;

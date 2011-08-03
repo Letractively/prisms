@@ -177,6 +177,8 @@ public class UserActionAlerter implements prisms.arch.event.SessionMonitor
 	@Override
 	public String toString()
 	{
+		if(theEventPropertiesIn == null)
+			return super.toString();
 		String ret;
 		if(theEventPropertiesIn.length > 0)
 		{

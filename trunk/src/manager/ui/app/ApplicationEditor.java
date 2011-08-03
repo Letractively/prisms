@@ -1,4 +1,4 @@
-/**
+/*
  * ApplicationEditor.java Created Oct 1, 2008 by Andrew Butler, PSL
  */
 package manager.ui.app;

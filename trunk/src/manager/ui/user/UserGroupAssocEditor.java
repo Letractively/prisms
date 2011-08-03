@@ -194,8 +194,7 @@ public class UserGroupAssocEditor implements prisms.arch.AppPlugin
 		theDataLock = true;
 		try
 		{
-			theSession.fireEvent(new prisms.arch.event.PrismsEvent("prismsUserChanged", "user",
-				theUser));
+			theSession.fireEvent("prismsUserChanged", "user", theUser);
 		} finally
 		{
 			theDataLock = false;

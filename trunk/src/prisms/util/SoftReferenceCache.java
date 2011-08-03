@@ -1,4 +1,4 @@
-/**
+/*
  * SoftReferenceCache.java Created Mar 18, 2009 by Andrew Butler, PSL
  */
 package prisms.util;

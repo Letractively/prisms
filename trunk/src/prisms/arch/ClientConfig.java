@@ -1,4 +1,4 @@
-/**
+/*
  * ClientConfig.java Created Aug 26, 2008 by Andrew Butler, PSL
  */
 package prisms.arch;
@@ -264,57 +264,101 @@ public class ClientConfig
 	 */
 	public void configure(PrismsSession session)
 	{
-		for(EventListenerType elt : theEventTypes)
+		prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(
+			theApp.getEnvironment(), "Add Event Listener");
+		prisms.util.ProgramTracker.TrackNode track2;
+		try
 		{
-			log.debug("Adding event listener:\n" + elt.theConfig);
-			PrismsEventListener pel;
-			try
+			for(EventListenerType elt : theEventTypes)
 			{
-				pel = elt.theListenerType.newInstance();
-			} catch(Exception e)
-			{
-				log.error("Could not instantiate event listener " + elt.theListenerType.getName(),
-					e);
-				return;
+				log.debug("Adding event listener:\n" + elt.theConfig);
+				PrismsEventListener pel;
+				try
+				{
+					pel = elt.theListenerType.newInstance();
+				} catch(Exception e)
+				{
+					log.error(
+						"Could not instantiate event listener " + elt.theListenerType.getName(), e);
+					return;
+				}
+				if(pel instanceof prisms.arch.event.ConfiguredPEL)
+				{
+					track2 = prisms.util.PrismsUtils.track(theApp.getEnvironment(), pel);
+					try
+					{
+						((prisms.arch.event.ConfiguredPEL) pel).configure(session, elt.theConfig);
+					} finally
+					{
+						prisms.util.PrismsUtils.end(theApp.getEnvironment(), track2);
+					}
+				}
+				session.addEventListener(elt.theEventName, pel);
 			}
-			if(pel instanceof prisms.arch.event.ConfiguredPEL)
-				((prisms.arch.event.ConfiguredPEL) pel).configure(session, elt.theConfig);
-			session.addEventListener(elt.theEventName, pel);
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
 		}
-		for(MonitorType mt : theMonitorTypes)
+		track = prisms.util.PrismsUtils.track(theApp.getEnvironment(), "Add Session Monitor");
+		try
 		{
-			log.debug("Adding session monitor:\n" + mt.theConfig);
-			SessionMonitor sm;
-			try
+			for(MonitorType mt : theMonitorTypes)
 			{
-				sm = mt.theMonitorType.newInstance();
-			} catch(Exception e)
-			{
-				log.error("Could not instantiate session monitor " + mt.theMonitorType.getName(), e);
-				return;
+				log.debug("Adding session monitor:\n" + mt.theConfig);
+				SessionMonitor sm;
+				try
+				{
+					sm = mt.theMonitorType.newInstance();
+				} catch(Exception e)
+				{
+					log.error(
+						"Could not instantiate session monitor " + mt.theMonitorType.getName(), e);
+					return;
+				}
+				track2 = prisms.util.PrismsUtils.track(theApp.getEnvironment(), sm);
+				try
+				{
+					sm.register(session, mt.theConfig);
+				} finally
+				{
+					prisms.util.PrismsUtils.end(theApp.getEnvironment(), track2);
+				}
 			}
-			sm.register(session, mt.theConfig);
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
 		}
-		for(PluginType pt : thePluginTypes.values())
+		track = prisms.util.PrismsUtils.track(theApp.getEnvironment(), "Add Plugin");
+		try
 		{
-			AppPlugin plugin;
-			try
+			for(PluginType pt : thePluginTypes.values())
 			{
-				plugin = pt.thePluginType.newInstance();
-			} catch(Exception e)
-			{
-				log.error("Could not instantiate plugin " + pt.thePluginType.getName(), e);
-				continue;
+				AppPlugin plugin;
+				try
+				{
+					plugin = pt.thePluginType.newInstance();
+				} catch(Exception e)
+				{
+					log.error("Could not instantiate plugin " + pt.thePluginType.getName(), e);
+					continue;
+				}
+				track2 = prisms.util.PrismsUtils.track(theApp.getEnvironment(), pt.thePluginName);
+				try
+				{
+					plugin.initPlugin(session, pt.theConfig);
+					session.removeOutgoingEvents(pt.thePluginName);
+				} catch(Exception e)
+				{
+					log.error("Could not initialize plugin " + pt.thePluginName, e);
+				} finally
+				{
+					prisms.util.PrismsUtils.end(theApp.getEnvironment(), track2);
+				}
+				session.addPlugin(pt.thePluginName, plugin);
 			}
-			try
-			{
-				plugin.initPlugin(session, pt.theConfig);
-				session.removeOutgoingEvents(pt.thePluginName);
-			} catch(Exception e)
-			{
-				log.error("Could not initialize plugin " + pt.thePluginName, e);
-			}
-			session.addPlugin(pt.thePluginName, plugin);
+		} finally
+		{
+			prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
 		}
 	}
 

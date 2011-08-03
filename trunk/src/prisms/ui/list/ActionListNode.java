@@ -90,7 +90,7 @@ public class ActionListNode extends SimpleListPluginNode
 		{
 			DataListMgrPlugin plugin = (DataListMgrPlugin) getManager();
 			plugin.setSelected(this, false);
-			plugin.getSession().fireEvent(new prisms.arch.event.PrismsEvent(theEventName, "node", this));
+			plugin.getSession().fireEvent(theEventName, "node", this);
 		}
 	}
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * SessionMonitor.java Created Feb 20, 2008 by Andrew Butler, PSL
  */
 package prisms.arch.event;

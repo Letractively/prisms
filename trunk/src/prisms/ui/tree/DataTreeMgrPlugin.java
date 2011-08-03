@@ -1,4 +1,4 @@
-/**
+/*
  * DataTreeMgrPlugin.java Created Oct 2, 2007 by Andrew Butler, PSL
  */
 package prisms.ui.tree;
