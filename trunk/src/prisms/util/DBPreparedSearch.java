@@ -257,9 +257,9 @@ public abstract class DBPreparedSearch<S extends Search, F extends Sorter.Field,
 			theTransactor.getThrower()
 				.error(
 					"Could not set parameter of SQL type " + type + "(default "
-						+ getParameterType(index).getName() + ") with value " + param + " (type "
-						+ (param == null ? "null" : param.getClass().getName()) + ") at index "
-						+ index, e);
+						+ getParameterType(index - 1).getName() + ") with value " + param
+						+ " (type " + (param == null ? "null" : param.getClass().getName())
+						+ ") at index " + index, e);
 		}
 	}
 

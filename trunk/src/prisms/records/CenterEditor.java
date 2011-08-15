@@ -850,6 +850,7 @@ public abstract class CenterEditor implements prisms.arch.AppPlugin
 	{
 		UI ui = getSession().getUI();
 		UI.DefaultProgressInformer pi = new UI.DefaultProgressInformer();
+		pi.setProgressText("Connecting to data center " + theCenter);
 		ui.startTimedTask(pi);
 		int [] items;
 		if(theSyncClient == null)

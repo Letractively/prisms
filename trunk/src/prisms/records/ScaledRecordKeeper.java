@@ -394,7 +394,7 @@ public class ScaledRecordKeeper extends DBRecordKeeper
 				if(!success)
 					return ret;
 				theProcessedChanges.clear();
-				theProcessedChanges.addAll(ids);
+				theProcessedChanges.addAll(ids, -1);
 				ids.clear();
 				theTimeBeforeCheck = theLastCheck;
 				theLastCheck = now;

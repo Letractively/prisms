@@ -468,6 +468,8 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 
 	void refresh(boolean show)
 	{
+		if(theTable == null) // Not yet initialized
+			return;
 		prisms.ui.UI.DefaultProgressInformer pi = new prisms.ui.UI.DefaultProgressInformer();
 		pi.setProgressText("Querying history");
 		getSession().getUI().startTimedTask(pi);
@@ -541,6 +543,8 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 	 */
 	protected void sendDisplay(boolean refresh, boolean show)
 	{
+		if(theTable == null) // Not yet initialized
+			return;
 		long [] fs;
 		if(refresh)
 		{

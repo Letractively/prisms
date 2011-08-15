@@ -288,30 +288,16 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	}
 
 	/**
-	 * Compares two float values. Just like v1>v2, except that {@link Float#NaN} is treated as less
-	 * than negative infinity.
+	 * Compares two float values
 	 * 
 	 * @param v1 The first value to compare
 	 * @param v2 The second value to compare
 	 * @return -1 if v1<v2, 1 if v1>v2, or 0 if the two are equivalent
+	 * @see Float#compare(float, float)
 	 */
 	public static int compare(float v1, float v2)
 	{
-		if(Float.isNaN(v1))
-		{
-			if(Float.isNaN(v2))
-				return 0;
-			else
-				return -1;
-		}
-		else if(Float.isNaN(v2))
-			return 1;
-		else if(v1 > v2)
-			return 1;
-		else if(v1 < v2)
-			return -1;
-		else
-			return 0;
+		return Float.compare(v1, v2);
 	}
 
 	/**
@@ -369,7 +355,7 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 */
 	public int addAll(float... value)
 	{
-		return addAll(value, 0, value.length);
+		return addAll(value, 0, value.length, -1);
 	}
 
 	/**
@@ -388,9 +374,11 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 * @param value The array with the values to add
 	 * @param start The starting index (inclusive) of the values in the array to add
 	 * @param end The end index (exclusive) of the value in the array to add
+	 * @param insert The index to insert the values into. -1 inserts the values after the end. This
+	 *        parameter is ignored for sorted lists
 	 * @return The number of values added to this list
 	 */
-	public int addAll(float [] value, int start, int end)
+	public int addAll(float [] value, int start, int end, int insert)
 	{
 		assertUnsealed();
 		if(start >= value.length)
@@ -454,19 +442,31 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 		}
 		else
 		{
-			ensureCapacity(theSize + end - start);
-			for(int i = start; i < end; i++)
+			if(insert < 0)
+				insert = theSize;
+			java.util.BitSet unq = null;
+			int count;
+			if(isUnique)
 			{
-				if(!isUnique || !contains(value[i]))
-					theValue[theSize + i - start] = value[i];
-				else
-				{
-					i--;
-					start++;
-				}
+				unq = new java.util.BitSet();
+				for(int i = start; i < end; i++)
+					if(!contains(value[i]))
+						unq.set(i);
+				count = unq.cardinality();
 			}
-			theSize += end - start;
-			return end - start;
+			else
+				count = end - start;
+			ensureCapacity(theSize + count);
+			// Move to make room
+			for(int i = theSize - 1; i >= insert; i--)
+				theValue[i + count] = theValue[i];
+
+			int j = insert;
+			for(int i = start; i < end; i++)
+				if(unq == null || unq.get(i))
+					theValue[j++] = value[start + i];
+			theSize += count;
+			return count;
 		}
 	}
 
@@ -484,11 +484,13 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 * </p>
 	 * 
 	 * @param list The list of values to add
+	 * @param insert The index to insert the values into. -1 inserts the values after the end. This
+	 *        parameter is ignored for sorted lists
 	 * @return The number of values added to this list
 	 */
-	public int addAll(FloatList list)
+	public int addAll(FloatList list, int insert)
 	{
-		return addAll(list.theValue, 0, list.theSize);
+		return addAll(list.theValue, 0, list.theSize, insert);
 	}
 
 	/**
@@ -576,7 +578,8 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	}
 
 	/**
-	 * Compares two floats for equality
+	 * Compares two floats for equality. Interprets all Float.NaN values as equal and interprets 0.0
+	 * and -0.0 as different.
 	 * 
 	 * @param f1 The first float to compare
 	 * @param f2 The second float to compare
@@ -584,7 +587,13 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 */
 	public static boolean equal(float f1, float f2)
 	{
-		return Float.isNaN(f1) ? Float.isNaN(f2) : f1 == f2;
+		if(Float.isNaN(f1))
+			return Float.isNaN(f2);
+		if(Float.isNaN(f2))
+			return false;
+		if(f1 == 0 && f2 == 0) // 0.0 and -0.0 are different
+			return Float.compare(f1, f2) == 0;
+		return f1 == f2;
 	}
 
 	/**
@@ -667,13 +676,13 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	{
 		assertUnsealed();
 		if(isUnique)
-			return addAll(list, 0, list.length);
+			return addAll(list, 0, list.length, -1);
 		else
 		{
 			isUnique = true;
 			try
 			{
-				return addAll(list, 0, list.length);
+				return addAll(list, 0, list.length, -1);
 			} finally
 			{
 				isUnique = false;
@@ -696,13 +705,13 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	{
 		assertUnsealed();
 		if(isUnique)
-			return addAll(list.theValue, 0, list.theSize);
+			return addAll(list.theValue, 0, list.theSize, -1);
 		else
 		{
 			isUnique = true;
 			try
 			{
-				return addAll(list.theValue, 0, list.theSize);
+				return addAll(list.theValue, 0, list.theSize, -1);
 			} finally
 			{
 				isUnique = false;
@@ -743,6 +752,11 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 */
 	public boolean contains(float value)
 	{
+		if(isSorted)
+		{
+			int idx = indexFor(value);
+			return idx >= 0 && idx < theSize && equal(theValue[idx], value);
+		}
 		return indexOf(value) >= 0;
 	}
 
@@ -754,6 +768,20 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 */
 	public int instanceCount(float value)
 	{
+		if(isSorted)
+		{
+			final int idx = indexFor(value);
+			if(idx < 0 || idx >= theSize || equal(theValue[idx], value))
+				return 0;
+			if(isUnique)
+				return 1;
+			int ret = 1;
+			for(int idx2 = ret - 1; idx2 >= 0 && equal(theValue[idx2], value); idx2--)
+				ret++;
+			for(int idx2 = ret + 1; idx2 < theSize && equal(theValue[idx2], value); idx2++)
+				ret++;
+			return ret;
+		}
 		int ret = 0;
 		for(int i = 0; i < theSize; i++)
 			if(equal(theValue[i], value))
@@ -769,6 +797,16 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 */
 	public int indexOf(float value)
 	{
+		if(isSorted)
+		{
+			int ret = indexFor(value);
+			if(ret < 0 || ret >= theSize || equal(theValue[ret], value))
+				return -1;
+			if(!isUnique)
+				while(ret > 0 && equal(theValue[ret - 1], value))
+					ret--;
+			return ret;
+		}
 		for(int i = 0; i < theSize; i++)
 			if(equal(theValue[i], value))
 				return i;
@@ -783,6 +821,16 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 */
 	public int lastIndexOf(float value)
 	{
+		if(isSorted)
+		{
+			int ret = indexFor(value);
+			if(ret < 0 || ret >= theSize || equal(theValue[ret], value))
+				return -1;
+			if(!isUnique)
+				while(ret < theSize - 1 && equal(theValue[ret + 1], value))
+					ret++;
+			return ret;
+		}
 		for(int i = theSize - 1; i >= 0; i--)
 			if(equal(theValue[i], value))
 				return i;
@@ -794,6 +842,15 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	{
 		float [] ret = new float [theSize];
 		System.arraycopy(theValue, 0, ret, 0, theSize);
+		return ret;
+	}
+
+	/** @return The list of values currently in this list, cast to longs */
+	public double [] toDoubleArray()
+	{
+		double [] ret = new double [theSize];
+		for(int i = 0; i < ret.length; i++)
+			ret[i] = theValue[i];
 		return ret;
 	}
 
@@ -819,6 +876,19 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 * @param length The number of items to copy
 	 */
 	public void arrayCopy(int srcPos, float [] dest, int destPos, int length)
+	{
+		System.arraycopy(theValue, srcPos, dest, destPos, length);
+	}
+
+	/**
+	 * Copies a subset of this list's data into an array
+	 * 
+	 * @param srcPos The index in this list to start copying from
+	 * @param dest The array to copy the data into
+	 * @param destPos The index in the destination array to start copying to
+	 * @param length The number of items to copy
+	 */
+	public void arrayCopy(int srcPos, double [] dest, int destPos, int length)
 	{
 		int i = srcPos;
 		int j = destPos;

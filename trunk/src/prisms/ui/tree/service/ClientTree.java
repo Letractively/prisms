@@ -405,6 +405,13 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		String hb = config.get("heart-beat");
 		if(hb != null)
 			setHeartBeat(Integer.parseInt(hb) * 1000);
+		session.addEventListener("destroy", new prisms.arch.event.PrismsEventListener()
+		{
+			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+			{
+				setHeartBeat(0);
+			}
+		});
 	}
 
 	static prisms.impl.ThreadPoolWorker getWorker()

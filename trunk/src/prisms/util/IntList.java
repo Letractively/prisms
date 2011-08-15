@@ -342,7 +342,7 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 */
 	public int addAll(int... value)
 	{
-		return addAll(value, 0, value.length);
+		return addAll(value, 0, value.length, -1);
 	}
 
 	/**
@@ -361,9 +361,11 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 * @param value The array with the values to add
 	 * @param start The starting index (inclusive) of the values in the array to add
 	 * @param end The end index (exclusive) of the value in the array to add
+	 * @param insert The index to insert the values into. -1 inserts the values after the end. This
+	 *        parameter is ignored for sorted lists
 	 * @return The number of values added to this list
 	 */
-	public int addAll(int [] value, int start, int end)
+	public int addAll(int [] value, int start, int end, int insert)
 	{
 		assertUnsealed();
 		if(start >= value.length)
@@ -427,19 +429,31 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 		}
 		else
 		{
-			ensureCapacity(theSize + end - start);
-			for(int i = start; i < end; i++)
+			if(insert < 0)
+				insert = theSize;
+			java.util.BitSet unq = null;
+			int count;
+			if(isUnique)
 			{
-				if(!isUnique || !contains(value[i]))
-					theValue[theSize + i - start] = value[i];
-				else
-				{
-					i--;
-					start++;
-				}
+				unq = new java.util.BitSet();
+				for(int i = start; i < end; i++)
+					if(!contains(value[i]))
+						unq.set(i);
+				count = unq.cardinality();
 			}
-			theSize += end - start;
-			return end - start;
+			else
+				count = end - start;
+			ensureCapacity(theSize + count);
+			// Move to make room
+			for(int i = theSize - 1; i >= insert; i--)
+				theValue[i + count] = theValue[i];
+
+			int j = insert;
+			for(int i = start; i < end; i++)
+				if(unq == null || unq.get(i))
+					theValue[j++] = value[start + i];
+			theSize += count;
+			return count;
 		}
 	}
 
@@ -457,11 +471,13 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 * </p>
 	 * 
 	 * @param list The list of values to add
+	 * @param insert The index to insert the values into. -1 inserts the values after the end. This
+	 *        parameter is ignored for sorted lists
 	 * @return The number of values added to this list
 	 */
-	public int addAll(IntList list)
+	public int addAll(IntList list, int insert)
 	{
-		return addAll(list.theValue, 0, list.theSize);
+		return addAll(list.theValue, 0, list.theSize, insert);
 	}
 
 	/**
@@ -628,13 +644,13 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	{
 		assertUnsealed();
 		if(isUnique)
-			return addAll(list, 0, list.length);
+			return addAll(list, 0, list.length, -1);
 		else
 		{
 			isUnique = true;
 			try
 			{
-				return addAll(list, 0, list.length);
+				return addAll(list, 0, list.length, -1);
 			} finally
 			{
 				isUnique = false;
@@ -657,13 +673,13 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	{
 		assertUnsealed();
 		if(isUnique)
-			return addAll(list.theValue, 0, list.theSize);
+			return addAll(list.theValue, 0, list.theSize, -1);
 		else
 		{
 			isUnique = true;
 			try
 			{
-				return addAll(list.theValue, 0, list.theSize);
+				return addAll(list.theValue, 0, list.theSize, -1);
 			} finally
 			{
 				isUnique = false;
@@ -704,6 +720,11 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 */
 	public boolean contains(int value)
 	{
+		if(isSorted)
+		{
+			int idx = indexFor(value);
+			return idx >= 0 && idx < theSize && theValue[idx] == value;
+		}
 		return indexOf(value) >= 0;
 	}
 
@@ -715,6 +736,20 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 */
 	public int instanceCount(int value)
 	{
+		if(isSorted)
+		{
+			final int idx = indexFor(value);
+			if(idx < 0 || idx >= theSize || theValue[idx] != value)
+				return 0;
+			if(isUnique)
+				return 1;
+			int ret = 1;
+			for(int idx2 = ret - 1; idx2 >= 0 && theValue[idx2] == value; idx2--)
+				ret++;
+			for(int idx2 = ret + 1; idx2 < theSize && theValue[idx2] == value; idx2++)
+				ret++;
+			return ret;
+		}
 		int ret = 0;
 		for(int i = 0; i < theSize; i++)
 			if(theValue[i] == value)
@@ -730,6 +765,16 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 */
 	public int indexOf(int value)
 	{
+		if(isSorted)
+		{
+			int ret = indexFor(value);
+			if(ret < 0 || ret >= theSize || theValue[ret] != value)
+				return -1;
+			if(!isUnique)
+				while(ret > 0 && theValue[ret - 1] == value)
+					ret--;
+			return ret;
+		}
 		for(int i = 0; i < theSize; i++)
 			if(theValue[i] == value)
 				return i;
@@ -744,6 +789,16 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 */
 	public int lastIndexOf(int value)
 	{
+		if(isSorted)
+		{
+			int ret = indexFor(value);
+			if(ret < 0 || ret >= theSize || theValue[ret] != value)
+				return -1;
+			if(!isUnique)
+				while(ret < theSize - 1 && theValue[ret + 1] == value)
+					ret++;
+			return ret;
+		}
 		for(int i = theSize - 1; i >= 0; i--)
 			if(theValue[i] == value)
 				return i;
@@ -755,6 +810,15 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	{
 		int [] ret = new int [theSize];
 		System.arraycopy(theValue, 0, ret, 0, theSize);
+		return ret;
+	}
+
+	/** @return The list of values currently in this list, cast to longs */
+	public long [] toLongArray()
+	{
+		long [] ret = new long [theSize];
+		for(int i = 0; i < ret.length; i++)
+			ret[i] = theValue[i];
 		return ret;
 	}
 
@@ -780,6 +844,19 @@ public class IntList implements Iterable<Integer>, Sealable, Cloneable
 	 * @param length The number of items to copy
 	 */
 	public void arrayCopy(int srcPos, int [] dest, int destPos, int length)
+	{
+		System.arraycopy(theValue, srcPos, dest, destPos, length);
+	}
+
+	/**
+	 * Copies a subset of this list's data into an array
+	 * 
+	 * @param srcPos The index in this list to start copying from
+	 * @param dest The array to copy the data into
+	 * @param destPos The index in the destination array to start copying to
+	 * @param length The number of items to copy
+	 */
+	public void arrayCopy(int srcPos, long [] dest, int destPos, int length)
 	{
 		int i = srcPos;
 		int j = destPos;

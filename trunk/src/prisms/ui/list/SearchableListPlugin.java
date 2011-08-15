@@ -88,7 +88,16 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	public void removeNode(int index)
 	{
 		super.removeNode(index);
-		theDisplayed.removeAll(index);
+		if(theDisplayed != null)
+		{
+			IntList newDisp = theDisplayed.clone();
+			newDisp.removeAll(index);
+			for(int i = 0; i < newDisp.size(); i++)
+				if(newDisp.get(i) > index)
+					newDisp.set(i, newDisp.get(i) - 1);
+			newDisp.seal();
+			theDisplayed = newDisp;
+		}
 		sendDisplay();
 	}
 

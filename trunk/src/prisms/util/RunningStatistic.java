@@ -456,7 +456,7 @@ public class RunningStatistic implements Cloneable
 		theOverallMean = newMean;
 		theVariance = newVar;
 		theNormalCount += stat.theNormalCount;
-		theOutliers.addAll(stat.theOutliers);
+		theOutliers.addAll(stat.theOutliers, -1);
 		theSampleSets.addAll(stat.theSampleSets);
 
 		isFinished = false;
