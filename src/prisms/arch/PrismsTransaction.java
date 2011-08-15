@@ -210,7 +210,12 @@ public class PrismsTransaction
 		theThread = Thread.currentThread();
 		theStage = stage;
 		if(theTracker.getName().equals("Not in use"))
-			theTracker.setName("PRISMS " + stage + " for " + app.getName() + " (global)");
+		{
+			if(app != null)
+				theTracker.setName("PRISMS " + stage + " for " + app.getName() + " (global)");
+			else
+				theTracker.setName("PRISMS " + stage);
+		}
 		theRoutines.add(theTracker.start("PRISMS." + stage));
 	}
 
@@ -268,7 +273,8 @@ public class PrismsTransaction
 			}
 			if(theSession != null)
 				theSession.getTrackSet().addTrackData(theTracker);
-			theApp.getTrackSet().addTrackData(theTracker);
+			if(theApp != null)
+				theApp.getTrackSet().addTrackData(theTracker);
 
 			long runTime = theTracker.getData()[0].getLength();
 			if(thePrintConfig != null && runTime >= thePrintConfig.getTaskDisplayThreshold())

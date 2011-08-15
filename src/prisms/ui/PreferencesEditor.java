@@ -59,7 +59,6 @@ public class PreferencesEditor implements prisms.arch.AppPlugin
 					default:
 						postEvt.put("value", value);
 					}
-					postEvt.put("value", pEvt.getNewValue());
 					session2.postOutgoingEvent(postEvt);
 				}
 			});

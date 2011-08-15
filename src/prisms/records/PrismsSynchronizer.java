@@ -2700,7 +2700,7 @@ public class PrismsSynchronizer
 				throw new PrismsRecordException("Could not trim modifications", e);
 			}
 		}
-		changeIDs.addAll(errorChanges);
+		changeIDs.addAll(errorChanges, -1);
 		long [] ids = changeIDs.toArray();
 		changeIDs.clear();
 		changeIDs = null;

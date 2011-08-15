@@ -47,16 +47,17 @@ public class SyncClientPersister implements prisms.arch.Persister<SyncServiceCli
 				theClient.setAllowAllCerts(true);
 			if(config.is("requires-records", false))
 				theClient.setRequiresRecords(true);
-		}
-		long interval = config.getTime("auto-sync-interval", -1);
-		if(interval > 0)
-			app.scheduleRecurringTask(new Runnable()
-			{
-				public void run()
+
+			long interval = config.getTime("auto-sync-interval", -1);
+			if(interval > 0)
+				app.scheduleRecurringTask(new Runnable()
 				{
-					doAutoSynchronize();
-				}
-			}, interval);
+					public void run()
+					{
+						doAutoSynchronize();
+					}
+				}, interval);
+		}
 	}
 
 	public SyncServiceClient getValue()
