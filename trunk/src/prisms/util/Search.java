@@ -18,9 +18,10 @@ public abstract class Search implements Cloneable
 		 * Creates a search of this type with the given query
 		 * 
 		 * @param search The search query
+		 * @param builder The search builder that is compiling the search
 		 * @return The compiled search object representing the given query
 		 */
-		public abstract Search create(String search);
+		public abstract Search create(String search, SearchBuilder builder);
 
 		/** @return All headers that may begin a search of this type */
 		public abstract String [] getHeaders();
@@ -35,7 +36,7 @@ public abstract class Search implements Cloneable
 			theName = name;
 		}
 
-		public Search create(String search)
+		public Search create(String search, SearchBuilder builder)
 		{
 			throw new IllegalStateException("Cannot create " + theName + "-type search like this");
 		}
@@ -95,7 +96,7 @@ public abstract class Search implements Cloneable
 			{
 				boolean gt = sb.charAt(0) == '>';
 				sb.delete(0, 1);
-				if(sb.charAt(1) == '=')
+				if(sb.charAt(0) == '=')
 				{
 					sb.delete(0, 1);
 					if(gt)
@@ -179,6 +180,9 @@ public abstract class Search implements Cloneable
 		/** The maximum time that this search can be interpreted as */
 		public final long maxTime;
 
+		/** Whether this date is evaluated in GMT or local time */
+		public final boolean gmt;
+
 		/**
 		 * Creates a SearchDate. The input may be constrained to any single time range, but
 		 * combinations that create multiple ranges (e.g. h!=null, but md==null, meaning at a
@@ -189,9 +193,14 @@ public abstract class Search implements Cloneable
 		 * @param m The month field, if specified in the search
 		 * @param y The year field, if specified in the search
 		 * @param h The hour field, if specified in the search
+		 * @param min The minute field, if specified in the search
+		 * @param sec The second field, if specified in the search
+		 * @param mills The millisecond field, if specified in the search
+		 * @param local If the date is to be evaluated in local time instead of GMT
 		 * @throws IllegalArgumentException If the combination of parameters is invalid
 		 */
-		public SearchDate(Integer md, Integer wd, Integer m, Integer y, Integer h)
+		public SearchDate(Integer md, Integer wd, Integer m, Integer y, Integer h, Integer min,
+			Integer sec, Integer mills, boolean local)
 		{
 			if(wd != null && (md != null || m != null || y != null))
 				throw new IllegalArgumentException(
@@ -201,10 +210,13 @@ public abstract class Search implements Cloneable
 			month = m;
 			year = y;
 			hour = h;
+			minute = min;
+			second = sec;
+			milli = mills;
 			long [] times = calcTimes();
 			minTime = times[0];
 			maxTime = times[1];
-			minute = second = milli = null;
+			gmt = !local;
 		}
 
 		/**
@@ -216,6 +228,8 @@ public abstract class Search implements Cloneable
 		{
 			Calendar cal = Calendar.getInstance();
 			cal.setTimeInMillis(time);
+			cal.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+			gmt = true;
 			year = Integer.valueOf(cal.get(Calendar.YEAR));
 			month = Integer.valueOf(cal.get(Calendar.MONTH));
 			monthDay = Integer.valueOf(cal.get(Calendar.DAY_OF_MONTH));
@@ -236,44 +250,125 @@ public abstract class Search implements Cloneable
 		 */
 		public static SearchDate parse(StringBuilder sb, String srch)
 		{
+			if(sb.length() > 0 && sb.charAt(0) == '"')
+				sb.delete(0, 1);
 			java.util.Calendar now = java.util.Calendar.getInstance();
-			Integer d, m, y, h;
+			Integer d, m, y, h, min = null, sec = null, mill = null;
+			final boolean [] local = new boolean [] {false};
+			boolean doubleZero = sb.length() >= 2 && sb.charAt(0) == '0' && sb.charAt(1) == '0';
+			boolean tripleZero = doubleZero && sb.length() >= 3 && sb.charAt(2) == '0';
 			int num = parseInt(sb);
 			if(num >= 0)
-			{ // num could be day, year, or hour
+			{ // num could be day or time
 				trim(sb);
 				int month = parseMonth(sb, srch);
 				if(month >= 0)
 				{ // num was the day. Now year and/or hour may be specified
 					d = Integer.valueOf(num);
 					m = Integer.valueOf(month);
-					int [] yh = parsePostMonth(sb, srch);
-					y = yh[0] < 0 ? null : Integer.valueOf(yh[0]);
-					h = yh[1] < 0 ? null : Integer.valueOf(yh[1]);
+					if(sb.length() > 0)
+					{
+						if(!Character.isWhitespace(sb.charAt(0)))
+						{
+							int year = parseInt(sb);
+							if(year >= 0)
+							{
+								if(year < 100)
+								{
+									year += (now.get(Calendar.YEAR) / 100) * 100;
+									if(year > now.get(Calendar.YEAR))
+										year -= 100;
+								}
+								else if(year <= now.get(Calendar.YEAR))
+								{}
+								else
+									throw new IllegalArgumentException("Illegal year in search "
+										+ srch);
+								y = Integer.valueOf(year);
+							}
+							else
+								y = null;
+						}
+						else
+							y = null;
+						int [] hm = parseTime(sb, srch, local);
+						if(hm != null)
+						{
+							h = Integer.valueOf(hm[0]);
+							if(hm.length > 1 && hm[1] >= 0)
+								min = Integer.valueOf(hm[1]);
+							if(hm.length > 2 && hm[2] >= 0)
+								sec = Integer.valueOf(hm[2]);
+							if(hm.length > 3 && hm[3] >= 0)
+								mill = Integer.valueOf(hm[3]);
+						}
+						else
+							h = null;
+					}
+					else
+						y = h = null;
 				}
-				else if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
-				{ // num was the hour
-					if(num > 23)
-						throw new IllegalStateException("Illegal date value in search: " + srch);
-					sb.delete(0, 1);
-					h = Integer.valueOf(num);
-					d = null;
+				else if(parseSuffix(sb, num))
+				{ // num was the day, with no month/year specified
+					now.add(Calendar.MONTH, -1);
+					if(num < 1 && num > now.getActualMaximum(Calendar.DAY_OF_MONTH))
+					{
+						now.add(Calendar.MONTH, 1);
+						if(num < 1 || num > 31)
+							throw new IllegalArgumentException("Illegal day in search " + srch);
+						else
+							throw new IllegalArgumentException("Illegal day in search " + srch
+								+ " for " + print(MONTHS[now.get(Calendar.MONTH) - 1]));
+					}
+					d = Integer.valueOf(num);
+					int [] hm = parseTime(sb, srch, local);
+					if(hm != null)
+					{
+						h = Integer.valueOf(hm[0]);
+						if(hm.length > 1 && hm[1] >= 0)
+							min = Integer.valueOf(hm[1]);
+						if(hm.length > 2 && hm[2] >= 0)
+							sec = Integer.valueOf(hm[2]);
+						if(hm.length > 3 && hm[3] >= 0)
+							mill = Integer.valueOf(hm[3]);
+					}
+					else
+						h = null;
 					m = null;
 					y = null;
+					h = null;
 				}
 				else
-				{ // num was the year
-					if(num < 100)
-					{
-						int nowYear = now.get(java.util.Calendar.YEAR);
-						num += (nowYear / 100) * 100;
-						if(num > nowYear)
-							num -= 100;
-					}
-					y = Integer.valueOf(num);
-					d = null;
+				{ // num was the time
 					m = null;
+					y = null;
+					d = null;
 					h = null;
+					if((num == 0 && !tripleZero) || (num > 0 && num < 24 && !doubleZero))
+						h = Integer.valueOf(num);
+					else if(num >= 2400 || num % 100 >= 60)
+						throw new IllegalArgumentException("Illegal time in search " + srch + ": "
+							+ num);
+					else
+					{
+						h = Integer.valueOf(num / 100);
+						min = Integer.valueOf(num % 100);
+					}
+					if(sb.length() > 0 && sb.charAt(0) == ':')
+					{
+						sb.delete(0, 1);
+						int s = parseInt(sb);
+						if(s >= 0)
+						{
+							sec = Integer.valueOf(s);
+							if(sb.length() > 0 && sb.charAt(0) == '.')
+							{
+								int mil = parseInt(sb);
+								if(mil >= 0)
+									mill = Integer.valueOf(mil);
+							}
+						}
+					}
 				}
 			}
 			else
@@ -284,7 +379,7 @@ public abstract class Search implements Cloneable
 				{
 					num = parseWeekDay(sb, srch);
 					if(num < 0)
-						throw new IllegalStateException("Illegal data value in search: " + srch);
+						throw new IllegalArgumentException("Illegal data value in search: " + srch);
 					trim(sb);
 					Integer wd = Integer.valueOf(num);
 					num = parseInt(sb);
@@ -296,63 +391,96 @@ public abstract class Search implements Cloneable
 						if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
 							sb.delete(0, 1);
 					}
-					return new SearchDate(null, wd, null, null, h);
+					if(sb.length() > 0 && sb.charAt(0) == '"')
+						sb.delete(0, 1);
+					return new SearchDate(null, wd, null, null, h, min, null, null, local[0]);
 				}
 				m = Integer.valueOf(month);
-				int [] yh = parsePostMonth(sb, srch);
-				y = yh[0] < 0 ? null : Integer.valueOf(yh[0]);
-				h = yh[1] < 0 ? null : Integer.valueOf(yh[1]);
-			}
-			return new SearchDate(d, null, m, y, h);
-		}
-
-		private static int [] parsePostMonth(StringBuilder sb, String srch)
-		{
-			Calendar now = Calendar.getInstance();
-			Integer y, h;
-			trim(sb);
-			int num = parseInt(sb);
-			if(num >= 0)
-			{ // num could be year or hour
-				trim(sb);
-				if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
-				{ // num is the hour
-					if(num > 23)
-						throw new IllegalStateException("Illegal date value in search: " + srch);
-					y = null;
-					h = Integer.valueOf(num);
-					sb.delete(0, 1);
-				}
-				else
-				{ // num is the year
-					if(num < 100)
+				if(sb.length() > 0)
+				{
+					if(!Character.isWhitespace(sb.charAt(0)))
 					{
-						int nowYear = now.get(Calendar.YEAR);
-						num += (nowYear / 100) * 100;
-						if(num > nowYear)
-							num -= 100;
+						int year = parseInt(sb);
+						if(year >= 0)
+						{
+							if(year < 100)
+							{
+								year += (now.get(Calendar.YEAR) / 100) * 100;
+								if(year > now.get(Calendar.YEAR))
+									year -= 100;
+							}
+							else if(year <= now.get(Calendar.YEAR))
+							{}
+							else
+								throw new IllegalArgumentException("Illegal year in search " + srch);
+							y = Integer.valueOf(year);
+						}
+						else
+							y = null;
 					}
-					y = Integer.valueOf(num);
-					trim(sb);
-					num = parseInt(sb);
-					if(num >= 0)
+					else
+						y = null;
+					int [] hm = parseTime(sb, srch, local);
+					if(hm != null)
 					{
-						if(num > 23)
-							throw new IllegalStateException("Illegal date value in search: " + srch);
-						h = Integer.valueOf(num);
-						if(sb.length() > 0 && (sb.charAt(0) == 'Z' || sb.charAt(0) == 'z'))
-							sb.delete(0, 1);
+						h = Integer.valueOf(hm[0]);
+						if(hm.length > 1 && hm[1] >= 0)
+							min = Integer.valueOf(hm[1]);
+						if(hm.length > 2 && hm[2] >= 0)
+							sec = Integer.valueOf(hm[2]);
+						if(hm.length > 3 && hm[3] >= 0)
+							mill = Integer.valueOf(hm[3]);
 					}
 					else
 						h = null;
 				}
+				else
+					y = h = null;
 			}
-			else
+			if(sb.length() > 0 && sb.charAt(0) == '"')
+				sb.delete(0, 1);
+			return new SearchDate(d, null, m, y, h, min, sec, mill, local[0]);
+		}
+
+		private static int [] parseTime(StringBuilder sb, String srch, boolean [] local)
+		{
+			trim(sb);
+			boolean doubleZero = sb.length() >= 2 && sb.charAt(0) == '0' && sb.charAt(1) == '0';
+			boolean tripleZero = doubleZero && sb.length() >= 3 && sb.charAt(2) == '0';
+			int num = parseInt(sb);
+			if(num < 0)
+				return null;
+			if((num == 0 && !tripleZero) || (num > 0 && num < 24 && !doubleZero))
 			{
-				y = null;
-				h = null;
+				if(sb.length() == 0 || (sb.charAt(0) != 'Z' && sb.charAt(0) != 'z'))
+				{
+					sb.delete(0, 1);
+					local[0] = true;
+				}
+				return new int [] {num};
 			}
-			return new int [] {y == null ? -1 : y.intValue(), h == null ? -1 : h.intValue()};
+			else if(num >= 2400 || num % 100 >= 60)
+				throw new IllegalArgumentException("Illegal time in search " + srch + ": " + num);
+			int h = num / 100;
+			int m = num % 100;
+			if(sb.length() == 0 || (sb.charAt(0) != 'Z' && sb.charAt(0) != 'z'))
+			{
+				sb.delete(0, 1);
+				local[0] = true;
+			}
+			if(sb.length() == 0 || sb.charAt(0) != ':')
+				return new int [] {h, m};
+			sb.delete(0, 1);
+			int s = parseInt(sb);
+			if(s < 0)
+				return new int [] {h, m};
+			if(sb.length() == 0 || sb.charAt(0) != '.')
+				return new int [] {h, m, s};
+			sb.delete(0, 1);
+			int mil = parseInt(sb);
+			if(mil < 0)
+				return new int [] {h, m, s};
+			return new int [] {h, m, s, mil};
 		}
 
 		/**
@@ -383,6 +511,33 @@ public abstract class Search implements Cloneable
 				sb.delete(0, numberChars);
 				return ret;
 			}
+		}
+
+		/**
+		 * Checks the string to see if it begins with the correct suffix for the given number, e.g.
+		 * 1<b>st</b>, 102<b>nd</b>, 13<b>th</b>
+		 * 
+		 * @param sb The string to check for the suffix
+		 * @param num The number whose suffix to check for
+		 * @return Whether the suffix was the first thing in the string. If so, the suffix will be
+		 *         removed from the string
+		 */
+		public static boolean parseSuffix(StringBuilder sb, int num)
+		{
+			if(sb.length() < 2)
+				return false;
+			boolean ret;
+			if(num % 10 == 1 && num / 10 != 1)
+				ret = sb.charAt(0) == 's' && sb.charAt(1) == 't';
+			else if(num % 10 == 2 && num / 10 != 1)
+				ret = sb.charAt(0) == 'n' && sb.charAt(1) == 'd';
+			else if(num % 10 == 2 && num / 10 != 1)
+				ret = sb.charAt(0) == 'r' && sb.charAt(1) == 'd';
+			else
+				ret = sb.charAt(0) == 't' && sb.charAt(1) == 'h';
+			if(ret)
+				sb.delete(0, 2);
+			return ret;
 		}
 
 		private static int parseMonth(StringBuilder sb, String srch)
@@ -467,14 +622,29 @@ public abstract class Search implements Cloneable
 			return -1;
 		}
 
+		private static String print(String name)
+		{
+			StringBuilder ret = new StringBuilder(name);
+			boolean newWord = true;
+			for(int i = 0; i < ret.length(); i++)
+			{
+				if(newWord && Character.isLowerCase(ret.charAt(i)))
+					ret.setCharAt(i, (char) (ret.charAt(i) + 'A' - 'a'));
+				newWord = Character.isWhitespace(ret.charAt(i));
+			}
+			return ret.toString();
+		}
+
 		private long [] calcTimes()
 		{
 			long now = System.currentTimeMillis();
 			long min, max;
 			Calendar cal = Calendar.getInstance();
-			cal.set(Calendar.MINUTE, 0);
-			cal.set(Calendar.SECOND, 0);
-			cal.set(Calendar.MILLISECOND, 0);
+			if(gmt)
+				cal.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+			cal.set(Calendar.MINUTE, minute == null ? 0 : minute.intValue());
+			cal.set(Calendar.SECOND, second == null ? 0 : second.intValue());
+			cal.set(Calendar.MILLISECOND, milli == null ? 0 : milli.intValue());
 			if(weekDay != null)
 			{
 				cal.set(Calendar.DAY_OF_WEEK, weekDay.intValue());
@@ -672,13 +842,47 @@ public abstract class Search implements Cloneable
 		}
 
 		@Override
+		public boolean equals(Object o)
+		{
+			if(!(o instanceof SearchDate))
+				return false;
+			SearchDate sd = (SearchDate) o;
+			return sd.minTime == minTime && sd.maxTime == maxTime && equal(sd.year, year)
+				&& equal(sd.month, month) && equal(sd.monthDay, monthDay) && equal(sd.hour, hour)
+				&& equal(sd.minute, minute) && equal(sd.second, second) && equal(sd.milli, milli)
+				&& equal(sd.weekDay, weekDay);
+		}
+
+		private static boolean equal(Object o1, Object o2)
+		{
+			return o1 == null ? o2 == null : o1.equals(o2);
+		}
+
+		private static int hash(Object o1)
+		{
+			return o1 == null ? 0 : o1.hashCode();
+		}
+
+		@Override
+		public int hashCode()
+		{
+			long ret = minTime + maxTime + hash(year) + hash(month) + hash(monthDay) + hash(hour)
+				+ hash(minute) + hash(second) + hash(milli) + hash(weekDay);
+			return (int) ((ret & 0xffffffffL) + (ret >>> 32));
+		}
+
+		@Override
 		public String toString()
 		{
 			StringBuilder ret = new StringBuilder();
+			if(weekDay != null || hour != null)
+				ret.append('"');
+			if(weekDay != null)
+				ret.append(print(WEEK_DAYS[weekDay.intValue()])).append(' ');
 			if(monthDay != null)
 				ret.append(monthDay);
 			if(month != null)
-				ret.append(ABBREV_MONTHS[month.intValue()]);
+				ret.append(print(ABBREV_MONTHS[month.intValue()]));
 			if(year != null)
 				ret.append(year);
 			if(hour != null)
@@ -693,6 +897,8 @@ public abstract class Search implements Cloneable
 					if(minute.intValue() < 10)
 						ret.append('0');
 					ret.append(minute);
+					if(gmt)
+						ret.append('Z');
 					ret.append(':');
 					if(second.intValue() < 10)
 						ret.append('0');
@@ -705,8 +911,14 @@ public abstract class Search implements Cloneable
 					ret.append(milli);
 				}
 				else
-					ret.append("00Z");
+				{
+					ret.append("00");
+					if(gmt)
+						ret.append('Z');
+				}
 			}
+			if(weekDay != null || hour != null)
+				ret.append('"');
 			return ret.toString();
 		}
 	}
@@ -811,6 +1023,18 @@ public abstract class Search implements Cloneable
 		public NotSearch clone()
 		{
 			return this; // Immutable
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return o instanceof NotSearch && ((NotSearch) o).operand.equals(operand);
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return operand.hashCode() + 17;
 		}
 
 		@Override
@@ -976,6 +1200,29 @@ public abstract class Search implements Cloneable
 					o += exp.theOperands.length - 1;
 				}
 			}
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			if(!(o instanceof ExpressionSearch))
+				return false;
+			ExpressionSearch exp = (ExpressionSearch) o;
+			if(exp.getOperandCount() != getOperandCount())
+				return false;
+			for(int i = 0; i < getOperandCount(); i++)
+				if(!getOperand(i).equals(exp.getOperand(i)))
+					return false;
+			return true;
+		}
+
+		@Override
+		public int hashCode()
+		{
+			int ret = getOperandCount();
+			for(int i = 0; i < getOperandCount(); i++)
+				ret += getOperand(i).hashCode();
+			return ret;
 		}
 
 		@Override
@@ -1184,7 +1431,7 @@ public abstract class Search implements Cloneable
 							else if(sb.charAt(c) == '(')
 								c = goPastParen(sb, c);
 						}
-						Search ret = type.create(sb.substring(0, c));
+						Search ret = type.create(sb.substring(0, c), this);
 						sb.delete(0, c + 1);
 						return ret;
 					}

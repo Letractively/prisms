@@ -62,6 +62,12 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 		levels.add(Level.FATAL.toString());
 		evt.put("levels", levels);
 		theSession.postOutgoingEvent(evt);
+
+		evt = new JSONObject();
+		evt.put("plugin", theName);
+		evt.put("method", "setEnabled");
+		evt.put("enabled", Boolean.valueOf(isEnabled()));
+		theSession.postOutgoingEvent(evt);
 		sendLogger();
 	}
 
@@ -71,6 +77,8 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 		{
 			if(theSelectedLogger == null)
 				throw new IllegalStateException("No logger to set the level for");
+			if(!isEnabled())
+				throw new IllegalArgumentException("You do not have permission to modify loggers");
 			String level = (String) evt.get("level");
 			if(level == null)
 				theSelectedLogger.setLevel(null);
@@ -94,6 +102,8 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 		{
 			if(theSelectedLogger == null)
 				throw new IllegalStateException("No logger to set the additivity for");
+			if(!isEnabled())
+				throw new IllegalArgumentException("You do not have permission to modify loggers");
 			theSelectedLogger.setAdditivity(((Boolean) evt.get("additivity")).booleanValue());
 			theSession.setProperty(selectedLogger, theSelectedLogger);
 		}
@@ -104,8 +114,20 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 			theSelectedLogger.log(theSelectedLogger.getEffectiveLevel(),
 				"From Log4j Configuration Utility: " + evt.get("message"));
 		}
+		else if("printException".equals(evt.get("method")))
+		{
+			if(theSelectedLogger == null)
+				throw new IllegalStateException("No logger to print a message to");
+			theSelectedLogger.log(theSelectedLogger.getEffectiveLevel(),
+				"Text Exception From Log4j Configuration Utility", new Exception("Test"));
+		}
 		else
 			throw new IllegalArgumentException("Unrecognized " + theName + " event " + evt);
+	}
+
+	boolean isEnabled()
+	{
+		return theSession.getPermissions().has("Edit Loggers");
 	}
 
 	void setLogger(Logger log)

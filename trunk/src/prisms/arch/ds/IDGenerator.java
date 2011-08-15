@@ -138,7 +138,13 @@ public class IDGenerator
 	public static long INSTANCE_ACTIVE_GRANULARITY = 60000;
 
 	/** The range of IDS that may exist in a given PRISMS center */
-	public static int ID_RANGE = 1000000000;
+	public static final int ID_RANGE = 1000000000;
+
+	/**
+	 * The maximum ID number that will be returned from
+	 * {@link #getNextIntID(Statement, String, String, String, String)}
+	 */
+	public static final int MAX_INT_ID = (Integer.MAX_VALUE / 1000) * 1000;
 
 	/**
 	 * @param objectID The ID of an object
@@ -851,15 +857,25 @@ public class IDGenerator
 	public static long nextAvailableID(Statement stmt, String table, String column, long start,
 		String where) throws PrismsException
 	{
-		String sql = "SELECT DISTINCT " + column + " FROM " + table + " WHERE " + column + ">="
-			+ start;
-		if(where != null)
-			sql += " AND " + where;
-		sql += " ORDER BY " + column;
 		ResultSet rs = null;
+		String sql = null;
 		try
 		{
-			rs = stmt.executeQuery(sql);
+			if(stmt instanceof PreparedStatement)
+			{
+				PreparedStatement pStmt = (PreparedStatement) stmt;
+				pStmt.setLong(1, start);
+				rs = pStmt.executeQuery();
+			}
+			else
+			{
+				sql = "SELECT DISTINCT " + column + " FROM " + table + " WHERE " + column + ">="
+					+ start;
+				if(where != null)
+					sql += " AND " + where;
+				sql += " ORDER BY " + column;
+				rs = stmt.executeQuery(sql);
+			}
 			while(rs.next())
 			{
 				long tempID = rs.getLong(1);
@@ -885,9 +901,34 @@ public class IDGenerator
 	}
 
 	/**
+	 * Prepares an ID query statement that may be passed to
+	 * {@link #nextAvailableID(Statement, String, String, long, String)} or
+	 * {@link #getNextIntID(Statement, String, String, String, String)}. Prepared statements cannot
+	 * be passed to {@link #getNextID(String, String, Statement, String, String)}.
+	 * 
+	 * @param table The table to get the next ID for. This must be appended with any necessary
+	 *        prefixes.
+	 * @param prefix The prefix to set before the table name in a query
+	 * @param column The ID column in the table
+	 * @param where The where clause that should be used to get the next ID
+	 * @return The string to prepare the statement to get IDs quicker
+	 */
+	public static String prepareNextIntID(String table, String prefix, String column, String where)
+	{
+		String ret = "SELECT DISTINCT " + column + " FROM " + prefix + table + " WHERE " + column
+			+ ">=?";
+		if(where != null)
+			ret += " AND " + where;
+		ret += " ORDER BY " + column;
+		return ret;
+	}
+
+	/**
 	 * Gets the next ID for a table whose value is not dependent on the center
 	 * 
-	 * @param stmt The statement pointing to the given table
+	 * @param stmt The statement pointing to the given table. This may be a normal statement created
+	 *        with {@link Connection#createStatement()} or a prepared statement created with the
+	 *        string returned from {@link #prepareNextIntID(String, String, String, String)}.
 	 * @param table The table to get the next ID for. This must be appended with any necessary
 	 *        prefixes.
 	 * @param prefix The prefix to set before the table name in a query
@@ -920,7 +961,7 @@ public class IDGenerator
 				rs = null;
 
 				ret = nextAvailableID(stmt, prefix + table, column, ret + 1, where);
-				if(ret > Integer.MAX_VALUE)
+				if(ret > MAX_INT_ID)
 				{
 					ret = nextAvailableID(stmt, prefix + table, column, 0, where);
 					if(ret > Integer.MAX_VALUE)
@@ -932,7 +973,7 @@ public class IDGenerator
 				rs.close();
 				rs = null;
 				ret = nextAvailableID(stmt, prefix + table, column, 0, where);
-				if(ret > Integer.MAX_VALUE)
+				if(ret > MAX_INT_ID)
 				{
 					ret = nextAvailableID(stmt, prefix + table, column, 0, where);
 					if(ret > Integer.MAX_VALUE)

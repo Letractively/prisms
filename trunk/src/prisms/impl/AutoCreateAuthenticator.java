@@ -3,6 +3,7 @@
  */
 package prisms.impl;
 
+import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
 import prisms.arch.*;
@@ -13,6 +14,8 @@ import prisms.arch.ds.UserSource;
 /** An authenticator that auto-creates users when they are authenticated externally */
 public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 {
+	private static final Logger userLog = Logger.getLogger("prisms.users");
+
 	/** A {@link PrismsAuthenticator.SessionAuthenticator} for auto-create authenticators */
 	protected static class AutoCreateSessionAuthenticator implements SessionAuthenticator
 	{
@@ -170,15 +173,22 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 				throw new PrismsException("User " + userName
 					+ " does not have access to application " + request.getApp());
 
+			String className = getClass().getName();
+			if(className.indexOf('.') >= 0)
+				className = className.substring(className.lastIndexOf('.') + 1);
 			prisms.arch.ds.ManageableUserSource mus = (prisms.arch.ds.ManageableUserSource) theUserSource;
 			for(User u : mus.getAllUsers())
 				if(u.getName().equals(userName))
 				{
+					userLog.info(className + ": Auto-re-creating user \"" + userName
+						+ "\" based on template \"" + theTemplate.getName() + "\"");
 					ret = u;
 					break;
 				}
 			if(ret == null)
 			{
+				userLog.info(className + ": Auto-creating user \"" + userName
+					+ "\" based on template \"" + theTemplate.getName() + "\"");
 				ret = mus.createUser(userName,
 					new prisms.records.RecordsTransaction(mus.getSystemUser()));
 				ret.setName(userName);

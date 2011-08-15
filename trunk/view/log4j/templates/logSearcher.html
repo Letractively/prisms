@@ -1,0 +1,40 @@
+
+<div style="width:100%;height:100%">
+	<div __dojoType="dijit.layout.BorderContainer" style="width:100%;height:100%" dojoAttachPoint="layoutPane">
+		<div __dojoType="dijit.layout.ContentPane" region="top">
+			<table style="width:100%;height:100%">
+				<tr style="height:1em">
+					<td style="width:90%">
+						<textarea rows="3" style="width:100%" dojoAttachPoint="searchBox"
+							dojoAttachEvent="onkeypress:_searchKeyPressed"></textarea>
+					</td><td style="text-align:center">
+						<div __dojoType="dijit.form.Button" dojoAttachPoint="searchButton"
+							dojoAttachEvent="onClick:_searchClicked">Search</div>
+					</td>
+				</tr>
+				<!--<tr colspan="2" style="height:20px" __dojoType="prisms.widget.CollapsePane"
+					title="Advanced Search" collapsed="true" dojoAttachEvent="postChange:_layout">
+					This is some collapsed text<br />
+					this is more<br />
+					blah <br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+					blah<br />
+				</tr>-->
+			</table>
+		</div>
+		<div __dojoType="log4j.LogViewer" region="center" dojoAttachPoint="logViewer"
+			pluginName="Log Viewer"></div>
+		<div __dojoType="log4j.StoredSearches" region="bottom" pluginName="Stored Searches"
+			dojoAttachEvent="onChange:_layout"></div>
+	</div>
+</div>

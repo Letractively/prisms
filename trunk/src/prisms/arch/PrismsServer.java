@@ -31,6 +31,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 {
 	static final Logger log = Logger.getLogger(PrismsServer.class);
 
+	static final Logger sessionLog = Logger.getLogger("prisms.sessions");
+
 	/**
 	 * The threshold before a session expires at which the client will receive a warning that its
 	 * session is about to expire
@@ -436,6 +438,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private long theLastUsed;
 
+		private boolean isLoggedIn;
+
 		SecuritySession(PrismsAuthenticator auth, User user, HttpServletRequest req)
 			throws PrismsException
 		{
@@ -585,6 +589,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				else
 					return error(reqAuth, req, ErrorCode.ValidationFailed, reqAuth.getError(),
 						false);
+			}
+			if(!isLoggedIn)
+			{
+				String className = theAuth.getClass().getName();
+				if(className.indexOf('.') >= 0)
+					className = className.substring(className.lastIndexOf('.') + 1);
+				sessionLog.info("User " + theUser + " was authenticated by " + className);
+				isLoggedIn = true;
 			}
 
 			// Check the user's access to the requested application
@@ -975,6 +987,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return theClient;
 		}
 
+		public PrismsSession getSession()
+		{
+			return theSession;
+		}
+
 		/**
 		 * Processes an event for a validated session
 		 * 
@@ -1030,6 +1047,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						theHttpSession.removeSession(this);
 						destroy();
+						sessionLog.info("Logged out.");
 						return theSecurity.sendLogin(reqAuth, req,
 							"You have been successfully logged out", false, false);
 					} finally
@@ -1566,11 +1584,27 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						{
 							String key = theID + "/" + holder.getClient().getApp().getName() + "/"
 								+ holder.getClient().getName() + "/" + holder.getUser().getName();
-							if(theSessionHolders[s].isKilled())
+							if(holder.isKilled())
+							{
+								sessionLog.info("Session "
+									+ (holder.getSession() == null ? "" : holder.getSession()
+										.getMetadata().getID()
+										+ " ") + ", user " + holder.getUser() + ", application "
+									+ holder.getClient().getApp() + ", client "
+									+ holder.getClient() + " has been killed by an administrator.");
 								theEpitaphs.put(key, new SessionEpitaph(
 									"Session has been killed by an administrator."));
+							}
 							else
+							{
+								sessionLog.info("Session "
+									+ (holder.getSession() == null ? "" : holder.getSession()
+										.getMetadata().getID()
+										+ " ") + ", user " + holder.getUser() + ", application "
+									+ holder.getClient().getApp() + ", client "
+									+ holder.getClient() + " has timed out.");
 								theEpitaphs.put(key, new SessionEpitaph("Session has timed out."));
+							}
 							theSessionHolders = ArrayUtils.remove(theSessionHolders, s);
 							holder.destroy();
 							s--;
@@ -1624,7 +1658,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		CONNECTION_FACTORY,
 		/** The user source is being created */
 		USER_SOURCE,
-		/** The ID generator is being configured */
+		/** The ID generator and logger are being configured */
 		ID_GENERATOR,
 		/** Global (cross-app) listeners are being created and configured */
 		GLOBAL_LISTENERS,
@@ -2241,62 +2275,57 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theEnv.setIDs(ids);
 
 			String localScheme = pConfig.get("local-scheme");
-			String localPort = pConfig.get("local-port");
+			int localPort = pConfig.getInt("local-port", -1);
 			String localPath = pConfig.get("local-path");
-			if(localPort != null && localScheme != null && localPath != null)
+			if(localPort > 0 && localScheme == null)
+				throw new IllegalStateException("Cannot specify local-port without local-scheme");
+			String addr = req == null ? null : req.getLocalName();
+			if(addr == null || addr.equalsIgnoreCase("localhost") || addr.equals("127.0.0.1"))
 			{
-				int port = Integer.parseInt(localPort);
-				String addr;
 				try
 				{
-					addr = java.net.InetAddress.getLocalHost().getHostAddress();
+					addr = java.net.InetAddress.getLocalHost().getCanonicalHostName();
 				} catch(java.net.UnknownHostException e)
 				{
-					log.error("Could not get local host address", e);
+					log.error("Could not get local host address."
+						+ " Enterprise and self connections will not be available.", e);
 					addr = null;
 				}
-				if((port == 80 && localScheme.equalsIgnoreCase("http"))
-					|| (port == 443 && localScheme.equalsIgnoreCase("https")))
-					port = -1;
-				if(localPath.startsWith("/"))
-					localPath = localPath.substring(1);
-				ids.setLocalConnectInfo(localScheme + "://" + addr + (port > 0 ? ":" + port : "")
-					+ "/" + localPath);
 			}
-			else if(req != null)
+			if(addr != null)
 			{
-				String addr = req.getLocalName();
-				if(addr == null || addr.equalsIgnoreCase("localhost") || addr.equals("127.0.0.1"))
-				{
-					try
-					{
-						addr = java.net.InetAddress.getLocalHost().getCanonicalHostName();
-					} catch(java.net.UnknownHostException e)
-					{
-						log.error("Could not get local host address", e);
-						addr = null;
-					}
-				}
-				if(addr != null)
+				if(localScheme == null && req != null)
 				{
 					localScheme = req.getScheme();
-					int port = req.getLocalPort();
-					if((port == 80 && localScheme.equalsIgnoreCase("http"))
-						|| (port == 443 && localScheme.equalsIgnoreCase("https")))
-						port = -1;
+					localPort = req.getLocalPort();
+				}
+				if(localPath == null && req != null)
+				{
 					localPath = req.getContextPath();
 					localPath = req.getRequestURI().substring(
 						req.getRequestURI().indexOf(localPath));
+					if(localPath.startsWith("/"))
+						localPath = localPath.substring(1);
 					if(localPath.endsWith("/"))
 						localPath = localPath.substring(0, localPath.length() - 1);
-					ids.setLocalConnectInfo(localScheme + "://" + addr
-						+ (port > 0 ? ":" + port : "") + localPath);
 				}
+
+				if(localScheme != null && localPath != null)
+				{
+					if((localPort == 80 && localScheme.equalsIgnoreCase("http"))
+						|| (localPort == 443 && localScheme.equalsIgnoreCase("https")))
+						localPort = -1;
+					if(localPath.startsWith("/"))
+						localPath = localPath.substring(1);
+					ids.setLocalConnectInfo(localScheme + "://" + addr
+						+ (localPort > 0 ? ":" + localPort : "") + "/" + localPath);
+				}
+				else
+					log.warn("local-scheme, local-port, and local-path elements must be present in"
+						+ " config unless PRISMS is configured on demand. Enterprise and self"
+						+ " connections will not be available");
 			}
-			else
-				log.warn("local-scheme, local-port, and local-path elements must be present in"
-					+ " config unless PRISMS is configured on demand. Enterprise and self"
-					+ " connections will not be available");
+
 			try
 			{
 				ids.setConfigured();
@@ -2338,6 +2367,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					gpc.getTaskDisplayThreshold()));
 				gpc.setAccentThreshold(displayThresh.getFloat("accent", gpc.getAccentThreshold()));
 			}
+
+			PrismsConfig logConfig = pConfig.subConfig("logger");
+			if(logConfig != null)
+				theEnv.getLogger().configure(logConfig);
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
@@ -2917,6 +2950,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		PrismsTransaction trans = theEnv.transact(ret, PrismsTransaction.Stage.initApp);
 		try
 		{
+			sessionLog.info("User " + user + " logged in to application " + client.getApp()
+				+ ", client " + client);
 			client.getApp().configureSession(ret);
 			appConfig.configureSession(ret);
 		} catch(Throwable e)
@@ -3490,6 +3525,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		getEnv().getUserSource().disconnect();
 		getEnv().getIDs().destroy();
 		getEnv().getConnectionFactory().destroy();
+		getEnv().getLogger().disconnect();
 		System.gc();
 	}
 }

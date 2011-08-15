@@ -381,13 +381,13 @@ public abstract class PrismsConfig
 	}
 
 	/**
-	 * Parses a time from an attribute of this config. This method uses
+	 * Parses a time interval from an attribute of this config. This method uses
 	 * {@link #parseEnglishTime(String)} to parse the time.
 	 * 
 	 * @param key The name of the attribute to get the value of
 	 * @param def The default value to return if the given key does not exist in this config
-	 * @return The time parsed from the given attribute of this config, or <code>def</code> if the
-	 *         attribute is missing
+	 * @return The time interval parsed from the given attribute of this config, or <code>def</code>
+	 *         if the attribute is missing
 	 */
 	public long getTime(String key, long def)
 	{
@@ -1285,7 +1285,7 @@ public abstract class PrismsConfig
 			throw new IllegalArgumentException("Could not parse unit part of time " + time);
 		if(neg)
 			scalar = -scalar;
-		return Math.round(scalar * mult);
+		return Math.round((double) scalar * mult);
 	}
 
 	/**

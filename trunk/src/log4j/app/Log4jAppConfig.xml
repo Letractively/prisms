@@ -1,17 +1,34 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <application>
-	<name>Log4j</name>
-	<description>Allows dynamic configuration of logging with log4j</description>
-	<version>1.0.1</version>
-	<modified>12Nov2009</modified>
-	<worker>
-		<type>threadpool</type>
-	</worker>
+	<name>Logging</name>
+	<description>Allows viewing of system logs and configuration of logging</description>
+	<version>2.0.0</version>
+	<modified>08Aug2011</modified>
+
 	<properties>
 		<property globalRef="prisms-preferences" />
+		<property type="prisms.util.persisters.UserSpecificManager">
+			<field>log4j.app.Log4jProperties.searches</field>
+			<persister class="prisms.util.persisters.SerializablePropertyPersister">
+				<serializer>log4j.app.NamedSearch$Serializer</serializer>
+			</persister>
+		</property>
 	</properties>
 	<clients>
 		<client configXML="Log4jClientConfig.xml" />
 	</clients>
-	<permissions />
+	<permissions>
+		<permission>
+			<name>View All Logs</name>
+			<description>Allows a user to view all log data, no matter what application it originated in</description>
+		</permission>
+		<permission>
+			<name>Edit Loggers</name>
+			<description>Allows the user to change the properties of existing logger configurations</description>
+		</permission>
+		<permission>
+			<name>Edit Purge</name>
+			<description>Allows the user to edit the auto-purge settings for logging</description>
+		</permission>
+	</permissions>
 </application>

@@ -82,6 +82,7 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 					this.expandButton.src=this.collapseIconHover;
 				else
 					this.expandButton.src=this.collapseIcon;
+				this.postChange();
 			});
 			this._wipeOut=__dojo.fx.combine(wipeOuts);
 			this._wipeOutConnect=__dojo.connect(this._wipeOut, "onEnd", this, function(){
@@ -89,6 +90,7 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 					this.expandButton.src=this.expandIconHover;
 				else
 					this.expandButton.src=this.expandIcon;
+				this.postChange();
 			});
 		}
 	},
@@ -192,5 +194,8 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 			this.expandButton.src=this.expandIcon;
 		else
 			this.expandButton.src=this.collapseIcon;
+	},
+
+	postChange: function(){
 	}
 });
