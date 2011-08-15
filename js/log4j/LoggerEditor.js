@@ -1,10 +1,11 @@
+
 __dojo.require("dijit.form.CheckBox");
 __dojo.require("dijit.form.TextBox");
 
-__dojo.provide("log4j.LoggerEditor");
-__dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dijit._Container], {
+__dojo.require("prisms.widget.TabWidget");
 
-	prisms: null,
+__dojo.provide("log4j.LoggerEditor");
+__dojo.declare("log4j.LoggerEditor", [prisms.widget.TabWidget, __dijit._Templated, __dijit._Container], {
 
 	pluginName: "No pluginName specified",
 
@@ -59,10 +60,6 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 		if(this.levelCheck.checked)
 			this.levelCombo.disabled = !enabled;
 		this.additivity.setAttribute("disabled", !enabled);
-	},
-
-	setVisible: function(visible){
-		this.domNode.style.display = visible ? "block" : "none";
 	},
 
 	setLogger: function(logger){
@@ -151,6 +148,12 @@ __dojo.declare("log4j.LoggerEditor", [__dijit._Widget, __dijit._Templated, __dij
 			return;
 		}
 		this.prisms.callApp(this.pluginName, "printMessage", {message: message});
+	},
+
+	_printException: function(){
+		if(this.dataLock)
+			return;
+		this.prisms.callApp(this.pluginName, "printException");
 	},
 
 	_onKeyPress: function(event){

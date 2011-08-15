@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+	<title>Log Viewer</title>
+	<meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7" >
+
+	<script type="text/javascript">
+		djConfig={
+			parseOnLoad: true,
+			isDebug: true,
+			usePlainJson: true
+		};
+		if("__dojo"!="dojo")
+			djConfig.scopeMap=[
+				["dojo", "__dojo"],
+				["dijit", "__dijit"],
+				["dojox", "__dojox"]
+			];
+	</script>
+
+	<script type="text/javascript" src="../dojo/dojo/dojo.js.uncompressed.js"></script>
+	<script type="text/javascript">
+		<!-- Base layout libs -->
+		__dojo.require("dojo.parser");	// scan page for widgets and instantiate them
+
+		__dojo.registerModulePath("prisms","../../js/prisms");
+		__dojo.registerModulePath("log4j","../../js/log4j");
+		__dojo.require("prisms.PrismsLink");
+		__dojo.require("log4j.Log4jApp");
+
+		function doResize()
+		{
+			resizeBy(-1,-1);
+			resizeBy(1,1);
+		}
+	</script>
+	
+	<style type="text/css">
+		@import "../dojo/dojo/resources/dojo.css";
+		@import "../dojo/dijit/themes/tundra/tundra.css";
+		@import "../dojo/dijit/themes/tundra/tundra_rtl.css";
+		@import "../dojo/dijit/css/dijitTests.css";
+
+		@import "../style/treeIcons.css";
+
+		html, body{	
+			width: 100%;	/* make the body expand to fill the visible window */
+			height: 100%;
+			padding: 0 0 0 0;
+			margin: 0 0 0 0;
+		}
+		.dijitSplitPane{
+			margin: 5px;
+		}
+		#rightPane {
+			margin: 0;
+		}
+	</style>
+</head>
+<body class="tundra" onload="doResize()">
+	<div __dojoType="prisms.PrismsLink" application="Logging" client="Logging" jsId="loggingPrismsLink"
+		servletURL="/WeatherEffectsServlet/prisms" imageURL="/WeatherEffectsServlet/prismsImage.jpg"></div>
+	<div __dojoType="log4j.Log4jApp" prisms="loggingPrismsLink" style="width:100%;height:100%"></div>
+</body>
+</html>

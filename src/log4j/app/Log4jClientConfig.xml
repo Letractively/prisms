@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <client>
-	<name>log4jwebapp</name>
-	<description>The Log4j configuration web application</description>
+	<name>Logging</name>
+	<description>The PRISMS Logging web application</description>
 	<service>false</service>
 	<allowAnonymous>false</allowAnonymous>
 	<session-timeout>900000</session-timeout>
+
 	<monitors>
+		<monitor class="log4j.app.LoggerMonitor" />
 	</monitors>
 	<plugins>
 		<plugin>
@@ -14,8 +16,24 @@
 			<class>log4j.ui.LoggerTree</class>
 		</plugin>
 		<plugin>
+			<name>Log Searcher</name>
+			<class>log4j.ui.LogSearcher</class>
+		</plugin>
+		<plugin>
+			<name>Log Viewer</name>
+			<class>log4j.ui.LogViewer</class>
+		</plugin>
+		<plugin>
+			<name>Stored Searches</name>
+			<class>log4j.ui.StoredSearches</class>
+		</plugin>
+		<plugin>
 			<name>Logger Editor</name>
 			<class>log4j.ui.LoggerEditor</class>
+		</plugin>
+		<plugin>
+			<name>Auto Purge Editor</name>
+			<class>log4j.ui.AutoPurgeEditor</class>
 		</plugin>
 	</plugins>
 </client>

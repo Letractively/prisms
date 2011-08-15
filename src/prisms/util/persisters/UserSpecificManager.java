@@ -52,7 +52,7 @@ public class UserSpecificManager<T> extends prisms.arch.event.PropertyManager<T>
 	@Override
 	public <V extends T> boolean isValueCorrect(PrismsSession session, V val)
 	{
-		return getCorrectValue(session) == val;
+		return val != null;
 	}
 
 	@Override

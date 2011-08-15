@@ -30,7 +30,7 @@
 	<worker type="threadpool" />
 
 	<!-- Instructs instances on the enterprise how to contact this instance.
-	  -- This information is only required if load-immediately (at top) is true. -->
+	 This information is only required if load-immediately (at top) is true. -->
 	<!--<local-scheme>http</local-scheme>
 	<local-port>8080</local-port>
 	<local-path>prisms/prisms</local-path>-->
@@ -75,6 +75,16 @@
 		<track>30 minutes</track>
 		<track>2 hours</track>
 	</tracking>
+
+	<logger ref="PRISMS">
+		<purge>
+			<max-size min="1000" max="1000000" default="100000" />
+			<max-age default="6 months" />
+			<exclude-loggers>
+				<logger permanent="true">prisms.users</logger>
+			</exclude-loggers>
+		</purge>
+	</logger>
 
 	<!-- All custom (non-standard) applications to be loaded -->
 	<applications>

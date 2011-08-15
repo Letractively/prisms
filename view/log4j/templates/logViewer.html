@@ -1,0 +1,45 @@
+
+<div style="border:2px solid black;background-color:#e0e0f0;overflow-y:auto;position:relative"
+	dojoAttachEvent="scroll:_scrolled">
+	<div dojoAttachPoint="menuIcon" dojoAttachEvent="onmouseover:_showMenu"
+		style="background-image:url('__webContentRoot/rsrc/icons/prisms/expandNode.png');position:absolute;width:9px;height:9px">
+	</div>
+	<div dojoAttachPoint="menu" dojoAttachEvent="onmouseout:_hideMenu,onblur:_hideMenu"
+		style="position:absolute;display:none;background-color:white">
+		<table dojoAttachPoint="menuTable" style="white-space:nowrap">
+			<tr title="Determines whether text is wrapped to view or displayed in a single line">
+				<td>Wrap Text:</td>
+				<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="wrapCheck"
+					dojoAttachEvent="onClick:_wrapChecked"></div></td>
+			</tr>
+			<tr>
+				<td>Expand Messages:</td>
+				<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="expandCheck"
+					dojoAttachEvent="onClick:_expandChecked"></div></td>
+			</tr>
+			<tr>
+				<td>Show All Stacks:</td>
+				<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="stackCheck"
+					dojoAttachEvent="onClick:_stackChecked"></div></td>
+			</tr>
+			<tr>
+				<td>Show Entry IDs:</td>
+				<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="idsCheck"
+					dojoAttachEvent="onClick:_idsChecked"></div></td>
+			</tr>
+			<tr>
+				<td>Show All Metadata:</td>
+				<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="allMetaCheck"
+					dojoAttachEvent="onClick:_allMetaChecked"></div></td>
+			</tr>
+		</table>
+	</div>
+	<div dojoAttachPoint="pageBack" style="display:none;text-align:center">
+		<span dojoAttachPoint="pageBackText" dojoAttachEvent="onclick:_scrollBack"
+			style="font-weight:bold;background-color:#ffc800;white-space:nowrap;cursor:pointer"></span>
+	</div>
+	<div dojoAttachPoint="pageForward" style="display:none;text-align:center">
+		<span dojoAttachPoint="pageForwardText" dojoAttachEvent="onclick:_scrollForward"
+			style="font-weight:bold;background-color:#ffc800;white-space:nowrap;cursor:pointer"></span>
+	</div>
+</div>

@@ -29,6 +29,8 @@ public class DBUserSource implements ScalableUserSource
 {
 	static final Logger log = Logger.getLogger(DBUserSource.class);
 
+	static final Logger userLog = Logger.getLogger("prisms.users");
+
 	static class PasswordData
 	{
 		int id;
@@ -111,8 +113,8 @@ public class DBUserSource implements ScalableUserSource
 		theKeeper.setPersister(new PrismsSyncImpl(this, theApps.values().toArray(
 			new PrismsApplication [theApps.size()])));
 		if(theKeeper instanceof prisms.records.ScaledRecordKeeper)
-			((prisms.records.ScaledRecordKeeper) theKeeper)
-				.setScaleImpl((PrismsSyncImpl) theKeeper.getPersister());
+			((prisms.records.ScaledRecordKeeper) theKeeper).setScaleImpl((PrismsSyncImpl) theKeeper
+				.getPersister());
 		String anonUser = config.get("anonymous");
 		if(anonUser != null)
 			theAnonymousUserName = anonUser;
@@ -1113,6 +1115,8 @@ public class DBUserSource implements ScalableUserSource
 					exp = -1;
 				try
 				{
+					if(!user.equals(getSystemUser()))
+						userLog.info("User " + user + "'s password changed");
 					sql = "INSERT INTO "
 						+ theTransactor.getTablePrefix()
 						+ "prisms_user_password (id, pwdUser, pwdData,"
@@ -1254,6 +1258,8 @@ public class DBUserSource implements ScalableUserSource
 					toSet = "" + time;
 				else
 					toSet = "NULL";
+				userLog.info("User " + user + "'s password expiration set to "
+					+ prisms.util.PrismsUtils.print(time));
 				sql = "UPDATE " + theTransactor.getTablePrefix()
 					+ "prisms_user_password SET pwdExpire=" + toSet + " WHERE id=" + password[0].id;
 				try
@@ -1324,6 +1330,7 @@ public class DBUserSource implements ScalableUserSource
 
 					if(accessible)
 					{
+						userLog.info("User " + user + " granted access to " + app.getName());
 						addModification(trans, PrismsSubjectType.user, UserChange.appAccess, 1,
 							user, app, null, null, null);
 						sql = "INSERT INTO " + theTransactor.getTablePrefix()
@@ -1332,6 +1339,7 @@ public class DBUserSource implements ScalableUserSource
 					}
 					else
 					{
+						userLog.info("User " + user + " denied access to " + app.getName());
 						addModification(trans, PrismsSubjectType.user, UserChange.appAccess, -1,
 							user, app, null, null, null);
 						sql = "DELETE FROM " + theTransactor.getTablePrefix()
@@ -1803,6 +1811,7 @@ public class DBUserSource implements ScalableUserSource
 
 	void dbInsertUser(User user, Statement stmt) throws PrismsException
 	{
+		userLog.info("User " + user + ", ID " + user.getID() + " created");
 		if(user.getID() < 0)
 			user.setID(theIDs.getNextID("prisms_user", "id", stmt, theTransactor.getTablePrefix(),
 				null));
@@ -1824,6 +1833,8 @@ public class DBUserSource implements ScalableUserSource
 	boolean dbUpdateUser(final User dbUser, User setUser, final Statement stmt,
 		final RecordsTransaction trans) throws PrismsException
 	{
+		final StringBuilder status = new StringBuilder("User ").append(dbUser).append(", ID ")
+			.append(dbUser.getID()).append(" modified:\n");
 		final boolean [] authChange = new boolean [] {false};
 		String update = "";
 		if(dbUser.isDeleted() != setUser.isDeleted())
@@ -1831,6 +1842,8 @@ public class DBUserSource implements ScalableUserSource
 			update += "deleted=" + boolToSql(setUser.isDeleted()) + ", ";
 			addModification(trans, PrismsSubjectType.user, null, setUser.isDeleted() ? -1 : 1,
 				setUser, null, null, null, null);
+			status.append("User ").append(setUser.isDeleted() ? "deleted" : "re-created")
+				.append('\n');
 			dbUser.setDeleted(setUser.isDeleted());
 			if(theIDs.belongs(dbUser.getID()))
 			{
@@ -1851,6 +1864,8 @@ public class DBUserSource implements ScalableUserSource
 
 				public UserGroup added(UserGroup o, int idx, int retIdx) throws PrismsException
 				{
+					status.append("User added to group ").append(o).append(", ID ")
+						.append(o.getID()).append('\n');
 					String sql = null;
 					try
 					{
@@ -1873,6 +1888,8 @@ public class DBUserSource implements ScalableUserSource
 				public UserGroup removed(UserGroup o, int idx, int incMod, int retIdx)
 					throws PrismsException
 				{
+					status.append("User removed from group ").append(o).append(", ID ")
+						.append(o.getID()).append('\n');
 					String sql = null;
 					try
 					{
@@ -1901,6 +1918,7 @@ public class DBUserSource implements ScalableUserSource
 
 		if(!dbUser.getName().equals(setUser.getName()))
 		{
+			status.append("Name changed to " + setUser.getName()).append('\n');
 			update += "userName=" + toSQL(setUser.getName()) + ", ";
 			addModification(trans, PrismsSubjectType.user, UserChange.name, 0, setUser, null,
 				dbUser.getName(), null, null);
@@ -1908,6 +1926,8 @@ public class DBUserSource implements ScalableUserSource
 		}
 		if(dbUser.isAdmin() != setUser.isAdmin())
 		{
+			status.append("Admin priveleges ").append(setUser.isAdmin() ? "granted" : "revoked")
+				.append('\n');
 			update += "isAdmin=" + boolToSql(setUser.isAdmin()) + ", ";
 			addModification(trans, PrismsSubjectType.user, UserChange.admin, 0, setUser, null,
 				Boolean.valueOf(dbUser.isAdmin()), null, null);
@@ -1916,6 +1936,7 @@ public class DBUserSource implements ScalableUserSource
 		}
 		if(dbUser.isLocked() != setUser.isLocked())
 		{
+			status.append("User ").append(setUser.isLocked() ? "locked" : "unlocked").append('\n');
 			update += "isLocked=" + boolToSql(setUser.isLocked()) + ", ";
 			addModification(trans, PrismsSubjectType.user, UserChange.locked, 0, setUser, null,
 				Boolean.valueOf(dbUser.isLocked()), null, null);
@@ -1923,6 +1944,8 @@ public class DBUserSource implements ScalableUserSource
 		}
 		if(dbUser.isReadOnly() != setUser.isReadOnly())
 		{
+			status.append("User made ").append(setUser.isReadOnly() ? "read-only" : "modifiable")
+				.append('\n');
 			update += "isReadOnly=" + boolToSql(setUser.isReadOnly()) + ", ";
 			addModification(trans, PrismsSubjectType.user, UserChange.readOnly, 0, setUser, null,
 				Boolean.valueOf(dbUser.isReadOnly()), null, null);
@@ -1945,11 +1968,17 @@ public class DBUserSource implements ScalableUserSource
 			}
 		}
 
+		if(update.length() > 0 || authChange[0])
+		{
+			status.delete(status.length() - 1, status.length());
+			userLog.info(status.toString());
+		}
 		return authChange[0];
 	}
 
 	void dbRemoveUser(User user, Statement stmt, RecordsTransaction trans) throws PrismsException
 	{
+		userLog.info("User " + user + ", ID " + user.getID() + " deleted");
 		// String sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_user WHERE id=" +
 		// user.getID();
 		String sql = null;
@@ -2032,6 +2061,7 @@ public class DBUserSource implements ScalableUserSource
 	void dbInsertGroup(UserGroup group, Statement stmt, RecordsTransaction trans)
 		throws PrismsException
 	{
+		userLog.info("Group " + group + ", ID " + group.getID() + " created");
 		String sql = null;
 		try
 		{
@@ -2055,10 +2085,14 @@ public class DBUserSource implements ScalableUserSource
 	boolean dbUpdateGroup(final UserGroup dbGroup, UserGroup setGroup, final Statement stmt,
 		final RecordsTransaction trans) throws PrismsException
 	{
+		final StringBuilder status = new StringBuilder("Group ").append(dbGroup).append(", ID ")
+			.append(dbGroup.getID()).append(" modified:\n");
 		final boolean [] authChange = new boolean [] {false};
 		String update = "";
 		if(dbGroup.isDeleted() != setGroup.isDeleted())
 		{
+			status.append("Group ").append(setGroup.isDeleted() ? "deleted" : "re-created")
+				.append('\n');
 			update += "deleted=" + boolToSql(setGroup.isDeleted()) + ", ";
 			if(setGroup.isDeleted())
 				theGroupCache = ArrayUtils.remove(theGroupCache, setGroup);
@@ -2069,12 +2103,14 @@ public class DBUserSource implements ScalableUserSource
 		}
 		if(!dbGroup.getName().equals(setGroup.getName()))
 		{
+			status.append("Name changed to ").append(setGroup.getName()).append('\n');
 			update += "groupName=" + toSQL(setGroup.getName()) + ", ";
 			addModification(trans, PrismsSubjectType.group, GroupChange.name, 0, dbGroup, null,
 				dbGroup.getName(), dbGroup.getApp(), null);
 		}
 		if(!equal(dbGroup.getDescription(), setGroup.getDescription()))
 		{
+			status.append("Description changed to ").append(setGroup.getDescription()).append('\n');
 			update += "groupDescrip=" + toSQL(setGroup.getName()) + ", ";
 			addModification(trans, PrismsSubjectType.group, GroupChange.descrip, 0, dbGroup, null,
 				dbGroup.getDescription(), dbGroup.getApp(), null);
@@ -2105,6 +2141,7 @@ public class DBUserSource implements ScalableUserSource
 
 			public Permission added(Permission o, int idx, int retIdx)
 			{
+				status.append("Permission ").append(o.getName()).append(" added");
 				String sql = null;
 				try
 				{
@@ -2131,6 +2168,7 @@ public class DBUserSource implements ScalableUserSource
 
 			public Permission removed(Permission o, int idx, int incMod, int retIdx)
 			{
+				status.append("Permission ").append(o.getName()).append(" removed");
 				String sql = null;
 				try
 				{
@@ -2161,12 +2199,18 @@ public class DBUserSource implements ScalableUserSource
 				return o1;
 			}
 		});
+		if(update.length() > 0 || authChange[0])
+		{
+			status.delete(status.length() - 1, status.length());
+			userLog.info(status.toString());
+		}
 		return authChange[0];
 	}
 
 	void dbRemoveGroup(UserGroup group, Statement stmt, RecordsTransaction trans)
 		throws PrismsException
 	{
+		userLog.info("Group " + group + ", ID " + group.getID() + " deleted");
 		String sql = null;
 		try
 		{

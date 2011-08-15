@@ -21,14 +21,21 @@
 			<permission>userAdmin</permission>
 		</group>
 
-		<!--No Log4j groups -->
+		<!--Logger groups -->
+		<group app="Logging" name="Log Admin">
+			<description>Users have unlimited permissions to modify logging configuration</description>
+			<permission>View All Logs</permission>
+			<permission>Edit Loggers</permission>
+			<permission>Edit Purge</permission>
+		</group>
 	</groups>
 	<users>
 		<user name="admin" readonly="true">
 			<admin>true</admin>
 			<app-assoc>MANAGER</app-assoc>
-			<app-assoc>Log4j</app-assoc>
+			<app-assoc>Logging</app-assoc>
 			<group app="MANAGER" name="userAdmin" />
+			<group app="Logging" name="Log Admin" />
 			<password>admin</password>
 		</user>
 	</users>

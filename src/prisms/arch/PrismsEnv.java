@@ -168,6 +168,8 @@ public class PrismsEnv implements prisms.util.Sealable
 
 	private Worker theWorker;
 
+	private prisms.logging.PrismsLogger theLogger;
+
 	private PrismsApplication theManagerApp;
 
 	private final java.util.Map<String, String> theVariables;
@@ -193,6 +195,7 @@ public class PrismsEnv implements prisms.util.Sealable
 	/** Creates an environment */
 	public PrismsEnv()
 	{
+		theLogger = new prisms.logging.PrismsLogger(this);
 		theVariables = new java.util.LinkedHashMap<String, String>();
 		theGlobalManagers = new java.util.HashMap<String, PropertyManager<?> []>();
 		theGMConfigs = new java.util.HashMap<String, PrismsConfig []>();
@@ -292,6 +295,12 @@ public class PrismsEnv implements prisms.util.Sealable
 	public String [] getAllVariableNames()
 	{
 		return theVariables.keySet().toArray(new String [theVariables.size()]);
+	}
+
+	/** @return The logger that keeps track of log entries for this PRISMS environment */
+	public prisms.logging.PrismsLogger getLogger()
+	{
+		return theLogger;
 	}
 
 	/** @return The ID generator used to configure IDs in this PRISMS environment */

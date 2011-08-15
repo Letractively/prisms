@@ -123,11 +123,54 @@ CREATE TABLE prisms_group_permissions (
 
 -- End of PRISMS-proper table schema
 
+-- The PRISMS logging table persists logging information to a more manipulable form
+
+CREATE TABLE prisms_log_entry (
+	id INT NOT NULL,
+	logInstance VARCHAR(256) NOT NULL,
+	logTime TIMESTAMP NOT NULL,
+	logApp VARCHAR(64) NULL,
+	logClient VARCHAR(64) NULL,
+	logUser NUMERIC(20) NULL,
+	logSession VARCHAR(16) NULL,
+	trackingData VARCHAR(256) NULL,
+	logLevel INT NOT NULL,
+	loggerName VARCHAR(128) NOT NULL,
+	shortMessage VARCHAR(100) NULL,
+	messageCRC NUMERIC(14) NOT NULL,
+	stackTraceCRC NUMERIC(14) NOT NULL,
+	logDuplicate INT NULL,
+	entrySize INT NOT NULL,
+	entrySaved TIMESTAMP NULL,
+
+	CONSTRAINT prisms_log_pk PRIMARY KEY(id),
+	CONSTRAINT prisms_log_duplicate_fk FOREIGN KEY(logDuplicate) REFERENCES prisms_log_entry(id)
+);
+
+CREATE TABLE prisms_log_content (
+	logEntry INT NOT NULL,
+	indexNum INT NOT NULL,
+	content VARCHAR(1024) NOT NULL,
+	isStackTrace CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_log_msg_fk FOREIGN KEY(logEntry) REFERENCES prisms_log_entry(id) ON DELETE CASCADE
+);
+
+CREATE TABLE prisms_log_auto_purge (
+	setTime TIMESTAMP NOT NULL,
+	maxSize INT NOT NULL,
+	maxAge NUMERIC(14) NOT NULL
+);
+
+CREATE TABLE prisms_purge_logger (
+	loggerName VARCHAR(128) NOT NULL
+);
+
 -- The PRISMS preference table allows applications to store small user-specific data persistently
 CREATE TABLE prisms_preference (
 	id NUMERIC(20) NOT NULL,
 	pApp VARCHAR(64) NOT NULL,
-	pUser VARCHAR(64) NOT NULL,
+	pUser VARCHAR(64) NULL,
 	pDomain VARCHAR(64) NOT NULL,
 	pName VARCHAR(256) NOT NULL,
 	pType VARCHAR(256) NOT NULL,
@@ -138,8 +181,9 @@ CREATE TABLE prisms_preference (
 	CONSTRAINT prisms_pref_unq UNIQUE(pApp, pUser, pDomain, pName)
 );
 
--- The PRISMS records schema allows applications to keep track of changes to sets of data and to
--- synchronize data sets between servers
+-- The PRISMS records schema allows applications to keep track of changes to sets of data, keep that
+-- data consistent between instances on a given enterprise, and to synchronize data sets between
+-- servers.
 
 CREATE TABLE prisms_change_record(
 	id NUMERIC(20) NOT NULL,
@@ -155,7 +199,7 @@ CREATE TABLE prisms_change_record(
 	minorSubject NUMERIC(20) NULL,
 	preValueID NUMERIC(20) NULL,
 	shortPreValue VARCHAR(100) NULL,
-    longPreValue LONGVARCHAR NULL,    
+    longPreValue LONGVARCHAR NULL,
 	changeData1 NUMERIC(20) NULL,
 	changeData2 NUMERIC(20) NULL,
 

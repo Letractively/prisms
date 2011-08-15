@@ -13,14 +13,14 @@ public abstract class ChangeSearch extends prisms.util.Search
 	{
 		/** Search on the ID value of changes */
 		id() {
-			public IDRange create(String search)
+			public IDRange create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create an ID range search like this");
 			}
 		},
 		/** Search on the major subject value of changes */
 		majorSubjectRange() {
-			public MajorSubjectRange create(String search)
+			public MajorSubjectRange create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException(
 					"Cannot create a major subject range search like this");
@@ -28,7 +28,7 @@ public abstract class ChangeSearch extends prisms.util.Search
 		},
 		/** Search for changes on a particular subject center */
 		subjectCenter() {
-			public SubjectCenterSearch create(String search)
+			public SubjectCenterSearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException(
 					"Cannot create a subject center search like this");
@@ -36,49 +36,49 @@ public abstract class ChangeSearch extends prisms.util.Search
 		},
 		/** Searches on change time */
 		time() {
-			public ChangeTimeSearch create(String search)
+			public ChangeTimeSearch create(String search, SearchBuilder builder)
 			{
 				return new ChangeTimeSearch(search);
 			}
 		},
 		/** Searches on the user that caused changes */
 		user() {
-			public ChangeUserSearch create(String search)
+			public ChangeUserSearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create a user search like this");
 			}
 		},
 		/** Searches on the subject type of changes */
 		subjectType() {
-			public SubjectTypeSearch create(String search)
+			public SubjectTypeSearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create a subject type search like this");
 			}
 		},
 		/** Searches on the change type of changes */
 		changeType() {
-			public ChangeTypeSearch create(String search)
+			public ChangeTypeSearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create a change type search like this");
 			}
 		},
 		/** Searches on the additivity field of changes */
 		add() {
-			public AdditivitySearch create(String search)
+			public AdditivitySearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create an additivity search like this");
 			}
 		},
 		/** Searches on the major subject, minor subject, data1, or data2 fields of changes */
 		field() {
-			public ChangeFieldSearch create(String search)
+			public ChangeFieldSearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create a field search like this");
 			}
 		},
 		/** Searches on the major subject, minor subject, data1, or data2 fields of changes */
 		syncRecord() {
-			public ChangeFieldSearch create(String search)
+			public ChangeFieldSearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create a sync record search like this");
 			}
@@ -88,7 +88,7 @@ public abstract class ChangeSearch extends prisms.util.Search
 		 * local-only changes or both
 		 */
 		localOnly() {
-			public LocalOnlySearch create(String search)
+			public LocalOnlySearch create(String search, SearchBuilder builder)
 			{
 				throw new IllegalArgumentException("Cannot create a local-only search like this");
 			}
