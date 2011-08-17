@@ -560,6 +560,51 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	}
 
 	/**
+	 * Removes a range of indices
+	 * 
+	 * @param start The starting index of the range to remove (inclusive)
+	 * @param end The ending index of the range to remove (exclusive)
+	 */
+	public void remove(int start, int end)
+	{
+		assertUnsealed();
+		if(start < 0)
+			throw new ArrayIndexOutOfBoundsException(start);
+		if(end > theSize)
+			throw new ArrayIndexOutOfBoundsException(end);
+		int length = end - start;
+		for(int i = start; i < end && i + length < theSize; i++)
+			theValue[i] = theValue[i + length];
+		theSize -= length;
+	}
+
+	/**
+	 * Removes a set of indices
+	 * 
+	 * @param indices The indices to remove
+	 * @return The number of elements removed
+	 */
+	public int remove(java.util.BitSet indices)
+	{
+		assertUnsealed();
+		int length = 0;
+		int i = indices.nextSetBit(0);
+		int next;
+		while(i >= 0 && i < theSize)
+		{
+			length++;
+			next = indices.nextSetBit(i + 1);
+			if(next < 0)
+				next = theSize;
+			for(int j = i; j < next && j + length < theSize; j++)
+				theValue[j] = theValue[j + length];
+			i = next;
+		}
+		theSize -= length;
+		return length;
+	}
+
+	/**
 	 * Removes a value from this list
 	 * 
 	 * @param value The value to remove
@@ -568,12 +613,23 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	public boolean removeValue(float value)
 	{
 		assertUnsealed();
-		for(int i = 0; i < theSize; i++)
-			if(equal(theValue[i], value))
-			{
-				remove(i);
-				return true;
-			}
+		if(isSorted)
+		{
+			int idx = indexFor(value);
+			if(idx < 0 || idx >= theSize || !equal(theValue[idx], value))
+				return false;
+			remove(idx);
+			return true;
+		}
+		else
+		{
+			for(int i = 0; i < theSize; i++)
+				if(equal(theValue[i], value))
+				{
+					remove(i);
+					return true;
+				}
+		}
 		return false;
 	}
 
@@ -604,16 +660,32 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	 */
 	public int removeAll(float value)
 	{
+		if(isUnique)
+			return removeValue(value) ? 1 : 0;
 		assertUnsealed();
-		int ret = 0;
-		for(int i = 0; i < theSize; i++)
-			if(equal(theValue[i], value))
-			{
-				remove(i);
-				i--;
-				ret++;
-			}
-		return ret;
+		if(isSorted)
+		{
+			int idx = indexFor(value);
+			if(idx < 0 || idx >= theSize || !equal(theValue[idx], value))
+				return 0;
+			int begin, end;
+			for(begin = idx; begin > 0 && equal(theValue[begin - 1], value); begin--);
+			for(end = idx + 1; end < theSize && equal(theValue[end], value); end++);
+			remove(begin, end);
+			return end - begin;
+		}
+		else
+		{
+			int ret = 0;
+			for(int i = 0; i < theSize; i++)
+				if(equal(theValue[i], value))
+				{
+					remove(i);
+					i--;
+					ret++;
+				}
+			return ret;
+		}
 	}
 
 	/**
@@ -625,15 +697,32 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 	public int removeAll(FloatList list)
 	{
 		assertUnsealed();
-		int ret = 0;
-		for(int i = 0; i < theSize; i++)
-			if(list.contains(theValue[i]))
+		java.util.BitSet indices = new java.util.BitSet();
+		if(isSorted && list.isSorted)
+		{
+			int i = 0, j = 0;
+			while(i < theSize && j < list.theSize)
 			{
-				remove(i);
-				i--;
-				ret++;
+				int comp = compare(theValue[i], list.theValue[j]);
+				if(comp == 0)
+				{
+					indices.set(i);
+					i++;
+				}
+				else if(comp < 0)
+					i++;
+				else
+					j++;
 			}
-		return ret;
+		}
+		else
+		{
+			for(int i = 0; i < theSize; i++)
+				if(list.contains(theValue[i]))
+					indices.set(i);
+		}
+		remove(indices);
+		return indices.cardinality();
 	}
 
 	/**

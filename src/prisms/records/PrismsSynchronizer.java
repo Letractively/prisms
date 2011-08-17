@@ -2694,7 +2694,7 @@ public class PrismsSynchronizer
 				ChangeRecord [] records = theKeeper.getItems(changeIDs.toArray());
 				for(ChangeRecord record : records)
 					if(record != null && !trans.shouldSend(record))
-						changeIDs.remove(record.id);
+						changeIDs.removeValue(record.id);
 			} catch(PrismsRecordException e)
 			{
 				throw new PrismsRecordException("Could not trim modifications", e);

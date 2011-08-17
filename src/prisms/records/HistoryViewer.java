@@ -953,7 +953,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 	{
 		if(!theSelectedIndices.contains(theSnapshot[index]))
 			return;
-		theSelectedIndices.remove(theSnapshot[index]);
+		theSelectedIndices.removeValue(theSnapshot[index]);
 		ChangeGroup changeGroup = null;
 		for(ChangeGroup group : theChangeGroups)
 			if(group.contains(theSnapshot[index]))
@@ -1051,7 +1051,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 							error2 += "\n" + modError;
 					}
 					else
-						theSelectedIndices.remove(mod.id);
+						theSelectedIndices.removeValue(mod.id);
 				}
 				if(error2 != null)
 					getSession().getUI().error(error2);

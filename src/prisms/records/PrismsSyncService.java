@@ -1,5 +1,5 @@
 /*
- * ReaSyncService2.java Created Aug 4, 2010 by Andrew Butler, PSL
+ * PrismsSyncService2.java Created Aug 4, 2010 by Andrew Butler, PSL
  */
 package prisms.records;
 
@@ -209,6 +209,11 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 	public String getContentType(JSONObject event)
 	{
 		return null;
+	}
+
+	public int getDownloadSize(JSONObject event)
+	{
+		return -1;
 	}
 
 	/** @return The synchronizer that this service should use */
