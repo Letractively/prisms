@@ -71,5 +71,5 @@ __dojo.declare("prisms.widget.ProportionEditor", [__dijit._Widget, __dijit._Temp
 			this.dataLock=false;
 		}
 		this.onChange(value);
-	},
+	}
 });
