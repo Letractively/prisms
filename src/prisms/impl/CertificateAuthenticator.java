@@ -5,7 +5,10 @@ package prisms.impl;
 
 import org.apache.log4j.Logger;
 
+import prisms.arch.PrismsApplication;
+import prisms.arch.PrismsConfig;
 import prisms.arch.PrismsServer.PrismsRequest;
+import prisms.arch.ds.UserSource;
 
 /**
  * Authenticates behind an architecture that queries the client for certificates and installs them
@@ -15,8 +18,23 @@ public class CertificateAuthenticator extends AutoCreateAuthenticator
 {
 	private static final Logger log = Logger.getLogger(CertificateAuthenticator.class);
 
-	private static final java.util.regex.Pattern EMAIL_PATTERN = java.util.regex.Pattern
-		.compile("(.*)@([a-zA-Z\\.]*)");
+	private java.util.regex.Pattern theCertPattern;
+
+	private int theMatchGroup;
+
+	@Override
+	public void configure(PrismsConfig config, UserSource userSource, PrismsApplication [] apps)
+	{
+		super.configure(config, userSource, apps);
+		try
+		{
+			theCertPattern = java.util.regex.Pattern.compile(config.get("pattern"));
+		} catch(java.util.regex.PatternSyntaxException e)
+		{
+			throw new IllegalArgumentException(config.get("pattern") + " is not valid", e);
+		}
+		theMatchGroup = config.getInt("match-group", 1);
+	}
 
 	java.security.cert.X509Certificate getCertificate(javax.servlet.http.HttpServletRequest request)
 	{
@@ -29,7 +47,7 @@ public class CertificateAuthenticator extends AutoCreateAuthenticator
 
 	public boolean recognized(PrismsRequest request)
 	{
-		return getCertificate(request.httpRequest) != null;
+		return getUserName(request) != null;
 	}
 
 	@Override
@@ -39,25 +57,37 @@ public class CertificateAuthenticator extends AutoCreateAuthenticator
 
 		java.util.regex.Matcher match;
 		String subject = prisms.ui.CertificateSerializer.getCertSubjectName(cert, false);
-		match = EMAIL_PATTERN.matcher(subject);
+		match = theCertPattern.matcher(subject);
 		if(match.matches())
-			return match.group(1);
+		{
+			if(theMatchGroup <= match.groupCount())
+				return match.group(theMatchGroup);
+			else
+				return match.group();
+		}
 		try
 		{
-			for(java.util.List<?> L : cert.getSubjectAlternativeNames())
-				for(Object obj : L)
-				{
-					if(obj instanceof String)
+			java.util.Collection<java.util.List<?>> alts = cert.getSubjectAlternativeNames();
+			if(alts != null)
+				for(java.util.List<?> L : alts)
+					for(Object obj : L)
 					{
-						match = EMAIL_PATTERN.matcher((String) obj);
-						if(match.matches())
-							return match.group(1);
+						if(obj instanceof String)
+						{
+							match = theCertPattern.matcher((String) obj);
+							if(match.matches())
+							{
+								if(theMatchGroup <= match.groupCount())
+									return match.group(theMatchGroup);
+								else
+									return match.group();
+							}
+						}
 					}
-				}
 		} catch(java.security.cert.CertificateParsingException e)
 		{
 			log.error("Could not parse alternative names of certificate", e);
 		}
-		return subject;
+		return null;
 	}
 }
