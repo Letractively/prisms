@@ -1012,7 +1012,6 @@ public class PrismsLogger implements
 						rs.close();
 					rs = null;
 				}
-				trans.getTracker().end(track);
 
 				// Insert the new entry
 				int p = 1;

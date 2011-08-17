@@ -54,6 +54,8 @@ public class CertificateAuthenticator extends AutoCreateAuthenticator
 	public String getUserName(PrismsRequest request)
 	{
 		java.security.cert.X509Certificate cert = getCertificate(request.httpRequest);
+		if(cert == null)
+			return null;
 
 		java.util.regex.Matcher match;
 		String subject = prisms.ui.CertificateSerializer.getCertSubjectName(cert, false);
