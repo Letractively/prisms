@@ -32,11 +32,14 @@ public class LogEntry
 
 	private int theDuplicateRef;
 
+	private long theSaveTime;
+
 	/** Creates a log entry */
 	public LogEntry()
 	{
 		theID = -1;
 		theDuplicateRef = -1;
+		theSaveTime = -1;
 	}
 
 	/** @return This entry's ID */
@@ -199,6 +202,18 @@ public class LogEntry
 	public int getDuplicateRef()
 	{
 		return theDuplicateRef;
+	}
+
+	/** @return The time before which this entry will be protected from purging */
+	public long getSaveTime()
+	{
+		return theSaveTime;
+	}
+
+	/** @param saveTime The time before which this entry should be protected from purging */
+	public void setSaveTime(long saveTime)
+	{
+		theSaveTime = saveTime;
 	}
 
 	/**

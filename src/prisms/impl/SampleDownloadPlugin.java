@@ -144,6 +144,11 @@ public class SampleDownloadPlugin implements prisms.arch.DownloadPlugin
 		return "inputEvent.json";
 	}
 
+	public int getDownloadSize(JSONObject event)
+	{
+		return -1;
+	}
+
 	public void doDownload(JSONObject event, java.io.OutputStream stream)
 		throws java.io.IOException
 	{

@@ -1,4 +1,6 @@
 
+__dojo.require("dijit.form.CheckBox");
+
 __dojo.provide("log4j.LogEntry");
 __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 
@@ -17,9 +19,15 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		showDuplicate: true
 	},
 
+	selectable: true,
+
 	expanded: true,
 
+	dupExpanded: false,
+
 	stackExpanded: false,
+
+	dupStackExpanded: false,
 
 	linesNoCollapse: 2,
 
@@ -28,14 +36,21 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 	postCreate: function(){
 		this.inherited(arguments);
 		this.settings=this.defaultSettings;
+		this.selectCheck=new dijit.form.CheckBox({});
+		__dojo.connect(this.selectCheck, "onClick", this, this._selectClicked);
 	},
 
 	setValue: function(entry){
 		this.entry=entry;
+		this.selectCheck.setAttribute("checked", entry.selected ? true : false);
 		this.render();
 	},
 
 	render: function(){
+		if(this.entry.selected)
+			this.domNode.style.backgroundColor="#e0f0e0";
+		else
+			this.domNode.style.backgroundColor=this.domNode.parentNode.style.backgroundColor;
 		var entry=this.entry;
 		var msg="";
 		
@@ -67,8 +82,11 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 				if(stack.charAt(i)=='\n')
 					lines++;
 
+			var stackExpand=this.stackExpanded;
+			if(stackExpand && entry.duplicate)
+				stackExpand=this.dupStackExpanded;
 			this.stackExpandNode.style.display=lines>this.linesNoCollapse ? "inline" : "none";
-			if(this.stackExpanded || lines<=this.linesNoCollapse)
+			if(stackExpand || lines<=this.linesNoCollapse)
 				this.stackExpandNode.src="__webContentRoot/rsrc/icons/prisms/collapseNode.png";
 			else
 			{
@@ -79,6 +97,8 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 						lines--;
 				if(i<stack.length)
 					stack=stack.substring(0, i);
+				while(stack.length>0 && (stack.charAt(stack.length-1)=='\n' || stack.charAt(stack.length-1)=='\r'))
+					stack=stack.substring(0, stack.length-1);
 			}
 			this.stackTraceNode.innerHTML=this.fix(" "+stack);
 			this.stackTraceNode.insertBefore(this.stackExpandNode, this.stackTraceNode.childNodes[0]);
@@ -93,13 +113,18 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		}
 		if(i<msg.length-1)
 			msg=msg.substring(0, i);
+		while(msg.length>0 && (msg.charAt(msg.length-1)=='\n' || msg.charAt(msg.length-1)=='\r'))
+			msg=msg.substring(0, msg.length-1);
 		
 		var lines=1;
 		for(i=0;lines<=this.linesNoCollapse && i<msg.length;i++)
 			if(msg.charAt(i)=='\n')
 				lines++;
 		this.expandNode.style.display=lines>this.linesNoCollapse ? "inline" : "none";
-		if(this.expanded || lines<=this.linesNoCollapse)
+		var expand=this.expanded;
+		if(expand && entry.duplicate)
+			expand=this.dupExpanded;
+		if(expand || lines<=this.linesNoCollapse)
 			this.expandNode.src="__webContentRoot/rsrc/icons/prisms/collapseNode.png";
 		else
 		{
@@ -117,6 +142,12 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		var br=document.createElement("br");
 		this.messageNode.insertBefore(br, this.expandNode);
 		this.messageNode.insertBefore(this.iconNode, br);
+		this.messageNode.insertBefore(document.createTextNode(" "), br);
+		if(this.selectable)
+		{
+			this.messageNode.insertBefore(this.selectCheck.domNode, br);
+			this.messageNode.insertBefore(document.createTextNode(" "), br);
+		}
 		var s=this.settings;
 		if(s.id)
 		{
@@ -194,13 +225,16 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			span.style.display="inline";
 			span.style.textDecoration="underline";
 			this.messageNode.insertBefore(span, br);
-			var text=document.createTextElement(" ");
+			var text=document.createTextNode(" ");
 			this.messageNode.insertBefore(text, br);
 		}
-		if(s.showDuplicate && typeof entry.duplicate=="number")
+		if(s.showDuplicate && entry.duplicate)
 		{
 			var span=document.createElement("span");
-			span.innerHTML+="(duplicate)";
+			if(s.id)
+				span.innerHTML+="(duplicate of "+entry.duplicate+")";
+			else
+				span.innerHTML+="(duplicate)";
 			this.messageNode.insertBefore(span, br);
 		}
 
@@ -214,6 +248,8 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			title+="SessionID:"+(entry.session ? entry.session : "None")+"            \n";
 		title+="Logger:"+entry.logger+"            \n";
 		title+="TrackingInfo:"+(entry.tracking ? entry.tracking : "Not Available")+"            \n";
+		if(entry.saveTime)
+			title+="Protected Until "+entry.saveTime;
 
 		this.domNode.title=title;
 	},
@@ -241,12 +277,23 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 
 	_toggleExpand: function(){
 		this.expanded=!this.expanded;
+		this.dupExpanded=this.expanded;
 		this.render();
 	},
 
 	_toggleStackExpand: function(){
 		this.stackExpanded=!this.stackExpanded;
+		this.dupStackExpanded=this.stackExpanded;
 		this.render();
+	},
+
+	_selectClicked: function(event){
+		this.entry.selected=this.entry.selected ? false : true;
+		this.render();
+		this.selectChanged(event);
+	},
+
+	selectChanged: function(event){
 	},
 
 	remove: function(){

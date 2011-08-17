@@ -28,6 +28,10 @@
 			<permission>Edit Loggers</permission>
 			<permission>Edit Purge</permission>
 		</group>
+		<group app="Logging" name="Log Viewer">
+			<description>Users have unlimited permissions view logs but cannot change settings</description>
+			<permission>View All Logs</permission>
+		</group>
 	</groups>
 	<users>
 		<user name="admin" readonly="true">

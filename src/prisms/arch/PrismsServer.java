@@ -1323,6 +1323,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			response.setContentType(contentType);
 			response.setHeader("Content-Disposition",
 				"attachment; filename=\"" + plugin.getFileName(event) + "\"");
+			int size = plugin.getDownloadSize(event);
+			if(size >= 0)
+				response.setContentLength(size);
 			TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName
 				+ ".doDownload");
 			try
@@ -3494,20 +3497,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			msg.append(trans[t].getThread().getName());
 			msg.append("\n\tStage: ");
 			msg.append(trans[t].getStage());
-			msg.append("\n\tCurrent Stack Trace:");
-			StackTraceElement [] trace = trans[t].getThread().getStackTrace();
-			for(int i = 0; i < trace.length; i++)
-			{
-				msg.append("\n\t\tat ");
-				msg.append(trace[i]);
-			}
 			msg.append("\n\tTracking Data: ");
 			prisms.util.ProgramTracker.PrintConfig config = new prisms.util.ProgramTracker.PrintConfig();
 			config.setAccentThreshold(8);
 			config.setAsync(true);
 			config.setTaskDisplayThreshold(100);
 			trans[t].getTracker().printData(msg, config);
-			log.error(msg.toString());
+			Exception ex = new Exception("Current Stack Trace:");
+			ex.setStackTrace(trans[t].getThread().getStackTrace());
+			log.error(msg.toString(), ex);
 			checks[t].lastLogged = now;
 		}
 	}
