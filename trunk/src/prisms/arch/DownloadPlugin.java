@@ -1,11 +1,9 @@
-/**
+/*
  * DownloadPlugin.java Created Apr 16, 2009 by Andrew Butler, PSL
  */
 package prisms.arch;
 
-/**
- * A plugin that can be used to download a file to the client
- */
+/** A plugin that can be used to download a file to the client */
 public interface DownloadPlugin extends AppPlugin
 {
 	/**
@@ -31,6 +29,13 @@ public interface DownloadPlugin extends AppPlugin
 	 * @return The name of the file to save the data as on the client
 	 */
 	String getFileName(org.json.simple.JSONObject event);
+
+	/**
+	 * @param event The event with parameters to use in generating the download
+	 * @return The size of the file that will be downloaded in bytes. A negative return value means
+	 *         the size is unknown.
+	 */
+	int getDownloadSize(org.json.simple.JSONObject event);
 
 	/**
 	 * Writes the download stream

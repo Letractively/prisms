@@ -111,8 +111,10 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 		{
 			if(theSelectedLogger == null)
 				throw new IllegalStateException("No logger to print a message to");
+			String msg = (String) evt.get("message");
+			msg = msg.replaceAll("\\\\n", "\n").replaceAll("\\\\t", "\t");
 			theSelectedLogger.log(theSelectedLogger.getEffectiveLevel(),
-				"From Log4j Configuration Utility: " + evt.get("message"));
+				"From Log4j Configuration Utility: " + msg);
 		}
 		else if("printException".equals(evt.get("method")))
 		{

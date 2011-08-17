@@ -21,6 +21,8 @@ public class PrismsLogger implements
 {
 	static final Logger log = Logger.getLogger(PrismsLogger.class);
 
+	static final Logger nodbLog = Logger.getLogger(PrismsLogger.class.getName() + ".excluded");
+
 	static final int CONTENT_LENGTH = 1024;
 
 	static final int CONTENT_OVERLAP = 32;
@@ -329,7 +331,7 @@ public class PrismsLogger implements
 
 	private final prisms.arch.PrismsEnv theEnv;
 
-	private prisms.arch.ds.Transactor<PrismsException> theTransactor;
+	prisms.arch.ds.Transactor<PrismsException> theTransactor;
 
 	private long theMinConfiguredAge;
 
@@ -793,6 +795,8 @@ public class PrismsLogger implements
 	{
 		if(isClosed)
 			return;
+		if(loggerName.equals(nodbLog.getName()))
+			return;
 		LogEntry entry = new LogEntry();
 		entry.setInstanceLocation(theEnv.getIDs().getLocalInstance().location);
 		entry.setLogTime(logTime);
@@ -834,11 +838,21 @@ public class PrismsLogger implements
 		try
 		{
 			prisms.util.ProgramTracker.TrackNode track = trans.getTracker().start("Check Loggers");
-			doCheckLoggers();
-			trans.getTracker().end(track);
+			try
+			{
+				doCheckLoggers();
+			} finally
+			{
+				trans.getTracker().end(track);
+			}
 			track = trans.getTracker().start("Write Entries");
-			doWriteEntries();
-			trans.getTracker().end(track);
+			try
+			{
+				doWriteEntries();
+			} finally
+			{
+				trans.getTracker().end(track);
+			}
 		} finally
 		{
 			theEnv.finish(trans);
@@ -923,21 +937,24 @@ public class PrismsLogger implements
 			{
 				long msgCRC = crc(entry.getMessage());
 				long stCRC = crc(entry.getStackTrace());
+				long trackCRC = crc(entry.getTrackingData());
 
 				// Check whether this entry is a duplicate
-				prisms.util.ProgramTracker.TrackNode track = trans.getTracker().start(
-					"Check Duplicate");
 				theDuplicateQuery.setLong(1, msgCRC);
 				theDuplicateQuery.setLong(2, stCRC);
+				theDuplicateQuery.setLong(3, trackCRC);
 				int duplicate = -1;
-				rs = theDuplicateQuery.executeQuery();
+				prisms.util.ProgramTracker.TrackNode track = trans.getTracker().start(
+					"Check Duplicate");
 				try
 				{
-					while(rs.next())
+					rs = theDuplicateQuery.executeQuery();
+					while(duplicate < 0 && rs.next())
 					{
 						boolean isDuplicate = true;
 						String message = rs.getString("shortMessage");
 						String stackTrace = null;
+						String tracking = null;
 						if(stCRC == -1 && entry.getMessage().equals(message))
 						{}
 						else
@@ -945,38 +962,54 @@ public class PrismsLogger implements
 							theContentQuery.setInt(1, rs.getInt("id"));
 							StringBuilder msgSB = new StringBuilder();
 							StringBuilder stSB = new StringBuilder();
+							StringBuilder trackSB = new StringBuilder();
 							boolean hasST = false;
+							boolean hasTrack = false;
 							ResultSet rs2 = theContentQuery.executeQuery();
 							try
 							{
 								while(rs2.next())
 								{
-									boolean st = DBUtils.boolFromSql(rs2.getString("isStackTrace"));
-									if(st)
+									char type = rs2.getString("contentType").charAt(0);
+									StringBuilder sb;
+									if(type == 's' || type == 'S')
+									{
+										sb = stSB;
 										hasST = true;
-									StringBuilder sb = st ? stSB : msgSB;
-									String content = rs2.getString("content");
-									if(sb.length() > 0)
-										content = content.substring(CONTENT_OVERLAP);
-									sb.append(content);
+									}
+									else if(type == 't' || type == 'T')
+									{
+										sb = trackSB;
+										hasTrack = true;
+									}
+									else
+										sb = msgSB;
+									sb.append(rs2.getString("content").substring(
+										sb.length() - rs2.getInt("indexNum")));
 								}
 							} finally
 							{
 								rs2.close();
 								rs2 = null;
 							}
-							message = msgSB.toString();
+							if(message == null)
+								message = msgSB.toString();
 							stackTrace = hasST ? stSB.toString() : null;
-							isDuplicate = entry.getMessage().equals(message)
-								&& (entry.getStackTrace() == null ? stackTrace == null : entry
-									.getStackTrace().equals(stackTrace));
+							tracking = hasTrack ? trackSB.toString() : null;
+							isDuplicate = entry.getMessage().equals(message);
+							isDuplicate &= (entry.getStackTrace() == null ? stackTrace == null
+								: entry.getStackTrace().equals(stackTrace));
+							isDuplicate &= (entry.getTrackingData() == null ? tracking == null
+								: entry.getTrackingData().equals(tracking));
 						}
 						if(isDuplicate)
 							duplicate = rs.getInt("id");
 					}
 				} finally
 				{
-					rs.close();
+					trans.getTracker().end(track);
+					if(rs != null)
+						rs.close();
 					rs = null;
 				}
 				trans.getTracker().end(track);
@@ -984,153 +1017,196 @@ public class PrismsLogger implements
 				// Insert the new entry
 				int p = 1;
 				track = trans.getTracker().start("Insert Entry");
-				p++; // Set the ID last
-				theInserter.setString(p++, entry.getInstanceLocation());
-				theInserter.setTimestamp(p++, new java.sql.Timestamp(entry.getLogTime()));
-				if(entry.getApp() != null)
-					theInserter.setString(p++, entry.getApp());
-				else
-					theInserter.setNull(p++, java.sql.Types.VARCHAR);
-				if(entry.getClient() != null)
-					theInserter.setString(p++, entry.getClient());
-				else
-					theInserter.setNull(p++, java.sql.Types.VARCHAR);
-				if(entry.getUser() != null)
-					theInserter.setLong(p++, entry.getUser().getID());
-				else
-					theInserter.setNull(p++, java.sql.Types.NUMERIC);
-				if(entry.getSessionID() != null)
-					theInserter.setString(p++, entry.getSessionID());
-				else
-					theInserter.setNull(p++, java.sql.Types.VARCHAR);
-				if(entry.getTrackingData() != null)
-					theInserter.setString(p++, entry.getTrackingData());
-				else
-					theInserter.setNull(p++, java.sql.Types.VARCHAR);
-				theInserter.setInt(p++, entry.getLevel().toInt());
-				theInserter.setString(p++, entry.getLoggerName());
-				if(entry.getMessage().length() <= 100)
-					theInserter.setString(p++, entry.getMessage());
-				else
-					theInserter.setNull(p++, java.sql.Types.VARCHAR);
-				theInserter.setLong(p++, msgCRC);
-				theInserter.setLong(p++, stCRC);
-				if(duplicate >= 0)
-					theInserter.setInt(p++, duplicate);
-				else
-					theInserter.setNull(p++, java.sql.Types.INTEGER);
-				int size = 1;
-				if(entry.getDuplicateRef() < 0)
-				{
-					if(entry.getMessage().length() > 100)
-					{
-						size++;
-						int len = entry.getMessage().length() - CONTENT_LENGTH;
-						if(len > 0)
-							size += (len - 1) / (CONTENT_LENGTH - CONTENT_OVERLAP) + 1;
-					}
-					if(entry.getStackTrace() != null)
-					{
-						size++;
-						int len = entry.getStackTrace().length() - CONTENT_LENGTH;
-						if(len > 0)
-							size += (len - 1) / (CONTENT_LENGTH - CONTENT_OVERLAP) + 1;
-					}
-				}
-				theInserter.setInt(p++, size);
 				int id;
 				try
 				{
-					id = theEnv.getIDs().getNextIntID(theIDGetter, "prisms_log_entry",
-						theTransactor.getTablePrefix(), "id", null);
-				} catch(PrismsException e)
+					p++; // Set the ID last
+					theInserter.setString(p++, entry.getInstanceLocation());
+					theInserter.setTimestamp(p++, new java.sql.Timestamp(entry.getLogTime()));
+					if(entry.getApp() != null)
+						theInserter.setString(p++, entry.getApp());
+					else
+						theInserter.setNull(p++, java.sql.Types.VARCHAR);
+					if(entry.getClient() != null)
+						theInserter.setString(p++, entry.getClient());
+					else
+						theInserter.setNull(p++, java.sql.Types.VARCHAR);
+					if(entry.getUser() != null)
+						theInserter.setLong(p++, entry.getUser().getID());
+					else
+						theInserter.setNull(p++, java.sql.Types.NUMERIC);
+					if(entry.getSessionID() != null)
+						theInserter.setString(p++, entry.getSessionID());
+					else
+						theInserter.setNull(p++, java.sql.Types.VARCHAR);
+					theInserter.setInt(p++, entry.getLevel().toInt());
+					if(entry.getLoggerName().length() > 256)
+						entry.setLoggerName(entry.getLoggerName().substring(0, 256));
+					theInserter.setString(p++, entry.getLoggerName());
+					if(entry.getMessage().length() <= 100)
+						theInserter.setString(p++, entry.getMessage());
+					else
+						theInserter.setNull(p++, java.sql.Types.VARCHAR);
+					theInserter.setLong(p++, msgCRC);
+					theInserter.setLong(p++, stCRC);
+					theInserter.setLong(p++, trackCRC);
+					if(duplicate >= 0)
+						theInserter.setInt(p++, duplicate);
+					else
+						theInserter.setNull(p++, java.sql.Types.INTEGER);
+					int size = 1;
+					if(entry.getDuplicateRef() < 0)
+					{
+						if(entry.getMessage().length() > 100)
+						{
+							size++;
+							int len = entry.getMessage().length() - CONTENT_LENGTH;
+							if(len > 0)
+								size += (len - 1) / (CONTENT_LENGTH - CONTENT_OVERLAP) + 1;
+						}
+						if(entry.getStackTrace() != null)
+						{
+							size++;
+							int len = entry.getStackTrace().length() - CONTENT_LENGTH;
+							if(len > 0)
+								size += (len - 1) / (CONTENT_LENGTH - CONTENT_OVERLAP) + 1;
+						}
+						if(entry.getTrackingData() != null)
+						{
+							size++;
+							int len = entry.getTrackingData().length() - CONTENT_LENGTH;
+							if(len > 0)
+								size += (len - 1) / (CONTENT_LENGTH - CONTENT_OVERLAP) + 1;
+						}
+					}
+					theInserter.setInt(p++, size);
+					try
+					{
+						id = theEnv.getIDs().getNextIntID(theIDGetter, "prisms_log_entry",
+							theTransactor.getTablePrefix(), "id", null);
+					} catch(PrismsException e)
+					{
+						log.error("Could not get log ID. Exiting.");
+						isClosed = true;
+						return;
+					}
+					theInserter.setInt(1, id);
+					theInserter.executeUpdate();
+					written = true;
+				} finally
 				{
-					log.error("Could not get log ID. Exiting.");
-					isClosed = true;
-					return;
+					trans.getTracker().end(track);
 				}
-				theInserter.setInt(1, id);
-				theInserter.executeUpdate();
-				written = true;
 
-				if(duplicate < 0)
+				track = trans.getTracker().start("Insert Content");
+				try
 				{
-					if(entry.getMessage().length() > 100)
+					if(duplicate < 0)
 					{
-						theContentInserter.setInt(1, id);
-						theContentInserter.setString(4, "f");
-						String msg = entry.getMessage();
-						if(msg.length() <= CONTENT_LENGTH)
+						if(entry.getMessage().length() > 100)
 						{
-							theContentInserter.setInt(2, 0);
-							theContentInserter.setString(3, msg);
-							theContentInserter.executeUpdate();
-						}
-						else
-						{
-							int inc = CONTENT_LENGTH - CONTENT_OVERLAP;
-							for(int i = 0; i < msg.length(); i += inc)
+							theContentInserter.setInt(1, id);
+							theContentInserter.setString(4, "M");
+							String msg = entry.getMessage();
+							if(msg.length() <= CONTENT_LENGTH)
 							{
-								int end = i + CONTENT_LENGTH;
-								int diff = end - msg.length();
-								if(diff > 0)
-								{
-									end = msg.length();
-									i -= diff;
-								}
-								theContentInserter.setInt(2, i);
-								theContentInserter.setString(3, msg.substring(i, end));
+								theContentInserter.setInt(2, 0);
+								theContentInserter.setString(3, msg);
 								theContentInserter.executeUpdate();
-								if(diff >= 0)
-									break;
+							}
+							else
+							{
+								int inc = CONTENT_LENGTH - CONTENT_OVERLAP;
+								for(int i = 0; i < msg.length(); i += inc)
+								{
+									int end = i + CONTENT_LENGTH;
+									int diff = end - msg.length();
+									if(diff > 0)
+									{
+										end = msg.length();
+										i -= diff;
+									}
+									theContentInserter.setInt(2, i);
+									theContentInserter.setString(3, msg.substring(i, end));
+									theContentInserter.executeUpdate();
+									if(diff >= 0)
+										break;
+								}
+							}
+						}
+						if(entry.getStackTrace() != null)
+						{
+							theContentInserter.setInt(1, id);
+							theContentInserter.setString(4, "S");
+							String st = entry.getStackTrace();
+							if(st.length() <= CONTENT_LENGTH)
+							{
+								theContentInserter.setInt(2, 0);
+								theContentInserter.setString(3, st);
+								theContentInserter.executeUpdate();
+							}
+							else
+							{
+								int inc = CONTENT_LENGTH - CONTENT_OVERLAP;
+								for(int i = 0; i < st.length(); i += inc)
+								{
+									int end = i + CONTENT_LENGTH;
+									int diff = end - st.length();
+									if(diff > 0)
+									{
+										end = st.length();
+										i -= diff;
+									}
+									theContentInserter.setInt(2, i);
+									theContentInserter.setString(3, st.substring(i, end));
+									theContentInserter.executeUpdate();
+									if(diff >= 0)
+										break;
+								}
+							}
+						}
+						if(entry.getTrackingData() != null)
+						{
+							theContentInserter.setInt(1, id);
+							theContentInserter.setString(4, "T");
+							String st = entry.getTrackingData();
+							if(st.length() <= CONTENT_LENGTH)
+							{
+								theContentInserter.setInt(2, 0);
+								theContentInserter.setString(3, st);
+								theContentInserter.executeUpdate();
+							}
+							else
+							{
+								int inc = CONTENT_LENGTH - CONTENT_OVERLAP;
+								for(int i = 0; i < st.length(); i += inc)
+								{
+									int end = i + CONTENT_LENGTH;
+									int diff = end - st.length();
+									if(diff > 0)
+									{
+										end = st.length();
+										i -= diff;
+									}
+									theContentInserter.setInt(2, i);
+									theContentInserter.setString(3, st.substring(i, end));
+									theContentInserter.executeUpdate();
+									if(diff >= 0)
+										break;
+								}
 							}
 						}
 					}
-					if(entry.getStackTrace() != null)
-					{
-						theContentInserter.setInt(1, id);
-						theContentInserter.setString(4, "t");
-						String st = entry.getStackTrace();
-						if(st.length() <= CONTENT_LENGTH)
-						{
-							theContentInserter.setInt(2, 0);
-							theContentInserter.setString(3, st);
-							theContentInserter.executeUpdate();
-						}
-						else
-						{
-							int inc = CONTENT_LENGTH - CONTENT_OVERLAP;
-							for(int i = 0; i < st.length(); i += inc)
-							{
-								int end = i + CONTENT_LENGTH;
-								int diff = end - st.length();
-								if(diff > 0)
-								{
-									end = st.length();
-									i -= diff;
-								}
-								theContentInserter.setInt(2, i);
-								theContentInserter.setString(3, st.substring(i, end));
-								theContentInserter.executeUpdate();
-								if(diff >= 0)
-									break;
-							}
-						}
-					}
+				} finally
+				{
+					trans.getTracker().end(track);
 				}
-				trans.getTracker().end(track);
 			} catch(SQLException e)
 			{
-				if(!entry.getLoggerName().equals(log.getName()))
-					log.error("Could not insert new log entry", e);
+				nodbLog.error("Could not insert new log entry", e);
 			} finally
 			{
-				if(!written)
-				{
-					if(!entry.getLoggerName().equals(log.getName()))
-						theQueueEntries.add(entry);
-				}
-				else
+				if(written)
 					thePastEntries.add(entry);
 			}
 		}
@@ -1446,7 +1522,6 @@ public class PrismsLogger implements
 						throw new PrismsException("Could not get user for log entry", e);
 					}
 				entry.setSessionID(rs.getString("logSession"));
-				entry.setTrackingData(rs.getString("trackingData"));
 				entry.setLevel(org.apache.log4j.Level.toLevel(rs.getInt("logLevel")));
 				entry.setLoggerName(rs.getString("loggerName"));
 				entry.setMessage(rs.getString("shortMessage"));
@@ -1455,6 +1530,9 @@ public class PrismsLogger implements
 					entry.setDuplicateRef(-1);
 				else
 					entry.setDuplicateRef(dup.intValue());
+				java.sql.Timestamp time = rs.getTimestamp("entrySaved");
+				if(time != null)
+					entry.setSaveTime(time.getTime());
 				ret.add(entry);
 			}
 			rs.close();
@@ -1504,6 +1582,7 @@ public class PrismsLogger implements
 			// Now get the content (message and stack trace)
 			HashMap<Integer, StringBuilder> messages = new HashMap<Integer, StringBuilder>();
 			HashMap<Integer, StringBuilder> stacks = new HashMap<Integer, StringBuilder>();
+			HashMap<Integer, StringBuilder> tracking = new HashMap<Integer, StringBuilder>();
 			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_log_content WHERE "
 				+ key.toSQL("logEntry") + " ORDER BY indexNum";
 			rs = stmt.executeQuery(sql);
@@ -1511,10 +1590,13 @@ public class PrismsLogger implements
 			{
 				Integer logEntry = Integer.valueOf(rs.getInt("logEntry"));
 				HashMap<Integer, StringBuilder> map;
-				if(DBUtils.boolFromSql(rs.getString("isStackTrace")))
+				char type = rs.getString("contentType").charAt(0);
+				if(type == 'M' || type == 'm')
+					map = messages;
+				else if(type == 'S' || type == 's')
 					map = stacks;
 				else
-					map = messages;
+					map = tracking;
 				StringBuilder sb = map.get(logEntry);
 				if(sb == null)
 				{
@@ -1540,6 +1622,9 @@ public class PrismsLogger implements
 				sb = stacks.get(msgKey);
 				if(sb != null)
 					entry.setStackTrace(sb.toString());
+				sb = tracking.get(msgKey);
+				if(sb != null)
+					entry.setTrackingData(sb.toString());
 			}
 		} catch(SQLException e)
 		{
@@ -1566,6 +1651,65 @@ public class PrismsLogger implements
 		return entries;
 	}
 
+	/**
+	 * Purges a set of entries
+	 * 
+	 * @param ids The IDs of the entries to purge
+	 * @return The number of entries actually purged
+	 * @throws PrismsException If an error occurs purging the data
+	 */
+	public int purge(final int [] ids) throws PrismsException
+	{
+		Number ret = (Number) theTransactor.performTransaction(
+			new prisms.arch.ds.Transactor.TransactionOperation<PrismsException>()
+			{
+				public Object run(Statement stmt) throws PrismsException
+				{
+					try
+					{
+						return Integer.valueOf(doPurge(new IntList(ids), stmt));
+					} catch(SQLException e)
+					{
+						throw new PrismsException("Could not purge items", e);
+					}
+				}
+			}, "Could not purge items");
+		return ret.intValue();
+	}
+
+	/**
+	 * Prevents a set of entries from being purged for a time
+	 * 
+	 * @param ids The IDs of the entries to save
+	 * @param time The time until which the entries will not be purged
+	 * @throws PrismsException If an error occurs setting the data
+	 */
+	public void save(int [] ids, final long time) throws PrismsException
+	{
+		final IntList idInts = new IntList(ids);
+		idInts.setSorted(true);
+		idInts.setUnique(true);
+		theTransactor.performTransaction(
+			new prisms.arch.ds.Transactor.TransactionOperation<PrismsException>()
+			{
+				public Object run(Statement stmt) throws PrismsException
+				{
+					String sql = "UPDATE " + theTransactor.getTablePrefix()
+						+ "prisms_log_entry SET entrySaved=" + DBUtils.formatDate(time, isOracle())
+						+ " WHERE ";
+					DBUtils.KeyExpression keys = DBUtils.simplifyKeySet(idInts.toLongArray(), 90);
+					try
+					{
+						DBUtils.executeUpdate(stmt, sql, keys, "", "id", 90);
+					} catch(SQLException e)
+					{
+						throw new PrismsException("Could not update save times: SQL=" + sql, e);
+					}
+					return null;
+				}
+			}, "Could not save entries");
+	}
+
 	private String createQuery(Search search, Sorter<LogField> sorter, boolean withParameters)
 		throws PrismsException
 	{
@@ -1586,7 +1730,7 @@ public class PrismsLogger implements
 			ret.append(", logEntry.logTime");
 		ret.append(" FROM ");
 		ret.append(theTransactor.getTablePrefix());
-		ret.append("prisms_log_entry AS logEntry");
+		ret.append("prisms_log_entry logEntry");
 		ret.append(joins);
 		if(wheres.length() > 0)
 			ret.append(" WHERE ").append(wheres);
@@ -1619,7 +1763,7 @@ public class PrismsLogger implements
 			{
 				joins.append(" LEFT JOIN ");
 				joins.append(theTransactor.getTablePrefix());
-				joins.append("prisms_log_content AS logContent ON logContent.logEntry=logEntry.id");
+				joins.append("prisms_log_content logContent ON logContent.logEntry=logEntry.id");
 			}
 			wheres.append("(logEntry.shortMessage LIKE ").append(srch)
 				.append(" OR logContent.content LIKE ").append(srch).append(')');
@@ -1790,7 +1934,7 @@ public class PrismsLogger implements
 				{
 					joins.append(" LEFT JOIN ");
 					joins.append(theTransactor.getTablePrefix());
-					joins.append("prisms_log_content AS logContent");
+					joins.append("prisms_log_content logContent");
 					joins.append(" ON logContent.logEntry=logEntry.id");
 				}
 				String srch = lConS.search.replaceAll("%", "!%");
@@ -1807,7 +1951,7 @@ public class PrismsLogger implements
 				{
 					joins.append(" LEFT JOIN ");
 					joins.append(theTransactor.getTablePrefix());
-					joins.append("prisms_log_content AS logContent");
+					joins.append("prisms_log_content logContent");
 					joins.append(" ON logContent.logEntry=logEntry.id");
 				}
 				srch = lsts.search.replaceAll("%", "!%");
@@ -1976,23 +2120,47 @@ public class PrismsLogger implements
 
 		String sql = null;
 		Statement stmt = null;
-		ResultSet rs = null;
 		try
 		{
 			stmt = theTransactor.getConnection().createStatement();
 			checkUpdatedPurger(stmt);
 			IntList ids = getPurgeIDs(thePurger);
-			if(ids == null)
-				return;
-			ids.setSorted(true); // Optimizes some calls below
-			ids.setUnique(true);
-			prisms.util.DBUtils.KeyExpression key = DBUtils.simplifyKeySet(ids.toLongArray(), 50);
-			if(key == null)
-				return;
-			// Eliminate duplicates in items to be purged to avoid foreign key errors
-			// Mark items as purged in case we can't actually delete them
-			sql = "UPDATE " + theTransactor.getTablePrefix()
-				+ "prisms_log_entry SET logDuplicate=NULL, entrySize=" + MAX_SIZE + " WHERE ";
+			doPurge(ids, stmt);
+		} catch(SQLException e)
+		{
+			log.error("Could not execute auto-purge: SQL=" + sql, e);
+		} catch(PrismsException e)
+		{
+			log.error("Could not get connection for auto-purge", e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error!", e);
+				}
+		}
+	}
+
+	synchronized int doPurge(IntList ids, Statement stmt) throws SQLException
+	{
+		if(ids == null)
+			return 0;
+		ids.setSorted(true); // Optimizes some calls below
+		ids.setUnique(true);
+		prisms.util.DBUtils.KeyExpression key = DBUtils.simplifyKeySet(ids.toLongArray(), 50);
+		if(key == null)
+			return 0;
+		// Eliminate duplicates in items to be purged to avoid foreign key errors
+		// Mark items as purged in case we can't actually delete them
+		String sql = "UPDATE " + theTransactor.getTablePrefix()
+			+ "prisms_log_entry SET logDuplicate=NULL, entrySize=" + MAX_SIZE + " WHERE ";
+		ResultSet rs = null;
+		try
+		{
 			DBUtils.executeUpdate(stmt, sql, key, "", "id", 90);
 
 			sql = "SELECT id, logTime, logDuplicate FROM " + theTransactor.getTablePrefix()
@@ -2036,14 +2204,6 @@ public class PrismsLogger implements
 
 			sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_log_entry WHERE ";
 			DBUtils.executeUpdate(stmt, sql, key, "", "id", 100);
-			if(ids.size() > 100)
-				log.debug("Purged " + ids.size() + " log entries");
-		} catch(SQLException e)
-		{
-			log.error("Could not execute auto-purge: SQL=" + sql, e);
-		} catch(PrismsException e)
-		{
-			log.error("Could not get connection for auto-purge", e);
 		} finally
 		{
 			if(rs != null)
@@ -2054,15 +2214,10 @@ public class PrismsLogger implements
 				{
 					log.error("Connection error!", e);
 				}
-			if(stmt != null)
-				try
-				{
-					stmt.close();
-				} catch(SQLException e)
-				{
-					log.error("Connection error!", e);
-				}
 		}
+		if(ids.size() > 100)
+			log.debug("Purged " + ids.size() + " log entries");
+		return ids.size();
 	}
 
 	private synchronized IntList getPurgeIDs(AutoPurger purger)
@@ -2255,21 +2410,22 @@ public class PrismsLogger implements
 
 			sql = "SELECT id, shortMessage FROM " + theTransactor.getTablePrefix()
 				+ "prisms_log_entry WHERE logDuplicate IS NULL"
-				+ " AND messageCRC=? AND stackTraceCRC=? AND entrySize<" + MAX_SIZE;
+				+ " AND messageCRC=? AND stackTraceCRC=? AND trackingCRC=? AND entrySize<"
+				+ MAX_SIZE;
 			theDuplicateQuery = theTransactor.getConnection().prepareStatement(sql);
 
-			sql = "SELECT content, isStackTrace FROM " + theTransactor.getTablePrefix()
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix()
 				+ "prisms_log_content WHERE logEntry=? ORDER BY indexNum";
 			theContentQuery = theTransactor.getConnection().prepareStatement(sql);
 
 			sql = "INSERT INTO " + theTransactor.getTablePrefix() + "prisms_log_entry"
 				+ " (id, logInstance, logTime, logApp, logClient, logUser, logSession,"
-				+ " trackingData, logLevel, loggerName, shortMessage, messageCRC, stackTraceCRC,"
+				+ " logLevel, loggerName, shortMessage, messageCRC, stackTraceCRC, trackingCRC,"
 				+ " logDuplicate, entrySize) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 			theInserter = theTransactor.getConnection().prepareStatement(sql);
 
 			sql = "INSERT INTO " + theTransactor.getTablePrefix() + "prisms_log_content (logEntry,"
-				+ " indexNum, content, isStackTrace) VALUES (?, ?, ?, ?)";
+				+ " indexNum, content, contentType) VALUES (?, ?, ?, ?)";
 			theContentInserter = theTransactor.getConnection().prepareStatement(sql);
 
 			sql = "SELECT SUM(entrySize), MIN(logTime) FROM " + theTransactor.getTablePrefix()

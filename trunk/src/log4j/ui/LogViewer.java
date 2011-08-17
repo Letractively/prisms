@@ -3,6 +3,9 @@
  */
 package log4j.ui;
 
+import java.io.IOException;
+import java.io.OutputStream;
+
 import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -11,10 +14,11 @@ import prisms.arch.PrismsException;
 import prisms.arch.PrismsSession;
 import prisms.logging.LogEntry;
 import prisms.logging.PrismsLogger.LogField;
+import prisms.util.ArrayUtils;
 import prisms.util.Search;
 
 /** Sends log entries to the client for display to the user */
-public class LogViewer implements prisms.arch.AppPlugin
+public class LogViewer implements prisms.arch.DownloadPlugin
 {
 	static final Logger log = Logger.getLogger(LogViewer.class);
 
@@ -34,7 +38,11 @@ public class LogViewer implements prisms.arch.AppPlugin
 
 	int thePageSize;
 
-	private prisms.util.IntList theSnapshot;
+	prisms.util.IntList theSnapshot;
+
+	prisms.util.IntList theSelected;
+
+	prisms.ui.UI.DefaultProgressInformer thePI;
 
 	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
@@ -59,10 +67,33 @@ public class LogViewer implements prisms.arch.AppPlugin
 				prisms.util.preferences.PreferenceEvent pEvt = (prisms.util.preferences.PreferenceEvent) evt;
 				if(!pEvt.getPreference().equals(PAGE_PREF))
 					return;
-				thePageSize = ((Integer) pEvt.getNewValue()).intValue();
-				resend();
+				int ps = ((Integer) pEvt.getNewValue()).intValue();
+				if(ps == 0)
+				{
+					getSession().runEventually(new Runnable()
+					{
+						public void run()
+						{
+							getSession().getPreferences().set(PAGE_PREF, Integer.valueOf(1));
+						}
+					});
+				}
+				else
+				{
+					thePageSize = ps;
+					resend();
+				}
 			}
 		});
+		session.addEventListener("prismsUserAuthChangd",
+			new prisms.arch.event.PrismsEventListener()
+			{
+				public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
+				{
+					if(getSession().getUser().equals(evt.getProperty("user")))
+						initClient();
+				}
+			});
 		final Runnable checker = new Runnable()
 		{
 			public void run()
@@ -86,6 +117,7 @@ public class LogViewer implements prisms.arch.AppPlugin
 					reset();
 				}
 			});
+		theSelected = new prisms.util.IntList(true, true);
 	}
 
 	/** @return The session that is using this plugin */
@@ -94,12 +126,25 @@ public class LogViewer implements prisms.arch.AppPlugin
 		return theSession;
 	}
 
+	/** @return The name of this plugin */
+	public String getName()
+	{
+		return theName;
+	}
+
 	public void initClient()
 	{
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "clear");
 		theSession.postOutgoingEvent(evt);
+
+		evt = new JSONObject();
+		evt.put("plugin", theName);
+		evt.put("method", "setSelectable");
+		evt.put("selectable", Boolean.valueOf(theSession.getPermissions().has("Edit Purge")));
+		theSession.postOutgoingEvent(evt);
+
 		resend();
 	}
 
@@ -116,6 +161,15 @@ public class LogViewer implements prisms.arch.AppPlugin
 				evt2.put("method", "checkBack");
 				theSession.postOutgoingEvent(evt2);
 			}
+		}
+		else if("save".equals(evt.get("method")))
+			doSave(evt);
+		else if("first".equals(evt.get("method")))
+		{
+			if(theSnapshot == null)
+				return;
+			theStart = 0;
+			resend();
 		}
 		else if("previous".equals(evt.get("method")))
 		{
@@ -135,6 +189,152 @@ public class LogViewer implements prisms.arch.AppPlugin
 				theStart -= thePageSize;
 			resend();
 		}
+		else if("last".equals(evt.get("method")))
+		{
+			if(theSnapshot == null)
+				return;
+			theStart = (theSnapshot.size() / thePageSize) * thePageSize;
+			resend();
+		}
+		else if("setSelected".equals(evt.get("method")))
+		{
+			if(!theSession.getPermissions().has("Edit Purge"))
+				throw new IllegalArgumentException(
+					"You do not have permission to select entries for anything");
+			int id = Integer.parseInt((String) evt.get("entry"), 16);
+			if(Boolean.TRUE.equals(evt.get("selected")))
+				theSelected.add(id);
+			else
+				theSelected.removeValue(id);
+			System.out.println("Selected=" + theSelected);
+		}
+		else if("purge".equals(evt.get("method")))
+		{
+			if(!theSession.getPermissions().has("Edit Purge"))
+				throw new IllegalArgumentException("You do not have permission to purge entries");
+			if(theSelected.isEmpty())
+			{
+				theSession.getUI().error("No entries selected");
+				return;
+			}
+			final prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment()
+				.getLogger();
+			String [] loggers = null;
+			try
+			{
+				LogEntry [] entries = logger.getItems(theSelected.toLongArray());
+				prisms.logging.AutoPurger purger = logger.getAutoPurger();
+				for(LogEntry entry : entries)
+					if(ArrayUtils.contains(purger.getExcludeLoggers(), entry.getLoggerName())
+						&& !ArrayUtils.contains(loggers, entry.getLoggerName()))
+						loggers = ArrayUtils.add(loggers, entry.getLoggerName());
+
+			} catch(PrismsException e)
+			{
+				theSession.getUI().error(
+					"Could not check entries against auto-purge: " + e.getMessage());
+				log.error("Could not fetch entries", e);
+				return;
+			}
+			if(loggers != null)
+			{
+				theSession.getUI().error(
+					"Entries by logger" + (loggers.length > 1 ? "s" : "") + " "
+						+ ArrayUtils.toString(loggers) + " cannot be purged");
+				return;
+			}
+			theSession.getUI().confirm(
+				"Are you sure you want to purge "
+					+ (theSelected.size() == 1 ? "this" : "these " + theSelected.size()) + " entr"
+					+ (theSelected.size() == 1 ? "y" : "ies") + "? This cannot be undone.",
+				new prisms.ui.UI.ConfirmListener()
+				{
+					public void confirmed(boolean confirm)
+					{
+						if(!confirm)
+							return;
+						try
+						{
+							int purged = logger.purge(theSelected.toArray());
+							getSession().getUI().info(
+								purged + " entr" + (purged == 1 ? "y" : "ies") + " purged");
+							if(theSnapshot != null)
+								theSnapshot.removeAll(theSelected);
+							theSelected.clear();
+							resend();
+						} catch(PrismsException e)
+						{
+							getSession().getUI()
+								.error("Could not purge entries: " + e.getMessage());
+							log.error("Could not purge entries", e);
+						}
+					}
+				});
+		}
+		else if("protect".equals(evt.get("method")))
+		{
+			if(!theSession.getPermissions().has("Edit Purge"))
+				throw new IllegalArgumentException("You do not have permission to save entries");
+			if(theSelected.isEmpty())
+			{
+				theSession.getUI().error("No entries selected");
+				return;
+			}
+			final prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment()
+				.getLogger();
+			String [] loggers = null;
+			try
+			{
+				LogEntry [] entries = logger.getItems(theSelected.toLongArray());
+				prisms.logging.AutoPurger purger = logger.getAutoPurger();
+				for(LogEntry entry : entries)
+					if(ArrayUtils.contains(purger.getExcludeLoggers(), entry.getLoggerName())
+						&& !ArrayUtils.contains(loggers, entry.getLoggerName()))
+						loggers = ArrayUtils.add(loggers, entry.getLoggerName());
+
+			} catch(PrismsException e)
+			{
+				theSession.getUI().error(
+					"Could not check entries against auto-purge: " + e.getMessage());
+				log.error("Could not fetch entries", e);
+				return;
+			}
+			if(loggers != null)
+			{
+				theSession.getUI().error(
+					"Entries by logger" + (loggers.length > 1 ? "s" : "") + " "
+						+ ArrayUtils.toString(loggers) + " cannot be purged. No need to save.");
+				return;
+			}
+			theSession.getUI().confirm(
+				"Are you sure you want to protect "
+					+ (theSelected.size() == 1 ? "this" : "these " + theSelected.size()) + " entr"
+					+ (theSelected.size() == 1 ? "y" : "ies") + "? "
+					+ (theSelected.size() == 1 ? "It" : "They")
+					+ " will not be purged for at least 30 days.",
+				new prisms.ui.UI.ConfirmListener()
+				{
+					public void confirmed(boolean confirm)
+					{
+						if(!confirm)
+							return;
+						try
+						{
+							long time = System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000;
+							logger.save(theSelected.toArray(), time);
+							getSession().getUI().info(
+								(theSelected.size() == 1 ? "This" : "These " + theSelected.size())
+									+ " entr" + (theSelected.size() == 1 ? "y" : "ies")
+									+ " will not be purged for at least 30 days");
+							resend();
+						} catch(PrismsException e)
+						{
+							getSession().getUI().error("Could not save entries: " + e.getMessage());
+							log.error("Could not save entries", e);
+						}
+					}
+				});
+		}
 		else if("clear".equals(evt.get("method")))
 			clear();
 		else
@@ -148,8 +348,10 @@ public class LogViewer implements prisms.arch.AppPlugin
 
 	void reset()
 	{
+		theSelected.clear();
 		isRunning = false;
 		theCheckSearch = null;
+		theStart = 0;
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "clear");
@@ -169,8 +371,9 @@ public class LogViewer implements prisms.arch.AppPlugin
 			if(search == null)
 				search = new prisms.logging.LogEntrySearch.LogUserSearch(theSession.getUser(),
 					false);
-			search = new Search.ExpressionSearch(true).addOps(search,
-				new prisms.logging.LogEntrySearch.LogUserSearch(theSession.getUser(), false));
+			else
+				search = new Search.ExpressionSearch(true).addOps(search,
+					new prisms.logging.LogEntrySearch.LogUserSearch(theSession.getUser(), false));
 		}
 		prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment().getLogger();
 		final boolean [] finished = new boolean [1];
@@ -222,6 +425,7 @@ public class LogViewer implements prisms.arch.AppPlugin
 			for(int i = 0; i < ids.length; i++)
 				intIDs[i] = (int) ids[i];
 			theSnapshot = new prisms.util.IntList(intIDs);
+			theSelected.and(theSnapshot);
 			theStart = 0;
 			resend();
 
@@ -255,13 +459,6 @@ public class LogViewer implements prisms.arch.AppPlugin
 
 		if(theSnapshot == null)
 			return;
-		evt = new JSONObject();
-		evt.put("plugin", theName);
-		evt.put("method", "setCount");
-		evt.put("count", Integer.valueOf(theSnapshot.size()));
-		evt.put("start", Integer.valueOf(theStart));
-		evt.put("page", Integer.valueOf(thePageSize));
-		theSession.postOutgoingEvent(evt);
 
 		prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment().getLogger();
 		final long [] ids;
@@ -321,6 +518,14 @@ public class LogViewer implements prisms.arch.AppPlugin
 			evt.put("method", "checkBack");
 			theSession.postOutgoingEvent(evt);
 		}
+
+		evt = new JSONObject();
+		evt.put("plugin", theName);
+		evt.put("method", "setCount");
+		evt.put("count", Integer.valueOf(theSnapshot.size()));
+		evt.put("start", Integer.valueOf(theStart));
+		evt.put("page", Integer.valueOf(thePageSize));
+		theSession.postOutgoingEvent(evt);
 	}
 
 	/** Checks for new log entries that match the current search */
@@ -346,7 +551,23 @@ public class LogViewer implements prisms.arch.AppPlugin
 		int [] intIDs = new int [ids.length];
 		for(int i = 0; i < ids.length; i++)
 			intIDs[i] = (int) ids[i];
-		theSnapshot.addAll(intIDs, 0, intIDs.length, 0);
+		synchronized(theSnapshot)
+		{
+			theSnapshot.addAll(intIDs, 0, intIDs.length, 0);
+		}
+		if(theStart > 0)
+		{
+			theStart += ids.length;
+
+			JSONObject evt = new JSONObject();
+			evt.put("plugin", theName);
+			evt.put("method", "setCount");
+			evt.put("count", Integer.valueOf(theSnapshot.size()));
+			evt.put("start", Integer.valueOf(theStart));
+			evt.put("page", Integer.valueOf(thePageSize));
+			theSession.postOutgoingEvent(evt);
+			return;
+		}
 		LogEntry [] entries;
 		try
 		{
@@ -435,7 +656,7 @@ public class LogViewer implements prisms.arch.AppPlugin
 		jsonEntry.put("id", Integer.toHexString(entry.getID()));
 		boolean dup = entry.getDuplicateRef() >= 0;
 		if(dup)
-			jsonEntry.put("duplicate", Integer.valueOf(entry.getDuplicateRef()));
+			jsonEntry.put("duplicate", Integer.toHexString(entry.getDuplicateRef()));
 		jsonEntry.put("instance", entry.getInstanceLocation());
 		jsonEntry.put("app", entry.getApp());
 		jsonEntry.put("client", entry.getClient());
@@ -456,8 +677,457 @@ public class LogViewer implements prisms.arch.AppPlugin
 		jsonEntry.put("time",
 			prisms.util.PrismsUtils.TimePrecision.MILLIS.print(entry.getLogTime(), false));
 		jsonEntry.put("tracking", entry.getTrackingData());
+		if(entry.getSaveTime() > 0)
+			jsonEntry.put("saveTime",
+				prisms.util.PrismsUtils.TimePrecision.MINUTES.print(entry.getSaveTime(), false));
 		jsonEntry.put("message", entry.getMessage());
 		jsonEntry.put("stackTrace", entry.getStackTrace());
+		if(theSelected.contains(entry.getID()))
+			jsonEntry.put("selected", Boolean.TRUE);
 		return jsonEntry;
+	}
+
+	void doSave(final JSONObject event)
+	{
+		final String [] options = new String [] {"Plain Text", "Rich Text Format", "HTML"};
+		theSession.getUI().select("Select the format to download the data in.", options, 1,
+			new prisms.ui.UI.SelectListener()
+			{
+				public void selected(String option)
+				{
+					if(option == null)
+						return;
+					String format;
+					switch(ArrayUtils.indexOf(options, option))
+					{
+					case 0:
+						format = "text/plain";
+						break;
+					case 1:
+						format = "text/rtf";
+						break;
+					case 2:
+						format = "text/html";
+						break;
+					default:
+						return;
+					}
+
+					thePI = new prisms.ui.UI.DefaultProgressInformer();
+					thePI.setProgressText("Starting log download");
+					getSession().getUI().startTimedTask(thePI);
+
+					JSONObject toSend = new JSONObject();
+					toSend.put("downloadPlugin", getName());
+					toSend.remove("plugin");
+					toSend.put("downloadMethod", "downloadLogs");
+					toSend.put("method", "doDownload");
+					toSend.put("settings", event.get("settings"));
+					toSend.put("format", format);
+					getSession().postOutgoingEvent(toSend);
+				}
+			});
+	}
+
+	public String getContentType(JSONObject event)
+	{
+		return (String) event.get("format");
+	}
+
+	public String getFileName(JSONObject event)
+	{
+		String ret = "";
+		try
+		{
+			ret += new java.net.URL(theSession.getApp().getEnvironment().getIDs()
+				.getLocalInstance().location).getHost();
+		} catch(Exception e)
+		{
+			log.warn("Could not append host name to file: " + e); // Don't print the stack trace
+			ret += "PRISMS Logs";
+		}
+		ret += " Log";
+		if("text/plain".equals(event.get("format")))
+			ret += ".txt";
+		else if("text/rtf".equals(event.get("format")))
+			ret += ".rtf";
+		else
+			ret += ".html";
+		return ret;
+	}
+
+	public int getDownloadSize(JSONObject event)
+	{
+		return -1;
+	}
+
+	private static class Settings
+	{
+		boolean expanded;
+
+		boolean dupExpanded;
+
+		boolean stackExpanded;
+
+		boolean dupStackExpanded;
+
+		boolean ids;
+
+		boolean instance;
+
+		boolean app;
+
+		boolean client;
+
+		boolean tracking;
+
+		int linesNoCollapse = 2;
+
+		int linesInCollapsed = 2;
+
+		Settings()
+		{
+		}
+
+		void fromJson(JSONObject json)
+		{
+			expanded = Boolean.TRUE.equals(json.get("expanded"));
+			dupExpanded = expanded && Boolean.TRUE.equals(json.get("dupExpanded"));
+			stackExpanded = Boolean.TRUE.equals(json.get("stackExpanded"));
+			dupStackExpanded = stackExpanded && Boolean.TRUE.equals(json.get("dupStackExpanded"));
+			ids = Boolean.TRUE.equals(json.get("ids"));
+			boolean meta = Boolean.TRUE.equals(json.get("metaData"));
+			app = client = tracking = meta;
+		}
+
+		void print(LogEntry entry, java.io.PrintWriter writer, String format) throws IOException
+		{
+			if("text/plain".equals(format))
+			{
+				if(ids)
+					writer.write(Integer.toHexString(entry.getID()) + " ");
+				writer.write(prisms.util.PrismsUtils.TimePrecision.MILLIS.print(entry.getLogTime(),
+					true) + " ");
+				writer.write(entry.getLevel().toString() + " ");
+				writer.write(entry.getLoggerName() + " ");
+				if(entry.getUser() != null)
+					writer.write(entry.getUser().getName() + " ");
+				else
+					writer.write("(No User) ");
+				if(instance)
+					writer.write(entry.getInstanceLocation() + " ");
+				if(app)
+				{
+					if(entry.getApp() != null)
+					{
+						writer.write(entry.getApp() + " ");
+						if(client && entry.getClient() != null)
+							writer.write(entry.getClient() + " ");
+					}
+					else
+						writer.write("(No App) ");
+				}
+				if(tracking && entry.getTrackingData() != null)
+					writer.write("tracking:" + entry.getTrackingData() + " ");
+				if(entry.getDuplicateRef() >= 0)
+				{
+					writer.write(" (duplicate");
+					if(ids)
+						writer.write(" of " + Integer.toHexString(entry.getDuplicateRef()));
+					writer.write(")\n");
+				}
+				else
+					writer.write("\n");
+				String msg = entry.getMessage();
+				msg = trim(msg, entry, false);
+				msg = "\t" + msg.replaceAll("\n", "\n\t");
+				writer.write(msg);
+				if(!msg.endsWith("\n"))
+					writer.write("\n");
+				msg = entry.getStackTrace();
+				if(msg != null)
+				{
+					msg = trim(msg, entry, true);
+					msg = "\t" + msg.replaceAll("\n", "\n\t");
+					writer.write(msg);
+					if(!msg.endsWith("\n"))
+						writer.write("\n");
+				}
+			}
+			else if("text/rtf".equals(format))
+			{
+				if(ids)
+					writer.write(Integer.toHexString(entry.getID()) + " ");
+				writer.write("\\b");
+				writer.write(prisms.util.PrismsUtils.TimePrecision.MILLIS.print(entry.getLogTime(),
+					true) + " ");
+				if(entry.getLevel().equals(org.apache.log4j.Level.FATAL)
+					|| entry.getLevel().equals(org.apache.log4j.Level.ERROR))
+					writer.write("\\cf2");
+				else if(entry.getLevel().equals(org.apache.log4j.Level.WARN))
+					writer.write("\\cf3");
+				else if(entry.getLevel().equals(org.apache.log4j.Level.INFO))
+					writer.write("\\cf4");
+				else
+					writer.write("\\cf1");
+				writer.write(entry.getLevel().toString() + " ");
+				writer.write("\\cf5");
+				writer.write(entry.getLoggerName() + " ");
+				writer.write("\\cf4");
+				if(entry.getUser() != null)
+					writer.write(entry.getUser().getName() + " ");
+				else
+					writer.write("(No User) ");
+				writer.write("\\cf1");
+				if(instance)
+					writer.write(entry.getInstanceLocation() + " ");
+				if(app)
+				{
+					if(entry.getApp() != null)
+					{
+						writer.write(entry.getApp() + " ");
+						if(client && entry.getClient() != null)
+							writer.write(entry.getClient() + " ");
+					}
+					else
+						writer.write("(No App) ");
+				}
+				writer.write("\\b0");
+				if(tracking && entry.getTrackingData() != null)
+					writer.write("tracking:" + entry.getTrackingData() + " ");
+				if(entry.getDuplicateRef() >= 0)
+				{
+					writer.write(" (duplicate");
+					if(ids)
+						writer.write(" of " + Integer.toHexString(entry.getDuplicateRef()));
+					writer.write(")\\par\n");
+				}
+				else
+					writer.write("\\par\n");
+				String msg = entry.getMessage();
+				msg = trim(msg, entry, false);
+				msg = "\t" + msg.replaceAll("\\n", "\\\\par\n\t");
+				writer.write(msg);
+				writer.write("\\par\n");
+				msg = entry.getStackTrace();
+				if(msg != null)
+				{
+					msg = trim(msg, entry, true);
+					msg = "\t" + msg.replaceAll("\\n", "\\\\par\n\t");
+					writer.write(msg);
+					writer.write("\\par\n");
+				}
+			}
+			else
+			{
+				writer.write("<div title=\"");
+				String title = "Instance:" + entry.getInstanceLocation() + "            \n";
+				title += "Application:" + (entry.getApp() != null ? entry.getApp() : "None")
+					+ "            \n";
+				if(entry.getApp() != null)
+					title += "Client:" + (entry.getClient() != null ? entry.getClient() : "None")
+						+ "            \n";
+				if(entry.getClient() != null)
+					title += "User:" + (entry.getUser() != null ? entry.getUser() : "None")
+						+ "            \n";
+				if(entry.getClient() != null)
+					title += "SessionID:"
+						+ (entry.getSessionID() != null ? entry.getSessionID() : "None")
+						+ "            \n";
+				title += "Logger:" + entry.getLoggerName() + "            \n";
+				title += "TrackingInfo:"
+					+ (entry.getTrackingData() != null ? entry.getTrackingData() : "Not Available")
+					+ "            \n";
+				writer.write(title);
+				writer.write("\">\n");
+				if(ids)
+					writer.write(Integer.toHexString(entry.getID()) + " ");
+				writer.write("<b>");
+				writer.write(prisms.util.PrismsUtils.TimePrecision.MILLIS.print(entry.getLogTime(),
+					true) + " ");
+				writer.write("<span style=\"color:");
+				if(entry.getLevel().equals(org.apache.log4j.Level.FATAL)
+					|| entry.getLevel().equals(org.apache.log4j.Level.ERROR))
+					writer.write("#ff0000");
+				else if(entry.getLevel().equals(org.apache.log4j.Level.WARN))
+					writer.write("#c0c000");
+				else if(entry.getLevel().equals(org.apache.log4j.Level.INFO))
+					writer.write("#0000ff");
+				else
+					writer.write("#000000");
+				writer.write("\">");
+				writer.write(entry.getLevel().toString() + " ");
+				writer.write("</span>");
+				writer.write("<span style=\"color:#00d000\">");
+				writer.write(entry.getLoggerName() + " ");
+				writer.write("</span>");
+				writer.write("<span style=\"color:#0000ff\">");
+				if(entry.getUser() != null)
+					writer.write(entry.getUser().getName() + " ");
+				else
+					writer.write("(No User) ");
+				writer.write("</span>");
+				if(instance)
+					writer.write(entry.getInstanceLocation() + " ");
+				if(app)
+				{
+					if(entry.getApp() != null)
+					{
+						writer.write(entry.getApp() + " ");
+						if(client && entry.getClient() != null)
+							writer.write(entry.getClient() + " ");
+					}
+					else
+						writer.write("(No App) ");
+				}
+				writer.write("</b>");
+				if(tracking && entry.getTrackingData() != null)
+					writer.write("tracking:" + entry.getTrackingData() + " ");
+				if(entry.getDuplicateRef() >= 0)
+				{
+					writer.write(" (duplicate");
+					if(ids)
+						writer.write(" of " + Integer.toHexString(entry.getDuplicateRef()));
+					writer.write(")<br />\n");
+				}
+				else
+					writer.write("<br />\n");
+				String msg = entry.getMessage();
+				msg = trim(msg, entry, false);
+				msg = "&nbsp;&nbsp;&nbsp;&nbsp;"
+					+ msg.replaceAll("\\n", "<br />\n&nbsp;&nbsp;&nbsp;&nbsp;");
+				msg = msg.replaceAll("\t", "&nbsp;&nbsp;&nbsp;&nbsp;");
+				writer.write(msg);
+				writer.write("<br />\n");
+				msg = entry.getStackTrace();
+				if(msg != null)
+				{
+					msg = trim(msg, entry, true);
+					msg = "&nbsp;&nbsp;&nbsp;&nbsp;"
+						+ msg.replaceAll("\\n", "<br />\n&nbsp;&nbsp;&nbsp;&nbsp;");
+					writer.write(msg);
+					writer.write("<br />\n");
+				}
+				writer.write("</div>\n");
+			}
+		}
+
+		private String trim(String st, LogEntry entry, boolean stack)
+		{
+			StringBuilder str = new StringBuilder(st);
+			while(str.length() > 0 && (str.charAt(0) == '\n' || str.charAt(0) == '\r'))
+				str.delete(0, 1);
+			while(str.length() > 0
+				&& (str.charAt(str.length() - 1) == '\n' || str.charAt(str.length() - 1) == '\r'))
+				str.delete(str.length() - 1, str.length());
+			boolean delLines;
+			if(stack)
+				delLines = !stackExpanded || (entry.getDuplicateRef() >= 0 && !dupStackExpanded);
+			else
+				delLines = !expanded || (entry.getDuplicateRef() >= 0 && !dupExpanded);
+			if(!delLines)
+				return str.toString();
+			int ret = 0;
+			int i;
+			for(i = 0; ret < linesNoCollapse && i < str.length(); i++)
+				if(str.charAt(i) == '\n')
+					ret++;
+			if(ret >= linesNoCollapse)
+			{
+				if(linesInCollapsed != linesNoCollapse)
+				{
+					ret = 0;
+					for(i = 0; ret < linesInCollapsed && i < str.length(); i++)
+						if(str.charAt(i) == '\n')
+							ret++;
+				}
+				str.setLength(i);
+			}
+			while(str.length() > 0
+				&& (str.charAt(str.length() - 1) == '\n' || str.charAt(str.length() - 1) == '\r'))
+				str.delete(str.length() - 1, str.length());
+			return str.toString();
+		}
+	}
+
+	public void doDownload(JSONObject event, OutputStream stream) throws IOException
+	{
+		try
+		{
+			int [] ids;
+			synchronized(theSnapshot)
+			{
+				ids = theSnapshot.toArray();
+			}
+			Settings settings = new Settings();
+			settings.fromJson((JSONObject) event.get("settings"));
+
+			prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment().getLogger();
+			java.io.PrintWriter writer = new java.io.PrintWriter(stream);
+			String format = (String) event.get("format");
+			String title = "Logs";
+			try
+			{
+				title += " on "
+					+ new java.net.URL(theSession.getApp().getEnvironment().getIDs()
+						.getLocalInstance().location).getHost();
+			} catch(Exception e)
+			{}
+			title += " for search \"";
+			if(theSession.getProperty(log4j.app.Log4jProperties.search) == null)
+				title += "*";
+			else
+				title += theSession.getProperty(log4j.app.Log4jProperties.search);
+			title += "\" on " + prisms.util.PrismsUtils.print(theLastCheckTime);
+			if("text/plain".equals(format))
+				writer.write(title + "\n\n");
+			else if("text/rtf".equals(format))
+			{
+				writer.write("{\\rtf\\ansi\\deff0{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}}\n");
+				writer.write("{\\colortbl ");
+				writer.write(";\\red0\\green0\\blue0");
+				writer.write(";\\red255\\green0\\blue0");
+				writer.write(";\\red192\\green192\\blue0");
+				writer.write(";\\red0\\green0\\blue255");
+				writer.write(";\\red0\\green208\\blue0;}\n");
+				writer.write("{\\*\\generator PRISMS Logging "
+					+ theSession.getApp().getVersionString() + ";}");
+				writer.write("\\viewkind4\\uc1\\pard\n");
+				writer.write("\\cf1\\f0\\fs32");
+				writer.write(title);
+				writer.write("\\par\\fs20\n\\par\n");
+			}
+			else
+				writer.write("<html><body>\n<h1>" + title + "</h1>\n<br />\n");
+
+			thePI.setProgressScale(ids.length);
+			thePI.setProgressText("Retrieving and writing log entries");
+			long [] tempIDs = new long [ids.length <= 100 ? ids.length : 100];
+			for(int i = 0; i < ids.length; i += tempIDs.length)
+			{
+				thePI.setProgress(i);
+				if(tempIDs.length > ids.length - i)
+					tempIDs = new long [ids.length - i];
+				for(int j = 0; j < tempIDs.length; j++)
+					tempIDs[j] = ids[i + j];
+				LogEntry [] entries = logger.getItems(tempIDs);
+				for(int j = 0; j < entries.length; j++)
+				{
+					thePI.setProgress(i + j);
+					settings.print(entries[j], writer, format);
+				}
+			}
+			if("text/plain".equals(format))
+				writer.write("\n");
+			else if("text/rtf".equals(format))
+				writer.write("\\par\n}");
+			else
+				writer.write("</body></html>\n");
+			writer.close();
+		} finally
+		{
+			thePI.setDone();
+			thePI = null;
+		}
 	}
 }

@@ -14,13 +14,18 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 
 	expanded: true,
 
+	dupExpanded: false,
+
 	stackExpanded: false,
+
+	dupStackExpanded: false,
 
 	showIDs: false,
 
 	postCreate: function(){
 		this.inherited(arguments);
 		this.entries=[];
+		this.connects=[];
 		this.settings={
 			id: false,
 			time: true,
@@ -34,7 +39,11 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 		};
 		this.wrapCheck.setAttribute("checked", true);
 		this.expandCheck.setAttribute("checked", this.expanded);
+		this.dupExpandCheck.setAttribute("disabled", !this.expanded)
+		this.dupExpandCheck.setAttribute("checked", this.expanded && this.dupExpanded);
 		this.stackCheck.setAttribute("checked", this.stackExpanded);
+		this.dupStackCheck.setAttribute("disabled", !this.stackExpanded);
+		this.dupStackCheck.setAttribute("checked", this.stackExpanded && this.dupStackExpanded);
 		this.idsCheck.setAttribute("checked", this.showIDs);
 		this._scrolled();
 
@@ -56,6 +65,12 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 	processEvent: function(event){
 		if(event.method=="clear")
 			this.clear();
+		else if(event.method=="setSelectable")
+		{
+			this.selectable=event.selectable;
+			PrismsUtils.setTableRowVisible(this.purgeRow, this.selectable);
+			PrismsUtils.setTableRowVisible(this.protectRow, this.selectable);
+		}
 		else if(event.method=="setCount")
 		{
 			this.pageSize=event.page;
@@ -64,74 +79,67 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 			var end=this.start+this.pageSize;
 			if(end>this.count)
 				end=this.count;
+			if(this.start<end)
+				this.statusDisplay.innerHTML=(this.start+1)+" - "+end+" of "+this.count;
+			else if(this.count>1)
+				this.statusDisplay.innerHTML=(this.start+1)+" of "+this.count;
+			else
+				this.statusDisplay.innerHTML="No Entries Selected";
+			this.statusDisplay.style.display="inline";
+			if(this.start>this.pageSize)
+				this.pageFirst.style.display="inline"
+			else
+				this.pageFirst.style.display="none";
 			if(this.start>0)
 			{
+				this.pageBack.style.display="inline";
 				var preCount=this.pageSize;
 				if(preCount>this.start)
 					preCount=this.start;
-				this.pageBackText.innerHTML="&#9650;"+this.start+" - "+end+" of "+this.count
-					+". Display previous "+preCount+" entries&#9650;";
+				this.pageBack.innerHTML="&lt;Previous "+preCount;
 			}
 			else
-				this.pageBackText.innerHTML=this.start+" - "+end+" of "+this.count;
+				this.pageBack.style.display="none";
+			if(end<this.count-this.pageSize)
+				this.pageLast.style.display="inline";
+			else
+				this.pageLast.style.display="none";
 			if(end<this.count)
 			{
+				this.pageForward.style.display="inline";
 				var postCount=this.count-this.start-this.pageSize;
 				if(postCount>this.pageSize)
 					postCount=this.pageSize;
-				this.pageForwardText.innerHTML="&#9660;"+this.start+" - "+end+" of "+this.count
-					+". Display next "+postCount+" entries&#9660;";
+				this.pageForward.innerHTML="Next "+postCount+"&gt;";
 			}
 			else
-				this.pageForwardText.innerHTML=this.start+" - "+end+" of "+this.count;
+				this.pageForward.style.display="none";
 			
-			this.pageBack.style.display="block";
-			this.pageForward.style.display="block";
 			this._scrolled();
 		}
 		else if(event.method=="addEntries")
 		{
 			for(var i=0;i<event.entries.length;i++)
-			{
-				var widget=new log4j.LogEntry({});
-				this.domNode.insertBefore(widget.domNode, this.pageForward);
-				widget.settings=this.settings;
-				widget.expanded=this.expandCheck.getValue() ? true : false;
-				widget.stackExpanded=this.stackCheck.getValue() ? true : false;
-				widget.setValue(event.entries[i]);
-				this.entries.push(widget);
-				while(this.entries.length>this.pageSize)
-				{
-					this.entries[this.entries.length-1].remove();
-					this.entries.splice(this.entries.length-1, 1);
-				}
-			}
+				this._addEntry(-1, event.entries[i]);
 		}
 		else if(event.method=="addNewEntries")
 		{
 			var preNode=null;
 			if(this.entries.length>0)
 				preNode=this.entries[0].domNode;
-			else
-				preNode=this.pageForward;
 			for(var i=0;i<event.entries.length;i++)
-			{
-				var widget=new log4j.LogEntry({});
-				this.domNode.insertBefore(widget.domNode, preNode);
-				widget.settings=this.settings;
-				widget.expanded=this.expandCheck.getValue() ? true : false;
-				widget.stackExpanded=this.stackCheck.getValue() ? true : false;
-				widget.setValue(event.entries[i]);
-				this.entries.splice(0, 0, widget);
-			}
+				this._addEntry(i, event.entries[i]);
+
+			while(this.entries.length>this.pageSize)
+				this._removeEntry(this.entries.length-1);
 		}
 		else if(event.method=="remove")
 		{
 			for(var i=0;i<this.entries.length;i++)
 				if(this.entries[i].entry.id==event.entryID)
 				{
-					this.entries[i].remove();
-					this.entries.splice(i, 1);
+					this._removeEntry(i);
+					break;
 				}
 		}
 		else if(event.method=="checkBack")
@@ -150,34 +158,44 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 	},
 
 	clear: function(){
+		this.statusDisplay.style.display="none";
+		this.pageFirst.style.display="none";
 		this.pageBack.style.display="none";
 		this.pageForward.style.display="none";
-		for(var i=0;i<this.entries.length;i++)
-			this.entries[i].remove();
-		this.entries.length=0;
+		this.pageLast.style.display="none";
+		while(this.entries.length>0)
+			this._removeEntry(this.entries.length-1);
 	},
 
-	_showMenu: function(){
-		this.menu.style.display="inline";
-		this.menuIcon.style.display="none";
-		this._scrolled();
-		this.wrapCheck.domNode.focus();
-	},
-
-	_hideMenu: function(event){
-		if(event.target!=this.menu && event.target!=this.menuTable)
-			return;
-		this.menu.style.display="none";
-		this.menuIcon.style.display="inline";
-		this._scrolled();
+	_toggleShowMenu: function(){
+		this._menuDisplayed=this._menuDisplayed ? false : true;
+		if(this._menuDisplayed)
+		{
+			this.menu.style.display="inline";
+			this.menuIcon.src="__webContentRoot/rsrc/icons/prisms/collapseNode.png";
+			this._scrolled();
+		}
+		else
+		{
+			this.menu.style.display="none";
+			this.menuIcon.src="__webContentRoot/rsrc/icons/prisms/expandNode.png";
+		}
 	},
 
 	_scrolled: function(){
-		this.menu.style.top=(parseInt(this.domNode.scrollTop)+5)+"px"
-		this.menuIcon.style.top=(parseInt(this.domNode.scrollTop)+5)+"px"
-		var x=this.domNode.clientWidth+this.domNode.scrollLeft;
-		this.menu.style.left=(x-this.menu.clientWidth-5)+"px";
-		this.menuIcon.style.left=(x-this.menuIcon.clientWidth-5)+"px";
+		this.menuBar.style.top=this.domNode.scrollTop+"px";
+		this.menuBar.style.left=this.domNode.scrollLeft+"px";
+
+		this.menuIcon.style.left=(this.domNode.clientWidth-this.menuIcon.clientWidth-3)+"px";
+		this.menuIcon.style.top="3px";
+		this.menu.style.left=(parseInt(this.menuIcon.style.left)-this.menu.clientWidth)+"px";
+		this.menu.style.top=(parseInt(this.menuIcon.style.top)+this.menuIcon.clientHeight)+"px";
+
+		this.pageFirst.style.left="5px";
+		this.pageBack.style.left=(parseInt(this.pageFirst.style.left)+this.pageFirst.clientWidth+5)+"px";
+		this.statusDisplay.style.left=Math.round((this.domNode.clientWidth-this.statusDisplay.clientWidth)/2)+"px";
+		this.pageLast.style.left=(parseInt(this.menuIcon.style.left)-this.pageLast.clientWidth-5)+"px"
+		this.pageForward.style.left=(parseInt(this.pageLast.style.left)-this.pageForward.clientWidth-5)+"px";
 	},
 
 	_wrapChecked: function(){
@@ -196,18 +214,48 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 
 	_expandChecked: function(){
 		var expanded=this.expandCheck.getValue() ? true : false;
+		this.dupExpandCheck.setAttribute("disabled", !expanded);
+		this.dupExpandLabel.style.color=expanded ? "black" : "gray";
+		if(!expanded)
+			this.dupExpandCheck.setAttribute("checked", false);
 		for(var i=0;i<this.entries.length;i++)
 		{
 			this.entries[i].expanded=expanded;
+			if(!expanded)
+				this.entries[i].dupExpanded=false;
+			this.entries[i].render();
+		}
+	},
+
+	_dupExpandChecked: function(){
+		var expanded=this.dupExpandCheck.getValue() ? true : false;
+		for(var i=0;i<this.entries.length;i++)
+		{
+			this.entries[i].dupExpanded=expanded;
 			this.entries[i].render();
 		}
 	},
 
 	_stackChecked: function(){
 		var expanded=this.stackCheck.getValue() ? true : false;
+		this.dupStackCheck.setAttribute("disabled", !expanded);
+		this.dupStackLabel.style.color=expanded ? "black" : "gray";
+		if(!expanded)
+			this.dupStackCheck.setAttribute("checked", false);
 		for(var i=0;i<this.entries.length;i++)
 		{
 			this.entries[i].stackExpanded=expanded;
+			if(!expanded)
+				this.entries[i].dupStackExpanded=false;
+			this.entries[i].render();
+		}
+	},
+
+	_dupStackChecked: function(){
+		var expanded=this.dupStackCheck.getValue() ? true : false;
+		for(var i=0;i<this.entries.length;i++)
+		{
+			this.entries[i].dupStackExpanded=expanded;
 			this.entries[i].render();
 		}
 	},
@@ -228,6 +276,31 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 			this.entries[i].render();
 	},
 
+	_saveClicked: function(){
+		this.prisms.callApp(this.pluginName, "save", {settings: {
+			expanded: this.expandCheck.getValue() ? true : false,
+			dupExpanded: this.dupExpandCheck.getValue() ? true : false,
+			stackExpanded: this.stackCheck.getValue() ? true : false,
+			dupStackExpanded: this.dupStackCheck.getValue() ? true : false,
+			ids: this.idsCheck.getValue() ? true : false,
+			metaData: this.allMetaCheck.getValue() ? true : false
+		}});
+	},
+
+	_purgeClicked: function(){
+		this.prisms.callApp(this.pluginName, "purge");
+	},
+
+	_protectClicked: function(){
+		this.prisms.callApp(this.pluginName, "protect");
+	},
+
+	_scrollFirst: function(){
+		if(this.start==0)
+			return;
+		this.prisms.callApp(this.pluginName, "first");
+	},
+
 	_scrollBack: function(){
 		if(this.start==0)
 			return;
@@ -238,5 +311,50 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 		if(this.start+this.pageSize>=this.count)
 			return;
 		this.prisms.callApp(this.pluginName, "next");
+	},
+
+	_scrollLast: function(){
+		if(this.start+this.pageSize>=this.count)
+			return;
+		this.prisms.callApp(this.pluginName, "last");
+	},
+
+	_selected: function(entry, selected, event){
+		this.prisms.callApp(this.pluginName, "setSelected", {entry: entry.id, selected: selected});
+	},
+
+	_addEntry: function(index, entry){
+		var widget=new log4j.LogEntry({});
+		var newConn=[__dojo.connect(widget, "selectChanged", this, function(event){
+			this._selected(entry, widget.selected, event);
+		})];
+		if(index<0 || index>=this.entries.length)
+		{
+			this.domNode.appendChild(widget.domNode);
+			this.entries.push(widget);
+			this.connects.push(newConn);
+		}
+		else
+		{
+			this.domNode.insertBefore(widget.domNode, this.entries[index].domNode);
+			this.entries.splice(index, 0, widget);
+			this.connects.splice(index, 0, newConn);
+		}
+		widget.settings=this.settings;
+		widget.selectable=this.selectable;
+		widget.expanded=this.expandCheck.getValue() ? true : false;
+		widget.dupExpanded=this.dupExpandCheck.getValue() ? true : false;
+		widget.stackExpanded=this.stackCheck.getValue() ? true : false;
+		widget.dupStackExpanded=this.dupStackCheck.getValue() ? true : false;
+		widget.setValue(entry);
+		return widget;
+	},
+
+	_removeEntry: function(index){
+		for(var i=0;i<this.connects[index].length;i++)
+			__dojo.disconnect(this.connects[index][i]);
+		this.connects.splice(index, 1);
+		this.entries[index].remove();
+		this.entries.splice(index, 1);
 	}
 });

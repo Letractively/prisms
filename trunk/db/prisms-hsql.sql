@@ -133,12 +133,12 @@ CREATE TABLE prisms_log_entry (
 	logClient VARCHAR(64) NULL,
 	logUser NUMERIC(20) NULL,
 	logSession VARCHAR(16) NULL,
-	trackingData VARCHAR(256) NULL,
 	logLevel INT NOT NULL,
-	loggerName VARCHAR(128) NOT NULL,
+	loggerName VARCHAR(256) NOT NULL,
 	shortMessage VARCHAR(100) NULL,
 	messageCRC NUMERIC(14) NOT NULL,
 	stackTraceCRC NUMERIC(14) NOT NULL,
+	trackingCRC NUMERIC(14) NOT NULL,
 	logDuplicate INT NULL,
 	entrySize INT NOT NULL,
 	entrySaved TIMESTAMP NULL,
@@ -151,7 +151,7 @@ CREATE TABLE prisms_log_content (
 	logEntry INT NOT NULL,
 	indexNum INT NOT NULL,
 	content VARCHAR(1024) NOT NULL,
-	isStackTrace CHAR(1) NOT NULL,
+	contentType CHAR(1) NOT NULL,
 
 	CONSTRAINT prisms_log_msg_fk FOREIGN KEY(logEntry) REFERENCES prisms_log_entry(id) ON DELETE CASCADE
 );

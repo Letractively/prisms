@@ -809,7 +809,7 @@ public abstract class PrismsConfig
 	public static String replace(String value, PrismsEnv env)
 	{
 		if(value == null || env == null)
-			return null;
+			return value;
 		value = value.trim();
 		java.util.regex.Matcher matcher = ENV_VAR_PATTERN.matcher(value);
 		if(!matcher.find())
