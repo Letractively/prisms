@@ -26,5 +26,5 @@ __dojo.require("manager.PerformanceDisplay");
 __dojo.provide("manager.ManagerApp");
 
 __dojo.declare("manager.ManagerApp", prisms.widget.PrismsAppWidget, {
-	appHtml: "__webContentRoot/view/manager/managerApp.html",
+	appHtml: "__webContentRoot/view/manager/managerApp.html"
 });
