@@ -918,6 +918,8 @@ public class PrismsLogger implements
 			return;
 		while(!theQueueEntries.isEmpty())
 		{
+			if(isClosed || theIDGetter == null)
+				return;
 			boolean written = false;
 			LogEntry entry = theQueueEntries.poll();
 			if(!thePastEntries.isEmpty())

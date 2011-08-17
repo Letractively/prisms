@@ -3522,8 +3522,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			app.destroy();
 		getEnv().getUserSource().disconnect();
 		getEnv().getIDs().destroy();
-		getEnv().getConnectionFactory().destroy();
 		getEnv().getLogger().disconnect();
+		getEnv().getConnectionFactory().destroy();
 		System.gc();
 	}
 }
