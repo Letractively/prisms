@@ -429,16 +429,16 @@ public interface UI extends prisms.arch.AppPlugin
 					if(value != null && !(value instanceof String))
 						throw new IllegalArgumentException(
 							"Input dialog requires string return value");
-					((InputListener) listener).inputed(prisms.util.PrismsUtils
-						.decodeUnicode((String) value));
+					((InputListener) listener).inputed(value == null ? (String) value
+						: prisms.util.PrismsUtils.decodeUnicode((String) value));
 				}
 				else if(listener instanceof SelectListener)
 				{
 					if(value != null && !(value instanceof String))
 						throw new IllegalArgumentException(
 							"Select dialog requires string return value");
-					((SelectListener) listener).selected(prisms.util.PrismsUtils
-						.decodeUnicode((String) value));
+					((SelectListener) listener).selected(value == null ? (String) value
+						: prisms.util.PrismsUtils.decodeUnicode((String) value));
 				}
 				else if(listener instanceof ProgressInformer)
 					throw new IllegalArgumentException(
