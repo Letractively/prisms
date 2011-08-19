@@ -492,8 +492,14 @@ public class SAJParser
 					break;
 				case PROPERTY:
 					if(!isSeparated)
-						error("Missing separator colon after object property "
-							+ top.getPropertyName());
+					{
+						if(top.hasContent())
+							error("Missing separator comma after value of object property "
+								+ top.getPropertyName());
+						else
+							error("Missing separator colon after object property "
+								+ top.getPropertyName());
+					}
 					top.setHasContent();
 					fromTop(1).setHasContent();
 					break;
@@ -788,6 +794,16 @@ public class SAJParser
 				handler.error(this, error);
 			throw new ParseException(error, this);
 		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			for(ParseNode node : thePath)
+				ret.append(node.toString()).append('/');
+			ret.setLength(ret.length() - 1);
+			return ret.toString();
+		}
 	}
 
 	/** An exception that occurs because of invalid JSON content */
@@ -803,7 +819,7 @@ public class SAJParser
 		 */
 		public ParseException(String message, ParseState state)
 		{
-			super(message);
+			super(state.toString() + "\n" + message);
 			theState = state;
 		}
 
