@@ -6,34 +6,30 @@ package prisms.util.json;
 import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
-/**
- * Parses a JSON schema for validation
- */
+/** Parses a JSON schema for validation */
 public class JsonSchemaParser
 {
-	/**
-	 * Used by the JSON schema API for logging
-	 */
+	/** Used by the JSON schema API for logging */
 	public static final Logger log = Logger.getLogger(JsonSchemaParser.class);
 
-	private static final org.json.simple.parser.JSONParser theParser;
-
-	static
-	{
-		theParser = new org.json.simple.parser.JSONParser();
-	}
+	private final SAJParser theParser;
 
 	private java.util.Map<String, String> theSchemaRoots;
 
 	private java.util.Map<String, JSONObject> theStoredSchemas;
 
-	/**
-	 * Creates a schema parser
-	 */
+	/** Creates a schema parser */
 	public JsonSchemaParser()
 	{
 		theSchemaRoots = new java.util.HashMap<String, String>();
 		theStoredSchemas = new java.util.HashMap<String, JSONObject>();
+		theParser = new SAJParser();
+	}
+
+	/** @return The JSON parser that parses schema files for this schema parser */
+	public SAJParser getParser()
+	{
+		return theParser;
 	}
 
 	/**
@@ -151,7 +147,7 @@ public class JsonSchemaParser
 	 * @param schemaRoot The URL to a file in the schema
 	 * @return The parsed file
 	 */
-	public static JsonElement parseSchema(String schemaName, java.net.URL schemaRoot)
+	public JsonElement parseSchema(String schemaName, java.net.URL schemaRoot)
 	{
 		JsonSchemaParser parser = new JsonSchemaParser();
 		String jsonLoc = schemaRoot.toString();
@@ -170,7 +166,7 @@ public class JsonSchemaParser
 	 * @param url The URL to get the JSON from
 	 * @return The parsed JSON
 	 */
-	public static Object parseJSON(java.net.URL url)
+	public Object parseJSON(java.net.URL url)
 	{
 		String json;
 		java.io.Reader reader = null;
@@ -254,8 +250,9 @@ public class JsonSchemaParser
 		JSONObject schema;
 		try
 		{
-			schema = (JSONObject) theParser.parse(new java.io.StringReader(json));
-		} catch(Exception e)
+			schema = (JSONObject) theParser.parse(new java.io.StringReader(json),
+				new SAJParser.DefaultHandler());
+		} catch(Throwable e)
 		{
 			throw new IllegalStateException("Could not parse JSON at " + url + ":\n" + json, e);
 		}
