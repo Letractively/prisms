@@ -135,6 +135,11 @@ public class CenterInspector implements prisms.arch.event.DataInspector
 		return null;
 	}
 
+	public ItemMetadata getMetadata(NodeController node)
+	{
+		return null;
+	}
+
 	public Object [] getChildren(NodeController node)
 	{
 		return new Object [0];
