@@ -1051,7 +1051,7 @@ public abstract class Search implements Cloneable
 	public static class ExpressionSearch extends CompoundSearch
 	{
 		/** The type of this search */
-		public static final SearchType type = new BaseSearchType("NOT");
+		public static final SearchType type = new BaseSearchType("EXPR");
 
 		private Search [] theOperands;
 
@@ -1198,6 +1198,7 @@ public abstract class Search implements Cloneable
 						if(op instanceof CompoundSearch)
 							((CompoundSearch) op).setParent(this);
 					o += exp.theOperands.length - 1;
+					theOperands = newOps;
 				}
 			}
 		}
@@ -1231,9 +1232,9 @@ public abstract class Search implements Cloneable
 			ExpressionSearch ret = (ExpressionSearch) super.clone();
 			for(int o = 0; o < theOperands.length; o++)
 			{
-				theOperands[o] = theOperands[o].clone();
-				if(theOperands[o] instanceof CompoundSearch)
-					((CompoundSearch) theOperands[o]).setParent(ret);
+				ret.theOperands[o] = theOperands[o].clone();
+				if(ret.theOperands[o] instanceof CompoundSearch)
+					((CompoundSearch) ret.theOperands[o]).setParent(ret);
 			}
 			return ret;
 		}
@@ -1315,6 +1316,7 @@ public abstract class Search implements Cloneable
 			Search current = null;
 			while(sb.length() > 0)
 			{
+				boolean not = false;
 				if(sb.length() > 1 && lower(sb.charAt(0)) == 'o' && lower(sb.charAt(1)) == 'r')
 				{ // OR operator
 					sb.delete(0, 2);
@@ -1334,7 +1336,7 @@ public abstract class Search implements Cloneable
 				{
 					sb.delete(0, 1);
 					trim(sb);
-					current = not();
+					not = true;
 				}
 
 				Search next;
@@ -1349,12 +1351,16 @@ public abstract class Search implements Cloneable
 				}
 				else
 					next = parseNext(sb);
+				if(not)
+				{
+					NotSearch notS = not();
+					notS.setOperand(next);
+					next = notS;
+				}
 
 				if(current instanceof ExpressionSearch
 					&& ((ExpressionSearch) current).getOperandCount() == 1)
 					((ExpressionSearch) current).add(next);
-				else if(current instanceof NotSearch && ((NotSearch) current).getOperand() != null)
-					((NotSearch) current).setOperand(next);
 				else if(current != null)
 				{
 					ExpressionSearch exp = exp(true);

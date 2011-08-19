@@ -70,6 +70,7 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 			this.selectable=event.selectable;
 			PrismsUtils.setTableRowVisible(this.purgeRow, this.selectable);
 			PrismsUtils.setTableRowVisible(this.protectRow, this.selectable);
+			PrismsUtils.setTableRowVisible(this.selectAllRow, this.selectable);
 		}
 		else if(event.method=="setCount")
 		{
@@ -295,6 +296,10 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 		this.prisms.callApp(this.pluginName, "protect");
 	},
 
+	_selectAllClicked: function(){
+		this.prisms.callApp(this.pluginName, "selectAll");
+	},
+
 	_scrollFirst: function(){
 		if(this.start==0)
 			return;
@@ -326,7 +331,7 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 	_addEntry: function(index, entry){
 		var widget=new log4j.LogEntry({});
 		var newConn=[__dojo.connect(widget, "selectChanged", this, function(event){
-			this._selected(entry, widget.selected, event);
+			this._selected(entry, entry.selected, event);
 		})];
 		if(index<0 || index>=this.entries.length)
 		{

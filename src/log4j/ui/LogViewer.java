@@ -136,11 +136,6 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 	{
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
-		evt.put("method", "clear");
-		theSession.postOutgoingEvent(evt);
-
-		evt = new JSONObject();
-		evt.put("plugin", theName);
 		evt.put("method", "setSelectable");
 		evt.put("selectable", Boolean.valueOf(theSession.getPermissions().has("Edit Purge")));
 		theSession.postOutgoingEvent(evt);
@@ -206,7 +201,17 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 				theSelected.add(id);
 			else
 				theSelected.removeValue(id);
-			System.out.println("Selected=" + theSelected);
+		}
+		else if("selectAll".equals(evt.get("method")))
+		{
+			if(!theSession.getPermissions().has("Edit Purge"))
+				throw new IllegalArgumentException(
+					"You do not have permission to select entries for anything");
+			if(theSnapshot == null)
+				return;
+			theSelected.clear();
+			theSelected.addAll(theSnapshot, -1);
+			resend();
 		}
 		else if("purge".equals(evt.get("method")))
 		{
@@ -219,13 +224,17 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 			}
 			final prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment()
 				.getLogger();
+			prisms.ui.UI.DefaultProgressInformer pi = new prisms.ui.UI.DefaultProgressInformer();
+			pi.setProgressText("Checking entries");
+			theSession.getUI().startTimedTask(pi);
 			String [] loggers = null;
 			try
 			{
 				LogEntry [] entries = logger.getItems(theSelected.toLongArray());
 				prisms.logging.AutoPurger purger = logger.getAutoPurger();
 				for(LogEntry entry : entries)
-					if(ArrayUtils.contains(purger.getExcludeLoggers(), entry.getLoggerName())
+					if(entry != null
+						&& ArrayUtils.contains(purger.getExcludeLoggers(), entry.getLoggerName())
 						&& !ArrayUtils.contains(loggers, entry.getLoggerName()))
 						loggers = ArrayUtils.add(loggers, entry.getLoggerName());
 
@@ -235,6 +244,9 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 					"Could not check entries against auto-purge: " + e.getMessage());
 				log.error("Could not fetch entries", e);
 				return;
+			} finally
+			{
+				pi.setDone();
 			}
 			if(loggers != null)
 			{
@@ -280,6 +292,9 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 				theSession.getUI().error("No entries selected");
 				return;
 			}
+			prisms.ui.UI.DefaultProgressInformer pi = new prisms.ui.UI.DefaultProgressInformer();
+			pi.setProgressText("Checking entries");
+			theSession.getUI().startTimedTask(pi);
 			final prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment()
 				.getLogger();
 			String [] loggers = null;
@@ -298,6 +313,9 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 					"Could not check entries against auto-purge: " + e.getMessage());
 				log.error("Could not fetch entries", e);
 				return;
+			} finally
+			{
+				pi.setDone();
 			}
 			if(loggers != null)
 			{
@@ -434,7 +452,7 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 				checkSearch = new prisms.logging.LogEntrySearch.LogTimeSearch(Search.Operator.GTE,
 					null);
 			else
-				checkSearch = new Search.ExpressionSearch(true).addOps(search,
+				checkSearch = new Search.ExpressionSearch(true).addOps(search.clone(),
 					new prisms.logging.LogEntrySearch.LogTimeSearch(Search.Operator.GTE, null));
 			try
 			{

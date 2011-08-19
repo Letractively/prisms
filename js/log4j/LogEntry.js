@@ -275,7 +275,12 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		return ret;
 	},
 
-	_toggleExpand: function(){
+	_toggleExpand: function(event){
+		if(this._selectJustClicked)
+		{
+			delete this["_selectJustClicked"];
+			return;
+		}
 		this.expanded=!this.expanded;
 		this.dupExpanded=this.expanded;
 		this.render();
@@ -288,7 +293,8 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 	},
 
 	_selectClicked: function(event){
-		this.entry.selected=this.entry.selected ? false : true;
+		this.entry.selected=this.selectCheck.getValue() ? true : false;
+		this._selectJustClicked=true;
 		this.render();
 		this.selectChanged(event);
 	},

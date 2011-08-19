@@ -37,14 +37,14 @@ public abstract class LogEntrySearch extends Search
 		app("app:") {
 			public LogAppSearch create(String search, SearchBuilder builder)
 			{
-				return new LogAppSearch(search, false);
+				return new LogAppSearch(search, true);
 			}
 		},
 		/** Searches on the client configuration from which a log entry was made */
 		client("client:") {
 			public LogClientSearch create(String search, SearchBuilder builder)
 			{
-				return new LogClientSearch(search, false);
+				return new LogClientSearch(search, true);
 			}
 		},
 		/** Searches on the user of the session that created this log entry */
@@ -53,38 +53,41 @@ public abstract class LogEntrySearch extends Search
 			{
 				LogEntrySearchBuilder logSB = (LogEntrySearchBuilder) builder;
 				String userName = clean(search);
-				prisms.arch.ds.UserSource users = logSB.getEnv().getUserSource();
 				User ret = null;
-				try
+				if(!search.equalsIgnoreCase("none"))
 				{
-					ret = users.getUser(userName);
-					if(ret == null && users instanceof prisms.arch.ds.ManageableUserSource)
+					prisms.arch.ds.UserSource users = logSB.getEnv().getUserSource();
+					try
 					{
-						long localCenter = logSB.getEnv().getIDs().getCenterID();
-						User [] allUsers = ((prisms.arch.ds.ManageableUserSource) users)
-							.getAllUsers();
-						for(User u : allUsers)
-							if(prisms.arch.ds.IDGenerator.getCenterID(u.getID()) == localCenter
-								&& u.getName().equals(userName))
-							{
-								ret = u;
-								break;
-							}
+						ret = users.getUser(userName);
+						if(ret == null && users instanceof prisms.arch.ds.ManageableUserSource)
+						{
+							long localCenter = logSB.getEnv().getIDs().getCenterID();
+							User [] allUsers = ((prisms.arch.ds.ManageableUserSource) users)
+								.getAllUsers();
+							for(User u : allUsers)
+								if(prisms.arch.ds.IDGenerator.getCenterID(u.getID()) == localCenter
+									&& u.getName().equals(userName))
+								{
+									ret = u;
+									break;
+								}
+						}
+					} catch(prisms.arch.PrismsException e)
+					{
+						throw new IllegalStateException("Could not get user " + userName, e);
 					}
-				} catch(prisms.arch.PrismsException e)
-				{
-					throw new IllegalStateException("Could not get user " + userName, e);
+					if(ret == null)
+						throw new IllegalArgumentException("No such user: " + userName);
 				}
-				if(ret == null)
-					throw new IllegalArgumentException("No such user: " + userName);
-				return new LogUserSearch(ret, false);
+				return new LogUserSearch(ret, true);
 			}
 		},
 		/** Searches on the session from which a log entry was made */
 		session("session:") {
 			public LogSessionSearch create(String search, SearchBuilder builder)
 			{
-				return new LogSessionSearch(search, false);
+				return new LogSessionSearch(search, true);
 			}
 		},
 		/** Searches on the severity level of a log entry */
@@ -116,10 +119,24 @@ public abstract class LogEntrySearch extends Search
 			}
 		},
 		/** Searches for log entries that are duplicates of a different entry */
-		duplicate() {
+		duplicate("duplicate:") {
 			public LogDuplicateSearch create(String search, SearchBuilder builder)
 			{
-				throw new IllegalArgumentException("Cannot create a duplicate search like this");
+				search = clean(search);
+				Integer dupID;
+				if(search.equalsIgnoreCase("none"))
+					dupID = null;
+				else
+					try
+					{
+						dupID = Integer.valueOf(search, 16);
+					} catch(NumberFormatException e)
+					{
+						throw new IllegalArgumentException(
+							"Duplicate IDs must be specified in hexadecimal. " + search
+								+ " is invalid.");
+					}
+				return new LogDuplicateSearch(dupID, true);
 			}
 		};
 
@@ -217,10 +234,18 @@ public abstract class LogEntrySearch extends Search
 		/** The search string that this log entries search is for */
 		public final String search;
 
-		/** @param srch The string to search for, or the entire search query (with header prefix) */
-		protected StringSearch(String srch)
+		/**
+		 * @param srch The string to search for, or the entire search query (with header prefix)
+		 * @param nullable Whether the user can specify "none" to set this search's text to null
+		 */
+		protected StringSearch(String srch, boolean nullable)
 		{
-			search = getType().clean(srch);
+			srch = getType().clean(srch);
+			if(nullable && srch.equalsIgnoreCase("none"))
+				search = null;
+			else
+				search = getType().clean(srch);
+
 		}
 
 		@Override
@@ -309,7 +334,7 @@ public abstract class LogEntrySearch extends Search
 		/** @param aLocation The instance location to search for. May be null for a prepared search. */
 		public InstanceSearch(String aLocation)
 		{
-			super(aLocation);
+			super(aLocation, false);
 		}
 
 		@Override
@@ -397,8 +422,8 @@ public abstract class LogEntrySearch extends Search
 		 */
 		public LogAppSearch(String appName, boolean _null)
 		{
-			super(appName);
-			isNull = _null;
+			super(appName, true);
+			isNull = _null && search == null;
 		}
 
 		/**
@@ -427,7 +452,7 @@ public abstract class LogEntrySearch extends Search
 	public static class LogClientSearch extends StringSearch
 	{
 		/** The type of this search */
-		public static final LogEntrySearchType type = LogEntrySearchType.app;
+		public static final LogEntrySearchType type = LogEntrySearchType.client;
 
 		private final boolean isNull;
 
@@ -438,8 +463,8 @@ public abstract class LogEntrySearch extends Search
 		 */
 		public LogClientSearch(String clientName, boolean _null)
 		{
-			super(clientName);
-			isNull = _null;
+			super(clientName, true);
+			isNull = _null && search == null;
 		}
 
 		/**
@@ -482,7 +507,7 @@ public abstract class LogEntrySearch extends Search
 		public LogUserSearch(User user, boolean _null)
 		{
 			theUser = user;
-			isNull = _null;
+			isNull = _null && user == null;
 		}
 
 		/** @return The user to search for changes by. May be null for a prepared search. */
@@ -539,8 +564,8 @@ public abstract class LogEntrySearch extends Search
 		 */
 		public LogSessionSearch(String sessionID, boolean _null)
 		{
-			super(sessionID);
-			isNull = _null;
+			super(sessionID, true);
+			isNull = _null && search == null;
 		}
 
 		/**
@@ -587,7 +612,7 @@ public abstract class LogEntrySearch extends Search
 			srch = type.clean(srch);
 			StringBuilder sb = new StringBuilder(srch);
 			operator = Operator.parse(sb, srch);
-			level = org.apache.log4j.Level.toLevel(srch, null);
+			level = org.apache.log4j.Level.toLevel(sb.toString().toUpperCase(), null);
 			if(level == null)
 				throw new IllegalArgumentException("Unrecognized Log4j level: " + srch);
 		}
@@ -633,7 +658,7 @@ public abstract class LogEntrySearch extends Search
 		/** @param loggerName The name of the logger to search for */
 		public LoggerNameSearch(String loggerName)
 		{
-			super(loggerName);
+			super(loggerName, false);
 		}
 
 		@Override
@@ -658,7 +683,7 @@ public abstract class LogEntrySearch extends Search
 		/** @param srch The string to search for in the log content */
 		public LogContentSearch(String srch)
 		{
-			super(srch);
+			super(srch, false);
 		}
 
 		@Override
@@ -683,7 +708,7 @@ public abstract class LogEntrySearch extends Search
 		/** @param srch The string to search for in the log stack trace */
 		public LogStackTraceSearch(String srch)
 		{
-			super(srch);
+			super(srch, false);
 		}
 
 		@Override
@@ -718,7 +743,7 @@ public abstract class LogEntrySearch extends Search
 		public LogDuplicateSearch(Integer duplicateID, boolean _null)
 		{
 			theDuplicateID = duplicateID;
-			isNull = _null;
+			isNull = _null && theDuplicateID == null;
 		}
 
 		/** @return The ID of the entry to search duplicates for. May be null. */
@@ -745,7 +770,8 @@ public abstract class LogEntrySearch extends Search
 		@Override
 		public String toString()
 		{
-			return "duplicateOf:" + theDuplicateID;
+			return "duplicate:"
+				+ (theDuplicateID == null ? "none" : Integer.toHexString(theDuplicateID.intValue()));
 		}
 
 		@Override

@@ -1495,49 +1495,56 @@ public class PrismsLogger implements
 		prisms.util.DBUtils.KeyExpression key = DBUtils.simplifyKeySet(ids, 50);
 		if(key == null)
 			return new LogEntry [0];
-		String sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_log_entry WHERE "
-			+ key.toSQL("id");
+		String sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_log_entry WHERE ";
 		Statement stmt = null;
 		ResultSet rs = null;
 		LogEntry [] entries;
+		ProgramTracker.TrackNode track = PrismsUtils.track(theEnv, "Get Log Entries");
 		try
 		{
 			java.util.ArrayList<LogEntry> ret = new java.util.ArrayList<LogEntry>();
 			stmt = theTransactor.getConnection().createStatement();
-			rs = stmt.executeQuery(sql);
-			while(rs.next())
+			ProgramTracker.TrackNode track2 = PrismsUtils.track(theEnv, "Get Entry Headers");
+			try
 			{
-				LogEntry entry = new LogEntry();
-				entry.setID(rs.getInt("id"));
-				entry.setInstanceLocation(rs.getString("logInstance"));
-				entry.setLogTime(rs.getTimestamp("logTime").getTime());
-				entry.setApp(rs.getString("logApp"));
-				entry.setClient(rs.getString("logClient"));
-				Number userID = (Number) rs.getObject("logUser");
-				if(userID != null)
-					try
-					{
-						entry.setUser(theEnv.getUserSource().getUser(userID.longValue()));
-					} catch(PrismsException e)
-					{
-						throw new PrismsException("Could not get user for log entry", e);
-					}
-				entry.setSessionID(rs.getString("logSession"));
-				entry.setLevel(org.apache.log4j.Level.toLevel(rs.getInt("logLevel")));
-				entry.setLoggerName(rs.getString("loggerName"));
-				entry.setMessage(rs.getString("shortMessage"));
-				Number dup = (Number) rs.getObject("logDuplicate");
-				if(dup == null)
-					entry.setDuplicateRef(-1);
-				else
-					entry.setDuplicateRef(dup.intValue());
-				java.sql.Timestamp time = rs.getTimestamp("entrySaved");
-				if(time != null)
-					entry.setSaveTime(time.getTime());
-				ret.add(entry);
+				rs = DBUtils.executeQuery(stmt, sql, key, "", "id", 90);
+				while(rs.next())
+				{
+					LogEntry entry = new LogEntry();
+					entry.setID(rs.getInt("id"));
+					entry.setInstanceLocation(rs.getString("logInstance"));
+					entry.setLogTime(rs.getTimestamp("logTime").getTime());
+					entry.setApp(rs.getString("logApp"));
+					entry.setClient(rs.getString("logClient"));
+					Number userID = (Number) rs.getObject("logUser");
+					if(userID != null)
+						try
+						{
+							entry.setUser(theEnv.getUserSource().getUser(userID.longValue()));
+						} catch(PrismsException e)
+						{
+							throw new PrismsException("Could not get user for log entry", e);
+						}
+					entry.setSessionID(rs.getString("logSession"));
+					entry.setLevel(org.apache.log4j.Level.toLevel(rs.getInt("logLevel")));
+					entry.setLoggerName(rs.getString("loggerName"));
+					entry.setMessage(rs.getString("shortMessage"));
+					Number dup = (Number) rs.getObject("logDuplicate");
+					if(dup == null)
+						entry.setDuplicateRef(-1);
+					else
+						entry.setDuplicateRef(dup.intValue());
+					java.sql.Timestamp time = rs.getTimestamp("entrySaved");
+					if(time != null)
+						entry.setSaveTime(time.getTime());
+					ret.add(entry);
+				}
+				rs.close();
+				rs = null;
+			} finally
+			{
+				PrismsUtils.end(theEnv, track2);
 			}
-			rs.close();
-			rs = null;
 
 			// Sort the entries in the order of the IDs given
 			Long [] idObjs = new Long [ids.length];
@@ -1578,38 +1585,44 @@ public class PrismsLogger implements
 			for(int i = 0; i < ids.length; i++)
 				if(entries[i] != null && entries[i].getDuplicateRef() >= 0)
 					newIDs[i] = entries[i].getDuplicateRef();
-			key = DBUtils.simplifyKeySet(ids, 50);
+			key = DBUtils.simplifyKeySet(newIDs, 50);
 
 			// Now get the content (message and stack trace)
 			HashMap<Integer, StringBuilder> messages = new HashMap<Integer, StringBuilder>();
 			HashMap<Integer, StringBuilder> stacks = new HashMap<Integer, StringBuilder>();
 			HashMap<Integer, StringBuilder> tracking = new HashMap<Integer, StringBuilder>();
-			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_log_content WHERE "
-				+ key.toSQL("logEntry") + " ORDER BY indexNum";
-			rs = stmt.executeQuery(sql);
-			while(rs.next())
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_log_content WHERE ";
+			track2 = PrismsUtils.track(theEnv, "Get Log Content");
+			try
 			{
-				Integer logEntry = Integer.valueOf(rs.getInt("logEntry"));
-				HashMap<Integer, StringBuilder> map;
-				char type = rs.getString("contentType").charAt(0);
-				if(type == 'M' || type == 'm')
-					map = messages;
-				else if(type == 'S' || type == 's')
-					map = stacks;
-				else
-					map = tracking;
-				StringBuilder sb = map.get(logEntry);
-				if(sb == null)
+				rs = DBUtils.executeQuery(stmt, sql, key, "ORDER BY indexNum", "logEntry", 90);
+				while(rs.next())
 				{
-					sb = new StringBuilder(rs.getString("content"));
-					map.put(logEntry, sb);
+					Integer logEntry = Integer.valueOf(rs.getInt("logEntry"));
+					HashMap<Integer, StringBuilder> map;
+					char type = rs.getString("contentType").charAt(0);
+					if(type == 'M' || type == 'm')
+						map = messages;
+					else if(type == 'S' || type == 's')
+						map = stacks;
+					else
+						map = tracking;
+					StringBuilder sb = map.get(logEntry);
+					if(sb == null)
+					{
+						sb = new StringBuilder(rs.getString("content"));
+						map.put(logEntry, sb);
+					}
+					else
+						sb.append(rs.getString("content").substring(
+							sb.length() - rs.getInt("indexNum")));
 				}
-				else
-					sb.append(rs.getString("content")
-						.substring(sb.length() - rs.getInt("indexNum")));
+				rs.close();
+				rs = null;
+			} finally
+			{
+				PrismsUtils.end(theEnv, track2);
 			}
-			rs.close();
-			rs = null;
 
 			for(LogEntry entry : entries)
 			{
@@ -1648,6 +1661,7 @@ public class PrismsLogger implements
 				{
 					log.error("Connection error: " + e);
 				}
+			PrismsUtils.end(theEnv, track);
 		}
 		return entries;
 	}
