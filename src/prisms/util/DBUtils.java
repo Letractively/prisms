@@ -959,7 +959,7 @@ public class DBUtils
 	 * Performs a database query using a very complex key. This call works even on databases that do
 	 * not support operations of the given key's complexity, as long as the key can be broken down
 	 * into separate queries that merge to the same result. ORDER BY clauses are not supported by
-	 * this method.
+	 * this method except that for each ID the results will be ordered.
 	 * 
 	 * @param stmt The statement to use to query the data
 	 * @param preSQL The SQL statement querying the data. It should end have a where clause at its
