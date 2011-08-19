@@ -562,7 +562,12 @@ public class PrismsEnv implements prisms.util.Sealable
 		while(iter.hasNext())
 		{
 			PrismsTransaction trans = iter.next();
-			if(trans.getThread() == null || !trans.getThread().isAlive())
+			if(trans == null)
+				continue;
+			Thread thread = trans.getThread();
+			if(thread == null)
+				continue;
+			if(!thread.isAlive())
 			{
 				if(!trans.isFinished())
 					trans.clear();

@@ -1,6 +1,11 @@
 
 __dojo.provide("prisms.widget.FillPane");
 __dojo.declare("prisms.widget.FillPane", [dijit.layout._LayoutWidget, dijit._Contained], {
+	postCreate: function(){
+		this.inherited(arguments);
+		__dojo.connect(window, "onresize", this, this.resize);
+	},
+
 	resize: function(){
 		if(!this.getParent() || typeof this.getParent().getChildren!="function")
 			return;
