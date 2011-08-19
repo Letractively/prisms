@@ -688,7 +688,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		{
 			for(ServiceTreeNode pn : getChildren())
 				if(pn instanceof PropertyNode)
-					((PropertyNode) pn).runEvents();
+					((PropertyNode) pn).checkPeriodic();
 			if(getParent() == null)
 				return;
 			theText = getSessionText();
@@ -1018,6 +1018,14 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			destroy();
 		}
 
+		void checkPeriodic()
+		{
+			runEvents();
+			for(ServiceTreeNode node : getChildren())
+				if(node instanceof AbstractValueNode)
+					((AbstractValueNode) node).checkPeriodic();
+		}
+
 		synchronized void runEvents()
 		{
 			java.util.Iterator<Runnable> iter = theEventQueue.iterator();
@@ -1284,6 +1292,12 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		public String getDescription()
 		{
 			return null;
+		}
+
+		void checkPeriodic()
+		{
+			for(AbstractValueNode node : getChildren())
+				node.checkPeriodic();
 		}
 
 		abstract boolean valueChanged(Object item, boolean recursive);
@@ -1613,6 +1627,19 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 						children.length);
 				}
 			}
+		}
+
+		@Override
+		void checkPeriodic()
+		{
+			if(theInspector != null)
+			{
+				prisms.arch.event.DataInspector.ItemMetadata md = theInspector
+					.getMetadata(theController);
+				if(md != null && md.isVolatile())
+					changed(false);
+			}
+			super.checkPeriodic();
 		}
 
 		/* Overridden to avoid synthetic access from inner classes */

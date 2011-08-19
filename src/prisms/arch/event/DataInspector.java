@@ -76,6 +76,30 @@ public interface DataInspector
 		void unload(InspectSession session);
 	}
 
+	/** Contains metadata that may help determine the behavior of a node */
+	public static class ItemMetadata
+	{
+		private boolean isVolatile;
+
+		/**
+		 * @return Whether the node's representation changes over time without any events to herald
+		 *         the change.
+		 */
+		public boolean isVolatile()
+		{
+			return isVolatile;
+		}
+
+		/**
+		 * @param vol Whether this node's representation in the client should be refreshed
+		 *        periodically.
+		 */
+		public void setVolatile(boolean vol)
+		{
+			isVolatile = vol;
+		}
+	}
+
 	/**
 	 * Configures the inspector
 	 * 
@@ -201,6 +225,12 @@ public interface DataInspector
 	 * @return The action label to display allowing a user to hide the child data of a value
 	 */
 	String getHideLabel(InspectSession session, NodeController node);
+
+	/**
+	 * @param node The controller of the node to get the information for
+	 * @return The metadata describing this node, or null for default
+	 */
+	ItemMetadata getMetadata(NodeController node);
 
 	/**
 	 * Gets items that may be represented under a property value or part thereof as children
