@@ -1627,12 +1627,13 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				afterCell.setLabel(afterValue == null ? "none" : (String) afterValue);
 				return;
 			case serverCerts:
-				beforeCell.setLabel(mod.previousValue == null ? "none"
-					: prisms.ui.CertificateSerializer.getCertSubjectName(
-						((java.security.cert.X509Certificate[]) mod.previousValue)[0], false));
-				afterCell.setLabel(afterValue == null ? "none" : prisms.ui.CertificateSerializer
-					.getCertSubjectName(((java.security.cert.X509Certificate[]) afterValue)[0],
-						false));
+				java.security.cert.X509Certificate[] cert;
+				cert = (java.security.cert.X509Certificate[]) mod.previousValue;
+				beforeCell.setLabel(cert == null || cert.length == 0 ? "none"
+					: prisms.ui.CertificateSerializer.getCertSubjectName(cert[0], false));
+				cert = (java.security.cert.X509Certificate[]) afterValue;
+				afterCell.setLabel(cert == null || cert.length == 0 ? "none"
+					: prisms.ui.CertificateSerializer.getCertSubjectName(cert[0], false));
 				return;
 			case serverPassword:
 				beforeCell.setLabel(mod.previousValue == null ? "none"

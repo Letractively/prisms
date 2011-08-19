@@ -2476,10 +2476,16 @@ public class PrismsSynchronizer
 			tempFile = new java.io.File(fileName);
 			if(!tempFile.exists())
 			{
-				if(tempFile.createNewFile())
-					reader = new prisms.util.LoggingReader(reader, tempFile);
-				else
+				try
+				{
+					if(tempFile.createNewFile())
+						reader = new prisms.util.LoggingReader(reader, tempFile);
+					else
+						tempFile = null;
+				} catch(IOException e)
+				{
 					tempFile = null;
+				}
 			}
 		}
 		boolean closed = false;

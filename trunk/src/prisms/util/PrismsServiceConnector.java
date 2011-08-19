@@ -347,6 +347,12 @@ public class PrismsServiceConnector
 		}
 	}
 
+	/** @return The user name that this connector is using to log into the service */
+	public String getUserName()
+	{
+		return theUserName;
+	}
+
 	/**
 	 * @return The worker that this connector uses for asynchronous requests. It is an instance of
 	 *         {@link prisms.impl.ThreadPoolWorker} by default

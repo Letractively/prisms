@@ -1012,7 +1012,7 @@ public class DBRecordKeeper implements RecordKeeper
 						else
 							for(int c = 0; c < dbCenter.getServerPassword().length(); c++)
 								msg.append('*');
-						changeMsg += " to ";
+						msg.append(" to ");
 						if(center.getServerPassword() == null)
 							msg.append("null");
 						else
@@ -2320,12 +2320,11 @@ public class DBRecordKeeper implements RecordKeeper
 			for(int i = 0; i < exprs.length; i++)
 			{
 				String sql = "SELECT * FROM " + theTransactor.getTablePrefix()
-					+ "prisms_change_record WHERE recordNS=" + toSQL(theNamespace) + " AND "
-					+ exprs[i].toSQL("id");
+					+ "prisms_change_record WHERE recordNS=" + toSQL(theNamespace) + " AND ";
 				ResultSet rs = null;
 				try
 				{
-					rs = stmt.executeQuery(sql);
+					rs = DBUtils.executeQuery(stmt, sql, expr, "", "id", 90);
 					while(rs.next())
 					{
 						ChangeTemplate template = getChangeTemplate(rs);
