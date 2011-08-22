@@ -25,6 +25,10 @@ public abstract class ServiceTreeNode extends prisms.ui.tree.AbstractSimpleTreeN
 
 	private TreeClient [] theLoadedAllClients;
 
+	private boolean isInvisible;
+
+	private TreeClient [] theVisibleClients;
+
 	/**
 	 * Creates a service tree node
 	 * 
@@ -163,6 +167,102 @@ public abstract class ServiceTreeNode extends prisms.ui.tree.AbstractSimpleTreeN
 		if(unloadAction != null)
 			ret.put("unloadAction", unloadAction);
 		return ret;
+	}
+
+	/**
+	 * Makes this node visible or invisible to clients by default. If inivisible, clients have to be
+	 * added via {@link #addVisibleClient(TreeClient)} specifically to view this node.
+	 * 
+	 * @param invisible Whether this node should be invisible to clients by default
+	 */
+	public void setInvisible(boolean invisible)
+	{
+		if(isInvisible == invisible)
+			return;
+		isInvisible = invisible;
+		if(isInvisible)
+		{
+			for(TreeClient client : theClients)
+				if(getParent().isVisible(client))
+					client.addEvent(new prisms.ui.tree.DataTreeEvent(
+						prisms.ui.tree.DataTreeEvent.Type.REMOVE, this));
+			theVisibleClients = new TreeClient [0];
+		}
+		else
+		{
+			for(TreeClient client : theClients)
+				if(getParent().isVisible(client) && !ArrayUtils.contains(theVisibleClients, client))
+				{
+					int index = 0;
+					for(int i = 0; i < getParent().getChildren().length; i++)
+					{
+						ServiceTreeNode ch = getParent().getChildren()[i];
+						if(ch == this)
+							break;
+						else if(!ch.isInvisible
+							|| ArrayUtils.contains(ch.theVisibleClients, client))
+							index++;
+					}
+					client.addEvent(new prisms.ui.tree.DataTreeEvent(
+						prisms.ui.tree.DataTreeEvent.Type.ADD, this, index));
+				}
+			theVisibleClients = null;
+		}
+	}
+
+	/** @return Whether this node is invisible to clients by default */
+	public boolean isInvisible()
+	{
+		return isInvisible;
+	}
+
+	/** @param client The client to allow to see this node */
+	public void addVisibleClient(TreeClient client)
+	{
+		if(!isInvisible || ArrayUtils.contains(theVisibleClients, client))
+			return;
+		theVisibleClients = ArrayUtils.add(theVisibleClients, client);
+		if(!getParent().isVisible(client))
+			return;
+		int index = 0;
+		for(int i = 0; i < getParent().getChildren().length; i++)
+		{
+			ServiceTreeNode ch = getParent().getChildren()[i];
+			if(ch == this)
+				break;
+			else if(!ch.isInvisible || ArrayUtils.contains(ch.theVisibleClients, client))
+				index++;
+		}
+		client.addEvent(new prisms.ui.tree.DataTreeEvent(prisms.ui.tree.DataTreeEvent.Type.ADD,
+			this, index));
+	}
+
+	/** @param client The client to make this node invisible to */
+	public void removeVisibleClient(TreeClient client)
+	{
+		if(!isInvisible || !ArrayUtils.contains(theVisibleClients, client))
+			return;
+		client.addEvent(new prisms.ui.tree.DataTreeEvent(prisms.ui.tree.DataTreeEvent.Type.REMOVE,
+			this));
+		theVisibleClients = ArrayUtils.remove(theVisibleClients, client);
+	}
+
+	/**
+	 * @param client The client to check
+	 * @return Whether the given client can see this node
+	 */
+	public final boolean isVisible(TreeClient client)
+	{
+		if(isInvisible && !ArrayUtils.contains(theVisibleClients, client))
+			return false;
+		ServiceTreeNode parent = (ServiceTreeNode) theParent;
+		while(parent != null)
+		{
+			if(parent.isInvisible && !ArrayUtils.contains(parent.theVisibleClients, client))
+				return false;
+			parent = (ServiceTreeNode) parent.theParent;
+		}
+		return true;
 	}
 
 	/**

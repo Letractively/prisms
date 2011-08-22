@@ -220,14 +220,18 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		private prisms.arch.PrismsApplication.SessionWatcher theWatcher;
 
+		private InstancesNode theInstancesNode;
+
 		AppNode(AppSessionRoot root, PrismsApplication app)
 		{
 			super(AppSessionServerTree.this, "app/" + app.getName(), root, true);
 			theApp = app;
 
-			ServiceTreeNode [] newChildren = new ServiceTreeNode [app.getClients().length];
-			for(int c = 0; c < newChildren.length; c++)
-				newChildren[c] = new ClientNode(this, app.getClients()[c]);
+			theInstancesNode = new InstancesNode(this);
+			ServiceTreeNode [] newChildren = new ServiceTreeNode [app.getClients().length + 1];
+			newChildren[0] = theInstancesNode;
+			for(int c = 0; c < app.getClients().length; c++)
+				newChildren[c + 1] = new ClientNode(this, app.getClients()[c]);
 			setChildren(newChildren);
 		}
 
@@ -260,6 +264,38 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		public Color getForeground()
 		{
 			return Color.black;
+		}
+
+		@Override
+		public NodeAction [] getActions(TreeClient client)
+		{
+			NodeAction [] ret = super.getActions(client);
+			if(theInstancesNode.isVisible(client))
+				ret = ArrayUtils.add(ret, new NodeAction("Hide Instances", false));
+			else
+				ret = ArrayUtils.add(ret, new NodeAction("View Instances", false));
+			return ret;
+		}
+
+		@Override
+		public void doAction(TreeClient client, String action)
+		{
+			if("View Instances".equals(action))
+			{
+				theInstancesNode.addVisibleClient(client);
+				client.addEvent(new prisms.ui.tree.DataTreeEvent(
+					prisms.ui.tree.DataTreeEvent.Type.CHANGE, this));
+			}
+			else if("Hide Instances".equals(action))
+			{
+				theInstancesNode.removeVisibleClient(client);
+				if(((InstanceNode) theInstancesNode.getChildren()[0]).isLoaded(client))
+					((InstanceNode) theInstancesNode.getChildren()[0]).unloadContent(client, false);
+				client.addEvent(new prisms.ui.tree.DataTreeEvent(
+					prisms.ui.tree.DataTreeEvent.Type.CHANGE, this));
+			}
+			else
+				super.doAction(client, action);
 		}
 
 		void loadSessions()
@@ -344,18 +380,263 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			if(theApp == null)
 				return;
 			for(ServiceTreeNode child : getChildren())
-				((ClientNode) child).check();
+			{
+				if(child instanceof InstancesNode)
+					((InstancesNode) child).check();
+				else if(child instanceof ClientNode)
+					((ClientNode) child).check();
+			}
+			if(getParent() == null)
+				return;
+			changed(false);
 		}
 
 		void destroy()
 		{
 			if(theWatcher != null)
 				theApp.stopWatching(theWatcher);
-			for(ServiceTreeNode cn : getChildren())
+			for(ServiceTreeNode child : getChildren())
 			{
-				((ClientNode) cn).destroy();
-				cn.setChildren(new ServiceTreeNode [0]);
+				if(child instanceof InstanceNode)
+					((InstanceNode) child).destroy();
+				else if(child instanceof ClientNode)
+					((ClientNode) child).destroy();
+				child.setChildren(new ServiceTreeNode [0]);
 			}
+		}
+	}
+
+	class InstancesNode extends ServiceTreeNode
+	{
+		InstancesNode(AppNode parent)
+		{
+			super(AppSessionServerTree.this, parent.getApp().getName() + "/instances", parent, true);
+			setInvisible(true);
+			setChildren(new InstanceNode [] {new InstanceNode(this)});
+		}
+
+		@Override
+		public AppNode getParent()
+		{
+			return (AppNode) super.getParent();
+		}
+
+		public String getText()
+		{
+			return "Instances";
+		}
+
+		public Color getBackground()
+		{
+			return Color.white;
+		}
+
+		public Color getForeground()
+		{
+			return Color.black;
+		}
+
+		public String getIcon()
+		{
+			return null;
+		}
+
+		public String getDescription()
+		{
+			return "Contains all instances in which application properties may be viewed";
+		}
+
+		void check()
+		{
+			for(ServiceTreeNode node : getChildren())
+				((InstanceNode) node).check();
+		}
+	}
+
+	class InstanceNode extends ServiceTreeNode
+	{
+		private PrismsApplication theApp;
+
+		prisms.arch.event.PrismsPCL<Object> thePCL;
+
+		java.util.concurrent.ConcurrentLinkedQueue<PrismsPCE<Object>> theEvents;
+
+		private boolean propertiesSet;
+
+		InstanceNode(InstancesNode parent)
+		{
+			super(AppSessionServerTree.this, parent, false);
+			theApp = getParent().getParent().getApp();
+		}
+
+		@Override
+		public InstancesNode getParent()
+		{
+			return (InstancesNode) super.getParent();
+		}
+
+		public String getText()
+		{
+			prisms.arch.ds.IDGenerator.PrismsInstance inst = theApp.getEnvironment().getIDs()
+				.getLocalInstance();
+			if(inst != null)
+				return inst.location;
+			else
+				return "Unknown";
+		}
+
+		public Color getBackground()
+		{
+			return Color.white;
+		}
+
+		public Color getForeground()
+		{
+			return Color.black;
+		}
+
+		public String getIcon()
+		{
+			return null;
+		}
+
+		public String getDescription()
+		{
+			return null;
+		}
+
+		@Override
+		public String getLoadAction(TreeClient client)
+		{
+			return "View Properties";
+		}
+
+		@Override
+		public String getLoadAllAction(TreeClient client)
+		{
+			return null;
+		}
+
+		@Override
+		public String getUnloadAction(TreeClient client)
+		{
+			return "Hide Properties";
+		}
+
+		@Override
+		protected void load(TreeClient client)
+		{
+			super.load(client);
+			loadProperties();
+		}
+
+		@Override
+		protected void unloaded()
+		{
+			super.unloaded();
+			unloadProperties();
+		}
+
+		void loadProperties()
+		{
+			if(theEvents != null)
+				return;
+			theEvents = new java.util.concurrent.ConcurrentLinkedQueue<PrismsPCE<Object>>();
+			thePCL = new prisms.arch.event.PrismsPCL<Object>()
+			{
+				public void propertyChange(PrismsPCE<Object> evt)
+				{
+					// We're only interested in when a property is added or removed here
+					if((evt.getOldValue() != null) == (evt.getNewValue() != null))
+						return;
+					theEvents.add(evt);
+				}
+
+				@Override
+				public String toString()
+				{
+					return "Manager AllAppsServer App Props Listener";
+				}
+			};
+			theApp.addGlobalPropertyChangeListener(thePCL);
+			PrismsProperty<?> [] props = theApp.getGlobalProperties();
+			java.util.Arrays.sort(props, new java.util.Comparator<PrismsProperty<?>>()
+			{
+				public int compare(PrismsProperty<?> o1, PrismsProperty<?> o2)
+				{
+					return o1.getName().compareToIgnoreCase(o2.getName());
+				}
+			});
+			java.util.ArrayList<ServiceTreeNode> children = new java.util.ArrayList<ServiceTreeNode>();
+			for(int p = 0; p < props.length; p++)
+				if(theApp.getGlobalProperty(props[p]) != null)
+					children.add(new PropertyNode(this, props[p]));
+			setChildren(children.toArray(new ServiceTreeNode [children.size()]));
+
+			propertiesSet = true;
+		}
+
+		void unloadProperties()
+		{
+			if(!propertiesSet)
+				return;
+			propertiesSet = false;
+			theApp.removeGlobalPropertyChangeListener(thePCL);
+			for(ServiceTreeNode child : getChildren())
+				((PropertyNode) child).destroy();
+			setChildren(new ServiceTreeNode [0]);
+			theEvents = null;
+		}
+
+		public void check()
+		{
+			if(!propertiesSet)
+				return;
+			if(theEvents.isEmpty() || getChildren().length == 0
+				|| !(getChildren()[0] instanceof InstanceNode))
+				return;
+			synchronized(this)
+			{
+				InstanceNode inst = (InstanceNode) getChildren()[0];
+				java.util.Iterator<PrismsPCE<Object>> iter = theEvents.iterator();
+				nodeLoop: while(iter.hasNext())
+				{
+					PrismsPCE<Object> evt = iter.next();
+					iter.remove();
+					PrismsProperty<?> property = evt.getProperty();
+					for(PrismsPCE<Object> evt2 : theEvents)
+						if(evt2.getProperty() == property)
+							continue nodeLoop;
+					for(int c = 0; c < getChildren().length; c++)
+					{
+						PropertyNode pn = (PropertyNode) inst.getChildren()[c];
+						if(pn.getProperty() == property)
+						{
+							if(evt.getNewValue() == null)
+							{
+								pn.destroy();
+								inst.remove(c);
+							}
+							break;
+						}
+						else if(evt.getNewValue() != null
+							&& pn.getProperty().getName().compareToIgnoreCase(property.getName()) > 0)
+						{
+							inst.add(new PropertyNode(inst, property), c);
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		void destroy()
+		{
+			if(thePCL != null)
+				theApp.removeGlobalPropertyChangeListener(thePCL);
+			for(ServiceTreeNode child : getChildren())
+				if(child instanceof PropertyNode)
+					((PropertyNode) child).destroy();
 		}
 	}
 
@@ -535,6 +816,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		@Override
 		public void check(TreeClient client)
 		{
+			theText = getSessionText();
 			client.addEvent(new prisms.ui.tree.DataTreeEvent(
 				prisms.ui.tree.DataTreeEvent.Type.CHANGE, this));
 			super.check(client);
@@ -691,8 +973,6 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 					((PropertyNode) pn).checkPeriodic();
 			if(getParent() == null)
 				return;
-			theText = getSessionText();
-			changed(false);
 			if(!propertiesSet)
 				return;
 			if(theEvents.isEmpty())
@@ -742,9 +1022,11 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 	class PropertyNode extends ServiceTreeNode
 	{
-		private PrismsSession theSession;
+		final PrismsApplication theApp;
 
-		private PrismsProperty<?> theProperty;
+		final PrismsSession theSession;
+
+		private final PrismsProperty<?> theProperty;
 
 		DataInspector theInspector;
 
@@ -754,23 +1036,34 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		java.util.ArrayList<Runnable> theEventQueue;
 
-		PropertyNode(SessionNode parent, PrismsProperty<?> property)
+		PropertyNode(ServiceTreeNode parent, PrismsProperty<?> property)
 		{
 			super(AppSessionServerTree.this, parent, false);
-			theSession = parent.getSession();
 			theProperty = property;
-			theInspector = getInspector(theSession, theProperty);
+			if(parent instanceof SessionNode)
+			{
+				theSession = ((SessionNode) parent).getSession();
+				theApp = theSession.getApp();
+				theInspector = getInspector(theSession.getPropertyChangeListeners(theProperty));
+			}
+			else
+			{
+				theApp = ((InstanceNode) parent).getParent().getParent().getApp();
+				theSession = null;
+				theInspector = getInspector(theApp.getManagers(theProperty));
+			}
+
 			theEventQueue = new java.util.ArrayList<Runnable>();
 			theController = new DataInspector.NodeController()
 			{
 				public PrismsApplication getApp()
 				{
-					return ((SessionNode) getParent()).getSession().getApp();
+					return theApp;
 				}
 
 				public PrismsSession getSession()
 				{
-					return ((SessionNode) getParent()).getSession();
+					return theSession;
 				}
 
 				public Object getValue()
@@ -995,8 +1288,17 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			};
 			synchronized(theChangeListener)
 			{
-				theInspector.registerSessionListener(theSession, theChangeListener);
-				Object value = theSession.getProperty(theProperty);
+				Object value;
+				if(theSession != null)
+				{
+					theInspector.registerSessionListener(theSession, theChangeListener);
+					value = theSession.getProperty(theProperty);
+				}
+				else
+				{
+					theInspector.registerGlobalListener(theApp, theChangeListener);
+					value = theApp.getGlobalProperty(theProperty);
+				}
 				Object [] values;
 				if(value instanceof Object [])
 					values = (Object []) value;
@@ -1045,7 +1347,12 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		void destroy()
 		{
 			if(theChangeListener != null)
-				theInspector.deregisterSessionListener(theChangeListener);
+			{
+				if(theSession != null)
+					theInspector.deregisterSessionListener(theChangeListener);
+				else
+					theInspector.deregisterGlobalListener(theChangeListener);
+			}
 			theChangeListener = null;
 			setChildren(new AbstractValueNode [0]);
 		}
@@ -1266,14 +1573,6 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			super.setChildren(children);
 		}
 
-		PrismsSession getValueSession()
-		{
-			ServiceTreeNode sn = getParent();
-			while(!(sn instanceof SessionNode))
-				sn = sn.getParent();
-			return ((SessionNode) sn).getSession();
-		}
-
 		public Color getBackground()
 		{
 			return Color.white;
@@ -1441,6 +1740,20 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		}
 
 		@Override
+		public void check(TreeClient client)
+		{
+			if(theInspector != null)
+			{
+				prisms.arch.event.DataInspector.ItemMetadata md = theInspector
+					.getMetadata(theController);
+				if(md != null && md.isVolatile())
+					client.addEvent(new prisms.ui.tree.DataTreeEvent(
+						prisms.ui.tree.DataTreeEvent.Type.CHANGE, this));
+			}
+			super.check(client);
+		}
+
+		@Override
 		public String getText(TreeClient client)
 		{
 			if(theValue == null)
@@ -1570,9 +1883,6 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			NodeAction [] ret = super.getActions();
 			if(theValue == null || theValue instanceof Object [] || theValue.getClass().isArray())
 				return ret;
-			ServiceTreeNode parent = getParent();
-			while(!(parent instanceof SessionNode))
-				parent = parent.getParent();
 			ret = ArrayUtils.concat(NodeAction.class, ret,
 				theInspector.getActions((ASSTreeClient) client, theController));
 			return ret;
@@ -1627,19 +1937,6 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 						children.length);
 				}
 			}
-		}
-
-		@Override
-		void checkPeriodic()
-		{
-			if(theInspector != null)
-			{
-				prisms.arch.event.DataInspector.ItemMetadata md = theInspector
-					.getMetadata(theController);
-				if(md != null && md.isVolatile())
-					changed(false);
-			}
-			super.checkPeriodic();
 		}
 
 		/* Overridden to avoid synthetic access from inner classes */
@@ -1889,14 +2186,13 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 	/**
 	 * Gets the inspector for a property
 	 * 
-	 * @param session The session to get the inspector from
-	 * @param property The property to get the inspector for
+	 * @param pcls The listeners to get the inspector from
 	 * @return The inspector for the given property in the session, or null if no such inspector
 	 *         exists
 	 */
-	public static DataInspector getInspector(PrismsSession session, PrismsProperty<?> property)
+	public static DataInspector getInspector(PrismsPCL<?> [] pcls)
 	{
-		for(prisms.arch.event.PrismsPCL<?> pcl : session.getPropertyChangeListeners(property))
+		for(prisms.arch.event.PrismsPCL<?> pcl : pcls)
 			if(pcl instanceof prisms.arch.event.PropertyManager
 				&& ((prisms.arch.event.PropertyManager<?>) pcl).getInspector() != null)
 				return ((prisms.arch.event.PropertyManager<?>) pcl).getInspector();

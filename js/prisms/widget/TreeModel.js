@@ -225,6 +225,8 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 			index=parent.children.length;
 		parent.children.splice(index, 0, path[path.length-1]);
 		this.onChildrenChange(parent, parent.children);
+		this.onChange(path[path.length-1]);
+		this.onChildrenChange(path[path.length-1], path[path.length-1].children);
 	},
 
 	removeFromData: function(path){

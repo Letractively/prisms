@@ -145,6 +145,16 @@ public class CenterInspector implements prisms.arch.event.DataInspector
 		return new Object [0];
 	}
 
+	public void registerGlobalListener(prisms.arch.PrismsApplication app, ChangeListener cl)
+	{
+		theUtils.registerGlobalListener(app, cl);
+	}
+
+	public void deregisterGlobalListener(ChangeListener cl)
+	{
+		theUtils.deregisterGlobalListener(cl);
+	}
+
 	public void registerSessionListener(prisms.arch.PrismsSession session, ChangeListener cl)
 	{
 		theUtils.registerSessionListener(session, cl);
