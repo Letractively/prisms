@@ -240,23 +240,20 @@ public interface DataInspector
 	 */
 	Object [] getChildren(NodeController node);
 
-	// /**
-	// * Registers a listener that will be notified whenever the global value of a property changes
-	// *
-	// * @param app The application to listen to changes in
-	// * @param property The property to listen to
-	// * @param cl The change listener to register
-	// */
-	// void registerGlobalListener(PrismsApplication app, PrismsProperty<?> property, ChangeListener
-	// cl);
-	//
-	// /**
-	// * Un-registers a listener to no longer be notified when the global value of a property
-	// changes
-	// *
-	// * @param cl The change listener to un-register
-	// */
-	// void deregisterGlobalListener(ChangeListener cl);
+	/**
+	 * Registers a listener that will be notified whenever the global value of a property changes
+	 * 
+	 * @param app The application to listen to changes in
+	 * @param cl The change listener to register
+	 */
+	void registerGlobalListener(prisms.arch.PrismsApplication app, ChangeListener cl);
+
+	/**
+	 * Un-registers a listener to no longer be notified when the global value of a property changes
+	 * 
+	 * @param cl The change listener to un-register
+	 */
+	void deregisterGlobalListener(ChangeListener cl);
 
 	/**
 	 * Registers a listener that will be notified whenever the session value of a property changes

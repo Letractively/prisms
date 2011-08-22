@@ -56,15 +56,17 @@ public class AppSessionClientTree extends prisms.ui.tree.service.ClientTree
 					{
 						if(evt.getOldValue() != null && node.getApp() == evt.getOldValue().getApp())
 						{
-							for(ClientNode cn : node.getChildren())
-								if(cn.getClient() == evt.getOldValue())
+							for(ClientTreeNode cn : node.getChildren())
+								if(cn instanceof ClientNode
+									&& ((ClientNode) cn).getClient() == evt.getOldValue())
 									cn.setSelected(false);
 						}
 						else if(evt.getNewValue() != null
 							&& node.getApp() == evt.getNewValue().getApp())
 						{
-							for(ClientNode cn : node.getChildren())
-								if(cn.getClient() == evt.getNewValue())
+							for(ClientTreeNode cn : node.getChildren())
+								if(cn instanceof ClientNode
+									&& ((ClientNode) cn).getClient() == evt.getNewValue())
 									cn.setSelected(true);
 						}
 					}
@@ -168,7 +170,7 @@ public class AppSessionClientTree extends prisms.ui.tree.service.ClientTree
 			setSelectionChangesNode(true);
 			theApp = app;
 
-			ClientNode [] newChildren = new ClientNode [app.getClients().length];
+			ClientTreeNode [] newChildren = new ClientTreeNode [app.getClients().length];
 			for(int c = 0; c < newChildren.length; c++)
 				newChildren[c] = new ClientNode(this, app.getClients()[c]);
 			setChildren(newChildren);
@@ -212,12 +214,6 @@ public class AppSessionClientTree extends prisms.ui.tree.service.ClientTree
 				return prisms.ui.list.SelectableList.DEFAULT_SELECTED_COLOR;
 			else
 				return super.getBackground();
-		}
-
-		@Override
-		public ClientNode [] getChildren()
-		{
-			return (ClientNode []) super.getChildren();
 		}
 
 		@Override

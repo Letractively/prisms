@@ -16,6 +16,8 @@ public class InspectorUtils
 {
 	private static class Listener
 	{
+		final prisms.arch.PrismsApplication app;
+
 		final prisms.arch.PrismsSession session;
 
 		final ChangeListener listener;
@@ -26,8 +28,9 @@ public class InspectorUtils
 
 		Runnable autoUpdater;
 
-		Listener(prisms.arch.PrismsSession s, ChangeListener list)
+		Listener(prisms.arch.PrismsApplication a, prisms.arch.PrismsSession s, ChangeListener list)
 		{
+			app = a;
 			session = s;
 			listener = list;
 		}
@@ -81,7 +84,7 @@ public class InspectorUtils
 	public void registerSessionListener(final prisms.arch.PrismsSession session,
 		final ChangeListener cl)
 	{
-		Listener ret = new Listener(session, cl);
+		Listener ret = new Listener(session.getApp(), session, cl);
 		ret.pcl = new prisms.arch.event.PrismsPCL<Object>()
 		{
 			public void propertyChange(prisms.arch.event.PrismsPCE<Object> evt)
@@ -102,7 +105,7 @@ public class InspectorUtils
 				public void eventOccurred(prisms.arch.PrismsSession session2,
 					prisms.arch.event.PrismsEvent evt)
 				{
-					changeEvent(cEvt, session, evt, cl);
+					changeEvent(cEvt, evt, cl);
 				}
 			};
 			session.addEventListener(cEvt.getEventName(), ret.els[e]);
@@ -148,11 +151,91 @@ public class InspectorUtils
 		for(int e = 0; e < list.els.length; e++)
 			list.session.removeEventListener(theChangeEvents[e].getEventName(), list.els[e]);
 		if(list.autoUpdater != null)
-			list.session.getApp().stopRecurringTask(list.autoUpdater);
+			list.app.stopRecurringTask(list.autoUpdater);
 	}
 
-	void changeEvent(ChangeEvent cEvt, prisms.arch.PrismsSession session,
-		prisms.arch.event.PrismsEvent evt, ChangeListener cl)
+	/**
+	 * Registers a listener that will be notified whenever the application value of a property
+	 * changes
+	 * 
+	 * @param app The application to listen to changes in
+	 * @param cl The change listener to register
+	 */
+	public void registerGlobalListener(final prisms.arch.PrismsApplication app,
+		final ChangeListener cl)
+	{
+		Listener ret = new Listener(app, null, cl);
+		ret.pcl = new prisms.arch.event.PrismsPCL<Object>()
+		{
+			public void propertyChange(prisms.arch.event.PrismsPCE<Object> evt)
+			{
+				cl.propertyChanged(evt.getNewValue());
+				if(evt.getNewValue() != null && !evt.getNewValue().getClass().isArray()
+					&& evt.getOldValue().equals(evt.getNewValue()))
+					cl.valueChanged(evt.getNewValue(), true);
+			}
+		};
+		app.addGlobalPropertyChangeListener(theProperty, ret.pcl);
+		ret.els = new prisms.arch.event.PrismsEventListener [theChangeEvents.length];
+		for(int e = 0; e < ret.els.length; e++)
+		{
+			final ChangeEvent cEvt = theChangeEvents[e];
+			ret.els[e] = new prisms.arch.event.PrismsEventListener()
+			{
+				public void eventOccurred(prisms.arch.PrismsSession session2,
+					prisms.arch.event.PrismsEvent evt)
+				{
+					changeEvent(cEvt, evt, cl);
+				}
+			};
+			app.addGlobalEventListener(cEvt.getEventName(), ret.els[e]);
+		}
+		if(theUpdateInterval > 0)
+		{
+			ret.autoUpdater = new Runnable()
+			{
+				public void run()
+				{
+					cl.propertyChanged(app.getGlobalProperty(theProperty));
+				}
+			};
+			app.scheduleRecurringTask(ret.autoUpdater, theUpdateInterval);
+		}
+		synchronized(theListeners)
+		{
+			theListeners.add(ret);
+		}
+	}
+
+	/**
+	 * Un-registers a listener to no longer be notified when the application value of a property
+	 * changes
+	 * 
+	 * @param cl The change listener to un-register
+	 */
+	public void deregisterGlobalListener(ChangeListener cl)
+	{
+		Listener list = null;
+		synchronized(theListeners)
+		{
+			for(int i = 0; i < theListeners.size(); i++)
+				if(theListeners.get(i).listener == cl)
+				{
+					list = theListeners.get(i);
+					theListeners.remove(i);
+					break;
+				}
+		}
+		if(list == null)
+			return;
+		list.app.removeGlobalPropertyChangeListener(theProperty, list.pcl);
+		for(int e = 0; e < list.els.length; e++)
+			list.app.removeGlobalEventListener(theChangeEvents[e].getEventName(), list.els[e]);
+		if(list.autoUpdater != null)
+			list.app.stopRecurringTask(list.autoUpdater);
+	}
+
+	void changeEvent(ChangeEvent cEvt, prisms.arch.event.PrismsEvent evt, ChangeListener cl)
 	{
 		Object evtProp = evt.getProperty(cEvt.getEventProperty());
 		if(cEvt.getPropertyType() != null && !(cEvt.getPropertyType().isInstance(evtProp)))

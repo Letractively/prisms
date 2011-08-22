@@ -711,7 +711,8 @@ public class PrismsApplication
 	 * @param property The property to listen for
 	 * @param pcl The listener to notify when the property changes
 	 */
-	public <T> void addGlobalPropertyChangeListener(PrismsProperty<T> property, PrismsPCL<T> pcl)
+	public <T> void addGlobalPropertyChangeListener(PrismsProperty<T> property,
+		PrismsPCL<? super T> pcl)
 	{
 		thePCLs.addListener(property, pcl);
 	}
@@ -723,7 +724,8 @@ public class PrismsApplication
 	 * @param property The property that is currently being listened for
 	 * @param pcl The listener to unregister
 	 */
-	public <T> void removeGlobalPropertyChangeListener(PrismsProperty<T> property, PrismsPCL<T> pcl)
+	public <T> void removeGlobalPropertyChangeListener(PrismsProperty<T> property,
+		PrismsPCL<? super T> pcl)
 	{
 		thePCLs.removeListener(property, pcl);
 	}
@@ -736,6 +738,37 @@ public class PrismsApplication
 	public <T> PrismsPCL<T> [] getGlobalPropertyChangeListeners(PrismsProperty<T> propName)
 	{
 		return thePCLs.getListeners(propName);
+	}
+
+	/**
+	 * Adds a property change listener to listen for changes to all properties
+	 * 
+	 * @param pcl The listener to be notified when any property changes
+	 */
+	public void addGlobalPropertyChangeListener(PrismsPCL<Object> pcl)
+	{
+		thePCLs.addListener(pcl);
+	}
+
+	/**
+	 * This method removes the given listener from <b>EVERY</b> property it is registered for,
+	 * including the general case. The {@link Object#equals(Object)} method is used for comparison.
+	 * 
+	 * @param pcl The PropertyChangeListener to remove
+	 */
+	public void removeGlobalPropertyChangeListener(PrismsPCL<?> pcl)
+	{
+		thePCLs.removeListener(pcl);
+	}
+
+	/** @return All global properties for this application */
+	public PrismsProperty<?> [] getGlobalProperties()
+	{
+		java.util.LinkedHashSet<PrismsProperty<?>> ret = new java.util.LinkedHashSet<PrismsProperty<?>>();
+		for(PropertyManager<?> mgr : theManagers)
+			if(mgr.getApplicationValue(this) != null)
+				ret.add(mgr.getProperty());
+		return ret.toArray(new PrismsProperty [ret.size()]);
 	}
 
 	/**

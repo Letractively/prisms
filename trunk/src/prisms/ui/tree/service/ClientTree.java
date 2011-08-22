@@ -66,6 +66,11 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			theEventQueue = new ArrayList<JSONObject>();
 		}
 
+		void setChecked(long time)
+		{
+			theLastCheck = time;
+		}
+
 		private void connect()
 		{
 			conn = new prisms.util.PrismsServiceConnector(instance.location, getSession().getApp()
@@ -112,7 +117,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 					final JSONObject evt = theEventQueue.get(i);
 					if(evt.get("clientTreeLocked") != null)
 						continue;
-					final long now = System.currentTimeMillis();
 					conn.getResultsAsync(getServicePlugin(), (String) evt.get("method"),
 						new prisms.util.PrismsServiceConnector.AsyncReturns()
 						{
@@ -127,7 +131,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 											break;
 										}
 								}
-								theLastCheck = now;
 								if(!returnVals.isEmpty())
 									processServiceEvents(RemoteSource.this, returnVals);
 							}
@@ -176,13 +179,11 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			params = prisms.util.ArrayUtils.addAll(params, "clientID", theClientID, "user",
 				getSession().getUser().getName(), "lastCheck", Long.valueOf(theLastCheck));
 			final Object [] fParams = params;
-			final long now = System.currentTimeMillis();
 			conn.getResultsAsync(getServicePlugin(), method,
 				new prisms.util.PrismsServiceConnector.AsyncReturns()
 				{
 					public void doReturn(JSONArray returnVals)
 					{
-						theLastCheck = now;
 						if(!returnVals.isEmpty())
 							processServiceEvents(RemoteSource.this, returnVals);
 					}
@@ -213,7 +214,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			sendEvents();
 			params = prisms.util.ArrayUtils.addAll(params, "clientID", theClientID, "user",
 				getSession().getUser().getName(), "lastCheck", Long.valueOf(theLastCheck));
-			long now = System.currentTimeMillis();
 			JSONArray events;
 			try
 			{
@@ -229,7 +229,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				}
 				return;
 			}
-			theLastCheck = now;
 			if(!events.isEmpty())
 				processServiceEvents(this, events);
 		}
@@ -253,7 +252,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			params = prisms.util.ArrayUtils.addAll(params, "clientID", theClientID, "user",
 				getSession().getUser().getName(), "lastCheck", Long.valueOf(theLastCheck));
 			final Object [] fParams = params;
-			final long now = System.currentTimeMillis();
 			conn.getResultsAsync(getServicePlugin(), method,
 				new prisms.util.PrismsServiceConnector.AsyncReturns()
 				{
@@ -267,7 +265,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 								returnVals.remove(e);
 								break;
 							}
-						theLastCheck = now;
 						if(!returnVals.isEmpty())
 							processServiceEvents(RemoteSource.this, returnVals);
 						ret.returned(retEvt);
@@ -318,7 +315,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				}
 				return null;
 			}
-			long now = System.currentTimeMillis();
 			JSONObject ret = null;
 			for(int e = 0; e < events.size(); e++)
 				if(returnMethod.equals(((JSONObject) events.get(e)).get("method")))
@@ -327,7 +323,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 					events.remove(e);
 					break;
 				}
-			theLastCheck = now;
 			if(!events.isEmpty())
 				processServiceEvents(this, events);
 			return ret;
@@ -581,6 +576,8 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			doUI(source, event); // UI event
 		else if("showStatus".equals(method) || "showError".equals(method))
 			doStatus(source, event); // Status event
+		else if("checked".equals(method))
+			source.setChecked(((Number) event.get("checkTime")).longValue());
 		else
 			log.error("Unrecognized service method: " + method);
 	}

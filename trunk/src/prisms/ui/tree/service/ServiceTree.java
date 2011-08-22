@@ -125,6 +125,8 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 		/** @param evt The tree event to report to this client */
 		public synchronized void addEvent(DataTreeEvent evt)
 		{
+			if(!((ServiceTreeNode) evt.getNode()).isVisible(this))
+				return;
 			boolean doAdd = true;
 			if(evt.getType() == DataTreeEvent.Type.REFRESH)
 				theEventQueue.clear();
@@ -175,6 +177,17 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 				theEventQueue.add(new TreeEvent(evt));
 		}
 
+		synchronized void clearEvents(long lastCheck)
+		{
+			java.util.Iterator<TreeEvent> iter = theEventQueue.iterator();
+			while(iter.hasNext())
+			{
+				TreeEvent evt = iter.next();
+				if(evt.time <= lastCheck)
+					iter.remove();
+			}
+		}
+
 		synchronized JSONObject [] getEvents(long lastCheck)
 		{
 			java.util.ArrayList<JSONObject> ret = new java.util.ArrayList<JSONObject>();
@@ -182,7 +195,7 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 			while(iter.hasNext())
 			{
 				TreeEvent evt = iter.next();
-				if(evt.time < lastCheck)
+				if(evt.time <= lastCheck)
 				{
 					iter.remove();
 					continue;
@@ -223,6 +236,11 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 				ret_i.put("method", method);
 				ret.add(ret_i);
 			}
+			JSONObject checkedEvt = new JSONObject();
+			checkedEvt.put("plugin", getName());
+			checkedEvt.put("method", "checked");
+			checkedEvt.put("checkTime", Long.valueOf(System.currentTimeMillis()));
+			ret.add(0, checkedEvt);
 			return ret.toArray(new JSONObject [ret.size()]);
 		}
 	}
@@ -249,7 +267,8 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 			{
 				for(TreeClient client : theClients)
 					if(evt.getNode().getParent() == null
-						|| ((ServiceTreeNode) evt.getNode().getParent()).isLoaded(client))
+						|| (((ServiceTreeNode) evt.getNode()).isVisible(client) && ((ServiceTreeNode) evt
+							.getNode().getParent()).isLoaded(client)))
 						client.addEvent(evt);
 			}
 		});
@@ -299,6 +318,8 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 		}
 		long lastCheck = ((Number) evt.get("lastCheck")).longValue();
 		client.checked();
+		if(lastCheck > 0)
+			client.clearEvents(lastCheck);
 		if("init".equals(method))
 		{
 			if(!preInit)
@@ -576,7 +597,8 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 		{
 			JSONArray children = new JSONArray();
 			for(ServiceTreeNode child : node.getChildren())
-				children.add(serializeRecursive(child, client));
+				if(child.isVisible(client))
+					children.add(serializeRecursive(child, client));
 			ret.put("children", children);
 		}
 		else
