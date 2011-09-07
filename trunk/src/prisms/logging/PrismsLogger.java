@@ -93,10 +93,8 @@ public class PrismsLogger implements
 			switch(search.getType())
 			{
 			case id:
-				LogEntrySearch.IDRange ids = (LogEntrySearch.IDRange) search;
-				if(ids.getMinID() == null)
-					types.add(java.sql.Types.INTEGER);
-				if(ids.getMaxID() == null)
+				LogEntrySearch.IDSearch ids = (LogEntrySearch.IDSearch) search;
+				if(ids.id == null)
 					types.add(java.sql.Types.INTEGER);
 				break;
 			case instance:
@@ -146,6 +144,16 @@ public class PrismsLogger implements
 				break;
 			case content:
 			case stackTrace:
+				break;
+			case saved:
+				LogEntrySearch.LogSavedSearch lSavS = (LogEntrySearch.LogSavedSearch) search;
+				if(lSavS.saveTime == null && !lSavS.isNull)
+					types.add(java.sql.Types.TIMESTAMP);
+				break;
+			case size:
+				LogEntrySearch.LogSizeSearch lSizS = (LogEntrySearch.LogSizeSearch) search;
+				if(lSizS.size == null)
+					types.add(java.sql.Types.INTEGER);
 				break;
 			}
 		}
@@ -206,20 +214,27 @@ public class PrismsLogger implements
 			switch(search.getType())
 			{
 			case id:
-				LogEntrySearch.IDRange ids = (LogEntrySearch.IDRange) search;
+				LogEntrySearch.IDSearch ids = (LogEntrySearch.IDSearch) search;
 				int id;
-				if(ids.getMinID() == null)
+				if(ids.id == null)
 					id = ((Number) params[p++]).intValue();
 				else
-					id = ids.getMinID().intValue();
-				if(entry.getID() < id)
-					return false;
-				if(ids.getMaxID() == null)
-					id = ((Number) params[p++]).intValue();
-				else
-					id = ids.getMaxID().intValue();
-				if(entry.getID() > id)
-					return false;
+					id = ids.id.intValue();
+				switch(ids.operator)
+				{
+				case EQ:
+					return entry.getID() == id;
+				case NEQ:
+					return entry.getID() != id;
+				case GT:
+					return entry.getID() > id;
+				case GTE:
+					return entry.getID() >= id;
+				case LT:
+					return entry.getID() < id;
+				case LTE:
+					return entry.getID() <= id;
+				}
 				return true;
 			case instance:
 				LogEntrySearch.StringSearch ss = (LogEntrySearch.StringSearch) search;
@@ -270,7 +285,27 @@ public class PrismsLogger implements
 					return user.equals(entry.getUser());
 			case time:
 				LogEntrySearch.LogTimeSearch lts = (LogEntrySearch.LogTimeSearch) search;
-				return lts.logTime.matches(lts.operator, entry.getLogTime());
+				if(lts.logTime == null)
+				{
+					switch(lts.operator)
+					{
+					case EQ:
+						return entry.getLogTime() == ((Number) params[0]).longValue();
+					case NEQ:
+						return entry.getLogTime() != ((Number) params[0]).longValue();
+					case GT:
+						return entry.getLogTime() > ((Number) params[0]).longValue();
+					case GTE:
+						return entry.getLogTime() >= ((Number) params[0]).longValue();
+					case LT:
+						return entry.getLogTime() < ((Number) params[0]).longValue();
+					case LTE:
+						return entry.getLogTime() <= ((Number) params[0]).longValue();
+					}
+					return true;
+				}
+				else
+					return lts.logTime.matches(lts.operator, entry.getLogTime());
 			case level:
 				LogEntrySearch.LogLevelSearch lls = (LogEntrySearch.LogLevelSearch) search;
 				int level;
@@ -319,6 +354,50 @@ public class PrismsLogger implements
 				ss = (LogEntrySearch.StringSearch) search;
 				str = ss.search;
 				return entry.getStackTrace() != null && entry.getStackTrace().contains(str);
+			case saved:
+				LogEntrySearch.LogSavedSearch lSavS = (LogEntrySearch.LogSavedSearch) search;
+				if(lSavS.saveTime == null && !lSavS.isNull)
+				{
+					switch(lSavS.operator)
+					{
+					case EQ:
+						return entry.getSaveTime() == ((Number) params[0]).longValue();
+					case NEQ:
+						return entry.getSaveTime() != ((Number) params[0]).longValue();
+					case GT:
+						return entry.getSaveTime() > ((Number) params[0]).longValue();
+					case GTE:
+						return entry.getSaveTime() >= ((Number) params[0]).longValue();
+					case LT:
+						return entry.getSaveTime() < ((Number) params[0]).longValue();
+					case LTE:
+						return entry.getSaveTime() <= ((Number) params[0]).longValue();
+					}
+					return true;
+				}
+				else if(lSavS.isNull)
+					return entry.getSaveTime() <= 0;
+				else
+					return lSavS.saveTime.matches(lSavS.operator, entry.getLogTime());
+			case size:
+				LogEntrySearch.LogSizeSearch lSizS = (LogEntrySearch.LogSizeSearch) search;
+				int size = (lSizS.size == null ? (Number) params[0] : lSizS.size).intValue();
+				switch(lSizS.operator)
+				{
+				case EQ:
+					return entry.getSize() == size;
+				case NEQ:
+					return entry.getSize() != size;
+				case GT:
+					return entry.getSize() > size;
+				case GTE:
+					return entry.getSize() >= size;
+				case LT:
+					return entry.getSize() < size;
+				case LTE:
+					return entry.getSize() <= size;
+				}
+				return true;
 			}
 			throw new IllegalStateException("Unrecognized log search type: " + search.getType());
 		}
@@ -333,6 +412,8 @@ public class PrismsLogger implements
 
 	prisms.arch.ds.Transactor<PrismsException> theTransactor;
 
+	private String theExposedDir;
+
 	private long theMinConfiguredAge;
 
 	private long theMaxConfiguredAge;
@@ -341,7 +422,7 @@ public class PrismsLogger implements
 
 	private int theMaxConfiguredSize;
 
-	private String [] thePermanentExcludes;
+	private Search [] thePermanentExcludes;
 
 	private boolean isConfigured;
 
@@ -361,6 +442,8 @@ public class PrismsLogger implements
 
 	private long thePurgeSet;
 
+	private long theLastLoggerCheck;
+
 	boolean isClosed;
 
 	/**
@@ -374,7 +457,7 @@ public class PrismsLogger implements
 		theQueueEntries = new java.util.concurrent.ConcurrentLinkedQueue<LogEntry>();
 		theLoggers = new Logger [0];
 		thePastEntries = new java.util.LinkedList<LogEntry>();
-		thePermanentExcludes = new String [0];
+		thePermanentExcludes = new LogEntrySearch [0];
 		thePurger = new AutoPurger();
 	}
 
@@ -388,7 +471,42 @@ public class PrismsLogger implements
 		if(isConfigured)
 			throw new IllegalStateException("This logger has already been configured");
 		isConfigured = true;
+		String exposed = config.get("exposed");
+		if(exposed != null)
+			try
+			{
+				exposed = exposed.replaceAll(" ", "_");
+				java.io.File exposedFile = new java.io.File(exposed);
+				if(!exposedFile.exists() && !exposedFile.mkdirs())
+				{
+					log.error("Exposed directory " + exposed + " could not be created");
+					exposed = null;
+				}
+				else if(!exposedFile.isDirectory() && !exposedFile.delete()
+					&& !exposedFile.mkdirs())
+				{
+					log.error("Exposed directory " + exposed
+						+ " is not a directory and could not be created");
+					exposed = null;
+				}
+				else if(!exposedFile.canWrite() && !exposedFile.setWritable(true))
+				{
+					log.error("Exposed directory " + exposed + " is not writable");
+					exposed = null;
+				}
+				else
+					exposed = exposedFile.getCanonicalPath();
+			} catch(java.io.IOException e)
+			{
+				log.error("Exposed directory " + exposed + " could not be resolved", e);
+				exposed = null;
+			}
+		if(exposed != null && !exposed.endsWith(java.io.File.separator))
+			exposed += java.io.File.separator;
+		theExposedDir = exposed;
 		prisms.arch.PrismsConfig purge = config.subConfig("purge");
+		prisms.logging.LogEntrySearch.LogEntrySearchBuilder builder;
+		builder = new prisms.logging.LogEntrySearch.LogEntrySearchBuilder(theEnv);
 		if(purge != null)
 		{
 			theMinConfiguredSize = purge.getInt("max-size/min", 0);
@@ -398,11 +516,22 @@ public class PrismsLogger implements
 			theMinConfiguredAge = purge.getTime("max-age/min", 0);
 			theMaxConfiguredAge = purge.getTime("max-age/max", Long.MAX_VALUE);
 			thePurger.setMaxAge(purge.getTime("max-age/default", 6L * 30 * 24 * 60 * 60 * 1000));
-			for(prisms.arch.PrismsConfig logger : purge.subConfigs("exclude-loggers/logger"))
+			for(prisms.arch.PrismsConfig searchConfig : purge.subConfigs("exclude-searches/search"))
 			{
-				thePurger.excludeLogger(logger.getValue());
-				if(logger.is("permanent", false))
-					thePermanentExcludes = ArrayUtils.add(thePermanentExcludes, logger.getValue());
+				Search search;
+				try
+				{
+					search = builder.createSearch(searchConfig.getValue());
+				} catch(Exception e)
+				{
+					log.error(
+						"Configured purge-excluded search not parseable: "
+							+ searchConfig.getValue(), e);
+					continue;
+				}
+				thePurger.excludeSearch(search);
+				if(searchConfig.is("permanent", false))
+					thePermanentExcludes = ArrayUtils.add(thePermanentExcludes, search);
 			}
 		}
 		theTransactor = theEnv.getConnectionFactory().getConnection(config, null,
@@ -480,48 +609,60 @@ public class PrismsLogger implements
 				stmt.executeUpdate(sql);
 			}
 
-			final java.util.ArrayList<String> dbExcludes = new java.util.ArrayList<String>();
+			final java.util.ArrayList<Search> dbExcludes = new java.util.ArrayList<Search>();
 			if(newInst)
-				for(String ex : thePurger.getExcludeLoggers())
+				for(Search ex : thePurger.getExcludeSearches())
 					dbExcludes.add(ex);
 			else
 			{
-				sql = "SELECT loggerName FROM " + theTransactor.getTablePrefix()
-					+ "prisms_purge_logger";
+				sql = "SELECT search FROM " + theTransactor.getTablePrefix()
+					+ "prisms_log_purge_exclude";
 				rs = stmt.executeQuery(sql);
 				while(rs.next())
-					dbExcludes.add(rs.getString(1));
+				{
+					String srchStr = rs.getString(1);
+					Search srch;
+					try
+					{
+						srch = builder.createSearch(srchStr);
+					} catch(Exception e)
+					{
+						log.error("Persisted purge exclusion " + srchStr + " is not parseable", e);
+						continue;
+					}
+					dbExcludes.add(srch);
+				}
 				rs.close();
 				rs = null;
 
-				String [] excludesArray = dbExcludes.toArray(new String [dbExcludes.size()]);
+				Search [] excludesArray = dbExcludes.toArray(new Search [dbExcludes.size()]);
 				dbExcludes.clear();
 				final AutoPurger purger = thePurger;
-				final String [] perms = thePermanentExcludes;
-				ArrayUtils.adjust(thePurger.getExcludeLoggers(), excludesArray,
-					new ArrayUtils.DifferenceListener<String, String>()
+				final Search [] perms = thePermanentExcludes;
+				ArrayUtils.adjust(thePurger.getExcludeSearches(), excludesArray,
+					new ArrayUtils.DifferenceListener<Search, Search>()
 					{
-						public boolean identity(String o1, String o2)
+						public boolean identity(Search o1, Search o2)
 						{
 							return o1.equals(o2);
 						}
 
-						public String added(String o, int mIdx, int retIdx)
+						public Search added(Search o, int mIdx, int retIdx)
 						{
-							purger.excludeLogger(o);
+							purger.excludeSearch(o);
 							return null;
 						}
 
-						public String removed(String o, int oIdx, int incMod, int retIdx)
+						public Search removed(Search o, int oIdx, int incMod, int retIdx)
 						{
 							if(ArrayUtils.contains(perms, o))
 								dbExcludes.add(o);
 							else
-								purger.includeLogger(o);
+								purger.includeSearch(o);
 							return null;
 						}
 
-						public String set(String o1, int idx1, int incMod, String o2, int idx2,
+						public Search set(Search o1, int idx1, int incMod, Search o2, int idx2,
 							int retIdx)
 						{
 							return null;
@@ -534,13 +675,32 @@ public class PrismsLogger implements
 				if(!newInst)
 					log.warn("Permanently excluded loggers " + dbExcludes
 						+ " not included in persisted auto-purger. Adding.");
-				for(String ex : dbExcludes)
+				for(Search ex : dbExcludes)
 				{
+					String srchStr = ex.toString();
+					if(srchStr.length() > 1024)
+						log.error("Excluded log search " + srchStr
+							+ " cannot be persisted--1024 chars max");
 					sql = "INSERT INTO " + theTransactor.getTablePrefix()
-						+ "prisms_purge_logger (loggerName) VALUES (" + DBUtils.toSQL(ex) + ")";
+						+ "prisms_log_purge_exclude (search) VALUES (" + DBUtils.toSQL(srchStr)
+						+ ")";
 					stmt.executeUpdate(sql);
 				}
 			}
+
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_logger_config";
+			rs = stmt.executeQuery(sql);
+			theLastLoggerCheck = System.currentTimeMillis();
+			while(rs.next())
+			{
+				String loggerName = rs.getString("logger");
+				Number level = (Number) rs.getObject("logLevel");
+				Logger logger = Logger.getLogger(loggerName);
+				logger.setLevel(level == null ? null : org.apache.log4j.Level.toLevel(level
+					.intValue()));
+			}
+			rs.close();
+			rs = null;
 		} catch(SQLException e)
 		{
 			throw new IllegalStateException("Could not query auto-purge: SQL=" + sql, e);
@@ -646,7 +806,7 @@ public class PrismsLogger implements
 				return getName();
 			}
 		};
-		doCheckLoggers();
+		doCheckForNewLoggers();
 		theWriterThread = new Thread(new Runnable()
 		{
 			public void run()
@@ -674,6 +834,19 @@ public class PrismsLogger implements
 		theWriterThread.start();
 	}
 
+	/**
+	 * PRISMS Logging has a feature that allows files placed in a configurable exposed directory to
+	 * be accessible by the user through links in the logs. A link to an exposed file may be created
+	 * by printing the absolute path of the file in
+	 * 
+	 * @return The directory to which files can be written and referred to in logs for the user to
+	 *         access
+	 */
+	public String getExposedDir()
+	{
+		return theExposedDir;
+	}
+
 	/** @return The auto-purger determining which log entries are purged automatically */
 	public AutoPurger getAutoPurger()
 	{
@@ -690,7 +863,7 @@ public class PrismsLogger implements
 	 * @see #getMaxConfiguredAge()
 	 * @see #getMinConfiguredSize()
 	 * @see #getMaxConfiguredSize()
-	 * @see #getPermanentExcludedLoggers()
+	 * @see #getPermanentExcludedSearches()
 	 */
 	public void setAutoPurger(AutoPurger purger) throws PrismsException
 	{
@@ -705,8 +878,8 @@ public class PrismsLogger implements
 			throw new IllegalArgumentException("Configured size " + purger.getMaxSize()
 				+ " is not within the valid range: " + theMinConfiguredSize + " to "
 				+ theMaxConfiguredSize);
-		for(String perm : thePermanentExcludes)
-			if(!ArrayUtils.contains(purger.getExcludeLoggers(), perm))
+		for(Search perm : thePermanentExcludes)
+			if(!ArrayUtils.contains(purger.getExcludeSearches(), perm))
 				throw new IllegalArgumentException("Logger " + perm + " cannot be purged");
 
 		thePurgeSet = System.currentTimeMillis();
@@ -716,12 +889,16 @@ public class PrismsLogger implements
 		try
 		{
 			stmt = theTransactor.getConnection().createStatement();
-			sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_purge_logger";
+			sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_log_purge_exclude";
 			stmt.executeUpdate(sql);
-			for(String ex : purger.getExcludeLoggers())
+			for(Search ex : purger.getExcludeSearches())
 			{
+				String srchStr = ex.toString();
+				if(srchStr.length() > 1024)
+					log.error("Excluded log search " + srchStr
+						+ " cannot be persisted--1024 chars max");
 				sql = "INSERT INTO " + theTransactor.getTablePrefix()
-					+ "prisms_purge_logger (loggerName) VALUES (" + DBUtils.toSQL(ex) + ")";
+					+ "prisms_log_purge_exclude (search) VALUES (" + DBUtils.toSQL(srchStr) + ")";
 				stmt.executeUpdate(sql);
 			}
 			sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_log_auto_purge SET setTime="
@@ -751,6 +928,8 @@ public class PrismsLogger implements
 				}
 		}
 		thePurger = purger;
+
+		thePurgeQuery = createAutoPurgeQuery(thePurger);
 	}
 
 	/** @return The minimum value allowed for {@link AutoPurger#getMaxAge()} in this logger */
@@ -778,10 +957,10 @@ public class PrismsLogger implements
 	}
 
 	/**
-	 * @return All loggers that MUST be included in {@link AutoPurger#getExcludeLoggers()} in this
+	 * @return All searches that MUST be included in {@link AutoPurger#getExcludeSearches()} in this
 	 *         logger
 	 */
-	public String [] getPermanentExcludedLoggers()
+	public Search [] getPermanentExcludedSearches()
 	{
 		return thePermanentExcludes.clone();
 	}
@@ -798,7 +977,11 @@ public class PrismsLogger implements
 		if(loggerName.equals(nodbLog.getName()))
 			return;
 		LogEntry entry = new LogEntry();
-		entry.setInstanceLocation(theEnv.getIDs().getLocalInstance().location);
+		prisms.arch.ds.IDGenerator.PrismsInstance inst = theEnv.getIDs().getLocalInstance();
+		if(inst != null)
+			entry.setInstanceLocation(theEnv.getIDs().getLocalInstance().location);
+		else
+			entry.setInstanceLocation("Unknown");
 		entry.setLogTime(logTime);
 		entry.setLevel(level);
 		entry.setLoggerName(loggerName);
@@ -837,10 +1020,27 @@ public class PrismsLogger implements
 		prisms.arch.PrismsTransaction trans = theEnv.transact(null);
 		try
 		{
-			prisms.util.ProgramTracker.TrackNode track = trans.getTracker().start("Check Loggers");
+			prisms.util.ProgramTracker.TrackNode track = trans.getTracker().start(
+				"Check New Loggers");
 			try
 			{
-				doCheckLoggers();
+				doCheckForNewLoggers();
+			} finally
+			{
+				trans.getTracker().end(track);
+			}
+			track = trans.getTracker().start("Check Logger Configs");
+			try
+			{
+				checkLoggerConfigs();
+			} finally
+			{
+				trans.getTracker().end(track);
+			}
+			track = trans.getTracker().start("Auto-Purge");
+			try
+			{
+				doAutoPurge();
 			} finally
 			{
 				trans.getTracker().end(track);
@@ -861,7 +1061,7 @@ public class PrismsLogger implements
 
 	private long lastLoggerCheck;
 
-	private void doCheckLoggers()
+	private void doCheckForNewLoggers()
 	{
 		long now = System.currentTimeMillis();
 		if(now - lastLoggerCheck < 5000)
@@ -912,7 +1112,6 @@ public class PrismsLogger implements
 				iter.remove();
 			}
 		}
-		doAutoPurge();
 		prisms.arch.PrismsTransaction trans = theEnv.getTransaction();
 		if(theQueueEntries.isEmpty() || theInserter == null || theDuplicateQuery == null)
 			return;
@@ -1253,6 +1452,82 @@ public class PrismsLogger implements
 		return ret.toString();
 	}
 
+	/**
+	 * Adds a logger configuration to be persisted
+	 * 
+	 * @param loggerName The name of the logger to change the level of
+	 * @param level The level for the logger--may be null to use the log level of its parent
+	 * @throws PrismsException If an error occurs persisting the entry
+	 */
+	public void addLoggerConfig(String loggerName, org.apache.log4j.Level level)
+		throws PrismsException
+	{
+		String sql = "UPDATE " + theTransactor.getTablePrefix()
+			+ "prisms_logger_config SET logLevel=" + (level == null ? "NULL" : "" + level.toInt())
+			+ ", setTime=" + DBUtils.formatDate(System.currentTimeMillis(), isOracle())
+			+ " WHERE logger=" + DBUtils.toSQL(loggerName);
+		Statement stmt = null;
+		try
+		{
+			stmt = theTransactor.getConnection().createStatement();
+			if(stmt.executeUpdate(sql) == 0)
+			{
+				sql = "INSERT INTO " + theTransactor.getTablePrefix()
+					+ "prisms_logger_config (logger, logLevel, setTime) VALUES ("
+					+ DBUtils.toSQL(loggerName) + ", "
+					+ (level == null ? "NULL" : "" + level.toInt()) + ", "
+					+ DBUtils.formatDate(System.currentTimeMillis(), isOracle()) + ")";
+				stmt.executeUpdate(sql);
+			}
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not persist logger configuration", e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
+	/**
+	 * Clears the database of logger configurations so that logging returns to the defaults
+	 * configured in XML or otherwise next time the server starts
+	 * 
+	 * @return The number of logger configurations cleared as a result of the operation
+	 * @throws PrismsException If an error occurs removing the configs
+	 */
+	public int clearLoggerConfigs() throws PrismsException
+	{
+		String sql = "DELETE FROM " + theTransactor.getTablePrefix()
+			+ "prisms_logger_config WHERE setTime<="
+			+ DBUtils.formatDate(theLastLoggerCheck, isOracle());
+		Statement stmt = null;
+		try
+		{
+			stmt = theTransactor.getConnection().createStatement();
+			return stmt.executeUpdate(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not remove persisted logger configurations", e);
+		} finally
+		{
+			if(stmt != null)
+				try
+				{
+					stmt.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
 	public long [] search(Search search, Sorter<LogField> sorter) throws PrismsException
 	{
 		String sql = createQuery(search, sorter, false) + " ORDER BY " + getOrder(sorter);
@@ -1537,6 +1812,7 @@ public class PrismsLogger implements
 					java.sql.Timestamp time = rs.getTimestamp("entrySaved");
 					if(time != null)
 						entry.setSaveTime(time.getTime());
+					entry.setSize(rs.getInt("entrySize"));
 					ret.add(entry);
 				}
 				rs.close();
@@ -1776,12 +2052,18 @@ public class PrismsLogger implements
 			srch = DBUtils.toSQL(srch);
 			if(joins.indexOf("logContent") < 0)
 			{
-				joins.append(" LEFT JOIN ");
-				joins.append(theTransactor.getTablePrefix());
+				joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
 				joins.append("prisms_log_content logContent ON logContent.logEntry=logEntry.id");
 			}
+			if(joins.indexOf("logContentDup") < 0)
+			{
+				joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
+				joins.append("prisms_log_content logContentDup"
+					+ " ON logContentDup.logEntry=logEntry.logDuplicate");
+			}
 			wheres.append("(logEntry.shortMessage LIKE ").append(srch)
-				.append(" OR logContent.content LIKE ").append(srch).append(')');
+				.append(" OR logContent.content LIKE ").append(srch)
+				.append(" OR logContentDup.content LIKE ").append(srch).append(')');
 		}
 		else if(search instanceof Search.ExpressionSearch)
 		{
@@ -1812,38 +2094,14 @@ public class PrismsLogger implements
 			switch(type)
 			{
 			case id:
-				LogEntrySearch.IDRange ids = (LogEntrySearch.IDRange) search;
-				if(ids.getMinID() != null && ids.getMaxID() != null
-					&& ids.getMinID().longValue() == ids.getMaxID().longValue())
-				{
-					wheres.append("logEntry.id=");
-					wheres.append(ids.getMinID());
-				}
+				LogEntrySearch.IDSearch ids = (LogEntrySearch.IDSearch) search;
+				wheres.append("logEntry.id").append(ids.operator.toString());
+				if(ids.id != null)
+					wheres.append(ids.id);
+				else if(withParameters)
+					wheres.append('?');
 				else
-				{
-					wheres.append('(');
-					wheres.append("logEntry.id>=");
-					if(ids.getMinID() == null)
-					{
-						if(withParameters)
-							wheres.append('?');
-						else
-							throw new PrismsException("No minimum ID specified for ID range");
-					}
-					else
-						wheres.append(ids.getMinID());
-					wheres.append(" AND logEntry.id<=");
-					if(ids.getMaxID() == null)
-					{
-						if(withParameters)
-							wheres.append('?');
-						else
-							throw new PrismsException("No maximum ID specified for ID range");
-					}
-					else
-						wheres.append(ids.getMaxID());
-					wheres.append(')');
-				}
+					throw new PrismsException("No ID specified for ID search");
 				break;
 			case instance:
 				LogEntrySearch.InstanceSearch is = (LogEntrySearch.InstanceSearch) search;
@@ -1947,18 +2205,24 @@ public class PrismsLogger implements
 				LogEntrySearch.LogContentSearch lConS = (LogEntrySearch.LogContentSearch) search;
 				if(joins.indexOf("logContent") < 0)
 				{
-					joins.append(" LEFT JOIN ");
-					joins.append(theTransactor.getTablePrefix());
+					joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
 					joins.append("prisms_log_content logContent");
 					joins.append(" ON logContent.logEntry=logEntry.id");
+				}
+				if(joins.indexOf("logContentDup") < 0)
+				{
+					joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
+					joins.append("prisms_log_content logContentDup"
+						+ " ON logContentDup.logEntry=logEntry.logDuplicate");
 				}
 				String srch = lConS.search.replaceAll("%", "!%");
 				srch = "%" + srch + "%";
 				srch = DBUtils.toSQL(srch);
 				wheres.append("(logEntry.shortMessage LIKE ").append(srch)
-					.append(" OR (logContent.content LIKE ").append(lConS.search)
-					.append(" AND logContent.isStackTrace=").append(DBUtils.boolToSql(false))
-					.append("))");
+					.append(" OR (logContent.content LIKE ").append(srch)
+					.append(" AND logContent.contentType='M')");
+				wheres.append(" OR (logContentDup.content LIKE ").append(srch)
+					.append(" AND logContentDup.contentType='M'))");
 				break;
 			case stackTrace:
 				LogEntrySearch.LogStackTraceSearch lsts = (LogEntrySearch.LogStackTraceSearch) search;
@@ -1969,12 +2233,19 @@ public class PrismsLogger implements
 					joins.append("prisms_log_content logContent");
 					joins.append(" ON logContent.logEntry=logEntry.id");
 				}
+				if(joins.indexOf("logContentDup") < 0)
+				{
+					joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
+					joins.append("prisms_log_content logContentDup"
+						+ " ON logContentDup.logEntry=logEntry.logDuplicate");
+				}
 				srch = lsts.search.replaceAll("%", "!%");
 				srch = "%" + srch + "%";
 				srch = DBUtils.toSQL(srch);
-				wheres.append("(logContent.content LIKE ").append(lsts.search)
-					.append("' AND logContent.isStackTrace=").append(DBUtils.boolToSql(true))
-					.append(')');
+				wheres.append("(logContent.content LIKE ").append(srch)
+					.append(" AND logContent.contentType='S')");
+				wheres.append(" OR (logContentDup.content LIKE ").append(srch)
+					.append(" AND logContentDup.contentType='S')");
 				break;
 			case duplicate:
 				LogEntrySearch.LogDuplicateSearch lds = (LogEntrySearch.LogDuplicateSearch) search;
@@ -1990,6 +2261,31 @@ public class PrismsLogger implements
 				}
 				else
 					wheres.append('=').append(lds.getDuplicateID());
+				break;
+			case saved:
+				LogEntrySearch.LogSavedSearch lSavS = (LogEntrySearch.LogSavedSearch) search;
+				if(lSavS.saveTime == null && lSavS.isNull)
+				{
+					wheres.append("logEntry.entrySaved IS ");
+					if(lSavS.operator == Search.Operator.NEQ)
+						wheres.append("NOT ");
+					wheres.append("NULL");
+				}
+				else
+					appendTime(lSavS.operator, lSavS.saveTime, "entrySaved", wheres, withParameters);
+				break;
+			case size:
+				LogEntrySearch.LogSizeSearch lSizS = (LogEntrySearch.LogSizeSearch) search;
+				wheres.append("logEntry.entrySize");
+				if(lSizS.size == null)
+				{
+					if(withParameters)
+						wheres.append(lSizS.operator).append("?");
+					else
+						throw new PrismsException("No size specified for size search");
+				}
+				else
+					wheres.append(lSizS.operator).append(lSizS.size);
 				break;
 			}
 		}
@@ -2103,8 +2399,8 @@ public class PrismsLogger implements
 			throw new IllegalArgumentException("Configured size " + purger.getMaxSize()
 				+ " is not within the valid range: " + theMinConfiguredSize + " to "
 				+ theMaxConfiguredSize);
-		for(String perm : thePermanentExcludes)
-			if(!ArrayUtils.contains(purger.getExcludeLoggers(), perm))
+		for(Search perm : thePermanentExcludes)
+			if(!ArrayUtils.contains(purger.getExcludeSearches(), perm))
 				throw new IllegalArgumentException("Logger " + perm + " cannot be purged");
 
 		IntList ret = getPurgeIDs(purger);
@@ -2124,6 +2420,41 @@ public class PrismsLogger implements
 		}
 	}
 
+	private void checkLoggerConfigs()
+	{
+		long now = System.currentTimeMillis();
+		if(now - theLastLoggerCheck < 5000)
+			return;
+		ResultSet rs = null;
+		try
+		{
+			theLoggerChecker.setTimestamp(1, new java.sql.Timestamp(theLastLoggerCheck));
+			rs = theLoggerChecker.executeQuery();
+			theLastLoggerCheck = now;
+			while(rs.next())
+			{
+				String loggerName = rs.getString("logger");
+				Number level = (Number) rs.getObject("logLevel");
+				Logger logger = Logger.getLogger(loggerName);
+				logger.setLevel(level == null ? null : org.apache.log4j.Level.toLevel(level
+					.intValue()));
+			}
+		} catch(SQLException e)
+		{
+			log.error("Could not check for new logger configs", e);
+		} finally
+		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				}
+		}
+	}
+
 	private void doAutoPurge()
 	{
 		if(thePurger.getMaxSize() <= 0 && thePurger.getMaxAge() <= 0)
@@ -2135,12 +2466,19 @@ public class PrismsLogger implements
 
 		String sql = null;
 		Statement stmt = null;
+		ResultSet rs = null;
+		long thresh = -1;
 		try
 		{
 			stmt = theTransactor.getConnection().createStatement();
 			checkUpdatedPurger(stmt);
 			IntList ids = getPurgeIDs(thePurger);
 			doPurge(ids, stmt);
+
+			sql = "SELECT MIN(logTime) FROM " + theTransactor.getTablePrefix() + "prisms_log_entry";
+			rs = stmt.executeQuery(sql);
+			if(rs.next() && rs.getTimestamp(1) != null)
+				thresh = rs.getTimestamp(1).getTime();
 		} catch(SQLException e)
 		{
 			log.error("Could not execute auto-purge: SQL=" + sql, e);
@@ -2149,6 +2487,14 @@ public class PrismsLogger implements
 			log.error("Could not get connection for auto-purge", e);
 		} finally
 		{
+			if(rs != null)
+				try
+				{
+					rs.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error!", e);
+				}
 			if(stmt != null)
 				try
 				{
@@ -2158,6 +2504,31 @@ public class PrismsLogger implements
 					log.error("Connection error!", e);
 				}
 		}
+
+		if(theExposedDir != null)
+		{
+			if(thresh <= 0 || thresh < now - thePurger.getMaxAge())
+				thresh = now - thePurger.getMaxAge();
+			autoPurge(new java.io.File(theExposedDir), true, thresh);
+		}
+	}
+
+	private void autoPurge(java.io.File dir, boolean base, long thresh)
+	{
+		if(!dir.exists() || !dir.isDirectory() || thePurger == null || thePurger.getMaxAge() <= 0)
+			return;
+		java.io.File[] files = dir.listFiles();
+		for(java.io.File f : files)
+		{
+			if(f.isHidden() || !f.canRead())
+				continue;
+			if(f.isDirectory())
+				autoPurge(f, false, thresh);
+			else if(f.lastModified() < thresh)
+				f.delete();
+		}
+		if(!base && files.length == 0 && dir.lastModified() < thresh)
+			dir.delete();
 	}
 
 	synchronized int doPurge(IntList ids, Statement stmt) throws SQLException
@@ -2205,10 +2576,11 @@ public class PrismsLogger implements
 				// Transfers the original's content to the first duplicate that is not being deleted
 				theContentTransferrer.setInt(1, firstID);
 				theContentTransferrer.setInt(2, entry.getKey().intValue());
-				theContentTransferrer.executeUpdate();
+				int size = theContentTransferrer.executeUpdate() + 1;
 
 				// Marks the first duplicate as an original
-				theUnduplicator.setInt(1, firstID);
+				theUnduplicator.setInt(1, size);
+				theUnduplicator.setInt(2, firstID);
 				theUnduplicator.executeUpdate();
 
 				// Transfers all references to the original to the first duplicate (now an original)
@@ -2238,6 +2610,7 @@ public class PrismsLogger implements
 	private synchronized IntList getPurgeIDs(AutoPurger purger)
 	{
 		long now = System.currentTimeMillis();
+		java.sql.PreparedStatement purgeQuery = null;
 		ResultSet rs = null;
 		try
 		{
@@ -2258,30 +2631,33 @@ public class PrismsLogger implements
 			long minTime = now - purger.getMaxAge();
 			if(minTime >= now)
 				minTime = 0;
-			String [] excludeLoggers = thePurger.getExcludeLoggers();
 			if(sum <= maxSize && oldest >= minTime)
 				return null;
 
 			IntList ids = new IntList();
-			rs = theMarkedGetter.executeQuery();
-			while(rs.next())
-				ids.add(rs.getInt(1));
-			rs.close();
-			rs = null;
-
-			thePurgeQuery.setTimestamp(1, new java.sql.Timestamp(now));
-			rs = thePurgeQuery.executeQuery();
+			try
+			{
+				purgeQuery = purger == thePurger ? thePurgeQuery : createAutoPurgeQuery(purger);
+			} catch(PrismsException e)
+			{
+				log.error("Could not create purge query for auto-purger", e);
+				return ids;
+			}
+			purgeQuery.setTimestamp(1, new java.sql.Timestamp(now));
+			rs = purgeQuery.executeQuery();
 			while(rs.next())
 			{
-				if(ArrayUtils.contains(excludeLoggers, rs.getString("loggerName")))
+				int sz = rs.getInt("entrySize");
+				if(sz >= MAX_SIZE)
+				{
+					ids.add(rs.getInt("id"));
 					continue;
+				}
 				long logTime = rs.getTimestamp("logTime").getTime();
 				if(sum <= maxSize && logTime >= minTime)
 					break;
+				sum -= sz;
 				ids.add(rs.getInt("id"));
-				int sz = rs.getInt("entrySize");
-				if(sz < MAX_SIZE)
-					sum -= sz;
 			}
 			rs.close();
 			rs = null;
@@ -2301,6 +2677,19 @@ public class PrismsLogger implements
 				{
 					log.error("Connection error!", e);
 				}
+			if(purgeQuery != null && purger != thePurger)
+				try
+				{
+					purgeQuery.close();
+				} catch(SQLException e)
+				{
+					log.error("Connection error", e);
+				} catch(Error e)
+				{
+					// Keep getting these from an HSQL bug--silence
+					if(!e.getMessage().contains("compilation"))
+						log.error("Error", e);
+				}
 		}
 	}
 
@@ -2316,40 +2705,56 @@ public class PrismsLogger implements
 				long setTime = rs.getTimestamp("setTime").getTime();
 				if(setTime > thePurgeSet)
 				{
+					prisms.logging.LogEntrySearch.LogEntrySearchBuilder builder;
+					builder = new LogEntrySearch.LogEntrySearchBuilder(theEnv);
 					AutoPurger purger = new AutoPurger();
 					purger.setMaxSize(rs.getInt("maxSize"));
 					purger.setMaxAge(rs.getLong("maxAge"));
 					rs.close();
 					rs = null;
-					java.util.ArrayList<String> dbExcludes = new java.util.ArrayList<String>();
-					sql = "SELECT loggerName FROM " + theTransactor.getTablePrefix()
-						+ "prisms_purge_logger";
+					java.util.ArrayList<Search> dbExcludes = new java.util.ArrayList<Search>();
+					sql = "SELECT search FROM " + theTransactor.getTablePrefix()
+						+ "prisms_log_purge_exclude";
 					rs = stmt.executeQuery(sql);
 					while(rs.next())
 					{
-						dbExcludes.add(rs.getString(1));
-						purger.excludeLogger(dbExcludes.get(dbExcludes.size() - 1));
+						String srchStr = rs.getString(1);
+						Search srch;
+						try
+						{
+							srch = builder.createSearch(srchStr);
+						} catch(Exception e)
+						{
+							log.error("Updated search contains unparseable exclusion: " + srchStr,
+								e);
+							continue;
+						}
+						dbExcludes.add(srch);
+						purger.excludeSearch(dbExcludes.get(dbExcludes.size() - 1));
 					}
 					rs.close();
 					rs = null;
 					/* Don't worry about the maxSize and maxAge constraints, but do enforce
 					 * permanently excluded loggers */
 					dbExcludes.clear();
-					for(String perm : thePermanentExcludes)
-						if(!ArrayUtils.contains(purger.getExcludeLoggers(), perm))
+					for(Search perm : thePermanentExcludes)
+						if(!ArrayUtils.contains(purger.getExcludeSearches(), perm))
 						{
-							purger.excludeLogger(perm);
+							purger.excludeSearch(perm);
 							dbExcludes.add(perm);
 						}
 					if(dbExcludes.size() > 0)
 					{
 						log.warn("Permanently excluded loggers " + dbExcludes
 							+ " not included in new auto purge. Adding.");
-						for(String ex : dbExcludes)
+						for(Search ex : dbExcludes)
 						{
+							String srchStr = ex.toString();
+							if(srchStr.length() > 1024)
+								continue;
 							sql = "INSERT INTO " + theTransactor.getTablePrefix()
-								+ "prisms_purge_logger (loggerName) VALUES (" + DBUtils.toSQL(ex)
-								+ ")";
+								+ "prisms_purge_logger (loggerName) VALUES ("
+								+ DBUtils.toSQL(srchStr) + ")";
 							stmt.executeUpdate(sql);
 						}
 					}
@@ -2404,15 +2809,15 @@ public class PrismsLogger implements
 
 	private java.sql.PreparedStatement theSumQuery;
 
-	private java.sql.PreparedStatement theMarkedGetter;
-
-	private java.sql.PreparedStatement thePurgeQuery;
+	private java.sql.PreparedStatement theLoggerChecker;
 
 	private java.sql.PreparedStatement theUnduplicator;
 
 	private java.sql.PreparedStatement theContentTransferrer;
 
 	private java.sql.PreparedStatement theDuplicateTransferrer;
+
+	private java.sql.PreparedStatement thePurgeQuery;
 
 	void prepareStatements()
 	{
@@ -2447,17 +2852,12 @@ public class PrismsLogger implements
 				+ "prisms_log_entry WHERE entrySize<" + MAX_SIZE;
 			theSumQuery = theTransactor.getConnection().prepareStatement(sql);
 
-			sql = "SELECT id FROM " + theTransactor.getTablePrefix()
-				+ "prisms_log_entry WHERE entrySize>=" + MAX_SIZE;
-			theMarkedGetter = theTransactor.getConnection().prepareStatement(sql);
-
-			sql = "SELECT id, logTime, loggerName, entrySize FROM "
-				+ theTransactor.getTablePrefix() + "prisms_log_entry WHERE entrySize>=" + MAX_SIZE
-				+ " OR (entrySaved IS NULL OR entrySaved<?) ORDER BY logTime";
-			thePurgeQuery = theTransactor.getConnection().prepareStatement(sql);
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix()
+				+ "prisms_logger_config WHERE setTime>=?";
+			theLoggerChecker = theTransactor.getConnection().prepareStatement(sql);
 
 			sql = "UPDATE " + theTransactor.getTablePrefix()
-				+ "prisms_log_entry SET logDuplicate=NULL WHERE id=?";
+				+ "prisms_log_entry SET logDuplicate=NULL, entrySize=? WHERE id=?";
 			theUnduplicator = theTransactor.getConnection().prepareStatement(sql);
 
 			sql = "UPDATE " + theTransactor.getTablePrefix()
@@ -2475,11 +2875,52 @@ public class PrismsLogger implements
 		{
 			throw new IllegalStateException("Could not prepare logging statements", e);
 		}
+		try
+		{
+			thePurgeQuery = createAutoPurgeQuery(thePurger);
+		} catch(PrismsException e)
+		{
+			throw new IllegalStateException("Could not construct auto-purge query", e);
+		}
+	}
+
+	java.sql.PreparedStatement createAutoPurgeQuery(AutoPurger purger) throws PrismsException
+	{
+		Search sz = new LogEntrySearch.LogSizeSearch(Search.Operator.GTE, Integer.valueOf(MAX_SIZE));
+		Search save = new LogEntrySearch.LogSavedSearch(Search.Operator.EQ, null, true)
+			.or(new LogEntrySearch.LogSavedSearch(Search.Operator.LTE, null, false));
+		Search or = sz.or(save);
+		if(thePurger.getExcludeSearches().length > 0)
+		{
+			Search excl = new Search.NotSearch(new Search.ExpressionSearch(false).addOps(thePurger
+				.getExcludeSearches()));
+			or = or.and(excl);
+		}
+
+		StringBuilder joins = new StringBuilder();
+		StringBuilder wheres = new StringBuilder();
+		createQuery(or, true, joins, wheres);
+		StringBuilder ret = new StringBuilder(
+			"SELECT DISTINCT logEntry.id, logEntry.logTime, logEntry.entrySize");
+		ret.append(" FROM ");
+		ret.append(theTransactor.getTablePrefix());
+		ret.append("prisms_log_entry logEntry");
+		ret.append(joins);
+		if(wheres.length() > 0)
+			ret.append(" WHERE ").append(wheres);
+		ret.append(" ORDER BY logEntry.logTime");
+		try
+		{
+			return theTransactor.getConnection().prepareStatement(ret.toString());
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not prepare auto-purge search", e);
+		}
 	}
 
 	void destroyPreparedStatements()
 	{
-		if(thePurgeQuery == null)
+		if(theSumQuery == null)
 			return;
 		try
 		{
@@ -2495,8 +2936,6 @@ public class PrismsLogger implements
 			theContentInserter = null;
 			theSumQuery.close();
 			theSumQuery = null;
-			thePurgeQuery.close();
-			thePurgeQuery = null;
 			theUnduplicator.close();
 			theUnduplicator = null;
 			theContentTransferrer.close();
@@ -2534,11 +2973,9 @@ public class PrismsLogger implements
 		switch(search.getType())
 		{
 		case id:
-			LogEntrySearch.IDRange ids = (LogEntrySearch.IDRange) search;
-			if(ids.getMinID() == null)
-				types.add(Long.class);
-			if(ids.getMaxID() == null)
-				types.add(Long.class);
+			LogEntrySearch.IDSearch ids = (LogEntrySearch.IDSearch) search;
+			if(ids.id == null)
+				types.add(Integer.class);
 			break;
 		case instance:
 			LogEntrySearch.InstanceSearch is = (LogEntrySearch.InstanceSearch) search;
@@ -2587,6 +3024,16 @@ public class PrismsLogger implements
 			break;
 		case content:
 		case stackTrace:
+			break;
+		case saved:
+			LogEntrySearch.LogSavedSearch lSavS = (LogEntrySearch.LogSavedSearch) search;
+			if(lSavS.saveTime == null && !lSavS.isNull)
+				types.add(java.util.Date.class);
+			break;
+		case size:
+			LogEntrySearch.LogSizeSearch lSizS = (LogEntrySearch.LogSizeSearch) search;
+			if(lSizS.size == null)
+				types.add(Integer.class);
 			break;
 		}
 	}

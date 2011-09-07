@@ -1,21 +1,36 @@
-/**
- * SmartCache.java Created Mar 26, 2009 by Andrew Butler, PSL
+/*
+ * DemandCache.java Created Mar 26, 2009 by Andrew Butler, PSL
  */
 package prisms.util;
 
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
- * A cache that purges values according to their frequency and recency of use and other qualitative
- * values.
+ * A cache that purges values according to several factors:
+ * <ul>
+ * <li>If the cache's half-life (preferred age) is set, cache entries will be purged based on the
+ * frequency and recency of use. Each time an entry is accessed, the entry is marked so that it is
+ * less likely to be purged. A {@link #put(Object, Object) put} on the item is stronger at keeping
+ * an entry from being purged than a {@link #get(Object) get}. the {@link #access(Object, int)}
+ * method may also be used to mark an entry as less purgeable.</li>
+ * <li>If the cache's qualitizer is set with the constructor, the {@link Qualitizer#quality(Object)}
+ * method will be used to evaluate how important an item is. More important items will tend to stay
+ * in the cache longer than less important items.</li>
+ * <li>If the cache's preferred size is set, cache entries will be purged based on the size of the
+ * item. The cache will tend to swell to its preferred size, at which point items will start being
+ * purged. If the cache's qualitizer is set, larger items (according to
+ * {@link Qualitizer#size(Object)}) will tend to be purged more quickly than smaller items. If the
+ * qualitizer's size and quality methods return the same value for all items, these will cancel each
+ * other out and function similarly to a cache with no qualitizer.</li>
+ * </ul>
+ * All of these criteria can be used together to make, for example, a cache that tends to purge
+ * items that have not been used in 30 minutes, but will fill up to 10MB under high demand.
  * 
  * @param <K> The type of key to use for the cache
  * @param <V> The type of value to cache
  * @see #shouldRemove(CacheValue, float, float, float)
  */
-public class DemandCache<K, V> implements java.util.Map<K, V>
+public class DemandCache<K, V> implements Map<K, V>
 {
 	/**
 	 * Allows this cache to assess the quality of a cache item to determine its value to the
@@ -39,6 +54,34 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		 *         consistent. Bytes is recommended but not required.
 		 */
 		float size(T value);
+	}
+
+	/**
+	 * Allows classes to watch and interact with the purging capability of a DemandCache.
+	 * 
+	 * @param <K> The key type of the cache to watch
+	 * @param <V> The value type of the cache to watch
+	 */
+	public static interface PurgeListener<K, V>
+	{
+		/**
+		 * Called before a value is purged and gives this listener the opportunity to veto the
+		 * purge.
+		 * 
+		 * @param key The key of the entry to be purged
+		 * @param value The value of the entry to be purged
+		 * @return True if the entry may be purged, false to prevent the entry from being purged
+		 */
+		boolean prePurge(K key, V value);
+
+		/**
+		 * Called when a purge is run and a set of entries is purged. The entries have already been
+		 * purged when this method is called
+		 * 
+		 * @param keys The keys of the entries purged
+		 * @param values The values of the entries purged
+		 */
+		void purged(java.util.List<? extends K> keys, java.util.List<? extends V> values);
 	}
 
 	/**
@@ -66,6 +109,8 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 
 	private final java.util.concurrent.ConcurrentHashMap<K, CacheValue> theCache;
 
+	private PurgeListener<? super K, ? super V> [] thePurgeListeners;
+
 	private float thePreferredSize;
 
 	private long theHalfLife;
@@ -76,7 +121,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 
 	private long thePurgeTime;
 
-	private int thePurgeMods;
+	private float thePurgeMods;
 
 	/** Creates a DemandCache with default values */
 	public DemandCache()
@@ -90,7 +135,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 * @param qualitizer The qualitizer to qualitize the values by
 	 * @param prefSize The preferred size of this cache, or <=0 if this cache should have no
 	 *        preferred size
-	 * @param halfLife The half life of this cache
+	 * @param halfLife The preferred entry age of this cache
 	 */
 	public DemandCache(Qualitizer<V> qualitizer, float prefSize, long halfLife)
 	{
@@ -101,6 +146,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		theReference = 1;
 		theCheckedTime = System.currentTimeMillis();
 		thePurgeTime = theCheckedTime;
+		thePurgeListeners = new PurgeListener [0];
 	}
 
 	/** @return The preferred size of this cache, or <=0 if this cache has no preferred size */
@@ -121,19 +167,32 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 			purge(true);
 	}
 
-	/** @return The approximate half life of items in this cache */
+	/** @return The preferred age of items in this cache */
 	public long getHalfLife()
 	{
 		return theHalfLife;
 	}
 
-	/** @param halfLife The half life for items in this cache */
+	/** @param halfLife The preferred agefor items in this cache */
 	public void setHalfLife(long halfLife)
 	{
 		boolean mod = halfLife <= 0 ? false : halfLife < theHalfLife;
 		theHalfLife = halfLife;
 		if(mod)
 			purge(true);
+	}
+
+	/** @param listener The listener to watch this cache's purging with */
+	public void addPurgeListener(PurgeListener<? super K, ? super V> listener)
+	{
+		if(!ArrayUtils.contains(thePurgeListeners, listener))
+			thePurgeListeners = ArrayUtils.add(thePurgeListeners, listener);
+	}
+
+	/** @param listener The listener to remove from watching this cache's purging */
+	public void removePurgeListener(PurgeListener<? super K, ? super V> listener)
+	{
+		thePurgeListeners = ArrayUtils.remove(thePurgeListeners, listener);
 	}
 
 	public V get(Object key)
@@ -151,7 +210,17 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		newValue.value = value;
 		_access(newValue, ACCESS_SET);
 		CacheValue oldValue = theCache.put(key, newValue);
-		thePurgeMods++;
+		if(theQualitizer == null || thePreferredSize <= 0)
+		{
+			if(oldValue == null)
+				thePurgeMods++;
+		}
+		else
+		{
+			thePurgeMods += theQualitizer.size(value);
+			if(oldValue != null)
+				thePurgeMods -= theQualitizer.size(oldValue.value);
+		}
 		purge(false);
 		return oldValue == null ? null : oldValue.value;
 	}
@@ -159,11 +228,19 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	public V remove(Object key)
 	{
 		CacheValue oldValue = theCache.remove(key);
+		if(oldValue != null)
+		{
+			if(theQualitizer == null || thePreferredSize <= 0)
+				thePurgeMods--;
+			else
+				thePurgeMods -= theQualitizer.size(oldValue.value);
+		}
 		return oldValue == null ? null : oldValue.value;
 	}
 
 	public void clear()
 	{
+		thePurgeMods = 0;
 		theCache.clear();
 	}
 
@@ -177,11 +254,23 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		return theCache.isEmpty();
 	}
 
+	/**
+	 * Checks for the presence of a given key in the cache. This method does not affect the
+	 * purgability of the entry accessed.
+	 * 
+	 * @see Map#containsKey(Object)
+	 */
 	public boolean containsKey(Object key)
 	{
 		return theCache.containsKey(key);
 	}
 
+	/**
+	 * Checks for the presence of a given value in the cache. This method does not affect the
+	 * purgability of the entry accessed.
+	 * 
+	 * @see Map#containsValue(Object)
+	 */
 	public boolean containsValue(Object value)
 	{
 		for(CacheValue val : theCache.values())
@@ -192,17 +281,35 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 
 	public void putAll(Map<? extends K, ? extends V> m)
 	{
-		for(java.util.Map.Entry<? extends K, ? extends V> entry : m.entrySet())
+		for(Map.Entry<? extends K, ? extends V> entry : m.entrySet())
 		{
 			CacheValue cv = new CacheValue();
 			cv.value = entry.getValue();
 			_access(cv, ACCESS_SET);
-			theCache.put(entry.getKey(), cv);
-			thePurgeMods++;
+			CacheValue oldValue = theCache.put(entry.getKey(), cv);
+			if(theQualitizer == null || thePreferredSize <= 0)
+			{
+				if(oldValue == null)
+					thePurgeMods++;
+			}
+			else
+			{
+				thePurgeMods += theQualitizer.size(cv.value);
+				if(oldValue != null)
+					thePurgeMods -= theQualitizer.size(oldValue.value);
+			}
 		}
 		purge(false);
 	}
 
+	/**
+	 * Gets the set of all keys to which values are mapped in this cache. The sets returned from
+	 * {@link #keySet()}, {@link #values()}, and {@link #entrySet()} have access to all the cache's
+	 * data, but calling methods on these sets will not affect when any entries are purged as calls
+	 * to {@link #get(Object)} would.
+	 * 
+	 * @see Map#keySet()
+	 */
 	public Set<K> keySet()
 	{
 		final Object [] keys;
@@ -245,7 +352,15 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		};
 	}
 
-	public Set<java.util.Map.Entry<K, V>> entrySet()
+	/**
+	 * Gets the set of key/value mappings in this cache. The sets returned from {@link #keySet()},
+	 * {@link #values()}, and {@link #entrySet()} have access to all the cache's data, but calling
+	 * methods on these sets will not affect when any entries are purged as calls to
+	 * {@link #get(Object)} would.
+	 * 
+	 * @see Map#entrySet()
+	 */
+	public Set<Map.Entry<K, V>> entrySet()
 	{
 		final Map.Entry<K, CacheValue> [] entries;
 		purge(false);
@@ -313,15 +428,23 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		};
 	}
 
+	/**
+	 * Gets the set of all values mapped to keys in this cache. The sets returned from
+	 * {@link #keySet()}, {@link #values()}, and {@link #entrySet()} have access to all the cache's
+	 * data, but calling methods on these sets will not affect when any entries are purged as calls
+	 * to {@link #get(Object)} would.
+	 * 
+	 * @see Map#values()
+	 */
 	public Set<V> values()
 	{
-		final Set<java.util.Map.Entry<K, V>> entrySet = entrySet();
+		final Set<Map.Entry<K, V>> entrySet = entrySet();
 		return new java.util.AbstractSet<V>()
 		{
 			@Override
 			public Iterator<V> iterator()
 			{
-				final java.util.Iterator<java.util.Map.Entry<K, V>> entryIter;
+				final java.util.Iterator<Map.Entry<K, V>> entryIter;
 				entryIter = entrySet.iterator();
 				return new java.util.Iterator<V>()
 				{
@@ -357,6 +480,8 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 */
 	public float getTotalSize()
 	{
+		if(theQualitizer == null)
+			return theCache.size();
 		float ret = 0;
 		for(CacheValue value : theCache.values())
 			ret += theQualitizer.size(value.value);
@@ -402,7 +527,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 * @param key The key of the item to access
 	 * @param weight The weight of the access--higher weight will result in a more persistent cache
 	 *        item. 1-10 are supported. A guideline is that the cache item will survive longer by
-	 *        {@link #getHalfLife()} <code>weight</code>.
+	 *        {@link #getHalfLife()} x <code>weight</code>.
 	 * @see #ACCESS_GET
 	 * @see #ACCESS_SET
 	 */
@@ -427,8 +552,13 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	{
 		if(!force)
 		{
-			float purgeNeed = (thePurgeMods * 1.0f / 4)
-				+ (System.currentTimeMillis() - thePurgeTime) / 60000f;
+			float purgeNeed = 0;
+			if(theHalfLife > 0 && theCheckedTime > thePurgeTime)
+				purgeNeed += (System.currentTimeMillis() - thePurgeTime) * 10.0f / theHalfLife;
+			if(thePreferredSize > 0)
+				purgeNeed += thePurgeMods / thePreferredSize * 10;
+			else
+				purgeNeed += thePurgeMods / 100;
 			if(purgeNeed < 1)
 				return;
 		}
@@ -451,28 +581,54 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 				totalQuality += theQualitizer.quality(value.value);
 			}
 
-		java.util.Iterator<CacheValue> iter = theCache.values().iterator();
+		java.util.ArrayList<K> purgeKeys = new java.util.ArrayList<K>();
+		java.util.Iterator<Entry<K, CacheValue>> iter = theCache.entrySet().iterator();
+		final PurgeListener<? super K, ? super V> [] pls = thePurgeListeners;
 		while(iter.hasNext())
 		{
-			CacheValue next = iter.next();
-			if(shouldRemove(next, totalSize, totalQuality / count, count))
+			Entry<K, CacheValue> entry = iter.next();
+			CacheValue value = entry.getValue();
+			if(!shouldRemove(value, totalSize, totalQuality / count, count))
+				continue;
+			boolean purge = true;
+			for(int i = 0; i < pls.length && purge; i++)
+				purge = pls[i].prePurge(entry.getKey(), value.value);
+			if(!purge)
+				continue;
+			count--;
+			if(theQualitizer != null)
 			{
-				count--;
-				if(theQualitizer != null)
-				{
-					totalSize -= theQualitizer.size(next.value);
-					totalQuality -= theQualitizer.quality(next.value);
-				}
-				else
-				{
-					totalSize--;
-					totalQuality--;
-				}
-				iter.remove();
+				totalSize -= theQualitizer.size(value.value);
+				totalQuality -= theQualitizer.quality(value.value);
 			}
+			else
+			{
+				totalSize--;
+				totalQuality--;
+			}
+			purgeKeys.add(entry.getKey());
 		}
 		thePurgeTime = System.currentTimeMillis();
 		thePurgeMods = 0;
+
+		if(purgeKeys.isEmpty())
+			return;
+		java.util.ArrayList<V> values = new java.util.ArrayList<V>();
+		for(int i = 0; i < purgeKeys.size(); i++)
+		{
+			CacheValue cv = theCache.remove(purgeKeys.get(i));
+			if(cv != null)
+				values.add(cv.value);
+			else
+			{
+				purgeKeys.remove(i);
+				i--;
+			}
+		}
+		if(purgeKeys.isEmpty())
+			return;
+		for(int i = 0; i < pls.length; i++)
+			pls[i].purged(purgeKeys, values);
 	}
 
 	/**
@@ -517,7 +673,7 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		/* Take into account how frequently and recently the value was accessed */
 		float valueQuality = 1;
 		if(value.demand > 0)
-			valueQuality *= value.demand / theReference;
+			valueQuality = value.demand / theReference;
 		/* Take into account the inherent quality in the value compareed to the average */
 		valueQuality *= quality / avgQuality;
 		/* Take into account the value's size compared with the average size */
@@ -558,6 +714,10 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 		}
 	}
 
+	private static final boolean DO_HL_TEST = true;
+
+	private static final boolean DO_PS_TEST = false;
+
 	/**
 	 * Unit-test
 	 * 
@@ -565,43 +725,158 @@ public class DemandCache<K, V> implements java.util.Map<K, V>
 	 */
 	public static void main(String [] args)
 	{
-		int avgSz = 1;
-		final float [] sizes = new float [1000];
-		for(int idx = 0; idx < sizes.length; idx++)
-			sizes[idx] = (float) (Math.random() * avgSz);
-		DemandCache<Integer, Integer> cache = new DemandCache<Integer, Integer>(
-			new Qualitizer<Integer>()
-			{
-				public float quality(Integer value)
-				{
-					return value.intValue();
-				}
-
-				public float size(Integer value)
-				{
-					return sizes[value.intValue()];
-				}
-			}, 100, 2000);
-		for(int i = 0; i < 1000; i++)
-			cache.put(Integer.valueOf(i), Integer.valueOf(i));
-
-		float totalSize = 0;
-		float totalQ = 0;
-		int purgeCount = 0;
-		for(int count = 0; count < 1000000; count++)
+		DemandCache<Integer, Long> cache;
+		if(DO_HL_TEST)
 		{
-			Integer test = Integer.valueOf((int) (Math.random() * sizes.length));
-			Integer val = cache.get(test);
-			if(val == null)
+			System.out.println("Testing the half life functionality");
+			cache = new DemandCache<Integer, Long>();
+			cache.setHalfLife(10000); // 10 seconds
+			cache.addPurgeListener(new PurgeListener<Integer, Long>()
 			{
-				totalSize += sizes[test.intValue()];
-				totalQ += test.intValue();
-				purgeCount++;
-				cache.put(test, test);
+				public boolean prePurge(Integer key, Long value)
+				{
+					return true;
+				}
+
+				public void purged(List<? extends Integer> keys, List<? extends Long> values)
+				{
+					long now = System.currentTimeMillis();
+					if(values.size() == 1)
+					{
+						System.out.println("Purged 1 value, age "
+							+ PrismsUtils.printTimeLength(now - values.get(0).longValue()));
+						return;
+					}
+					long min = Long.MAX_VALUE, max = Long.MIN_VALUE, mean = 0;
+					for(Long v : values)
+					{
+						if(v.longValue() < min)
+							min = v.longValue();
+						if(v.longValue() > max)
+							max = v.longValue();
+						mean += v.longValue();
+					}
+					mean /= values.size();
+					min = now - min;
+					max = now - max;
+					mean = now - mean;
+					System.out.println("Purged " + values.size() + " values, age min="
+						+ PrismsUtils.printTimeLength(max) + ", avg="
+						+ PrismsUtils.printTimeLength(mean) + ", max="
+						+ PrismsUtils.printTimeLength(min));
+				}
+			});
+			final long begin = System.currentTimeMillis();
+			long now = begin;
+			try
+			{
+				while(now - begin < 60000) // 1 minute
+				{
+					now = System.currentTimeMillis();
+					cache.put(Integer.valueOf(PrismsUtils.getRandomInt()), Long.valueOf(now));
+				}
+			} catch(OutOfMemoryError e)
+			{
+				System.out.println(cache.size());
+				return;
 			}
+
+			now = System.currentTimeMillis();
+			long min = Long.MAX_VALUE, max = Long.MIN_VALUE, mean = 0;
+			for(Entry<Integer, Long> entry : cache.entrySet())
+			{
+				if(entry.getValue().longValue() < min)
+					min = entry.getValue().longValue();
+				if(entry.getValue().longValue() > max)
+					max = entry.getValue().longValue();
+				mean += entry.getValue().longValue();
+			}
+			mean /= cache.size();
+			min = now - min;
+			max = now - max;
+			mean = now - mean;
+			System.out.println("Half-life testing completed. Retained " + cache.size()
+				+ " entries, age min=" + PrismsUtils.printTimeLength(max) + ", avg="
+				+ PrismsUtils.printTimeLength(mean) + ", max=" + PrismsUtils.printTimeLength(min));
+			cache.clear();
+			cache = null;
 		}
-		System.out.println(purgeCount + " purges detected, avg quality "
-			+ Math.round(totalQ / purgeCount / sizes.length * 100) + "%, avg size "
-			+ Math.round(totalSize / purgeCount / avgSz * 100) + "%");
+
+		if(DO_PS_TEST)
+		{
+			System.out.println("Testing the preferred size functionality");
+			cache = new DemandCache<Integer, Long>(new Qualitizer<Long>()
+			{
+				public float quality(Long value)
+				{
+					return 1;
+				}
+
+				public float size(Long value)
+				{
+					return value.floatValue() / 100;
+				}
+			}, 1000000, -1);
+			cache.addPurgeListener(new PurgeListener<Integer, Long>()
+			{
+				public boolean prePurge(Integer key, Long value)
+				{
+					return true;
+				}
+
+				public void purged(List<? extends Integer> keys, List<? extends Long> values)
+				{
+					long min = Long.MAX_VALUE, max = Long.MIN_VALUE, mean = 0;
+					for(Long v : values)
+					{
+						if(v.longValue() < min)
+							min = v.longValue();
+						if(v.longValue() > max)
+							max = v.longValue();
+						mean += v.longValue();
+					}
+					mean /= values.size();
+					min /= 100;
+					max /= 100;
+					mean /= 100;
+					System.out.println("Purged " + values.size() + " values, size min=" + min
+						+ ", avg=" + mean + ", max=" + max);
+				}
+			});
+			final long begin = System.currentTimeMillis();
+			long now = begin;
+			try
+			{
+				while(now - begin < 60000) // 1 minute
+				{
+					now = System.currentTimeMillis();
+					int val = PrismsUtils.getRandomInt() >>> 1;
+					val %= 100000;
+					cache.put(Integer.valueOf(val), Long.valueOf(val));
+				}
+			} catch(OutOfMemoryError e)
+			{
+				System.out.println(cache.size());
+				return;
+			}
+			long min = Long.MAX_VALUE, max = Long.MIN_VALUE, total = 0, mean = 0;
+			for(Entry<Integer, Long> entry : cache.entrySet())
+			{
+				if(entry.getValue().longValue() < min)
+					min = entry.getValue().longValue();
+				if(entry.getValue().longValue() > max)
+					max = entry.getValue().longValue();
+				total += entry.getValue().longValue();
+			}
+			min /= 100;
+			max /= 100;
+			total /= 100;
+			mean = total / cache.size();
+			System.out.println("Preferred size testing completed. Retained " + cache.size()
+				+ " entries, size min=" + min + ", avg=" + mean + ", max=" + max + ", total="
+				+ total);
+			cache.clear();
+			cache = null;
+		}
 	}
 }

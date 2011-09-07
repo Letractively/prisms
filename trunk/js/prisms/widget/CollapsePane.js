@@ -40,6 +40,9 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 			var idx;
 			for(idx=0;idx<table.rows.length && table.rows[idx]!=this.domNode;idx++);
 			this.titleRow=table.insertRow(idx);
+			__dojo.connect(this.titleRow, "onclick", this, this._expandClicked);
+			__dojo.connect(this.titleRow, "onmousemove", this, this._hover);
+			__dojo.connect(this.titleRow, "onmouseout", this, this._unhover);
 			
 			//Setup title row
 			var td=this.titleRow.insertCell(-1);
@@ -50,14 +53,10 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 			this.expandButton=document.createElement("img");
 			this.expandButton.src=this.collapseIcon;
 			tr.insertCell(-1).appendChild(this.expandButton);
-			__dojo.connect(this.expandButton, "onclick", this, this._expandClicked);
-			__dojo.connect(this.expandButton, "onmousemove", this, this._hover);
-			__dojo.connect(this.expandButton, "onmouseout", this, this._unhover);
 			this.titleNode=document.createElement("div");
 			tr.insertCell(-1).appendChild(this.titleNode);
 			this.titleNode.style.fontWeight="bold";
 			this.titleNode.style.fontSize="large";
-			__dojo.connect(this.titleNode, "onclick", this, this._expandClicked);
 			this.titleNode.innerHTML=PrismsUtils.fixUnicodeString(this.title);
 		}
 
@@ -69,7 +68,7 @@ __dojo.declare("prisms.widget.CollapsePane", [__dijit._Widget, __dijit._Containe
 			if(this.governRowCount)
 			{
 				for(idx=0;idx<table.rows.length && table.rows[idx]!=this.domNode;idx++);
-				for(var idx2=0;idx2<this.governRowCount;idx2++)
+				for(var idx2=0;idx2<this.governRowCount && idx+idx2<table.rows.length;idx2++)
 				{
 					this.containerRows.push(table.rows[idx+idx2]);
 					wipeIns.push(__dojo.fx.wipeIn({node: table.rows[idx+idx2], duration: 150}));

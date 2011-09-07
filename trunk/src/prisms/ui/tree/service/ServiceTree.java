@@ -29,14 +29,33 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 		{
 			final DataTreeEvent event;
 
-			final JSONArray path;
+			JSONArray path;
 
 			final long time;
 
 			TreeEvent(DataTreeEvent evt)
 			{
 				event = evt;
-				path = jsonPath((ServiceTreeNode) evt.getNode(), TreeClient.this);
+				switch(evt.getType())
+				{
+				case ADD:
+					path = jsonPath((ServiceTreeNode) evt.getNode(), TreeClient.this, true);
+					break;
+				case REMOVE:
+					path = jsonPath((ServiceTreeNode) evt.getNode(), TreeClient.this, false);
+					break;
+				case CHANGE:
+					path = jsonPath((ServiceTreeNode) evt.getNode(), TreeClient.this,
+						evt.isRecursive());
+					break;
+				case MOVE:
+					path = jsonPath((ServiceTreeNode) evt.getNode(), TreeClient.this, false);
+					break;
+				case REFRESH:
+					path = new JSONArray();
+					path.add(serializeRecursive((ServiceTreeNode) evt.getNode(), TreeClient.this));
+					break;
+				}
 				time = System.currentTimeMillis();
 			}
 		}
@@ -217,8 +236,6 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 				case CHANGE:
 					method = "nodeChanged";
 					ret_i.put("path", evt.path);
-					if(!evt.event.isRecursive())
-						((JSONObject) evt.path.get(evt.path.size() - 1)).remove("children");
 					ret_i.put("recursive", Boolean.valueOf(evt.event.isRecursive()));
 					break;
 				case MOVE:
@@ -577,17 +594,20 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 		}
 	}
 
-	JSONArray jsonPath(ServiceTreeNode node, TreeClient client)
+	JSONArray jsonPath(ServiceTreeNode node, TreeClient client, boolean recursive)
 	{
 		JSONArray pathArr = new JSONArray();
-		pathArr.add(serializeRecursive(node, client));
+		if(recursive)
+			pathArr.add(serializeRecursive(node, client));
+		else
+			pathArr.add(node.toJSON(client));
 		for(node = node.getParent(); node != null; node = node.getParent())
 			pathArr.add(0, node.toJSON(client));
 		fixUnicode(pathArr);
 		return pathArr;
 	}
 
-	private JSONObject serializeRecursive(ServiceTreeNode node, TreeClient client)
+	JSONObject serializeRecursive(ServiceTreeNode node, TreeClient client)
 	{
 		if(node == null)
 			return null;

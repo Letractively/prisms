@@ -820,9 +820,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					throw new IllegalStateException("Could not serialize return events", e);
 				}
 			}
+			if(!request.client.isService() || compareVersions(request.version, "2.1.3") >= 0)
+				str = PrismsUtils.encodeUnicode(str);
 			if(response.shouldEncrypt)
 				str = encrypt(reqAuth, request, str);
-			request.theResponse.setContentType("text/prisms-json");
+			request.theResponse.setContentType(serializer.getContentType(response.toReturn));
 			String acceptEncoding = request.httpRequest.getHeader("accept-encoding");
 			if(acceptEncoding != null && acceptEncoding.toLowerCase().contains("gzip"))
 			{
@@ -1004,7 +1006,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		public PrismsResponse processEvent(RequestAuthenticator reqAuth, PrismsRequest req,
 			JSONObject event) throws IOException
 		{
-			if(!hasCreatedSession)
+			if(hasCreatedSession)
 			{
 				prisms.arch.PrismsApplication.ApplicationLock lock;
 				try
@@ -1047,7 +1049,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						theHttpSession.removeSession(this);
 						destroy();
-						sessionLog.info("Logged out.");
+						sessionLog.info("Session "
+							+ (theSession == null ? "" : theSession.getMetadata().getID() + " ")
+							+ ", user " + theUser + ", application " + theClient.getApp()
+							+ ", client " + theClient + " logged out.");
 						return theSecurity.sendLogin(reqAuth, req,
 							"You have been successfully logged out", false, false);
 					} finally
@@ -2282,25 +2287,22 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			String localPath = pConfig.get("local-path");
 			if(localPort > 0 && localScheme == null)
 				throw new IllegalStateException("Cannot specify local-port without local-scheme");
-			String addr = req == null ? null : req.getLocalName();
-			if(addr == null || addr.equalsIgnoreCase("localhost") || addr.equals("127.0.0.1"))
+			String addr;
+			try
 			{
-				try
-				{
-					addr = java.net.InetAddress.getLocalHost().getCanonicalHostName();
-				} catch(java.net.UnknownHostException e)
-				{
-					log.error("Could not get local host address."
-						+ " Enterprise and self connections will not be available.", e);
-					addr = null;
-				}
+				addr = java.net.InetAddress.getLocalHost().getCanonicalHostName();
+			} catch(java.net.UnknownHostException e)
+			{
+				log.error("Could not get local host address."
+					+ " Enterprise and self connections will not be available.", e);
+				addr = null;
 			}
 			if(addr != null)
 			{
 				if(localScheme == null && req != null)
 				{
 					localScheme = req.getScheme();
-					localPort = req.getLocalPort();
+					localPort = req.getServerPort();
 				}
 				if(localPath == null && req != null)
 				{
@@ -2320,8 +2322,47 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						localPort = -1;
 					if(localPath.startsWith("/"))
 						localPath = localPath.substring(1);
-					ids.setLocalConnectInfo(localScheme + "://" + addr
-						+ (localPort > 0 ? ":" + localPort : "") + "/" + localPath);
+					String loc = localScheme + "://" + addr
+						+ (localPort > 0 ? ":" + localPort : "") + "/" + localPath;
+					boolean valid = false;
+					try
+					{
+						String test = loc;
+						if(localPath.contains("?"))
+							test += "&";
+						else
+							test += "?";
+						test += "method=test";
+						java.net.URL url = new java.net.URL(test);
+						java.io.Reader reader = new java.io.InputStreamReader(url.openStream());
+						java.io.StringWriter writer = new java.io.StringWriter();
+						int read = reader.read();
+						while(read >= 0)
+						{
+							writer.write(read);
+							read = reader.read();
+						}
+						reader.close();
+						writer.close();
+						if(!writer.toString().startsWith("success"))
+							log.warn("Self-reference location " + loc
+								+ " does not point to a PRISMS server."
+								+ " Enterprise and self connections will not be available.\n"
+								+ writer.toString());
+						else if(!writer.toString().equals(
+							"success:" + Integer.toHexString(theEnv.hashCode())))
+							log.warn("Self-reference location " + loc
+								+ " does not point to this server."
+								+ "Enterprise and self connections will not be available.");
+						else
+							valid = true;
+					} catch(IOException e)
+					{
+						log.warn("Self-reference location " + loc + " cannot be contacted."
+							+ " Enterprise and self connections will not be available.", e);
+					}
+					if(valid)
+						ids.setLocalConnectInfo(loc);
 				}
 				else
 					log.warn("local-scheme, local-port, and local-path elements must be present in"
@@ -2471,37 +2512,39 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		if(theConfigProgress.theStage.compareTo(ConfigStage.LOAD_CONTENT) <= 0)
 		{
-			boolean loadContent;
+			boolean init;
 			try
 			{
-				loadContent = theEnv.getIDs().isNewInstall()
+				init = theEnv.getIDs().isNewInstall()
 					|| theEnv.getUserSource().getActiveUsers().length == 0;
 			} catch(PrismsException e)
 			{
 				log.error("Could not check user count", e);
-				loadContent = false;
+				init = false;
 			}
-			if(loadContent)
+			String ref = pConfig.get("default-users");
+			if(ref != null)
 			{
-				String ref = pConfig.get("default-users");
-				if(ref != null)
+				if(!(theEnv.getUserSource() instanceof prisms.arch.ds.ManageableUserSource))
 				{
-					if(!(theEnv.getUserSource() instanceof prisms.arch.ds.ManageableUserSource))
+					if(init)
 						log.error("Cannot load default users--user source is not manageable");
 					else
-					{
-						try
-						{
-							loadDefaultUsers(PrismsConfig.fromXml(theEnv, ref, configXmlRef));
-						} catch(java.io.IOException e)
-						{
-							log.error("Could not load default users", e);
-						}
-					}
+						log.info("Cannot load default users--user source is not manageable");
 				}
 				else
-					log.info("No default users to load");
+				{
+					try
+					{
+						loadDefaultUsers(PrismsConfig.fromXml(theEnv, ref, configXmlRef), init);
+					} catch(java.io.IOException e)
+					{
+						log.error("Could not load default users", e);
+					}
+				}
 			}
+			else
+				log.info("No default users to load");
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
@@ -2557,7 +2600,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
-		log.info("PRISMS Configured");
+		if(theEnv.getIDs().getLocalInstance() != null)
+			log.info("PRISMS Configured at " + theEnv.getIDs().getLocalInstance().location);
+		else
+			log.info("PRISMS Configured");
 
 		// Now we configure applications that have been marked to be loaded immediately
 		for(AppConfigurator config : theConfigs.values())
@@ -2777,31 +2823,37 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				+ " DefaultApplications.xml");
 	}
 
-	private void loadDefaultUsers(PrismsConfig config) throws PrismsException
+	private void loadDefaultUsers(PrismsConfig config, boolean init) throws PrismsException
 	{
 		prisms.arch.ds.ManageableUserSource us = (prisms.arch.ds.ManageableUserSource) theEnv
 			.getUserSource();
-		PrismsConfig pcEl = config.subConfig("password-constraints");
-		if(pcEl != null)
+		if(init)
 		{
-			prisms.arch.ds.PasswordConstraints pc = us.getPasswordConstraints();
-			pc.setMinCharacterLength(pcEl.getInt("length", pc.getMinCharacterLength()));
-			pc.setMinUpperCase(pcEl.getInt("upper", pc.getMinUpperCase()));
-			pc.setMinLowerCase(pcEl.getInt("lower", pc.getMinLowerCase()));
-			pc.setMinDigits(pcEl.getInt("digit", pc.getMinDigits()));
-			pc.setMinSpecialChars(pcEl.getInt("special", pc.getMinSpecialChars()));
-			long durationMult = 24L * 60 * 60 * 1000;
-			pc.setMaxPasswordDuration(pcEl.getInt("duration",
-				(int) (pc.getMaxPasswordDuration() / durationMult)) * durationMult);
-			long changeMult = 60L * 1000;
-			pc.setMinPasswordChangeInterval(pcEl.getInt("change-interval",
-				(int) (pc.getMinPasswordChangeInterval() / changeMult))
-				* changeMult);
-			us.setPasswordConstraints(pc);
+			PrismsConfig pcEl = config.subConfig("password-constraints");
+			if(pcEl != null)
+			{
+				prisms.arch.ds.PasswordConstraints pc = us.getPasswordConstraints();
+				pc.setMinCharacterLength(pcEl.getInt("length", pc.getMinCharacterLength()));
+				pc.setMinUpperCase(pcEl.getInt("upper", pc.getMinUpperCase()));
+				pc.setMinLowerCase(pcEl.getInt("lower", pc.getMinLowerCase()));
+				pc.setMinDigits(pcEl.getInt("digit", pc.getMinDigits()));
+				pc.setMinSpecialChars(pcEl.getInt("special", pc.getMinSpecialChars()));
+				long durationMult = 24L * 60 * 60 * 1000;
+				pc.setMaxPasswordDuration(pcEl.getInt("duration",
+					(int) (pc.getMaxPasswordDuration() / durationMult))
+					* durationMult);
+				long changeMult = 60L * 1000;
+				pc.setMinPasswordChangeInterval(pcEl.getInt("change-interval",
+					(int) (pc.getMinPasswordChangeInterval() / changeMult))
+					* changeMult);
+				us.setPasswordConstraints(pc);
+			}
 		}
 
 		for(PrismsConfig groupEl : config.subConfigs("groups/group"))
 		{
+			if(!init && groupEl.is("init-only", false))
+				continue;
 			String groupName = groupEl.get("name");
 			if(groupName == null)
 			{
@@ -2841,8 +2893,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				group.setDescription(descrip);
 				changed = true;
 			}
-			for(String permName : groupEl.getAll("permission"))
+			for(PrismsConfig permConfig : groupEl.subConfigs("permission"))
 			{
+				if(!init && permConfig.is("init-only", false))
+					continue;
+				String permName = permConfig.getValue();
 				Permission perm = app.getPermission(permName);
 				if(perm == null)
 				{
@@ -2863,6 +2918,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		for(PrismsConfig userEl : config.subConfigs("users/user"))
 		{
+			if(!init && userEl.is("init-only", false))
+				continue;
 			String userName = userEl.get("name");
 			User user = us.getUser(userName);
 			if(user == null)
@@ -2883,8 +2940,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				us.setPassword(user, us.getHashing().partialHash(password), true);
 				log.debug("Set initial password of user " + userName);
 			}
-			for(String appName : userEl.getAll("app-assoc"))
+			for(PrismsConfig appAssoc : userEl.subConfigs("app-assoc"))
 			{
+				if(!init && appAssoc.is("init-only", false))
+					continue;
+				String appName = appAssoc.getValue();
 				PrismsApplication app = theApps.get(appName);
 				if(app == null)
 				{
@@ -2900,6 +2960,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			for(PrismsConfig groupEl : userEl.subConfigs("group"))
 			{
+				if(!init && groupEl.is("init-only", false))
+					continue;
 				String groupName = groupEl.get("name");
 				if(groupName == null)
 				{
@@ -2930,7 +2992,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(!ArrayUtils.contains(user.getGroups(), group))
 				{
 					changed = true;
-					user.addTo(group);
+					boolean ro = user.isReadOnly();
+					user.setReadOnly(false);
+					try
+					{
+						user.addTo(group);
+					} finally
+					{
+						user.setReadOnly(ro);
+					}
 					log.debug("Associated user " + userName + " with " + appName + " group "
 						+ groupName);
 				}
@@ -2954,7 +3024,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		try
 		{
 			sessionLog.info("User " + user + " logged in to application " + client.getApp()
-				+ ", client " + client);
+				+ ", client " + client.getName() + ", session " + md.getID());
 			client.getApp().configureSession(ret);
 			appConfig.configureSession(ret);
 		} catch(Throwable e)
@@ -2985,7 +3055,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if("test".equals(req.getParameter("method")))
 		{ // Just a test to see if the server is alive
 			java.io.PrintWriter out = resp.getWriter();
-			out.write("success");
+			out.write("success:");
+			out.write(Integer.toHexString(theEnv.hashCode()));
 			out.close();
 			return;
 		}
@@ -3513,7 +3584,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	@Override
 	public void destroy()
 	{
-		log.info("Destroying servlet");
+		log.info("PRISMS is shutting down");
 		HttpSession [] sessions = theSessions.values().toArray(new HttpSession [0]);
 		theSessions.clear();
 		for(HttpSession session : sessions)

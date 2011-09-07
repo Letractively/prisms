@@ -59,7 +59,6 @@ __dojo.declare("log4j.LoggerEditor", [prisms.widget.TabWidget, __dijit._Template
 		this.levelCheck.setAttribute("disabled", !enabled);
 		if(this.levelCheck.checked)
 			this.levelCombo.disabled = !enabled;
-		this.additivity.setAttribute("disabled", !enabled);
 	},
 
 	setLogger: function(logger){
@@ -93,7 +92,6 @@ __dojo.declare("log4j.LoggerEditor", [prisms.widget.TabWidget, __dijit._Template
 				this.levelCombo.selectedIndex=-1;
 			}
 			this.effectiveLevel.innerHTML=PrismsUtils.fixUnicodeString(logger.effectiveLevel);
-			this.additivity.setAttribute("checked", logger.additivity);
 		} finally{
 			this.dataLock=false;
 		}
@@ -132,12 +130,6 @@ __dojo.declare("log4j.LoggerEditor", [prisms.widget.TabWidget, __dijit._Template
 		this.prisms.callApp(this.pluginName, "levelChanged", {level: level});
 	},
 
-	_additivityChanged: function(){
-		if(this.dataLock)
-			return;
-		this.prisms.callApp(this.pluginName, "additivityChanged", {additivity: this.additivity.checked});
-	},
-
 	_printMessage: function(){
 		if(this.dataLock)
 			return;
@@ -148,6 +140,18 @@ __dojo.declare("log4j.LoggerEditor", [prisms.widget.TabWidget, __dijit._Template
 			return;
 		}
 		this.prisms.callApp(this.pluginName, "printMessage", {message: message});
+	},
+
+	_printAttachment: function(){
+		if(this.dataLock)
+			return;
+		var message=this.attachmentBox.getValue();
+		if(message==null || message.length==0)
+		{
+			alert("Enter a message to print");
+			return;
+		}
+		this.prisms.callApp(this.pluginName, "printAttachment", {message: message});
 	},
 
 	_printException: function(){

@@ -464,9 +464,9 @@ public class PrismsApplication
 	/**
 	 * Adds an event listener to listen to an event whatever session it occurs in. The listener will
 	 * receive an event as many times as there are sessions when the event fires each time the event
-	 * fires. If there are no sessions when the event fires (but the application has been
-	 * configured), the listener will receive the event once with a null session argument, but with
-	 * the application set in an event property named "globalEventApp".
+	 * fires. In addition, the listener will receive the event once before any of the sessions with
+	 * a null session argument, but with the application set in an event property named
+	 * "globalEventApp".
 	 * 
 	 * @param eventName The name of the event to listen to, or null to listen to every event
 	 * @param listener The listener to listen for the event
@@ -774,7 +774,10 @@ public class PrismsApplication
 	/**
 	 * Runs the given task for all sessions being served by this application
 	 * 
-	 * @param session The session requesting the task be run
+	 * @param session The session requesting the task be run. This session is treated differently in
+	 *        that the task will not be run in that session if <code>excludeSession</code> is true,
+	 *        and the task will be run in the current thread otherwise. The task will be run on
+	 *        other sessions upon the next start or finish of a request on that session.
 	 * @param task The task to run
 	 * @param excludeSession Whether the given session should be excluded from the task
 	 */
@@ -848,7 +851,6 @@ public class PrismsApplication
 	public void fireGlobally(PrismsSession session, final PrismsEvent toFire)
 	{
 		toFire.setProperty(GLOBALIZED_EVENT_PROPERTY, Boolean.TRUE);
-		if(theSessions.isEmpty())
 		{
 			Object oldApp = toFire.getProperty("globalEventApp");
 			toFire.setProperty("globalEventApp", this);
@@ -863,22 +865,19 @@ public class PrismsApplication
 				toFire.setProperty("globalEventApp", oldApp);
 			}
 		}
-		else
+		runSessionTask(session, new SessionTask()
 		{
-			runSessionTask(session, new SessionTask()
+			public void run(PrismsSession s)
 			{
-				public void run(PrismsSession s)
-				{
-					s.fireEvent(toFire);
-				}
+				s.fireEvent(toFire);
+			}
 
-				@Override
-				public String toString()
-				{
-					return "Firing event " + toFire.name + " globally";
-				}
-			}, false);
-		}
+			@Override
+			public String toString()
+			{
+				return "Firing event " + toFire.name + " globally";
+			}
+		}, false);
 	}
 
 	/**

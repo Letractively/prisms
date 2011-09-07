@@ -21,6 +21,13 @@
 			<permission>userAdmin</permission>
 		</group>
 
+		<group app="MANAGER" name="Inspector">
+			<description>Users can view and kill sessions and inspect their state</description>
+			<permission>View Sessions</permission>
+			<permission>Kill Sessions</permission>
+			<permission>Inspect</permission>
+		</group>
+
 		<!--Logger groups -->
 		<group app="Logging" name="Log Admin">
 			<description>Users have unlimited permissions to modify logging configuration</description>
@@ -29,7 +36,7 @@
 			<permission>Edit Purge</permission>
 		</group>
 		<group app="Logging" name="Log Viewer">
-			<description>Users have unlimited permissions view logs but cannot change settings</description>
+			<description>Users have unlimited permissions to view logs but cannot change settings</description>
 			<permission>View All Logs</permission>
 		</group>
 	</groups>
@@ -39,6 +46,7 @@
 			<app-assoc>MANAGER</app-assoc>
 			<app-assoc>Logging</app-assoc>
 			<group app="MANAGER" name="userAdmin" />
+			<group app="MANAGER" name="Inspector" />
 			<group app="Logging" name="Log Admin" />
 			<password>admin</password>
 		</user>

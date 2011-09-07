@@ -2,6 +2,7 @@
 __dojo.provide("prisms.PrismsLink");
 
 __dojo.require("prisms.Encryption");
+__dojo.require("prisms.PrismsUtils");
 
 __dojo.declare("prisms.PrismsLink", null, {
 	application: "No Application Specified",
@@ -554,7 +555,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 			params=this.cipher.encrypt(params);
 		}
 		else
-			params=this.toJson(params);
+			params=PrismsUtils.safeEscape(this.toJson(params));
 		ret+="&data="+escape(params);
 		return ret;
 	},

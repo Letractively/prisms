@@ -451,7 +451,7 @@ public class DBUserSource implements ScalableUserSource
 				return new ApplicationStatus(null, -1, -1);
 			String lockMessage = rs.getString("lockMessage");
 			PrismsApplication.ApplicationLock lock;
-			if(lockMessage == null)
+			if(lockMessage == null || time.getTime() < System.currentTimeMillis() - 5000)
 				lock = null;
 			else
 				lock = new PrismsApplication.ApplicationLock(lockMessage, rs.getInt("lockScale"),
@@ -1811,7 +1811,6 @@ public class DBUserSource implements ScalableUserSource
 
 	void dbInsertUser(User user, Statement stmt) throws PrismsException
 	{
-		userLog.info("User " + user + ", ID " + user.getID() + " created");
 		if(user.getID() < 0)
 			user.setID(theIDs.getNextID("prisms_user", "id", stmt, theTransactor.getTablePrefix(),
 				null));
@@ -1828,6 +1827,7 @@ public class DBUserSource implements ScalableUserSource
 		{
 			throw new PrismsException("Could not insert user: SQL=" + sql, e);
 		}
+		userLog.info("User " + user + ", ID " + user.getID() + " created");
 	}
 
 	boolean dbUpdateUser(final User dbUser, User setUser, final Statement stmt,
@@ -1878,7 +1878,15 @@ public class DBUserSource implements ScalableUserSource
 					{
 						log.error("Could not insert group membership: SQL=" + sql, e);
 					}
-					dbUser.addTo(o);
+					boolean ro = dbUser.isReadOnly();
+					dbUser.setReadOnly(false);
+					try
+					{
+						dbUser.addTo(o);
+					} finally
+					{
+						dbUser.setReadOnly(ro);
+					}
 					addModification(trans, PrismsSubjectType.user, UserChange.group, 1, dbUser, o,
 						null, null, null);
 					authChange[0] = true;
@@ -1902,7 +1910,15 @@ public class DBUserSource implements ScalableUserSource
 					{
 						log.error("Could not remove group membership: SQL=" + sql, e);
 					}
-					dbUser.removeFrom(o);
+					boolean ro = dbUser.isReadOnly();
+					dbUser.setReadOnly(false);
+					try
+					{
+						dbUser.removeFrom(o);
+					} finally
+					{
+						dbUser.setReadOnly(ro);
+					}
 					addModification(trans, PrismsSubjectType.user, UserChange.group, -1, dbUser, o,
 						null, null, null);
 					authChange[0] = true;
@@ -1922,7 +1938,15 @@ public class DBUserSource implements ScalableUserSource
 			update += "userName=" + toSQL(setUser.getName()) + ", ";
 			addModification(trans, PrismsSubjectType.user, UserChange.name, 0, setUser, null,
 				dbUser.getName(), null, null);
-			dbUser.setName(setUser.getName());
+			boolean ro = dbUser.isReadOnly();
+			dbUser.setReadOnly(false);
+			try
+			{
+				dbUser.setName(setUser.getName());
+			} finally
+			{
+				dbUser.setReadOnly(ro);
+			}
 		}
 		if(dbUser.isAdmin() != setUser.isAdmin())
 		{
@@ -1931,7 +1955,15 @@ public class DBUserSource implements ScalableUserSource
 			update += "isAdmin=" + boolToSql(setUser.isAdmin()) + ", ";
 			addModification(trans, PrismsSubjectType.user, UserChange.admin, 0, setUser, null,
 				Boolean.valueOf(dbUser.isAdmin()), null, null);
-			dbUser.setAdmin(setUser.isAdmin());
+			boolean ro = dbUser.isReadOnly();
+			dbUser.setReadOnly(false);
+			try
+			{
+				dbUser.setAdmin(setUser.isAdmin());
+			} finally
+			{
+				dbUser.setReadOnly(ro);
+			}
 			authChange[0] = true;
 		}
 		if(dbUser.isLocked() != setUser.isLocked())
@@ -1992,6 +2024,20 @@ public class DBUserSource implements ScalableUserSource
 			throw new PrismsException("Could not delete user: SQL=" + sql, e);
 		}
 		addModification(trans, PrismsSubjectType.user, null, -1, user, null, null, null, null);
+	}
+
+	void purgeUser(User user, Statement stmt) throws PrismsException
+	{
+		userLog.info("User " + user + ", ID " + user.getID() + " purged");
+		String sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_user WHERE id="
+			+ user.getID();
+		try
+		{
+			stmt.execute(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not purge user: SQL=" + sql, e);
+		}
 	}
 
 	private UserGroup getGroup(long id, PrismsApplication app, Statement stmt)
@@ -2061,7 +2107,6 @@ public class DBUserSource implements ScalableUserSource
 	void dbInsertGroup(UserGroup group, Statement stmt, RecordsTransaction trans)
 		throws PrismsException
 	{
-		userLog.info("Group " + group + ", ID " + group.getID() + " created");
 		String sql = null;
 		try
 		{
@@ -2078,6 +2123,7 @@ public class DBUserSource implements ScalableUserSource
 		{
 			throw new PrismsException("Could not insert group: SQL=" + sql, e);
 		}
+		userLog.info("Group " + group + ", ID " + group.getID() + " created");
 		addModification(trans, PrismsSubjectType.group, null, 1, group, null, null, group.getApp(),
 			null);
 	}
@@ -2111,7 +2157,7 @@ public class DBUserSource implements ScalableUserSource
 		if(!equal(dbGroup.getDescription(), setGroup.getDescription()))
 		{
 			status.append("Description changed to ").append(setGroup.getDescription()).append('\n');
-			update += "groupDescrip=" + toSQL(setGroup.getName()) + ", ";
+			update += "groupDescrip=" + toSQL(setGroup.getDescription()) + ", ";
 			addModification(trans, PrismsSubjectType.group, GroupChange.descrip, 0, dbGroup, null,
 				dbGroup.getDescription(), dbGroup.getApp(), null);
 		}
@@ -2141,7 +2187,7 @@ public class DBUserSource implements ScalableUserSource
 
 			public Permission added(Permission o, int idx, int retIdx)
 			{
-				status.append("Permission ").append(o.getName()).append(" added");
+				status.append("Permission ").append(o.getName()).append(" added\n");
 				String sql = null;
 				try
 				{
@@ -2168,7 +2214,7 @@ public class DBUserSource implements ScalableUserSource
 
 			public Permission removed(Permission o, int idx, int incMod, int retIdx)
 			{
-				status.append("Permission ").append(o.getName()).append(" removed");
+				status.append("Permission ").append(o.getName()).append(" removed\n");
 				String sql = null;
 				try
 				{
@@ -2214,8 +2260,8 @@ public class DBUserSource implements ScalableUserSource
 		String sql = null;
 		try
 		{
-			sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_user_group WHERE id="
-				+ group.getID();
+			sql = "UPDATE" + theTransactor.getTablePrefix() + "prisms_user_group SET deleted="
+				+ boolToSql(true) + " WHERE id=" + group.getID();
 			stmt.execute(sql);
 		} catch(SQLException e)
 		{
@@ -2223,6 +2269,20 @@ public class DBUserSource implements ScalableUserSource
 		}
 		addModification(trans, PrismsSubjectType.group, null, -1, group, null, null,
 			group.getApp(), null);
+	}
+
+	void purgeGroup(UserGroup group, Statement stmt) throws PrismsException
+	{
+		userLog.info("Group " + group + ", ID " + group.getID() + " purged");
+		String sql = "DELETE FROM " + theTransactor.getTablePrefix()
+			+ "prisms_user_group WHERE id=" + group.getID();
+		try
+		{
+			stmt.execute(sql);
+		} catch(SQLException e)
+		{
+			throw new PrismsException("Could not purge group: SQL=" + sql, e);
+		}
 	}
 
 	/**

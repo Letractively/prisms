@@ -34,6 +34,8 @@ public class LogEntry
 
 	private long theSaveTime;
 
+	private int theSize;
+
 	/** Creates a log entry */
 	public LogEntry()
 	{
@@ -214,6 +216,18 @@ public class LogEntry
 	public void setSaveTime(long saveTime)
 	{
 		theSaveTime = saveTime;
+	}
+
+	/** @return The approximate number of KB this entry takes up in the database */
+	public int getSize()
+	{
+		return theSize;
+	}
+
+	/** @param size The approximate number of KB this entry takes up in the database */
+	public void setSize(int size)
+	{
+		theSize = size;
 	}
 
 	/**

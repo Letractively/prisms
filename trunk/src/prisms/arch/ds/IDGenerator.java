@@ -109,7 +109,7 @@ public class IDGenerator
 					} catch(java.io.IOException e2)
 					{}
 			}
-			return result != null && result.toString().equals("success");
+			return result != null && result.toString().startsWith("success");
 		}
 
 		@Override
@@ -214,7 +214,7 @@ public class IDGenerator
 	/**
 	 * Creates an ID generator for a given connection
 	 * 
-	 * @param factory The connection factory to use to get the database connection
+	 * @param factory The connection factory to use to connect to the database
 	 * @param connEl The configuration to use to get the database connection
 	 */
 	public IDGenerator(prisms.arch.ConnectionFactory factory, prisms.arch.PrismsConfig connEl)
@@ -298,7 +298,7 @@ public class IDGenerator
 	 */
 	protected void doStartup() throws PrismsException
 	{
-		createPreparedCalls();
+		theTransactor.checkConnected();
 		lock("prisms_installation", null);
 		try
 		{
@@ -1042,8 +1042,6 @@ public class IDGenerator
 		{
 			throw new IllegalStateException("Could not get connection", e);
 		}
-		if(theSyncStatement != null)
-			return;
 		String sql;
 		try
 		{

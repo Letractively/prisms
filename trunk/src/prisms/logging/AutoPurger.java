@@ -17,12 +17,12 @@ public class AutoPurger implements prisms.util.Sealable, Cloneable
 
 	private int theMaxSize; // In entries (approx. 1KB/entry)
 
-	private String [] theExcludeLoggers;
+	private prisms.util.Search[] theExcludeSearches;
 
 	/** Creates an auto purger */
 	public AutoPurger()
 	{
-		theExcludeLoggers = new String [0];
+		theExcludeSearches = new prisms.util.Search [0];
 	}
 
 	public boolean isSealed()
@@ -68,32 +68,32 @@ public class AutoPurger implements prisms.util.Sealable, Cloneable
 	}
 
 	/** @return All loggers that are excluded from auto-purge */
-	public final String [] getExcludeLoggers()
+	public final prisms.util.Search[] getExcludeSearches()
 	{
-		return theExcludeLoggers;
+		return theExcludeSearches;
 	}
 
 	/**
 	 * Adds a logger to the set of loggers that are excluded from auto-purge
 	 * 
-	 * @param logger The logger to forbid purging of
+	 * @param search The search to forbid purging of
 	 */
-	public void excludeLogger(String logger)
+	public void excludeSearch(prisms.util.Search search)
 	{
 		assertUnsealed();
-		if(!ArrayUtils.contains(theExcludeLoggers, logger))
-			theExcludeLoggers = ArrayUtils.add(theExcludeLoggers, logger);
+		if(!ArrayUtils.contains(theExcludeSearches, search))
+			theExcludeSearches = ArrayUtils.add(theExcludeSearches, search);
 	}
 
 	/**
 	 * Removes a logger from the set of loggers that are excluded from auto-purge
 	 * 
-	 * @param logger The logger to allow purging of
+	 * @param search The search to allow purging of
 	 */
-	public void includeLogger(String logger)
+	public void includeSearch(prisms.util.Search search)
 	{
 		assertUnsealed();
-		theExcludeLoggers = ArrayUtils.remove(theExcludeLoggers, logger);
+		theExcludeSearches = ArrayUtils.remove(theExcludeSearches, search);
 	}
 
 	@Override
@@ -107,6 +107,8 @@ public class AutoPurger implements prisms.util.Sealable, Cloneable
 		{
 			throw new IllegalStateException(e.getMessage());
 		}
+		for(int i = 0; i < theExcludeSearches.length; i++)
+			ret.theExcludeSearches[i] = theExcludeSearches[i].clone();
 		ret.isSealed = false;
 		return ret;
 	}

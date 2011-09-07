@@ -93,8 +93,8 @@ __dojo.declare("log4j.AutoPurgeEditor", [prisms.widget.PrismsDialog], {
 		tr.style.whiteSpace="nowrap";
 		td=tr.insertCell(-1);
 		td.style.textAlign="center";
-		td.innerHTML="Excluded Loggers";
-		td.title="Logger names that cannot be purged";
+		td.innerHTML="Excluded Searches";
+		td.title="Searches whose results cannot be purged";
 		td=tr.insertCell(-1);
 		this.excludeLink=this.createLink(true, true);
 		td.appendChild(this.excludeLink);
@@ -161,7 +161,8 @@ __dojo.declare("log4j.AutoPurgeEditor", [prisms.widget.PrismsDialog], {
 			{
 				var tr=this.excludeTable.insertRow(-1);
 				var td=tr.insertCell(0);
-				td.innerHTML=PrismsUtils.fixUnicodeString(purger.excludes[i].name);
+				td.innerHTML=PrismsUtils.fixUnicodeString(purger.excludes[i].display);
+				td.title=purger.excludes[i].title;
 				td=tr.insertCell(1);
 				td.appendChild(this.createLink(false, purger.enabled && !purger.excludes[i].permanent));
 			}
@@ -299,7 +300,7 @@ __dojo.declare("log4j.AutoPurgeEditor", [prisms.widget.PrismsDialog], {
 		var td=tr.insertCell(-1);
 		td.innerHTML="<input type=\"text\" />";
 		var input=td.childNodes[0];
-		input.value="Enter Logger Name";
+		input.value="Enter Exclusion Search";
 		var changeConn=null;
 		var blurConn=null;
 		var inputTD=td;

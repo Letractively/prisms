@@ -13,10 +13,10 @@ public abstract class LogEntrySearch extends Search
 	public static enum LogEntrySearchType implements SearchType
 	{
 		/** Search on the ID value of log entries */
-		id() {
-			public IDRange create(String search, SearchBuilder builder)
+		id("id:") {
+			public IDSearch create(String search, SearchBuilder builder)
 			{
-				throw new IllegalArgumentException("Cannot create an ID range search like this");
+				return new IDSearch(search);
 			}
 		},
 		/** Searches on the instance location from which a log entry was made */
@@ -137,6 +137,20 @@ public abstract class LogEntrySearch extends Search
 								+ " is invalid.");
 					}
 				return new LogDuplicateSearch(dupID, true);
+			}
+		},
+		/** Searches for log entries by save time */
+		saved("saved:") {
+			public LogSavedSearch create(String search, SearchBuilder builder)
+			{
+				return new LogSavedSearch(search);
+			}
+		},
+		/** Searches for log entries by size */
+		size("size:") {
+			public LogSizeSearch create(String search, SearchBuilder builder)
+			{
+				return new LogSizeSearch(search);
 			}
 		};
 
@@ -273,35 +287,45 @@ public abstract class LogEntrySearch extends Search
 	}
 
 	/** A search for a range of log entry IDs */
-	public static class IDRange extends LogEntrySearch
+	public static class IDSearch extends LogEntrySearch
 	{
 		/** The type of this search */
 		public static final LogEntrySearchType type = LogEntrySearchType.id;
 
-		private Integer theMinID;
+		/** The operator operating on the ID threshold */
+		public final Operator operator;
 
-		private Integer theMaxID;
+		/** The ID threshold */
+		public final Integer id;
 
 		/**
-		 * @param minID The minimum log entry ID to search for. May be null for a prepared search.
-		 * @param maxID The maximum log entry ID to search for. May be null for a prepared search.
+		 * @param op The operator to operate on the ID threshold
+		 * @param _id The ID threshold. May be null for a prepared search.
 		 */
-		public IDRange(Integer minID, Integer maxID)
+		public IDSearch(Operator op, Integer _id)
 		{
-			theMinID = minID;
-			theMaxID = maxID;
+			operator = op;
+			id = _id;
 		}
 
-		/** @return The minimum log entry ID to search for. May be null for a prepared search. */
-		public Integer getMinID()
+		/**
+		 * Creates an ID search from a user-typed search string
+		 * 
+		 * @param srch The user's query
+		 */
+		public IDSearch(String srch)
 		{
-			return theMinID;
-		}
-
-		/** @return The maximum log entry ID to search for. May be null for a prepared search. */
-		public Integer getMaxID()
-		{
-			return theMaxID;
+			srch = type.clean(srch);
+			StringBuilder sb = new StringBuilder(srch);
+			operator = Operator.parse(sb, srch);
+			try
+			{
+				id = Integer.valueOf(sb.toString(), 16);
+			} catch(NumberFormatException e)
+			{
+				throw new IllegalArgumentException("IDs must be specified in hexadecimal. " + srch
+					+ " is invalid.");
+			}
 		}
 
 		@Override
@@ -313,15 +337,15 @@ public abstract class LogEntrySearch extends Search
 		@Override
 		public String toString()
 		{
-			return (theMinID == null ? "?" : "" + theMinID) + ">=id<="
-				+ (theMaxID == null ? "?" : "" + theMaxID);
+			return type.headers.get(0) + operator
+				+ (id == null ? "?" : Integer.toHexString(id.intValue()));
 		}
 
 		@Override
 		public boolean equals(Object obj)
 		{
-			return obj instanceof IDRange && equal(theMinID, ((IDRange) obj).theMinID)
-				&& equal(theMaxID, ((IDRange) obj).theMaxID);
+			return obj instanceof IDSearch && operator.equals(((IDSearch) obj).operator)
+				&& id == ((IDSearch) obj).id;
 		}
 	}
 
@@ -785,6 +809,160 @@ public abstract class LogEntrySearch extends Search
 		{
 			return o instanceof LogDuplicateSearch && isNull == ((LogDuplicateSearch) o).isNull
 				&& equal(theDuplicateID, ((LogDuplicateSearch) o).theDuplicateID);
+		}
+	}
+
+	/** A search for log entries by save time */
+	public static class LogSavedSearch extends LogEntrySearch
+	{
+		/** The type of this search */
+		public static final LogEntrySearchType type = LogEntrySearchType.saved;
+
+		/** The operator determining how to use the search date */
+		public final Operator operator;
+
+		/** When the entry was logged. May be null for a prepared search. */
+		public final SearchDate saveTime;
+
+		/**
+		 * Whether a null <code>logTime</code> means a search for entries with no saved time or a
+		 * prepared search
+		 */
+		public final boolean isNull;
+
+		/** @param srch The entire search query (with or without header) */
+		public LogSavedSearch(String srch)
+		{
+			srch = type.clean(srch);
+			StringBuilder sb = new StringBuilder(srch);
+			operator = Operator.parse(sb, srch);
+			if(sb.toString().equals("none"))
+			{
+				saveTime = null;
+				isNull = true;
+			}
+			else
+			{
+				saveTime = SearchDate.parse(sb, srch);
+				isNull = false;
+			}
+		}
+
+		/**
+		 * @param op The operator to determine how to use the search time
+		 * @param time The saved time to search against. May be null to search for entries with no
+		 *        saved time or for a prepared search.
+		 * @param _null Whether a null value for time means a search for entries with no saved time
+		 *        or a prepared search
+		 */
+		public LogSavedSearch(Operator op, SearchDate time, boolean _null)
+		{
+			operator = op;
+			saveTime = time;
+			isNull = _null;
+		}
+
+		@Override
+		public LogEntrySearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public LogSavedSearch clone()
+		{
+			return this; // Immutable
+		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			ret.append(type.headers.get(0)).append(operator);
+			if(saveTime != null)
+				ret.append(saveTime);
+			else if(isNull)
+				ret.append("none");
+			else
+				ret.append("?");
+			return ret.toString();
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return o instanceof LogSavedSearch && operator.equals(((LogSavedSearch) o).operator)
+				&& equal(saveTime, ((LogSavedSearch) o).saveTime)
+				&& isNull == ((LogSavedSearch) o).isNull;
+		}
+	}
+
+	/** A search for log entries by size */
+	public static class LogSizeSearch extends LogEntrySearch
+	{
+		/** The type of this search */
+		public static final LogEntrySearchType type = LogEntrySearchType.size;
+
+		/** The operator determining how to use the size threshold */
+		public final Operator operator;
+
+		/** The size threshold. May be null for a prepared search. */
+		public final Integer size;
+
+		/** @param srch The user-entered search string */
+		public LogSizeSearch(String srch)
+		{
+			srch = type.clean(srch);
+			StringBuilder sb = new StringBuilder(srch);
+			operator = Operator.parse(sb, srch);
+			try
+			{
+				size = Integer.valueOf(sb.toString());
+			} catch(NumberFormatException e)
+			{
+				throw new IllegalArgumentException(sb + " is not a valid size. Enter size in KB.");
+			}
+		}
+
+		/**
+		 * @param op The operator to determine how to use the size threshold
+		 * @param sz The size threshold to search on. May be null for a prepared search.
+		 */
+		public LogSizeSearch(Operator op, Integer sz)
+		{
+			operator = op;
+			size = sz;
+		}
+
+		@Override
+		public LogEntrySearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public LogSizeSearch clone()
+		{
+			return this; // Immutable
+		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			ret.append(type.headers.get(0)).append(operator);
+			if(size != null)
+				ret.append(size);
+			else
+				ret.append("?");
+			return ret.toString();
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return o instanceof LogSizeSearch && operator.equals(((LogSizeSearch) o).operator)
+				&& size == ((LogSizeSearch) o).size;
 		}
 	}
 

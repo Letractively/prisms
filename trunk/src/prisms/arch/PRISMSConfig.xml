@@ -77,12 +77,13 @@
 	</tracking>
 
 	<logger ref="PRISMS">
+		<exposed>/data/local/exposed</exposed>
 		<purge>
 			<max-size min="1000" max="1000000" default="100000" />
 			<max-age default="6 months" />
-			<exclude-loggers>
-				<logger permanent="true">prisms.users</logger>
-			</exclude-loggers>
+			<exclude-searches>
+				<search permanent="true">logger:prisms.users</search>
+			</exclude-searches>
 		</purge>
 	</logger>
 

@@ -33,6 +33,7 @@ public class SyncRequest
 		theSyncType = type;
 		theLatestChanges = changes;
 		theVersion = version;
+		shouldStoreSyncRecord = true;
 	}
 
 	/**

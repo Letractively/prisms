@@ -233,7 +233,14 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 			User u = (User) item;
 			if(u.isDeleted())
 			{
-				// TODO Purge the user
+				try
+				{
+					if(theUserSource instanceof DBUserSource)
+						((DBUserSource) theUserSource).purgeUser(u, stmt);
+				} catch(PrismsException e)
+				{
+					throw new PrismsRecordException("Could not purge user " + item, e);
+				}
 			}
 		}
 		else if(item instanceof UserGroup)
@@ -241,7 +248,14 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 			UserGroup g = (UserGroup) item;
 			if(g.isDeleted())
 			{
-				// TODO Purge the group
+				try
+				{
+					if(theUserSource instanceof DBUserSource)
+						((DBUserSource) theUserSource).purgeGroup(g, stmt);
+				} catch(PrismsException e)
+				{
+					throw new PrismsRecordException("Could not purge user group " + item, e);
+				}
 			}
 		}
 	}

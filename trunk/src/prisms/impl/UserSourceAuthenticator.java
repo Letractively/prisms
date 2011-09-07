@@ -325,7 +325,9 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				try
 				{
 					dataStr = decrypt(request, dataStr, enc);
-					if(dataStr == null || dataStr.length() < 2 || dataStr.charAt(0) != '{'
+					if(dataStr != null && dataStr.startsWith("__XENC"))
+					{} // "Safely" encoded URL
+					else if(dataStr == null || dataStr.length() < 2 || dataStr.charAt(0) != '{'
 						|| dataStr.charAt(dataStr.length() - 1) != '}')
 					{
 						/* Even though no exception was thrown the decryption has failed.
@@ -370,9 +372,10 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			}
 			else if(isAnonymous)
 				return new USReqAuth(request, null, dataStr);
-			else if(!hasLoggedIn || !loginOnce || !request.httpRequest.isSecure())
+			else if(!request.getClient().isService()
+				&& (!hasLoggedIn || !loginOnce || !request.httpRequest.isSecure()))
 				return new USReqAuth(request, LOGIN_FAIL_MESSAGE, true);
-			return new USReqAuth(request, enc, dataStr);
+			return new USReqAuth(request, null, dataStr);
 		}
 
 		String decrypt(PrismsRequest request, String encrypted, Encryption enc)
@@ -399,7 +402,9 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				try
 				{
 					String aTry = enc.decrypt(dataStr);
-					if(aTry == null || aTry.length() < 2 || aTry.charAt(0) != '{'
+					if(aTry != null && aTry.startsWith("__XENC"))
+					{} // "Safely" encoded URL
+					else if(aTry == null || aTry.length() < 2 || aTry.charAt(0) != '{'
 						|| aTry.charAt(aTry.length() - 1) != '}')
 						continue;
 					if(now - passwords[p].setTime > theOldPasswordTolerance)
@@ -750,7 +755,14 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 
 	static boolean isEncrypted(String dataStr)
 	{
-		return dataStr != null && dataStr.length() >= 2 && dataStr.charAt(0) != '{';
+		if(dataStr == null || dataStr.length() < 2)
+			return true;
+		else if(dataStr.startsWith("__XENC"))
+			return false;
+		else if(dataStr.startsWith("{"))
+			return false;
+		else
+			return true;
 	}
 
 	prisms.arch.Encryption createEncryption()

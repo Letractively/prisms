@@ -5,7 +5,7 @@
 	<description>Allows management of PRISMS users, applications, permissions, etc.</description>
 	<config-class>prisms.arch.AppConfig</config-class>
 	<version>1.5.0</version>
-	<modified>27Apr2011</modified>
+	<modified>31Aug2011</modified>
 
 	<properties>
 		<property globalRef="prisms-users" />
@@ -42,6 +42,18 @@
 		<permission>
 			<name>createGroup</name>
 			<description>Allows users to create new groups</description>
+		</permission>
+		<permission>
+			<name>View Sessions</name>
+			<description>Allows users to view the sessions active in an application</description>
+		</permission>
+		<permission>
+			<name>Kill Sessions</name>
+			<description>Allows users to kill sessions in an application</description>
+		</permission>
+		<permission>
+			<name>Inspect</name>
+			<description>Allows users to view and interact with the properties of sessions and applications</description>
 		</permission>
 	</permissions>
 </application>

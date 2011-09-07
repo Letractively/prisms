@@ -43,6 +43,8 @@ public class ThreadPoolWorker implements Worker
 
 	private final java.util.List<TaskQueueObject> theTaskQueue;
 
+	private int thePriority;
+
 	private boolean isClosed;
 
 	/**
@@ -63,6 +65,7 @@ public class ThreadPoolWorker implements Worker
 			isAlive = true;
 			theThreadCounter++;
 			setName(ThreadPoolWorker.this.getName() + " #" + theThreadCounter);
+			setPriority(getPriority());
 		}
 
 		@Override
@@ -173,6 +176,7 @@ public class ThreadPoolWorker implements Worker
 		theAvailableThreads = new java.util.ArrayList<ReusableThread>();
 		theInUseThreads = new java.util.ArrayList<ReusableThread>();
 		theTaskQueue = new java.util.LinkedList<TaskQueueObject>();
+		thePriority = Thread.NORM_PRIORITY;
 		setMaxThreadCount(threads);
 	}
 
@@ -246,6 +250,22 @@ public class ThreadPoolWorker implements Worker
 	public String getName()
 	{
 		return theName;
+	}
+
+	/** @return The priority at which threads under this worker run */
+	public int getPriority()
+	{
+		return thePriority;
+	}
+
+	/** @param priority The priority at which threads under this worker should run */
+	public void setPriority(int priority)
+	{
+		thePriority = priority;
+		for(Thread t : theAvailableThreads)
+			t.setPriority(priority);
+		for(Thread t : theInUseThreads)
+			t.setPriority(priority);
 	}
 
 	/** @return Whether this thread pool has been marked as closed */

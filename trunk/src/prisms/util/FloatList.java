@@ -1,5 +1,5 @@
 /*
- * FloatList.java Created Aug 310, 2010 by Andrew Butler, PSL
+ * FloatList.java Created Aug 10, 2010 by Andrew Butler, PSL
  */
 package prisms.util;
 
@@ -269,21 +269,19 @@ public class FloatList implements Iterable<Float>, Sealable, Cloneable
 		if(theSize == 0)
 			return 0;
 		int min = 0, max = theSize - 1;
-		while(min < max - 1)
+		while(min < max)
 		{
 			int mid = (min + max) >>> 1;
-			int diff = compare(theValue[mid], value);
+			int diff = compare(value, theValue[mid]);
 			if(diff > 0)
-				max = mid;
+				min = mid + 1;
 			else if(diff < 0)
-				min = mid;
+				max = mid;
 			else
 				return mid;
 		}
 		if(compare(theValue[max], value) < 0)
 			max++;
-		else if(max > 0 && compare(theValue[max], value) > 0)
-			max--;
 		return max;
 	}
 

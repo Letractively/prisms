@@ -1,13 +1,20 @@
-/**
+/*
  * RemoveEventSerializer.java Created Jul 31, 2007 by Andrew Butler, PSL
  */
 package prisms.arch;
 
-/**
- * Allows server-client communication by serializing events to a string that can be sent via HTTP
- */
+/** Allows server-client communication by serializing events to a string that can be sent via HTTP */
 public interface RemoteEventSerializer
 {
+	/**
+	 * Gets the content type of the data that this serializer will write for the set of events
+	 * 
+	 * @param events The events to serialize
+	 * @return The content type of the result of {@link #serialize(org.json.simple.JSONArray)} on
+	 *         the events.
+	 */
+	String getContentType(org.json.simple.JSONArray events);
+
 	/**
 	 * Serializes a set of server events to be sent to the client
 	 * 

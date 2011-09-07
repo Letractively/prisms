@@ -15,6 +15,8 @@ import prisms.arch.PrismsSession;
 /** Allows the user to edit a Logger */
 public class LoggerEditor implements prisms.arch.AppPlugin
 {
+	private static final Logger log = Logger.getLogger(LoggerEditor.class);
+
 	private PrismsSession theSession;
 
 	private String theName;
@@ -96,15 +98,15 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 				theSelectedLogger.setLevel(Level.FATAL);
 			else
 				throw new IllegalArgumentException("Unrecognized logger level " + level);
-			theSession.setProperty(selectedLogger, theSelectedLogger);
-		}
-		else if("additivityChanged".equals(evt.get("method")))
-		{
-			if(theSelectedLogger == null)
-				throw new IllegalStateException("No logger to set the additivity for");
-			if(!isEnabled())
-				throw new IllegalArgumentException("You do not have permission to modify loggers");
-			theSelectedLogger.setAdditivity(((Boolean) evt.get("additivity")).booleanValue());
+			try
+			{
+				theSession.getApp().getEnvironment().getLogger()
+					.addLoggerConfig(theSelectedLogger.getName(), theSelectedLogger.getLevel());
+			} catch(prisms.arch.PrismsException e)
+			{
+				log.error(
+					"Could not persist configuration of logger " + theSelectedLogger.getName(), e);
+			}
 			theSession.setProperty(selectedLogger, theSelectedLogger);
 		}
 		else if("printMessage".equals(evt.get("method")))
@@ -123,6 +125,40 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 			theSelectedLogger.log(theSelectedLogger.getEffectiveLevel(),
 				"Text Exception From Log4j Configuration Utility", new Exception("Test"));
 		}
+		else if("printAttachment".equals(evt.get("method")))
+		{
+			if(theSelectedLogger == null)
+				throw new IllegalStateException("No logger to print a message to");
+			String location = theSession.getApp().getEnvironment().getLogger().getExposedDir();
+			if(location == null)
+			{
+				theSession.getUI().error("No exposed directory");
+				return;
+			}
+			String testFile;
+			try
+			{
+				String name = "Test_File";
+				testFile = name + ".txt";
+				java.io.File tf = new java.io.File(location + testFile);
+				for(int i = 2; tf.exists(); i++)
+				{
+					testFile = name + "(" + i + ").txt";
+					tf = new java.io.File(location + testFile);
+				}
+
+				java.io.FileWriter writer = new java.io.FileWriter(tf);
+				writer.write("This is a test file from Log4j configuration");
+				writer.close();
+			} catch(java.io.IOException e)
+			{
+				theSession.getUI().error("Could not create exposed file: " + e);
+				return;
+			}
+			theSelectedLogger.log(theSelectedLogger.getEffectiveLevel(),
+				"From Log4j Configuration Utility: " + evt.get("message") + " Check out "
+					+ location + testFile);
+		}
 		else
 			throw new IllegalArgumentException("Unrecognized " + theName + " event " + evt);
 	}
@@ -132,30 +168,29 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 		return theSession.getPermissions().has("Edit Loggers");
 	}
 
-	void setLogger(Logger log)
+	void setLogger(Logger logger)
 	{
-		theSelectedLogger = log;
+		theSelectedLogger = logger;
 		sendLogger();
 	}
 
 	void sendLogger()
 	{
-		JSONObject log = null;
+		JSONObject logger = null;
 		if(theSelectedLogger != null)
 		{
-			log = new JSONObject();
-			log.put("name", theSelectedLogger.getName());
+			logger = new JSONObject();
+			logger.put("name", theSelectedLogger.getName());
 			if(theSelectedLogger.getLevel() == null)
-				log.put("level", null);
+				logger.put("level", null);
 			else
-				log.put("level", theSelectedLogger.getLevel().toString());
-			log.put("effectiveLevel", theSelectedLogger.getEffectiveLevel().toString());
-			log.put("additivity", Boolean.valueOf(theSelectedLogger.getAdditivity()));
+				logger.put("level", theSelectedLogger.getLevel().toString());
+			logger.put("effectiveLevel", theSelectedLogger.getEffectiveLevel().toString());
 		}
 		JSONObject evt = new JSONObject();
 		evt.put("plugin", theName);
 		evt.put("method", "setLogger");
-		evt.put("logger", log);
+		evt.put("logger", logger);
 		theSession.postOutgoingEvent(evt);
 	}
 }

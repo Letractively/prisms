@@ -90,11 +90,15 @@ public class AutoPurgeEditor implements prisms.arch.AppPlugin
 		jsonPurger.put("age", Long.valueOf(purger.getMaxAge() / 1000));
 		org.json.simple.JSONArray excludes = new org.json.simple.JSONArray();
 		jsonPurger.put("excludes", excludes);
-		for(String excl : purger.getExcludeLoggers())
+		for(prisms.util.Search excl : purger.getExcludeSearches())
 		{
 			JSONObject exclude = new JSONObject();
-			exclude.put("name", excl);
-			if(prisms.util.ArrayUtils.contains(logger.getPermanentExcludedLoggers(), excl))
+			String str = excl.toString();
+			exclude.put("title", str);
+			if(str.length() > 102)
+				str = str.substring(0, 100) + "\\u2026";
+			exclude.put("display", str);
+			if(prisms.util.ArrayUtils.contains(logger.getPermanentExcludedSearches(), excl))
 				exclude.put("permanent", Boolean.TRUE);
 			excludes.add(exclude);
 		}
@@ -136,8 +140,22 @@ public class AutoPurgeEditor implements prisms.arch.AppPlugin
 		final prisms.logging.AutoPurger purger = new prisms.logging.AutoPurger();
 		purger.setMaxSize(((Number) jsonPurger.get("size")).intValue());
 		purger.setMaxAge(((Number) jsonPurger.get("age")).longValue() * 1000);
-		for(String logger : (java.util.List<String>) jsonPurger.get("excludes"))
-			purger.excludeLogger(logger);
+		prisms.logging.LogEntrySearch.LogEntrySearchBuilder builder;
+		builder = new prisms.logging.LogEntrySearch.LogEntrySearchBuilder(theSession.getApp()
+			.getEnvironment());
+		for(String searchStr : (java.util.List<String>) jsonPurger.get("excludes"))
+		{
+			prisms.util.Search search;
+			try
+			{
+				search = builder.createSearch(searchStr);
+			} catch(IllegalArgumentException e)
+			{
+				theSession.getUI().error(e.getMessage());
+				return;
+			}
+			purger.excludeSearch(search);
+		}
 
 		int [] ids;
 		try
