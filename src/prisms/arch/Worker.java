@@ -1,4 +1,4 @@
-/**
+/*
  * Worker.java Created Jun 13, 2008 by Andrew Butler, PSL
  */
 package prisms.arch;
@@ -13,6 +13,9 @@ public interface Worker
 	 * @param listener The listener to notify in case the task throws a Throwable
 	 */
 	void run(Runnable r, ErrorListener listener);
+
+	/** @return The maximum number of tasks that this worker will execute simulaneously */
+	int getMaxThreadCount();
 
 	/** Releases all of this worker's resources after all tasks have finished */
 	void close();

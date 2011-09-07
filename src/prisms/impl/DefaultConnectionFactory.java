@@ -12,7 +12,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.Logger;
 
-import prisms.arch.*;
+import prisms.arch.PrismsConfig;
 import prisms.arch.ds.Transactor;
 import prisms.arch.ds.Transactor.ReconnectListener;
 import prisms.arch.ds.Transactor.Thrower;
@@ -131,31 +131,46 @@ public class DefaultConnectionFactory implements prisms.arch.ConnectionFactory
 						reconnect = true;
 					}
 					long now = System.currentTimeMillis();
-					if(theConn != null && now - theLastValidCheck > 90000
-						&& prisms.util.PrismsUtils.isJava6())
+					if(theConn != null && now - theLastValidCheck > 10000)
 					{
-						if(!theConn.isValid(60))
+						/* Here we make a call to the database to make sure we're really still
+						 * connected. Connection.isClosed() only returns true if it has been closed
+						 * from the client side. Connection.isValid() may still return true if the
+						 * database can be reached even if the connection object is no longer valid.
+						 * This is the simplest, least overhead way I can think of to positively
+						 * validate the connection. */
+						java.sql.ResultSet rs = null;
+						try
 						{
-							log.warn("Connection is not valid! Reconnecting. Config=\n"
-								+ theConnConfig);
+							java.sql.DatabaseMetaData md = theConn.getMetaData();
+							rs = md.getSchemas();
+							rs.next();
+							rs.close();
+						} catch(SQLException e)
+						{
+							log.warn("Connection " + theConnConfig.get("name")
+								+ " lost! Reconnecting.", e);
 							try
 							{
 								theConn.close();
-							} catch(SQLException e)
+							} catch(SQLException e2)
 							{}
 							theConn = null;
 							reconnect = true;
 						}
 						theLastValidCheck = now;
 					}
-				} catch(SQLException e)
+				} catch(Exception e)
 				{
-					log.warn("Transactor could not check closed and valid status of connection."
-						+ " Config=\n" + theConnConfig, e);
+					log.warn("Transactor could not check closed and valid status of connection "
+						+ theConnConfig.get("name") + ".", e);
+					if(theConn != null)
+						try
+						{
+							theConn.close();
+						} catch(SQLException e2)
+						{}
 					theConn = null;
-					reconnect = true;
-				} catch(NullPointerException e)
-				{
 					reconnect = true;
 				}
 			}

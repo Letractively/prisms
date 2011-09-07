@@ -100,7 +100,7 @@ public class LoggerMonitor implements prisms.arch.event.SessionMonitor
 				def = realDef;
 			searches = prisms.util.ArrayUtils.add(searches, def, 1);
 		}
-		else if(!realDef.getSearch().equals(def.getSearch()))
+		else if(realDef != null && !realDef.getSearch().equals(def.getSearch()))
 		{
 			changed = true;
 			searches = prisms.util.ArrayUtils.remove(searches, def);

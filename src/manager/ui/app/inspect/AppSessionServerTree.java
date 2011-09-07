@@ -103,6 +103,11 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 	{
 		if("Kill Session".equals(action))
 		{
+			if(!client.getUser().getPermissions(getSession().getApp()).has("Kill Sessions"))
+			{
+				client.getUI().error("You do not have permission to kill sessions");
+				return;
+			}
 			final java.util.ArrayList<SessionNode> sessions = new java.util.ArrayList<SessionNode>();
 			for(int n = 0; n < nodes.length; n++)
 			{
@@ -309,7 +314,8 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				{
 					boolean found = false;
 					for(ServiceTreeNode cn : getChildren())
-						if(((ClientNode) cn).getClient() == session.getClient())
+						if(cn instanceof ClientNode
+							&& ((ClientNode) cn).getClient() == session.getClient())
 						{
 							found = true;
 							((ClientNode) cn).add(new SessionNode((ClientNode) cn, session),
@@ -323,7 +329,8 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				public synchronized void sessionRemoved(PrismsSession session)
 				{
 					for(ServiceTreeNode cn : getChildren())
-						if(((ClientNode) cn).getClient() == session.getClient())
+						if(cn instanceof ClientNode
+							&& ((ClientNode) cn).getClient() == session.getClient())
 						{
 							for(int c = 0; c < cn.getChildren().length; c++)
 								if(((SessionNode) cn.getChildren()[c]).getSession() == session)
@@ -343,7 +350,8 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				{
 					boolean found = false;
 					for(ServiceTreeNode cn : getChildren())
-						if(((ClientNode) cn).getClient() == session.getClient())
+						if(cn instanceof ClientNode
+							&& ((ClientNode) cn).getClient() == session.getClient())
 						{
 							found = true;
 							((ClientNode) cn).add(new SessionNode((ClientNode) cn, session),
@@ -368,8 +376,11 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				theApp.stopWatching(theWatcher);
 				for(ServiceTreeNode cn : getChildren())
 				{
-					((ClientNode) cn).destroy();
-					cn.setChildren(new ServiceTreeNode [0]);
+					if(cn instanceof ClientNode)
+					{
+						((ClientNode) cn).destroy();
+						cn.setChildren(new ServiceTreeNode [0]);
+					}
 				}
 				theWatcher = null;
 			}
@@ -388,7 +399,6 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			}
 			if(getParent() == null)
 				return;
-			changed(false);
 		}
 
 		void destroy()
@@ -457,6 +467,8 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 	{
 		private PrismsApplication theApp;
 
+		private prisms.arch.ds.IDGenerator.PrismsInstance theInstance;
+
 		prisms.arch.event.PrismsPCL<Object> thePCL;
 
 		java.util.concurrent.ConcurrentLinkedQueue<PrismsPCE<Object>> theEvents;
@@ -477,10 +489,9 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		public String getText()
 		{
-			prisms.arch.ds.IDGenerator.PrismsInstance inst = theApp.getEnvironment().getIDs()
-				.getLocalInstance();
-			if(inst != null)
-				return inst.location;
+			theInstance = theApp.getEnvironment().getIDs().getLocalInstance();
+			if(theInstance != null)
+				return theInstance.location;
 			else
 				return "Unknown";
 		}
@@ -502,13 +513,27 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		public String getDescription()
 		{
-			return null;
+			StringBuilder ret = new StringBuilder();
+			if(theInstance != null)
+				ret.append("Initialized ").append(
+					prisms.util.PrismsUtils.print(theInstance.initTime));
+			Runtime runtime = Runtime.getRuntime();
+			ret.append("            \nCPUs:").append(runtime.availableProcessors());
+			ret.append("            \nAvailableMem:")
+				.append(Math.round(runtime.maxMemory() / 1024 / 1024)).append("MB");
+			ret.append("            \nMemInUse:")
+				.append(Math.round(runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024)
+				.append("MB");
+			return ret.toString();
 		}
 
 		@Override
 		public String getLoadAction(TreeClient client)
 		{
-			return "View Properties";
+			if(client.getUser().getPermissions(getSession().getApp()).has("Inspect"))
+				return "View Properties";
+			else
+				return null;
 		}
 
 		@Override
@@ -535,6 +560,14 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		{
 			super.unloaded();
 			unloadProperties();
+		}
+
+		@Override
+		public void check(TreeClient client)
+		{
+			super.check(client);
+			client.addEvent(new prisms.ui.tree.DataTreeEvent(
+				prisms.ui.tree.DataTreeEvent.Type.CHANGE, this));
 		}
 
 		void loadProperties()
@@ -668,7 +701,10 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		@Override
 		public String getLoadAction(TreeClient client)
 		{
-			return "View Sessions";
+			if(client.getUser().getPermissions(getSession().getApp()).has("View Sessions"))
+				return "View Sessions";
+			else
+				return null;
 		}
 
 		@Override
@@ -798,7 +834,11 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		@Override
 		public String getLoadAction(TreeClient client)
 		{
-			return "View Properties";
+			if(client.getUser().getPermissions(AppSessionServerTree.this.getSession().getApp())
+				.has("Inspect"))
+				return "View Properties";
+			else
+				return null;
 		}
 
 		@Override

@@ -1,10 +1,10 @@
-
 ---------------------------------------------------------------------------------------------------
 --The schema for the Plugin Remote Integrated Service Management System (PRISMS) database.
 --This script works with Oracle.  Modifications may be needed for other database flavors.
 ----------------------------------------------------------------------------------------------------
 --PRISMS ARCHITECTURE TABLES
 ----------------------------------------------------------------------------------------------------
+
 CREATE TABLE prisms_installation(
 	centerID INT NOT NULL,
 	installDate TIMESTAMP NOT NULL
@@ -149,8 +149,15 @@ CREATE TABLE prisms_log_auto_purge (
 	maxAge NUMERIC(14) NOT NULL
 );
 
-CREATE TABLE prisms_purge_logger (
-	loggerName VARCHAR(128) NOT NULL
+CREATE TABLE prisms_log_purge_exclude (
+	search VARCHAR(1024) NOT NULL
+);
+
+CREATE TABLE prisms_logger_config (
+	logger VARCHAR(128) NOT NULL,
+	logLevel INT NULL,
+	setTime TIMESTAMP NOT NULL,
+	CONSTRAINT prisms_logger_config_pk PRIMARY KEY(logger)
 );
 
 -- The PRISMS preference table allows applications to store small user-specific data persistently

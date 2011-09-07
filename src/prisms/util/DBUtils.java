@@ -396,7 +396,7 @@ public class DBUtils
 	public static void setBlob(java.sql.PreparedStatement stmt, int index, int type,
 		java.io.InputStream input) throws SQLException
 	{
-		if(PrismsUtils.isJava6())
+		if(!PrismsUtils.isJava6())
 			throw new SQLException("Cannot set binary data in <JDK 6 machine");
 		if(input == null)
 			stmt.setNull(index, type);
@@ -433,7 +433,7 @@ public class DBUtils
 	public static void setClob(java.sql.PreparedStatement stmt, int index, int type,
 		java.io.Reader input) throws SQLException
 	{
-		if(PrismsUtils.isJava6())
+		if(!PrismsUtils.isJava6())
 			throw new SQLException("Cannot set CLOB in <JDK 6 machine");
 		if(input == null)
 			stmt.setNull(index, type);

@@ -652,7 +652,7 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 	private static ValueTree<SyncRequest> parseRequest(JSONObject evt, PrismsSynchronizer sync,
 		PrismsCenter center, SyncRecord.Type type) throws PrismsRecordException
 	{
-		String version = (String) evt.get("syncVersion");
+		String version = (String) evt.get("version");
 		if(version != null)
 		{
 			SyncRequest req = new SyncRequest(center, type, parseCenterChanges(evt.get("changes"))
@@ -662,7 +662,8 @@ public abstract class PrismsSyncService implements prisms.arch.DownloadPlugin,
 			ValueTree<SyncRequest> ret = new ValueTree<SyncRequest>(req);
 			PrismsSynchronizer [] subSyncs = sync.getDepends();
 			JSONArray subSyncReqs = (JSONArray) evt.get("subSyncs");
-			if(subSyncs.length > 0 && subSyncReqs == null || subSyncReqs.size() != subSyncs.length)
+			if(subSyncs.length > 0
+				&& (subSyncReqs == null || subSyncReqs.size() != subSyncs.length))
 				throw new PrismsRecordException("Expected " + subSyncs.length
 					+ " sub-sync requests--received "
 					+ (subSyncReqs == null ? "none" : subSyncReqs.size() + ""));

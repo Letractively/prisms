@@ -73,6 +73,31 @@ window.PrismsUtils =  {
 		return str;
 	},
 
+	unsafeChars: "$&+,/:;=?@ \"'<>#%{}|\\^~[]`",
+
+	hexChars: "0123456789ABCDEF",
+
+	safeEscape: function(str){
+		var ret="";
+		for(var i=0;i<str.length;i++)
+		{
+			if(this.unsafeChars.indexOf(str.charAt(i))>=0)
+			{
+				var code=str.charCodeAt(i);
+				var codeStr="";
+				for(j=0;j<4;j++)
+				{
+					codeStr=this.hexChars.charAt(code%16)+codeStr;
+					code/=16;
+				}
+				ret+="__XENC"+codeStr;
+			}
+			else
+				ret+=str.charAt(i);
+		}
+		return ret;
+	},
+
 	setTableVisible: function(table, show){
 		if(__dojo.isIE > 6 && show)
 			table.style.display="block";

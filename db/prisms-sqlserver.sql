@@ -168,8 +168,16 @@ CREATE TABLE prisms_log_auto_purge (
 );
 GO
 
-CREATE TABLE prisms_purge_logger (
-	loggerName VARCHAR(128) NOT NULL
+CREATE TABLE prisms_log_purge_exclude (
+	search VARCHAR(1024) NOT NULL
+);
+GO
+
+CREATE TABLE prisms_logger_config (
+	logger VARCHAR(128) NOT NULL,
+	logLevel INT NULL,
+	setTime DATETIME NOT NULL,
+	CONSTRAINT prisms_logger_config_pk PRIMARY KEY(logger)
 );
 GO
 

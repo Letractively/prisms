@@ -60,6 +60,8 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 
 		long theLastCheck;
 
+		IOException theError;
+
 		RemoteSource(PrismsInstance pi)
 		{
 			instance = pi;
@@ -75,6 +77,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		{
 			conn = new prisms.util.PrismsServiceConnector(instance.location, getSession().getApp()
 				.getName(), getServiceName(), "System");
+			conn.setEnv(getSession().getApp().getEnvironment());
 			conn.setWorker(getWorker());
 			conn.setUserSource(getSession().getApp().getEnvironment().getUserSource());
 			try
@@ -100,6 +103,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						return null;
 					}
 				});
+				log.info("Set trust manager for client tree");
 			} catch(java.security.GeneralSecurityException e)
 			{
 				log.error("Could not set trust manager for service connector", e);
@@ -186,11 +190,17 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 					{
 						if(!returnVals.isEmpty())
 							processServiceEvents(RemoteSource.this, returnVals);
+						theError = null;
 					}
 
 					public void doError(IOException e)
 					{
-						log.error("Could not call method " + method + " at " + instance.location, e);
+						if(!equalEx(theError, e))
+						{
+							log.error("Could not call method " + method + " at "
+								+ instance.location, e);
+							theError = e;
+						}
 						JSONObject event = prisms.util.PrismsUtils.rEventProps(fParams);
 						event.put("method", method);
 						synchronized(theEventQueue)
@@ -199,6 +209,21 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						}
 					}
 				}, params);
+		}
+
+		boolean equalEx(Throwable e1, Throwable e2)
+		{
+			if(e1 == null)
+				return e2 == null;
+			if(e2 == null)
+				return false;
+			if(!e2.getClass().equals(e2.getClass()))
+				return false;
+			if(!e1.getMessage().equals(e2.getMessage()))
+				return false;
+			if(!ArrayUtils.equals(e1.getStackTrace(), e2.getStackTrace()))
+				return false;
+			return equalEx(e1.getCause(), e2.getCause());
 		}
 
 		/**
@@ -218,9 +243,14 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			try
 			{
 				events = conn.getResults(getServicePlugin(), method, params);
+				theError = null;
 			} catch(IOException e)
 			{
-				log.error("Could not call method " + method + " at " + instance.location, e);
+				if(!equalEx(theError, e))
+				{
+					log.error("Could not call method " + method + " at " + instance.location, e);
+					theError = e;
+				}
 				JSONObject event = prisms.util.PrismsUtils.rEventProps(params);
 				event.put("method", method);
 				synchronized(theEventQueue)
@@ -268,11 +298,17 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						if(!returnVals.isEmpty())
 							processServiceEvents(RemoteSource.this, returnVals);
 						ret.returned(retEvt);
+						theError = null;
 					}
 
 					public void doError(IOException e)
 					{
-						log.error("Could not call method " + method + " at " + instance.location, e);
+						if(!equalEx(theError, e))
+						{
+							log.error("Could not call method " + method + " at "
+								+ instance.location, e);
+							theError = e;
+						}
 						JSONObject event = prisms.util.PrismsUtils.rEventProps(fParams);
 						event.put("method", method);
 						synchronized(theEventQueue)
@@ -304,9 +340,14 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			try
 			{
 				events = conn.getResults(getServicePlugin(), method, params);
+				theError = null;
 			} catch(IOException e)
 			{
-				log.error("Could not call method " + method + " at " + instance.location, e);
+				if(!equalEx(theError, e))
+				{
+					log.error("Could not call method " + method + " at " + instance.location, e);
+					theError = e;
+				}
 				JSONObject event = prisms.util.PrismsUtils.rEventProps(params);
 				event.put("method", method);
 				synchronized(theEventQueue)

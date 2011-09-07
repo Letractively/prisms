@@ -138,6 +138,7 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 		evt.put("plugin", theName);
 		evt.put("method", "setSelectable");
 		evt.put("selectable", Boolean.valueOf(theSession.getPermissions().has("Edit Purge")));
+		evt.put("exposed", theSession.getApp().getEnvironment().getLogger().getExposedDir());
 		theSession.postOutgoingEvent(evt);
 
 		resend();
@@ -234,7 +235,7 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 				prisms.logging.AutoPurger purger = logger.getAutoPurger();
 				for(LogEntry entry : entries)
 					if(entry != null
-						&& ArrayUtils.contains(purger.getExcludeLoggers(), entry.getLoggerName())
+						&& ArrayUtils.contains(purger.getExcludeSearches(), entry.getLoggerName())
 						&& !ArrayUtils.contains(loggers, entry.getLoggerName()))
 						loggers = ArrayUtils.add(loggers, entry.getLoggerName());
 
@@ -303,7 +304,7 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 				LogEntry [] entries = logger.getItems(theSelected.toLongArray());
 				prisms.logging.AutoPurger purger = logger.getAutoPurger();
 				for(LogEntry entry : entries)
-					if(ArrayUtils.contains(purger.getExcludeLoggers(), entry.getLoggerName())
+					if(ArrayUtils.contains(purger.getExcludeSearches(), entry.getLoggerName())
 						&& !ArrayUtils.contains(loggers, entry.getLoggerName()))
 						loggers = ArrayUtils.add(loggers, entry.getLoggerName());
 
@@ -353,6 +354,8 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 					}
 				});
 		}
+		else if("getFile".equals(evt.get("method")))
+			doRetrieve(evt);
 		else if("clear".equals(evt.get("method")))
 			clear();
 		else
@@ -747,36 +750,125 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 			});
 	}
 
+	void doRetrieve(JSONObject event)
+	{
+		String fileName = (String) event.get("file");
+		java.io.File file = new java.io.File(theSession.getApp().getEnvironment().getLogger()
+			.getExposedDir()
+			+ fileName);
+		String cp;
+		try
+		{
+			cp = file.getCanonicalPath();
+		} catch(IOException e)
+		{
+			cp = null;
+		}
+		if(cp == null || file.isHidden() || file.getName().startsWith(".")
+			|| !cp.startsWith(theSession.getApp().getEnvironment().getLogger().getExposedDir()))
+		{
+			/* We need to protect against the user downloading files off the system that are not
+			 * in the exposed directory, e.g. by using ".." in the path or symbolic links. */
+			theSession.getUI().error(
+				"The file referred to (" + fileName + ") does not exist or is not exposed");
+			return;
+		}
+		JSONObject toSend = new JSONObject();
+		toSend.put("downloadPlugin", getName());
+		toSend.remove("plugin");
+		toSend.put("downloadMethod", "exposedFile");
+		toSend.put("method", "doDownload");
+		toSend.put("file", event.get("file"));
+		getSession().postOutgoingEvent(toSend);
+	}
+
 	public String getContentType(JSONObject event)
 	{
-		return (String) event.get("format");
+		if("exposedFile".equals(event.get("method")))
+		{
+			String fileName = (String) event.get("file");
+			int idx = fileName.lastIndexOf('.');
+			if(idx < 0)
+				return null;
+			String ext = fileName.substring(idx + 1);
+			if("txt".equalsIgnoreCase(ext))
+				return "text/plain";
+			else if("json".equalsIgnoreCase(ext))
+				return "text/json";
+			else if("html".equalsIgnoreCase(ext))
+				return "text/html";
+			else if("xml".equalsIgnoreCase(ext))
+				return "text/xml";
+			else if("jpg".equalsIgnoreCase(ext) || "jpeg".equalsIgnoreCase(ext))
+				return "image/jpeg";
+			else if("gif".equalsIgnoreCase(ext))
+				return "image/gif";
+			else if("png".equalsIgnoreCase(ext))
+				return "image/png";
+			else
+				return null;
+		}
+		else
+			return (String) event.get("format");
 	}
 
 	public String getFileName(JSONObject event)
 	{
-		String ret = "";
-		try
-		{
-			ret += new java.net.URL(theSession.getApp().getEnvironment().getIDs()
-				.getLocalInstance().location).getHost();
-		} catch(Exception e)
-		{
-			log.warn("Could not append host name to file: " + e); // Don't print the stack trace
-			ret += "PRISMS Logs";
-		}
-		ret += " Log";
-		if("text/plain".equals(event.get("format")))
-			ret += ".txt";
-		else if("text/rtf".equals(event.get("format")))
-			ret += ".rtf";
+		if("exposedFile".equals(event.get("method")))
+			return new java.io.File((String) event.get("file")).getName();
 		else
-			ret += ".html";
-		return ret;
+		{
+			String ret = "";
+			try
+			{
+				ret += new java.net.URL(theSession.getApp().getEnvironment().getIDs()
+					.getLocalInstance().location).getHost();
+			} catch(Exception e)
+			{
+				log.warn("Could not append host name to file: " + e); // Don't print the stack trace
+				ret += "PRISMS Logs";
+			}
+			ret += " Log";
+			if("text/plain".equals(event.get("format")))
+				ret += ".txt";
+			else if("text/rtf".equals(event.get("format")))
+				ret += ".rtf";
+			else
+				ret += ".html";
+			return ret;
+		}
 	}
 
 	public int getDownloadSize(JSONObject event)
 	{
-		return -1;
+		if("exposedFile".equals(event.get("method")))
+		{
+			String fileName = (String) event.get("file");
+			java.io.File file = new java.io.File(theSession.getApp().getEnvironment().getLogger()
+				.getExposedDir()
+				+ fileName);
+			String cp;
+			try
+			{
+				cp = file.getCanonicalPath();
+			} catch(IOException e)
+			{
+				cp = null;
+			}
+			if(cp == null || file.isHidden() || file.getName().startsWith(".")
+				|| !cp.startsWith(theSession.getApp().getEnvironment().getLogger().getExposedDir()))
+			{
+				/* We need to protect against the user downloading files off the system that are not
+				 * in the exposed directory, e.g. by using ".." in the path or symbolic links. */
+				return -1;
+			}
+			long ret = file.length();
+			if(ret > Integer.MAX_VALUE)
+				return -1;
+			return (int) ret;
+		}
+		else
+			return -1;
 	}
 
 	private static class Settings
@@ -822,6 +914,11 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 		{
 			if("text/plain".equals(format))
 			{
+				if(entry==null)
+				{
+					writer.write("(Entry Unavailable)\n");
+					return;
+				}
 				if(ids)
 					writer.write(Integer.toHexString(entry.getID()) + " ");
 				writer.write(prisms.util.PrismsUtils.TimePrecision.MILLIS.print(entry.getLogTime(),
@@ -874,6 +971,11 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 			}
 			else if("text/rtf".equals(format))
 			{
+				if(entry==null)
+				{
+					writer.write("(Entry Unavailable)\\par\n");
+					return;
+				}
 				if(ids)
 					writer.write(Integer.toHexString(entry.getID()) + " ");
 				writer.write("\\b");
@@ -938,6 +1040,11 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 			}
 			else
 			{
+				if(entry==null)
+				{
+					writer.write("(Entry Unavailable)<br />\n");
+					return;
+				}
 				writer.write("<div title=\"");
 				String title = "Instance:" + entry.getInstanceLocation() + "            \n";
 				title += "Application:" + (entry.getApp() != null ? entry.getApp() : "None")
@@ -1070,82 +1177,122 @@ public class LogViewer implements prisms.arch.DownloadPlugin
 
 	public void doDownload(JSONObject event, OutputStream stream) throws IOException
 	{
-		try
+		if("exposedFile".equals(event.get("method")))
 		{
-			int [] ids;
-			synchronized(theSnapshot)
-			{
-				ids = theSnapshot.toArray();
-			}
-			Settings settings = new Settings();
-			settings.fromJson((JSONObject) event.get("settings"));
-
-			prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment().getLogger();
-			java.io.PrintWriter writer = new java.io.PrintWriter(stream);
-			String format = (String) event.get("format");
-			String title = "Logs";
+			String fileName = (String) event.get("file");
+			java.io.File file = new java.io.File(theSession.getApp().getEnvironment().getLogger()
+				.getExposedDir()
+				+ fileName);
+			String cp;
 			try
 			{
-				title += " on "
-					+ new java.net.URL(theSession.getApp().getEnvironment().getIDs()
-						.getLocalInstance().location).getHost();
-			} catch(Exception e)
-			{}
-			title += " for search \"";
-			if(theSession.getProperty(log4j.app.Log4jProperties.search) == null)
-				title += "*";
-			else
-				title += theSession.getProperty(log4j.app.Log4jProperties.search);
-			title += "\" on " + prisms.util.PrismsUtils.print(theLastCheckTime);
-			if("text/plain".equals(format))
-				writer.write(title + "\n\n");
-			else if("text/rtf".equals(format))
+				cp = file.getCanonicalPath();
+			} catch(IOException e)
 			{
-				writer.write("{\\rtf\\ansi\\deff0{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}}\n");
-				writer.write("{\\colortbl ");
-				writer.write(";\\red0\\green0\\blue0");
-				writer.write(";\\red255\\green0\\blue0");
-				writer.write(";\\red192\\green192\\blue0");
-				writer.write(";\\red0\\green0\\blue255");
-				writer.write(";\\red0\\green208\\blue0;}\n");
-				writer.write("{\\*\\generator PRISMS Logging "
-					+ theSession.getApp().getVersionString() + ";}");
-				writer.write("\\viewkind4\\uc1\\pard\n");
-				writer.write("\\cf1\\f0\\fs32");
-				writer.write(title);
-				writer.write("\\par\\fs20\n\\par\n");
+				cp = null;
 			}
-			else
-				writer.write("<html><body>\n<h1>" + title + "</h1>\n<br />\n");
-
-			thePI.setProgressScale(ids.length);
-			thePI.setProgressText("Retrieving and writing log entries");
-			long [] tempIDs = new long [ids.length <= 100 ? ids.length : 100];
-			for(int i = 0; i < ids.length; i += tempIDs.length)
+			if(cp == null || file.isHidden() || file.getName().startsWith(".")
+				|| !cp.startsWith(theSession.getApp().getEnvironment().getLogger().getExposedDir()))
 			{
-				thePI.setProgress(i);
-				if(tempIDs.length > ids.length - i)
-					tempIDs = new long [ids.length - i];
-				for(int j = 0; j < tempIDs.length; j++)
-					tempIDs[j] = ids[i + j];
-				LogEntry [] entries = logger.getItems(tempIDs);
-				for(int j = 0; j < entries.length; j++)
-				{
-					thePI.setProgress(i + j);
-					settings.print(entries[j], writer, format);
-				}
+				/* We need to protect against the user downloading files off the system that are not
+				 * in the exposed directory, e.g. by using ".." in the path or symbolic links. */
+				log.error("The file referred to (" + fileName
+					+ ") does not exist or is not exposed");
+				return;
 			}
-			if("text/plain".equals(format))
-				writer.write("\n");
-			else if("text/rtf".equals(format))
-				writer.write("\\par\n}");
-			else
-				writer.write("</body></html>\n");
-			writer.close();
-		} finally
+			java.io.FileInputStream fis = new java.io.FileInputStream(file);
+			int read = fis.read();
+			while(read >= 0)
+			{
+				stream.write(read);
+				read = fis.read();
+			}
+			fis.close();
+			stream.close();
+			return;
+		}
+		else
 		{
-			thePI.setDone();
-			thePI = null;
+			try
+			{
+				int [] ids;
+				synchronized(theSnapshot)
+				{
+					ids = theSnapshot.toArray();
+				}
+				Settings settings = new Settings();
+				settings.fromJson((JSONObject) event.get("settings"));
+
+				prisms.logging.PrismsLogger logger = theSession.getApp().getEnvironment()
+					.getLogger();
+				java.io.PrintWriter writer = new java.io.PrintWriter(stream);
+				String format = (String) event.get("format");
+				String title = "Logs";
+				try
+				{
+					title += " on "
+						+ new java.net.URL(theSession.getApp().getEnvironment().getIDs()
+							.getLocalInstance().location).getHost();
+				} catch(Exception e)
+				{}
+				title += " for search \"";
+				if(theSession.getProperty(log4j.app.Log4jProperties.search) == null)
+					title += "*";
+				else
+					title += theSession.getProperty(log4j.app.Log4jProperties.search);
+				title += "\" on " + prisms.util.PrismsUtils.print(theLastCheckTime);
+				if("text/plain".equals(format))
+					writer.write(title + "\n\n");
+				else if("text/rtf".equals(format))
+				{
+					writer
+						.write("{\\rtf\\ansi\\deff0{\\fonttbl{\\f0\\fswiss\\fcharset0 Arial;}}\n");
+					writer.write("{\\colortbl ");
+					writer.write(";\\red0\\green0\\blue0");
+					writer.write(";\\red255\\green0\\blue0");
+					writer.write(";\\red192\\green192\\blue0");
+					writer.write(";\\red0\\green0\\blue255");
+					writer.write(";\\red0\\green208\\blue0;}\n");
+					writer.write("{\\*\\generator PRISMS Logging "
+						+ theSession.getApp().getVersionString() + ";}");
+					writer.write("\\viewkind4\\uc1\\pard\n");
+					writer.write("\\cf1\\f0\\fs32");
+					writer.write(title);
+					writer.write("\\par\\fs20\n\\par\n");
+				}
+				else
+					writer.write("<html><body>\n<h1>" + title + "</h1>\n<br />\n");
+
+				thePI.setProgressScale(ids.length);
+				thePI.setProgressText("Retrieving and writing log entries");
+				long [] tempIDs = new long [ids.length <= 100 ? ids.length : 100];
+				for(int i = 0; i < ids.length; i += tempIDs.length)
+				{
+					thePI.setProgress(i);
+					if(tempIDs.length > ids.length - i)
+						tempIDs = new long [ids.length - i];
+					for(int j = 0; j < tempIDs.length; j++)
+						tempIDs[j] = ids[i + j];
+					LogEntry [] entries = logger.getItems(tempIDs);
+					for(int j = 0; j < entries.length; j++)
+					{
+						thePI.setProgress(i + j);
+						settings.print(entries[j], writer, format);
+					}
+				}
+				if("text/plain".equals(format))
+					writer.write("\n");
+				else if("text/rtf".equals(format))
+					writer.write("\\par\n}");
+				else
+					writer.write("</body></html>\n");
+				writer.close();
+				stream.close();
+			} finally
+			{
+				thePI.setDone();
+				thePI = null;
+			}
 		}
 	}
 }

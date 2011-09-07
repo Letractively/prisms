@@ -25,7 +25,7 @@ public class PrismsServiceConnector
 	static final Logger log = Logger.getLogger(PrismsServiceConnector.class);
 
 	/** A version indicator sent to the service--may enable version-specific code */
-	public static final String PRISMS_SERVICE_VERSION = "2.1.2";
+	public static final String PRISMS_SERVICE_VERSION = "2.1.3";
 
 	/** The name of the system property to set the SSL handler package in */
 	public static final String SSL_HANDLER_PROP = "java.protocol.handler.pkgs";
@@ -256,6 +256,8 @@ public class PrismsServiceConnector
 
 	private final String theUserName;
 
+	private prisms.arch.PrismsEnv theEnv;
+
 	private prisms.arch.Worker theWorker;
 
 	private java.util.concurrent.locks.ReentrantReadWriteLock theCredentialLock;
@@ -345,6 +347,35 @@ public class PrismsServiceConnector
 		{
 			lock.unlock();
 		}
+	}
+
+	/**
+	 * @return The PRISMS environment that this connector uses to make transactions with its
+	 *         asynchronous server calls
+	 */
+	public prisms.arch.PrismsEnv getEnv()
+	{
+		return theEnv;
+	}
+
+	/**
+	 * <p>
+	 * Sets the PRISMS environment that this connector will use to make transactions when
+	 * asynchronous server calls are made. Without this field set, connections will be made without
+	 * PRISMS transactions. With it set, transactions will be created for each connection made,
+	 * resulting in enhanced debug information being made available.
+	 * </p>
+	 * <p>
+	 * It is not necessary to set this field, as of course would not be possible in an environment
+	 * outside the PRISMS architecture. This field is only used if asynchronous service calls are
+	 * used.
+	 * </p>
+	 * 
+	 * @param env The PRISMS environment to use for transactions
+	 */
+	public void setEnv(prisms.arch.PrismsEnv env)
+	{
+		theEnv = env;
 	}
 
 	/** @return The user name that this connector is using to log into the service */
@@ -464,7 +495,18 @@ public class PrismsServiceConnector
 	public VersionInfo getVersion() throws AuthenticationFailedException, PrismsServiceException,
 		IOException
 	{
-		JSONArray retArray = callServer(ServerMethod.getVersion, new JSONObject());
+		JSONArray retArray;
+		prisms.util.ProgramTracker.TrackNode track = null;
+		if(theEnv != null)
+			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		try
+		{
+			retArray = callServer(ServerMethod.getVersion, new JSONObject());
+		} finally
+		{
+			if(theEnv != null)
+				PrismsUtils.end(theEnv, track);
+		}
 		if(retArray.size() == 0)
 			throw new IOException("Error interfacing with server: No result returned: " + retArray);
 		if(retArray.size() > 1)
@@ -495,7 +537,18 @@ public class PrismsServiceConnector
 	 */
 	public JSONObject getResult(String plugin, String method, Object... params) throws IOException
 	{
-		JSONObject rEventProps = PrismsUtils.rEventProps(params);
+		JSONObject rEventProps;
+		prisms.util.ProgramTracker.TrackNode track = null;
+		if(theEnv != null)
+			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		try
+		{
+			rEventProps = PrismsUtils.rEventProps(params);
+		} finally
+		{
+			if(theEnv != null)
+				PrismsUtils.end(theEnv, track);
+		}
 		if(rEventProps == null)
 			rEventProps = new JSONObject();
 		return getResult(plugin, method, rEventProps);
@@ -517,7 +570,18 @@ public class PrismsServiceConnector
 	{
 		params.put("plugin", plugin);
 		params.put("method", method);
-		JSONArray serverReturn = callServer(ServerMethod.processEvent, params);
+		JSONArray serverReturn;
+		prisms.util.ProgramTracker.TrackNode track = null;
+		if(theEnv != null)
+			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		try
+		{
+			serverReturn = callServer(ServerMethod.processEvent, params);
+		} finally
+		{
+			if(theEnv != null)
+				PrismsUtils.end(theEnv, track);
+		}
 		if(serverReturn.size() == 0)
 			throw new IOException("Error interfacing with server: No result returned: "
 				+ serverReturn);
@@ -544,7 +608,17 @@ public class PrismsServiceConnector
 			rEventProps = new JSONObject();
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
-		return callServer(ServerMethod.processEvent, rEventProps);
+		prisms.util.ProgramTracker.TrackNode track = null;
+		if(theEnv != null)
+			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		try
+		{
+			return callServer(ServerMethod.processEvent, rEventProps);
+		} finally
+		{
+			if(theEnv != null)
+				PrismsUtils.end(theEnv, track);
+		}
 	}
 
 	/**
@@ -574,10 +648,22 @@ public class PrismsServiceConnector
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
 		final IOException [] thrown = new IOException [1];
+		final Exception [] outerStack = new Exception [1];
+		final prisms.arch.PrismsTransaction.Stage[] stage = new prisms.arch.PrismsTransaction.Stage [1];
+		final prisms.arch.PrismsApplication[] app = new prisms.arch.PrismsApplication [1];
+		final prisms.arch.PrismsSession[] session = new prisms.arch.PrismsSession [1];
 		Runnable run = new Runnable()
 		{
 			public void run()
 			{
+				prisms.arch.PrismsTransaction trans = null;
+				if(getEnv() != null && session[0] != null)
+					trans = getEnv().transact(session[0], stage[0]);
+				else if(app[0] != null)
+					trans = getEnv().transact(app[0]);
+				prisms.util.ProgramTracker.TrackNode track = null;
+				if(getEnv() != null)
+					track = PrismsUtils.track(getEnv(), "PRISMS connect");
 				try
 				{
 					callServer(ServerMethod.processEvent, rEventProps);
@@ -586,18 +672,49 @@ public class PrismsServiceConnector
 					if(sync)
 						thrown[0] = e;
 					else
+					{
+						e.setStackTrace(PrismsUtils.patchStackTraces(e.getStackTrace(),
+							outerStack[0].getStackTrace(), getClass().getName(), "run"));
 						log.error("Remote procedure call threw exception", e);
+					}
+				} finally
+				{
+					if(getEnv() != null)
+						PrismsUtils.end(getEnv(), track);
+					if(trans != null)
+						getEnv().finish(trans);
 				}
 			}
 		};
 		if(sync)
 		{
-			run.run();
+			prisms.util.ProgramTracker.TrackNode track = null;
+			if(theEnv != null)
+				track = PrismsUtils.track(theEnv, "PRISMS connect");
+			try
+			{
+				run.run();
+			} finally
+			{
+				if(theEnv != null)
+					PrismsUtils.end(theEnv, track);
+			}
 			if(thrown[0] != null)
 				throw thrown[0];
 		}
 		else
 		{
+			if(theEnv != null)
+			{
+				prisms.arch.PrismsTransaction trans = theEnv.getTransaction();
+				if(trans != null)
+				{
+					stage[0] = trans.getStage();
+					app[0] = trans.getApp();
+					session[0] = trans.getSession();
+				}
+			}
+			outerStack[0] = new Exception();
 			theWorker.run(run, new prisms.arch.Worker.ErrorListener()
 			{
 				public void error(Error error)
@@ -634,29 +751,68 @@ public class PrismsServiceConnector
 		}
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
+		final Exception [] outerStack = new Exception [1];
+		final prisms.arch.PrismsTransaction.Stage[] stage = new prisms.arch.PrismsTransaction.Stage [1];
+		final prisms.arch.PrismsApplication[] app = new prisms.arch.PrismsApplication [1];
+		final prisms.arch.PrismsSession[] session = new prisms.arch.PrismsSession [1];
 		Runnable run = new Runnable()
 		{
 			public void run()
 			{
-				JSONArray serverReturn;
+				prisms.arch.PrismsTransaction trans = null;
+				if(getEnv() != null && session[0] != null)
+					trans = getEnv().transact(session[0], stage[0]);
+				else if(app[0] != null)
+					trans = getEnv().transact(app[0]);
 				try
 				{
-					serverReturn = callServer(ServerMethod.processEvent, rEventProps);
-				} catch(IOException e)
+					prisms.util.ProgramTracker.TrackNode track = null;
+					if(getEnv() != null)
+						track = PrismsUtils.track(getEnv(), "PRISMS connect");
+					JSONArray serverReturn;
+					try
+					{
+						serverReturn = callServer(ServerMethod.processEvent, rEventProps);
+					} catch(IOException e)
+					{
+						e.setStackTrace(PrismsUtils.patchStackTraces(e.getStackTrace(),
+							outerStack[0].getStackTrace(), getClass().getName(), "run"));
+						aRet.doError(e);
+						return;
+					} finally
+					{
+						if(getEnv() != null)
+							PrismsUtils.end(getEnv(), track);
+					}
+					if(serverReturn.size() == 0)
+					{
+						IOException e = new IOException(
+							"Error interfacing with server: No result returned: " + serverReturn);
+						e.setStackTrace(PrismsUtils.patchStackTraces(e.getStackTrace(),
+							outerStack[0].getStackTrace(), getClass().getName(), "run"));
+						aRet.doError(e);
+						return;
+					}
+					JSONObject ret = (JSONObject) serverReturn.get(serverReturn.size() - 1);
+					aRet.doReturn(ret);
+				} finally
 				{
-					aRet.doError(e);
-					return;
+					if(trans != null)
+						getEnv().finish(trans);
 				}
-				if(serverReturn.size() == 0)
-				{
-					aRet.doError(new IOException(
-						"Error interfacing with server: No result returned: " + serverReturn));
-					return;
-				}
-				JSONObject ret = (JSONObject) serverReturn.get(serverReturn.size() - 1);
-				aRet.doReturn(ret);
 			}
 		};
+		if(theEnv != null)
+		{
+			prisms.arch.PrismsTransaction trans = theEnv.getTransaction();
+			if(trans != null)
+			{
+				stage[0] = trans.getStage();
+				app[0] = trans.getApp();
+				session[0] = trans.getSession();
+			}
+		}
+		outerStack[1] = new Exception();
 		theWorker.run(run, new prisms.arch.Worker.ErrorListener()
 		{
 			public void error(Error error)
@@ -692,22 +848,58 @@ public class PrismsServiceConnector
 		}
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
+		final Exception [] outerStack = new Exception [1];
+		final prisms.arch.PrismsTransaction.Stage[] stage = new prisms.arch.PrismsTransaction.Stage [1];
+		final prisms.arch.PrismsApplication[] app = new prisms.arch.PrismsApplication [1];
+		final prisms.arch.PrismsSession[] session = new prisms.arch.PrismsSession [1];
 		Runnable run = new Runnable()
 		{
 			public void run()
 			{
-				JSONArray serverReturn;
+				prisms.arch.PrismsTransaction trans = null;
+				if(getEnv() != null && session[0] != null)
+					trans = getEnv().transact(session[0], stage[0]);
+				else if(app[0] != null)
+					trans = getEnv().transact(app[0]);
 				try
 				{
-					serverReturn = callServer(ServerMethod.processEvent, rEventProps);
-				} catch(IOException e)
+					prisms.util.ProgramTracker.TrackNode track = null;
+					if(getEnv() != null)
+						track = PrismsUtils.track(getEnv(), "PRISMS connect");
+					JSONArray serverReturn;
+					try
+					{
+						serverReturn = callServer(ServerMethod.processEvent, rEventProps);
+					} catch(IOException e)
+					{
+						e.setStackTrace(PrismsUtils.patchStackTraces(e.getStackTrace(),
+							outerStack[0].getStackTrace(), getClass().getName(), "run"));
+						aRet.doError(e);
+						return;
+					} finally
+					{
+						if(getEnv() != null)
+							PrismsUtils.end(getEnv(), track);
+					}
+					aRet.doReturn(serverReturn);
+				} finally
 				{
-					aRet.doError(e);
-					return;
+					if(trans != null)
+						getEnv().finish(trans);
 				}
-				aRet.doReturn(serverReturn);
 			}
 		};
+		if(theEnv != null)
+		{
+			prisms.arch.PrismsTransaction trans = theEnv.getTransaction();
+			if(trans != null)
+			{
+				stage[0] = trans.getStage();
+				app[0] = trans.getApp();
+				session[0] = trans.getSession();
+			}
+		}
+		outerStack[0] = new Exception();
 		theWorker.run(run, new prisms.arch.Worker.ErrorListener()
 		{
 			public void error(Error error)
@@ -840,6 +1032,7 @@ public class PrismsServiceConnector
 			}
 			if(logRequestsResponses)
 				log.info(retStr);
+			retStr = PrismsUtils.decodeUnicode(retStr);
 			JSONArray retJson;
 			try
 			{
@@ -1010,6 +1203,7 @@ public class PrismsServiceConnector
 		if(params != null)
 		{
 			dataStr = params.toString();
+			dataStr = PrismsUtils.encodeUnicode(dataStr);
 			if(theEncryption != null)
 			{
 				if(dataStr.length() <= 20)

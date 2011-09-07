@@ -68,9 +68,11 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 		else if(event.method=="setSelectable")
 		{
 			this.selectable=event.selectable;
+			this.exposedDir=event.exposed;
 			PrismsUtils.setTableRowVisible(this.purgeRow, this.selectable);
 			PrismsUtils.setTableRowVisible(this.protectRow, this.selectable);
 			PrismsUtils.setTableRowVisible(this.selectAllRow, this.selectable);
+			this._scrolled();
 		}
 		else if(event.method=="setCount")
 		{
@@ -122,6 +124,7 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 		{
 			for(var i=0;i<event.entries.length;i++)
 				this._addEntry(-1, event.entries[i]);
+			this._scrolled();
 		}
 		else if(event.method=="addNewEntries")
 		{
@@ -133,6 +136,7 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 
 			while(this.entries.length>this.pageSize)
 				this._removeEntry(this.entries.length-1);
+			this._scrolled();
 		}
 		else if(event.method=="remove")
 		{
@@ -142,6 +146,7 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 					this._removeEntry(i);
 					break;
 				}
+			this._scrolled();
 		}
 		else if(event.method=="checkBack")
 		{
@@ -328,11 +333,20 @@ __dojo.declare("log4j.LogViewer", [prisms.widget.FillPane, __dijit._Templated], 
 		this.prisms.callApp(this.pluginName, "setSelected", {entry: entry.id, selected: selected});
 	},
 
+	_getFile: function(entry, file){
+		this.prisms.callApp(this.pluginName, "getFile", {entry: entry.id, file: file});
+	},
+
 	_addEntry: function(index, entry){
 		var widget=new log4j.LogEntry({});
-		var newConn=[__dojo.connect(widget, "selectChanged", this, function(event){
+		widget.exposedDir=this.exposedDir;
+		var newConn=[];
+		newConn.push(__dojo.connect(widget, "selectChanged", this, function(event){
 			this._selected(entry, entry.selected, event);
-		})];
+		}));
+		newConn.push(__dojo.connect(widget, "getFile", this, function(file){
+			this._getFile(entry, file);
+		}));
 		if(index<0 || index>=this.entries.length)
 		{
 			this.domNode.appendChild(widget.domNode);

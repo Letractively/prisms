@@ -37,6 +37,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		this.inherited(arguments);
 		this.settings=this.defaultSettings;
 		this.selectCheck=new dijit.form.CheckBox({});
+		this.fileConnects=[];
 		__dojo.connect(this.selectCheck, "onClick", this, this._selectClicked);
 	},
 
@@ -47,6 +48,9 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 	},
 
 	render: function(){
+		for(var f=0;f<this.fileConnects.length;f++)
+			__dojo.disconnect(this.fileConnects[f]);
+		this.fileConnects=[];
 		if(this.entry.selected)
 			this.domNode.style.backgroundColor="#e0f0e0";
 		else
@@ -79,7 +83,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 				stack=stack.substring(0, i+1);
 			var lines=1;
 			for(i=0;lines<=this.linesNoCollapse && i<stack.length;i++)
-				if(stack.charAt(i)=='\n')
+				if(stack.charAt(i)=='\n' || stack.charAt(i)=='\r')
 					lines++;
 
 			var stackExpand=this.stackExpanded;
@@ -96,7 +100,10 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 					if(stack.charAt(i)=='\n')
 						lines--;
 				if(i<stack.length)
+				{
+					i--;
 					stack=stack.substring(0, i);
+				}
 				while(stack.length>0 && (stack.charAt(stack.length-1)=='\n' || stack.charAt(stack.length-1)=='\r'))
 					stack=stack.substring(0, stack.length-1);
 			}
@@ -131,13 +138,48 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			this.expandNode.src="__webContentRoot/rsrc/icons/prisms/expandNode.png";
 			lines=this.linesInCollapsed;
 			for(i=0;i<msg.length && lines>0;i++)
-				if(msg.charAt(i)=='\n')
+				if(msg.charAt(i)=='\n' || msg.charAt(i)=='\r')
 					lines--;
 			if(i<msg.length)
+			{
+				i--;
 				msg=msg.substring(0, i);
+			}
 		}
 
-		this.messageNode.innerHTML=this.fix("\t"+msg);
+		if(this.exposedDir)
+		{
+			this.messageNode.innerHTML=this.fix("\t");
+			var fileIdx=msg.indexOf(this.exposedDir);
+			while(fileIdx>=0)
+			{
+				var textNode=document.createElement("span");
+				textNode.innerHTML=this.fix(msg.substring(0, fileIdx));
+				this.messageNode.appendChild(textNode);
+				msg=msg.substring(fileIdx+this.exposedDir.length);
+				var textIdx=0;
+				while(textIdx<msg.length && msg.charAt(textIdx)!=' '
+					&& msg.charAt(textIdx)!='\n' && msg.charAt(textIdx)!='\r')
+					textIdx++;
+				if(textIdx==0)
+					this.messageNode.appendChild(document.createTextNode(this.exposedDir));
+				else
+				{
+					var a=this.createFileLink(msg.substring(0, textIdx));
+					this.messageNode.appendChild(a);
+					msg=msg.substring(textIdx);
+				}
+				fileIdx=msg.indexOf(this.exposedDir);
+			}
+			if(msg.length>0)
+			{
+				var textNode=document.createElement("span");
+				textNode.innerHTML=this.fix(msg);
+				this.messageNode.appendChild(textNode);
+			}
+		}
+		else
+			this.messageNode.innerHTML=this.fix("\t"+msg);
 		this.messageNode.insertBefore(this.expandNode, this.messageNode.childNodes[0]);
 		var br=document.createElement("br");
 		this.messageNode.insertBefore(br, this.expandNode);
@@ -275,19 +317,86 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		return ret;
 	},
 
-	_toggleExpand: function(event){
+	createFileLink: function(file){
+		var div=document.createElement("div");
+		div.innerHTML="<a href=\"\" onclick=\"event.returnValue=false; return false;\" style=\"color:blue;display:inline;padding:5px\">"
+			+PrismsUtils.fixUnicodeString(file)+"</a>";
+		var a=div.childNodes[0];
+		this.fileConnects.push(__dojo.connect(a, "onclick", this, function(){
+			this.getFile(file);
+		}));
+		return a;
+	},
+
+	_onMouseDown: function(event){
+		this._clickEvent=event;
+	},
+
+	_onMouseUp: function(event){
+		if(!this._clickEvent)
+			return;
+		if(event.target!=this._clickEvent.target)
+			return;
+		if(Math.abs(event.layerX-this._clickEvent.layerX)>5 || Math.abs(event.layerY-this._clickEvent.layerY)>5)
+			return;
+		this._toggleExpand();
+	},
+
+	_onMouseMove: function(event){
+		if(!this._clickEvent)
+			return;
+		if(event.target!=this._clickEvent.target)
+			this._clickEvent=null;
+		else if(Math.abs(event.layerX-this._clickEvent.layerX)>5 || Math.abs(event.layerY-this._clickEvent.layerY)>5)
+			this._clickEvent=null;
+	},
+
+	_onMouseOut: function(event){
+		this._clickEvent=null;
+	},
+
+	_toggleExpand: function(){
 		if(this._selectJustClicked)
 		{
 			delete this["_selectJustClicked"];
 			return;
 		}
-		this.expanded=!this.expanded;
+		var expanded=this.expanded && (!this.entry.duplicate || this.dupExpanded);
+		this.expanded=!expanded;
 		this.dupExpanded=this.expanded;
 		this.render();
 	},
 
+	_onMouseDownS: function(event){
+		this._clickEventS=event;
+	},
+
+	_onMouseUpS: function(event){
+		if(!this._clickEventS)
+			return;
+		if(event.target!=this._clickEventS.target)
+			return;
+		if(Math.abs(event.layerX-this._clickEventS.layerX)>5 || Math.abs(event.layerY-this._clickEventS.layerY)>5)
+			return;
+		this._toggleStackExpand();
+	},
+
+	_onMouseMoveS: function(event){
+		if(!this._clickEventS)
+			return;
+		if(event.target!=this._clickEventS.target)
+			this._clickEventS=null;
+		else if(Math.abs(event.layerX-this._clickEventS.layerX)>5 || Math.abs(event.layerY-this._clickEventS.layerY)>5)
+			this._clickEventS=null;
+	},
+
+	_onMouseOutS: function(event){
+		this._clickEventS=null;
+	},
+
 	_toggleStackExpand: function(){
-		this.stackExpanded=!this.stackExpanded;
+		var expanded=this.stackExpanded && (!this.entry.duplicate || this.dupStackExpanded);
+		this.stackExpanded=!expanded;
 		this.dupStackExpanded=this.stackExpanded;
 		this.render();
 	},
@@ -300,6 +409,9 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 	},
 
 	selectChanged: function(event){
+	},
+
+	getFile: function(file){
 	},
 
 	remove: function(){

@@ -58,41 +58,38 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 				prisms.arch.PrismsTransaction trans = getSession().getApp().getEnvironment()
 					.getTransaction();
 				if(trans != null
-					&& trans.getStage() != prisms.arch.PrismsTransaction.Stage.processEvent)
+					&& trans.getStage() != prisms.arch.PrismsTransaction.Stage.processEvent
+					&& trans.getStage() != prisms.arch.PrismsTransaction.Stage.external)
 					return;
 
 				JSONObject ret = new JSONObject();
 				ret.put("plugin", getName());
 				String method;
-				JSONArray jsonPath = jsonPath(evt.getNode());
+
 				switch(evt.getType())
 				{
 				case ADD:
 					method = "nodeAdded";
-					ret.put("path", jsonPath);
+					ret.put("path", jsonPath(evt.getNode(), true));
 					ret.put("index", Integer.valueOf(evt.getIndex()));
 					break;
 				case REMOVE:
 					method = "nodeRemoved";
-					ret.put("path", jsonPath);
-					((JSONObject) jsonPath.get(jsonPath.size() - 1)).remove("children");
+					ret.put("path", jsonPath(evt.getNode(), false));
 					break;
 				case CHANGE:
 					method = "nodeChanged";
-					ret.put("path", jsonPath);
-					if(!evt.isRecursive())
-						((JSONObject) jsonPath.get(jsonPath.size() - 1)).remove("children");
+					ret.put("path", jsonPath(evt.getNode(), evt.isRecursive()));
 					ret.put("recursive", Boolean.valueOf(evt.isRecursive()));
 					break;
 				case MOVE:
 					method = "nodeMoved";
-					ret.put("path", jsonPath);
+					ret.put("path", jsonPath(evt.getNode(), false));
 					ret.put("index", Integer.valueOf(evt.getIndex()));
-					((JSONObject) jsonPath.get(jsonPath.size() - 1)).remove("children");
 					break;
 				case REFRESH:
 					method = "refresh";
-					ret.put("root", jsonPath.get(0));
+					ret.put("root", serializeRecursive(evt.getNode()));
 					break;
 				default:
 					method = null;
@@ -319,12 +316,18 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 	 * Creates a JSONArray full path from a tree node
 	 * 
 	 * @param node The node to get the path of
+	 * @param recursive Whether to serialize the node's children
 	 * @return The path as a JSONArray
 	 */
-	public JSONArray jsonPath(DataTreeNode node)
+	public JSONArray jsonPath(DataTreeNode node, boolean recursive)
 	{
 		JSONArray pathArr = new JSONArray();
-		pathArr.add(serializeRecursive(node));
+		if(recursive)
+			pathArr.add(serializeRecursive(node));
+		else if(node instanceof JsonTreeNode)
+			pathArr.add(((JsonTreeNode) node).toJSON());
+		else
+			pathArr.add(new JSONObject());
 		for(node = node.getParent(); node != null; node = node.getParent())
 		{
 			if(node instanceof JsonTreeNode)
@@ -354,7 +357,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 		return ret;
 	}
 
-	private JSONObject serializeRecursive(DataTreeNode node)
+	JSONObject serializeRecursive(DataTreeNode node)
 	{
 		if(node == null)
 			return null;
@@ -404,7 +407,7 @@ public class DataTreeMgrPlugin extends DataTreeManager implements prisms.arch.Ap
 			JSONObject ret = new JSONObject();
 			ret.put("plugin", getName());
 			ret.put("method", "loadChildren");
-			JSONArray jsonPath = jsonPath(target);
+			JSONArray jsonPath = jsonPath(target, true);
 			JSONArray jsonTargetChildren = (JSONArray) ((JSONObject) jsonPath
 				.get(jsonPath.size() - 1)).get("children");
 			if(jsonTargetChildren == null)

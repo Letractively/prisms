@@ -209,6 +209,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 			});
 	}
 
+	private boolean doingQueue;
+
 	public synchronized void valueChanged(PrismsSession session, T [] fullValue, Object o,
 		prisms.arch.event.PrismsEvent evt)
 	{
@@ -247,14 +249,23 @@ public abstract class ListPersister<T> implements Persister<T []>
 					}
 				break;
 			}
-		T toUpdate = null;
-		if(theUpdateQueue.length > 0)
+		if(!doingQueue)
 		{
-			toUpdate = theUpdateQueue[0];
-			theUpdateQueue = ArrayUtils.remove(theUpdateQueue, 0);
+			doingQueue = true;
+			try
+			{
+				while(theUpdateQueue.length > 0)
+				{
+					T toUpdate = theUpdateQueue[0];
+					theUpdateQueue = ArrayUtils.remove(theUpdateQueue, 0);
+					if(toUpdate != o)
+						valueChanged(session, fullValue, toUpdate, evt);
+				}
+			} finally
+			{
+				doingQueue = false;
+			}
 		}
-		if(toUpdate != null)
-			valueChanged(session, fullValue, toUpdate, evt);
 	}
 
 	public synchronized void reload()

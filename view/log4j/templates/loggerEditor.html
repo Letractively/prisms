@@ -18,16 +18,18 @@
 			<td dojoAttachPoint="effectiveLevel"></td>
 		</tr>
 		<tr>
-			<td style="text-align:right">Additivity:</td>
-			<td><div __dojoType="dijit.form.CheckBox" dojoAttachPoint="additivity"
-				dojoAttachEvent="onClick:_additivityChanged"></div></td>
-		</tr>
-		<tr>
-			<td style="text-align:right">Print Message:</td>
+			<td style="text-align:right">Test Message:</td>
 			<td colspan="2"><div __dojoType="dijit.form.TextBox" dojoAttachPoint="messageBox"
 				dojoAttachEvent="_onKeyPress:_onKeyPress"></div></td>
 			<td><div __dojoType="dijit.form.Button"
 				dojoAttachEvent="onClick:_printMessage">Print to Logger</div></td>
+		</tr>
+		<tr>
+			<td style="text-align:right">Test Attachment:</td>
+			<td colspan="2"><div __dojoType="dijit.form.TextBox" dojoAttachPoint="attachmentBox"
+				dojoAttachEvent="_onKeyPress:_onKeyPress"></div></td>
+			<td><div __dojoType="dijit.form.Button"
+				dojoAttachEvent="onClick:_printAttachment">Print to Logger</div></td>
 		</tr>
 		<tr>
 			<td style="text-align:right">Test Exception:</td>

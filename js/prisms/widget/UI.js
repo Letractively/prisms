@@ -12,6 +12,7 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
 		this._setupUI();
+		this._lastUpdate=0;
 	},
 
 	setPrisms: function(prisms){
@@ -278,6 +279,7 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 		if(!this.event.refreshed)
 		{ // Don't display the progress dialog initially--see if it's still active on the server
 			this.event.refreshed=true;
+			this._lastUpdate=new Date().getTime();
 			this.prisms.callApp(this.pluginName, "refresh");
 			return;
 		}
@@ -313,17 +315,33 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 			this.progressBar.indeterminate=true;
 		this.progressBar.update();
 
-		var pluginName=this.pluginName;
-		if(!this.progressUpdateTimer)
+		var now=new Date().getTime();
+		if(this.prisms.isActive())
 		{
-			var self=this;
-			this.progressUpdateTimer=window.setInterval(function(){
-				if(self.prisms.isActive())
-					self.prisms.callApp(pluginName, "refresh");
-				else if(!this.message || this.message=="progress")
-					self.hide();
-			}, 1000);
+			if(now-this._lastUpdate>500)
+			{
+				this._lastUpdate=now;
+				this.prisms.callApp(this.pluginName, "refresh");
+			}
+			else if(!this._waitingToUpdate)
+			{
+				this._waitingToUpdate=true;
+				window.setTimeout(__dojo.hitch(this, function(){
+					this._lastUpdate=new Date().getTime();
+					this._waitingToUpdate=false;
+					this.prisms.callApp(this.pluginName, "refresh");
+				}), 500);
+			}
 		}
+		if(!this.updateInterval)
+			this.updateInterval=window.setInterval(__dojo.hitch(this, function(){
+				var now=new Date().getTime();
+				if(!this._waitingToUpdate && now-this._lastUpdate>9000)
+				{
+					this._lastUpdate=now;
+					this.prisms.callApp(this.pluginName, "refresh");
+				}
+			}), 10000);
 
 		this.returnType="cancel";
 		this.show();
@@ -358,11 +376,9 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 	},
 	
 	_reset: function(){
-		if(this.progressUpdateTimer)
-		{
-			window.clearInterval(this.progressUpdateTimer);
-			delete this.progressUpdateTimer;
-		}
+		if(this.updateInterval)
+			window.clearInterval(this.updateInterval);
+		this.updateInterval=null;
 		this.closeButtonNode.style.display="block";
 		this.okDiv.style.display="block";
 		this.cancelDiv.style.display="none";

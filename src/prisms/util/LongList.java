@@ -269,21 +269,19 @@ public class LongList implements Iterable<Long>, Sealable, Cloneable
 		if(theSize == 0)
 			return 0;
 		int min = 0, max = theSize - 1;
-		while(min < max - 1)
+		while(min < max)
 		{
 			int mid = (min + max) >>> 1;
-			long diff = theValue[mid] - value;
+			long diff = value - theValue[mid];
 			if(diff > 0)
-				max = mid;
+				min = mid + 1;
 			else if(diff < 0)
-				min = mid;
+				max = mid;
 			else
 				return mid;
 		}
 		if(theValue[max] < value)
 			max++;
-		else if(max > 0 && theValue[max] > value)
-			max--;
 		return max;
 	}
 
@@ -925,10 +923,7 @@ public class LongList implements Iterable<Long>, Sealable, Cloneable
 	 */
 	public void arrayCopy(int srcPos, long [] dest, int destPos, int length)
 	{
-		int i = srcPos;
-		int j = destPos;
-		for(int k = 0; k < length; i++, j++, k++)
-			dest[j] = theValue[i];
+		System.arraycopy(theValue, srcPos, dest, destPos, length);
 	}
 
 	@Override
@@ -1085,6 +1080,39 @@ public class LongList implements Iterable<Long>, Sealable, Cloneable
 			theIndex++;
 			theContent = newContent;
 			lastRemoved = false;
+		}
+	}
+
+	/**
+	 * Tests the sorting capability of this list
+	 * 
+	 * @param args Command-line args, ignored
+	 */
+	public static void main(String [] args)
+	{
+		LongList list = new LongList(true, true);
+		LongList ordered = new LongList();
+		java.util.Random random = new java.util.Random();
+		while(true)
+		{
+			long newVal = random.nextLong();
+			newVal >>>= 1;
+			list.add(newVal);
+			ordered.add(newVal);
+			if(!list.checkSorted())
+			{
+				list.clear();
+				for(int i = 0; i < ordered.size() - 1; i++)
+					list.add(ordered.get(i));
+				long val = ordered.get(ordered.size() - 1);
+				list.add(val);
+			}
+			if(list.size() > 1000)
+			{
+				System.out.println("Tested 1000x");
+				list.clear();
+				ordered.clear();
+			}
 		}
 	}
 }

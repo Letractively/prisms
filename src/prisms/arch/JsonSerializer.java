@@ -1,4 +1,4 @@
-/**
+/*
  * JsonSerializer.java Created Jul 31, 2007 by Andrew Butler, PSL
  */
 package prisms.arch;
@@ -9,13 +9,26 @@ import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-/** A very simple serializer that writes and reads JSON, performing a simple check on sent objects */
+/**
+ * A very simple serializer that writes and reads JSON, performing a simple check on sent objects.
+ * The serializer accounts for encoded unicode characters (See
+ * {@link prisms.util.PrismsUtils#decodeUnicode(String)}) and safely-encoded characters (same as
+ * unicode-encoded, but using "__XENC" as a prefix instead of "\\u".
+ */
 public class JsonSerializer implements RemoteEventSerializer
 {
 	private static final Logger log = Logger.getLogger(JsonSerializer.class);
 
+	public String getContentType(JSONArray events)
+	{
+		return "text/prisms-json";
+	}
+
 	public JSONObject deserialize(String evtString) throws java.io.InvalidObjectException
 	{
+		evtString = evtString.replaceAll("__XENC", "\\\\u");
+		evtString = evtString.replaceAll("\\\\u", "\\\\u");
+		evtString = prisms.util.PrismsUtils.decodeUnicode(evtString);
 		String replaced = evtString.replaceAll("undefined", "null");
 		if(replaced != evtString)
 			evtString = replaced;
@@ -41,7 +54,8 @@ public class JsonSerializer implements RemoteEventSerializer
 	public String serialize(JSONArray evt) throws NotSerializableException
 	{
 		validate(evt);
-		return evt.toString();
+		String ret = evt.toString();
+		return ret;
 	}
 
 	/**

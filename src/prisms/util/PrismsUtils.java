@@ -136,7 +136,7 @@ public class PrismsUtils
 		theRandom = new java.util.Random();
 		try
 		{
-			isJava6 = java.sql.Connection.class.getMethod("isValid", Integer.class) != null;
+			isJava6 = java.sql.Connection.class.getMethod("isValid", Integer.TYPE) != null;
 		} catch(Exception e)
 		{
 			isJava6 = false;
@@ -633,9 +633,9 @@ public class PrismsUtils
 			i--;
 		if(i < 0)
 			return innerTrace;
-		StackTraceElement [] ret = new StackTraceElement [i + outerTrace.length];
+		StackTraceElement [] ret = new StackTraceElement [i + outerTrace.length + 1];
 		System.arraycopy(innerTrace, 0, ret, 0, i + 1);
-		System.arraycopy(outerTrace, 1, ret, i + 1, outerTrace.length - 1);
+		System.arraycopy(outerTrace, 0, ret, i + 1, outerTrace.length);
 		return ret;
 	}
 

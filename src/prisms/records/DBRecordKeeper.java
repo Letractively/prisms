@@ -299,6 +299,8 @@ public class DBRecordKeeper implements RecordKeeper
 
 	int theLocalPriority;
 
+	private boolean hasAbsoluteIntegrity;
+
 	private AutoPurger theAutoPurger;
 
 	private long theLastChange;
@@ -436,6 +438,27 @@ public class DBRecordKeeper implements RecordKeeper
 	public int getLocalPriority()
 	{
 		return theLocalPriority;
+	}
+
+	/**
+	 * @return Whether this record keeper always keeps its records
+	 * @see #setAbsoluteIntegrity(boolean)
+	 */
+	public boolean hasAbsoluteIntegrity()
+	{
+		return hasAbsoluteIntegrity;
+	}
+
+	/**
+	 * Sets whether this record keeper always keeps its records. If false, this record keeper may
+	 * make certain optimizations to keep the database smaller, especially under high load, but the
+	 * consequence will be the loss of records of some deleted items.
+	 * 
+	 * @param integrity Whether this record keeper should always keep records
+	 */
+	public void setAbsoluteIntegrity(boolean integrity)
+	{
+		hasAbsoluteIntegrity = integrity;
 	}
 
 	/**
@@ -2854,6 +2877,66 @@ public class DBRecordKeeper implements RecordKeeper
 						log.error("Connection error", e);
 					}
 			}
+			if(!hasAbsoluteIntegrity
+				&& record.type.additivity < 0
+				&& record.type.changeType == null
+				&& prisms.arch.ds.IDGenerator.getCenterID(record.id) == theIDs.getCenterID()
+				&& prisms.arch.ds.IDGenerator.getCenterID(getDataID(record.majorSubject)) == theIDs
+					.getCenterID())
+			{
+				/* If the item was created and deleted before anybody else saw it, it's safe to
+				 * purge the item and spare the DB the extra entries. */
+				Search search = getHistorySearch(record.majorSubject);
+				Sorter<ChangeField> sorter = new Sorter<ChangeField>();
+				sorter.addSort(ChangeField.CHANGE_TIME, true);
+				long [] historyIDs = search(search, sorter);
+				ChangeRecord [] history = getItems(historyIDs);
+				if(history.length > 0
+					&& history[0].type.additivity > 0
+					&& history[0].type.changeType == null
+					&& prisms.arch.ds.IDGenerator.getCenterID(history[0].id) == theIDs
+						.getCenterID())
+				{
+					long maxTime;
+					sql = "SELECT MAX(syncTime) FROM " + theTransactor.getTablePrefix()
+						+ "prisms_sync_record WHERE recordNS=" + toSQL(theNamespace)
+						+ " AND isImport=" + boolToSql(false);
+					try
+					{
+						rs = stmt.executeQuery(sql);
+						if(!rs.next())
+							maxTime = 0;
+						else
+						{
+							java.sql.Timestamp time = rs.getTimestamp(1);
+							if(time == null)
+								maxTime = 0;
+							else
+								maxTime = time.getTime();
+						}
+					} catch(SQLException e)
+					{
+						log.error("Could not query sync records", e);
+						maxTime = -1;
+					} finally
+					{
+						if(rs != null)
+							try
+							{
+								rs.close();
+							} catch(SQLException e)
+							{
+								log.error("Connection error", e);
+							}
+					}
+					if(maxTime >= 0 && maxTime < history[0].time)
+					{
+						for(ChangeRecord h : history)
+							purge(h, stmt, false);
+						return;
+					}
+				}
+			}
 			synchronized(this)
 			{
 				java.sql.PreparedStatement pStmt = theChangeInserter;
@@ -3081,6 +3164,12 @@ public class DBRecordKeeper implements RecordKeeper
 	 */
 	public void purge(ChangeRecord record, Statement stmt) throws PrismsRecordException
 	{
+		purge(record, stmt, true);
+	}
+
+	void purge(ChangeRecord record, Statement stmt, boolean withPurgeRecord)
+		throws PrismsRecordException
+	{
 		boolean closeStmt = false;
 		if(stmt == null)
 		{
@@ -3108,38 +3197,41 @@ public class DBRecordKeeper implements RecordKeeper
 			long time = rs.getTimestamp(1).getTime();
 			rs.close();
 			rs = null;
-			int centerID = RecordUtils.getCenterID(record.id);
-			int subjectCenter = getSubjectCenter(record.majorSubject);
-			sql = "SELECT latestChange FROM " + theTransactor.getTablePrefix()
-				+ "prisms_purge_record WHERE recordNS=" + toSQL(theNamespace) + " AND centerID="
-				+ centerID + " AND subjectCenter=" + subjectCenter;
-			rs = stmt.executeQuery(sql);
-			boolean update = rs.next();
-			if(!update || rs.getTimestamp(1).getTime() < time)
+			if(withPurgeRecord)
 			{
-				rs.close();
-				rs = null;
-				if(update)
+				int centerID = RecordUtils.getCenterID(record.id);
+				int subjectCenter = getSubjectCenter(record.majorSubject);
+				sql = "SELECT latestChange FROM " + theTransactor.getTablePrefix()
+					+ "prisms_purge_record WHERE recordNS=" + toSQL(theNamespace)
+					+ " AND centerID=" + centerID + " AND subjectCenter=" + subjectCenter;
+				rs = stmt.executeQuery(sql);
+				boolean update = rs.next();
+				if(!update || rs.getTimestamp(1).getTime() < time)
 				{
-					sql = "UPDATE " + theTransactor.getTablePrefix()
-						+ "prisms_purge_record SET latestChange=" + formatDate(time)
-						+ " WHERE recordNS=" + toSQL(theNamespace) + " AND centerID=" + centerID
-						+ " AND subjectCenter=" + subjectCenter;
-					stmt.executeUpdate(sql);
+					rs.close();
+					rs = null;
+					if(update)
+					{
+						sql = "UPDATE " + theTransactor.getTablePrefix()
+							+ "prisms_purge_record SET latestChange=" + formatDate(time)
+							+ " WHERE recordNS=" + toSQL(theNamespace) + " AND centerID="
+							+ centerID + " AND subjectCenter=" + subjectCenter;
+						stmt.executeUpdate(sql);
+					}
+					else
+					{
+						sql = "INSERT INTO " + theTransactor.getTablePrefix()
+							+ "prisms_purge_record (recordNS, centerID,"
+							+ " subjectCenter, latestChange) VALUES (" + toSQL(theNamespace) + ", "
+							+ centerID + ", " + subjectCenter + ", " + formatDate(time) + ")";
+						stmt.execute(sql);
+					}
 				}
 				else
 				{
-					sql = "INSERT INTO " + theTransactor.getTablePrefix()
-						+ "prisms_purge_record (recordNS, centerID,"
-						+ " subjectCenter, latestChange) VALUES (" + toSQL(theNamespace) + ", "
-						+ centerID + ", " + subjectCenter + ", " + formatDate(time) + ")";
-					stmt.execute(sql);
+					rs.close();
+					rs = null;
 				}
-			}
-			else
-			{
-				rs.close();
-				rs = null;
 			}
 			dbDeleteMod(record, stmt);
 			checkForExpiredData(record, stmt);

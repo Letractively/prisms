@@ -2262,7 +2262,7 @@ public class PrismsSynchronizer
 						records = getKeeper().getSyncRecords(center, Boolean.FALSE);
 					} catch(PrismsRecordException e)
 					{
-						throw new RuntimeWrapper("Could not retrieve sync records", e);
+						throw new RuntimeWrapper("Could not retrieve export sync records", e);
 					}
 					if(records.length == 0)
 						continue;
@@ -2276,10 +2276,10 @@ public class PrismsSynchronizer
 				if(theRecord == null)
 				{
 					if(theCenters.length == 1)
-						throw new RuntimeWrapper("No such sync record with ID " + value
+						throw new RuntimeWrapper("No such export sync record with ID " + value
 							+ " for center " + theCenters[0], null);
 					else
-						throw new RuntimeWrapper("No such sync record with ID " + value
+						throw new RuntimeWrapper("No such export sync record with ID " + value
 							+ " in centers " + ArrayUtils.toString(theCenters), null);
 				}
 			}
@@ -2422,8 +2422,8 @@ public class PrismsSynchronizer
 	/** @param logLoc The location to put logging data for synchronization */
 	public void setSyncLoggingLoc(String logLoc)
 	{
-		if(logLoc.endsWith("/") || logLoc.endsWith("\\"))
-			logLoc = logLoc.substring(0, logLoc.length() - 1);
+		if(!logLoc.endsWith("/") && !logLoc.endsWith("\\"))
+			logLoc += java.io.File.separator;
 		theSyncLoggingLoc = logLoc;
 	}
 
