@@ -6,6 +6,7 @@ __dojo.require("dijit.Toolbar");
 __dojo.require("dijit.Menu");
 
 __dojo.require("prisms.DojoPrisms");
+__dojo.require("prisms.PrismsUtils");
 __dojo.require("prisms.widget.UI");
 __dojo.require("prisms.widget.Preferences");
 __dojo.require("prisms.widget.StatusToaster");
@@ -62,6 +63,110 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 		this.prisms.callApp('Preferences', 'editPreferences');
 	},
 
+	toggleSvrTime: function(){
+		var showTime=this.showServerTime ? false : true;
+		if(showTime)
+		{
+			if(!this.prisms)
+				return;
+			var preTime=new Date().getTime();
+			var svrTime=this.prisms.callServerSync("getServerTime")[0];
+			var postTime=new Date().getTime();
+			svrTime.localRef=(preTime+postTime)/2;
+			this.showServerTime=svrTime;
+			this.redrawServerTime();
+			this.serverTimeInterval=window.setInterval(__dojo.hitch(this, function(){
+				this.redrawServerTime();
+			}), 100);
+			this.serverTimeToggle.setLabel("Hide Server Time");
+		}
+		else
+		{
+			if(this.serverTimeInterval)
+				window.clearInterval(this.serverTimeInterval);
+			this.showServerTime=null;
+			this.serverTimeDiv.innerHTML="";
+			this.serverTimeToggle.setLabel("Show Server Time");
+		}
+	},
+
+	redrawServerTime: function(){
+		var svrTime=this.showServerTime;
+		if(newLocal-svrTime.localRef>10*60000)
+		{
+			var preTime=new Date().getTime();
+			svrTime=this.prisms.callServerSync("getServerTime");
+			var postTime=new Date().getTime();
+			svrTime.localRef=(preTime+postTime)/2;
+			this.showServerTime=svrTime;
+		}
+		var newLocal=new Date().getTime();
+		var newOffset=(svrTime.time-svrTime.localRef)+(newLocal-svrTime.localRef);
+		var mil=svrTime.millis+newOffset;
+		if(!this._timeMode) // Zulu/GMT
+			mil-=svrTime.timeZoneOffset
+		else // Server's default time zone
+		{}
+		var sec=svrTime.second+Math.floor(mil/1000);
+		mil%=1000;
+		if(mil>=500)
+			sec++;
+		var min=svrTime.minute+Math.floor(sec/60);
+		sec%=60;
+		if(sec==svrTime.displaySecond)
+			return;
+		svrTime.displaySecond=sec;
+		var hour=svrTime.hour+Math.floor(min/60);
+		min%=60;
+		var day=svrTime.day-1+Math.floor(hour/24);
+		hour%=24;
+		var month=svrTime.month;
+		var year=svrTime.year;
+		while(day>=PrismsUtils.getMaxDay(month, year))
+		{
+			month++;
+			if(month>12)
+			{
+				month=1;
+				year++;
+			}
+		}
+		day++;
+		if(sec<10)
+			sec="0"+sec;
+		if(min<10)
+			min="0"+min;
+		if(hour<10)
+			hour="0"+hour;
+		if(day<10)
+			day="0"+day;
+		var display="Server Time: "+day+PrismsUtils.monthStrings[month-1]+year
+			+" "+hour+min+"."+sec;
+		if(!this._timeMode)
+			display+="Z";
+		else
+			display+=" "+svrTime.timeZoneDisplay;
+		this.serverTimeDiv.innerHTML=display;
+	},
+
+	_switchTimeZone: function(){
+		if(!this.showServerTime)
+			return;
+		var timeMode=this._timeMode;
+		if(typeof timeMode!="number")
+			timeMode=0;
+		timeMode++;
+		if(timeMode>1)
+			timeMode=0;
+		var svrTime=this.showServerTime;
+		if(timeMode==1 && svrTime.timeZoneOffset==0)
+			timeMode++;
+		if(timeMode>1)
+			timeMode=0;
+		this._timeMode=timeMode;
+		this.redrawServerTime();
+	},
+
 	refresh: function(){
 		this.prisms.callServer("init");
 	},
@@ -72,6 +177,13 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 
 	setPrisms: function(prisms){
 		this.prisms=prisms;
+		__dojo.connect(this.prisms, "shutdown", this, function(){
+			if(this.serverTimeInterval)
+				window.clearInterval(this.serverTimeInterval);
+			this.showServerTime=null;
+			this.serverTimeDiv.innerHTML="";
+			this.serverTimeToggle.setLabel("Show Server Time");
+		});
 		this.setNodePrisms(this);
 	},
 

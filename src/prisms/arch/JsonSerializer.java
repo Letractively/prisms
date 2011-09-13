@@ -26,9 +26,7 @@ public class JsonSerializer implements RemoteEventSerializer
 
 	public JSONObject deserialize(String evtString) throws java.io.InvalidObjectException
 	{
-		evtString = evtString.replaceAll("__XENC", "\\\\u");
-		evtString = evtString.replaceAll("\\\\u", "\\\\u");
-		evtString = prisms.util.PrismsUtils.decodeUnicode(evtString);
+		evtString = prisms.util.PrismsUtils.decodeSafe(evtString);
 		String replaced = evtString.replaceAll("undefined", "null");
 		if(replaced != evtString)
 			evtString = replaced;
