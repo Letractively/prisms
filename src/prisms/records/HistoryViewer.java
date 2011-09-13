@@ -217,7 +217,7 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 		theTable.setColumn(BEFORE, "Before", false);
 		theTable.setColumn(AFTER, "After", false);
 		theTable.setColumn(USER, "User", true);
-		theTable.setColumn(CENTER, "Center", true);
+		theTable.setColumn(CENTER, "Center", false);
 		theTable.setColumn(TIME, "Date/Time", true);
 		theSorter = new Sorter<ChangeField>();
 		theSorter.addSort(DBRecordKeeper.ChangeField.CHANGE_TIME, false);
