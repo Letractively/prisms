@@ -85,6 +85,9 @@
 				<search permanent="true">logger:prisms.users</search>
 			</exclude-searches>
 		</purge>
+		<logger-constraints>
+			<logger name="prisms.users" level="INFO" />
+		</logger-constraints>
 	</logger>
 
 	<!-- All custom (non-standard) applications to be loaded -->

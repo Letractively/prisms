@@ -81,31 +81,23 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 				throw new IllegalStateException("No logger to set the level for");
 			if(!isEnabled())
 				throw new IllegalArgumentException("You do not have permission to modify loggers");
-			String level = (String) evt.get("level");
-			if(level == null)
-				theSelectedLogger.setLevel(null);
-			// else if(Level.TRACE.toString().equals(level))
-			// theSelectedLogger.setLevel(Level.TRACE);
-			else if(Level.DEBUG.toString().equals(level))
-				theSelectedLogger.setLevel(Level.DEBUG);
-			else if(Level.INFO.toString().equals(level))
-				theSelectedLogger.setLevel(Level.INFO);
-			else if(Level.WARN.toString().equals(level))
-				theSelectedLogger.setLevel(Level.WARN);
-			else if(Level.ERROR.toString().equals(level))
-				theSelectedLogger.setLevel(Level.ERROR);
-			else if(Level.FATAL.toString().equals(level))
-				theSelectedLogger.setLevel(Level.FATAL);
-			else
-				throw new IllegalArgumentException("Unrecognized logger level " + level);
+			String levelName = (String) evt.get("level");
+			Level level = levelName == null ? null : Level.toLevel(levelName);
+			if(level == null && levelName != null)
+				throw new IllegalArgumentException("Unrecognized logger level " + levelName);
 			try
 			{
 				theSession.getApp().getEnvironment().getLogger()
 					.addLoggerConfig(theSelectedLogger.getName(), theSelectedLogger.getLevel());
+				theSelectedLogger.setLevel(level);
 			} catch(prisms.arch.PrismsException e)
 			{
 				log.error(
 					"Could not persist configuration of logger " + theSelectedLogger.getName(), e);
+			} catch(IllegalArgumentException e)
+			{
+				theSession.getUI().error(e.getMessage());
+				return;
 			}
 			theSession.setProperty(selectedLogger, theSelectedLogger);
 		}
