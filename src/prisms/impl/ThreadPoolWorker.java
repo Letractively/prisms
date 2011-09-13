@@ -1,4 +1,4 @@
-/**
+/*
  * ThreadPoolWorker.java Created Jun 13, 2008 by Andrew Butler, PSL
  */
 package prisms.impl;
