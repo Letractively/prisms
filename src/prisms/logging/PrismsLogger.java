@@ -412,6 +412,8 @@ public class PrismsLogger implements
 
 	prisms.arch.ds.Transactor<PrismsException> theTransactor;
 
+	private java.util.HashMap<String, org.apache.log4j.Level> theLogConstraints;
+
 	private String theExposedDir;
 
 	private long theMinConfiguredAge;
@@ -455,6 +457,7 @@ public class PrismsLogger implements
 	{
 		theEnv = env;
 		theQueueEntries = new java.util.concurrent.ConcurrentLinkedQueue<LogEntry>();
+		theLogConstraints = new HashMap<String, org.apache.log4j.Level>();
 		theLoggers = new Logger [0];
 		thePastEntries = new java.util.LinkedList<LogEntry>();
 		thePermanentExcludes = new LogEntrySearch [0];
@@ -470,7 +473,6 @@ public class PrismsLogger implements
 	{
 		if(isConfigured)
 			throw new IllegalStateException("This logger has already been configured");
-		isConfigured = true;
 		String exposed = config.get("exposed");
 		if(exposed != null)
 			try
@@ -534,19 +536,21 @@ public class PrismsLogger implements
 					thePermanentExcludes = ArrayUtils.add(thePermanentExcludes, search);
 			}
 		}
-		theTransactor = theEnv.getConnectionFactory().getConnection(config, null,
-			new prisms.arch.ds.Transactor.Thrower<PrismsException>()
-			{
-				public void error(String message) throws PrismsException
+		boolean newTransactor = theTransactor == null;
+		if(newTransactor)
+			theTransactor = theEnv.getConnectionFactory().getConnection(config, null,
+				new prisms.arch.ds.Transactor.Thrower<PrismsException>()
 				{
-					throw new PrismsException(message);
-				}
+					public void error(String message) throws PrismsException
+					{
+						throw new PrismsException(message);
+					}
 
-				public void error(String message, Throwable cause) throws PrismsException
-				{
-					throw new PrismsException(message, cause);
-				}
-			});
+					public void error(String message, Throwable cause) throws PrismsException
+					{
+						throw new PrismsException(message, cause);
+					}
+				});
 		java.sql.Connection conn;
 		try
 		{
@@ -724,114 +728,153 @@ public class PrismsLogger implements
 				}
 		}
 		thePurger.seal();
-		theTransactor.addReconnectListener(new prisms.arch.ds.Transactor.ReconnectListener()
-		{
-			public void reconnected(boolean initial)
+		if(newTransactor)
+			theTransactor.addReconnectListener(new prisms.arch.ds.Transactor.ReconnectListener()
 			{
-				if(initial)
-					return;
-				prepareStatements();
-			}
-
-			public void released()
-			{
-				destroyPreparedStatements();
-			}
-		});
-		prepareStatements();
-		theAppender = new org.apache.log4j.Appender()
-		{
-			private org.apache.log4j.spi.ErrorHandler theErrorHandler;
-
-			public void doAppend(org.apache.log4j.spi.LoggingEvent evt)
-			{
-				log(evt.timeStamp, evt.getLevel(), evt.getLoggerName(),
-					evt.getMessage().toString(), evt.getThrowableInformation() == null ? null : evt
-						.getThrowableInformation().getThrowable());
-			}
-
-			public String getName()
-			{
-				return "PRISMS Logger";
-			}
-
-			public void setName(String name)
-			{
-			}
-
-			public boolean requiresLayout()
-			{
-				return false;
-			}
-
-			public org.apache.log4j.Layout getLayout()
-			{
-				return null;
-			}
-
-			public void setLayout(org.apache.log4j.Layout layout)
-			{
-			}
-
-			public org.apache.log4j.spi.Filter getFilter()
-			{
-				return null;
-			}
-
-			public void addFilter(org.apache.log4j.spi.Filter filter)
-			{
-			}
-
-			public void clearFilters()
-			{
-			}
-
-			public org.apache.log4j.spi.ErrorHandler getErrorHandler()
-			{
-				return theErrorHandler;
-			}
-
-			public void setErrorHandler(org.apache.log4j.spi.ErrorHandler handler)
-			{
-				theErrorHandler = handler;
-			}
-
-			public void close()
-			{
-			}
-
-			@Override
-			public String toString()
-			{
-				return getName();
-			}
-		};
-		doCheckForNewLoggers();
-		theWriterThread = new Thread(new Runnable()
-		{
-			public void run()
-			{
-				while(!isClosed)
+				public void reconnected(boolean initial)
 				{
-					try
+					if(initial)
+						return;
+					prepareStatements();
+				}
+
+				public void released()
+				{
+					destroyPreparedStatements();
+				}
+			});
+		if(theIDGetter == null)
+			prepareStatements();
+		if(theAppender == null)
+			theAppender = new org.apache.log4j.Appender()
+			{
+				private org.apache.log4j.spi.ErrorHandler theErrorHandler;
+
+				public void doAppend(org.apache.log4j.spi.LoggingEvent evt)
+				{
+					log(evt.timeStamp, evt.getLevel(), evt.getLoggerName(), evt.getMessage()
+						.toString(), evt.getThrowableInformation() == null ? null : evt
+						.getThrowableInformation().getThrowable());
+				}
+
+				public String getName()
+				{
+					return "PRISMS Logger";
+				}
+
+				public void setName(String name)
+				{
+				}
+
+				public boolean requiresLayout()
+				{
+					return false;
+				}
+
+				public org.apache.log4j.Layout getLayout()
+				{
+					return null;
+				}
+
+				public void setLayout(org.apache.log4j.Layout layout)
+				{
+				}
+
+				public org.apache.log4j.spi.Filter getFilter()
+				{
+					return null;
+				}
+
+				public void addFilter(org.apache.log4j.spi.Filter filter)
+				{
+				}
+
+				public void clearFilters()
+				{
+				}
+
+				public org.apache.log4j.spi.ErrorHandler getErrorHandler()
+				{
+					return theErrorHandler;
+				}
+
+				public void setErrorHandler(org.apache.log4j.spi.ErrorHandler handler)
+				{
+					theErrorHandler = handler;
+				}
+
+				public void close()
+				{
+				}
+
+				@Override
+				public String toString()
+				{
+					return getName();
+				}
+			};
+		doCheckForNewLoggers();
+		if(theWriterThread == null)
+		{
+			Thread writer = new Thread(new Runnable()
+			{
+				public void run()
+				{
+					while(!isClosed)
 					{
-						doPeriodicCheck();
 						try
 						{
-							Thread.sleep(50);
-						} catch(InterruptedException e)
-						{}
-					} catch(Throwable e)
-					{
-						log.error("Could not persist entries", e);
+							doPeriodicCheck();
+							try
+							{
+								Thread.sleep(50);
+							} catch(InterruptedException e)
+							{}
+						} catch(Throwable e)
+						{
+							log.error("Could not persist entries", e);
+						}
 					}
 				}
+			});
+			writer.setName("PRISMS Logging Persister");
+			writer.setDaemon(false);
+			writer.setPriority(Thread.MIN_PRIORITY);
+			writer.start();
+			theWriterThread = writer;
+		}
+		/* Configures logger constraints, which force the level of a particular logger to allow
+		 * logs of a given level */
+		for(prisms.arch.PrismsConfig c : config.subConfigs("logger-constraints/logger"))
+		{
+			String loggerName = c.get("name");
+			if(loggerName == null)
+			{
+				log.warn("No logger name in logger constraint " + c);
+				continue;
 			}
-		});
-		theWriterThread.setName("PRISMS Logging Persister");
-		theWriterThread.setDaemon(false);
-		theWriterThread.setPriority(Thread.MIN_PRIORITY);
-		theWriterThread.start();
+			String levelName = c.get("level");
+			if(levelName == null)
+			{
+				log.warn("No level set in logger constraint " + c);
+				continue;
+			}
+			org.apache.log4j.Level level = org.apache.log4j.Level.toLevel(levelName.toUpperCase());
+			if(level == null)
+			{
+				log.warn("No such level \"" + levelName + "\" in logger constraint " + c);
+				continue;
+			}
+			theLogConstraints.put(loggerName, level);
+			Logger logger = Logger.getLogger(loggerName);
+			if(logger.getEffectiveLevel().isGreaterOrEqual(level))
+			{ // The effective level is greater, so logs at the given level won't show up
+				log.info("Level of logger " + loggerName + " level reduced from "
+					+ logger.getEffectiveLevel() + " to " + level);
+				logger.setLevel(level);
+			}
+		}
+		isConfigured = true;
 	}
 
 	/**
@@ -1458,10 +1501,56 @@ public class PrismsLogger implements
 	 * @param loggerName The name of the logger to change the level of
 	 * @param level The level for the logger--may be null to use the log level of its parent
 	 * @throws PrismsException If an error occurs persisting the entry
+	 * @throws IllegalArgumentException If the given level is to high for this logger's configured
+	 *         constraints for the given logger
 	 */
 	public void addLoggerConfig(String loggerName, org.apache.log4j.Level level)
 		throws PrismsException
 	{
+		org.apache.log4j.Level constraintLevel = theLogConstraints.get(loggerName);
+		if(constraintLevel != null)
+		{
+			if(level != null)
+			{
+				if(level.isGreaterOrEqual(constraintLevel))
+					throw new IllegalArgumentException("Logger " + loggerName
+						+ " must allow logs of level " + constraintLevel);
+			}
+			else
+			{
+				Logger logger = Logger.getLogger(loggerName);
+				org.apache.log4j.Level preLevel = logger.getLevel();
+				try
+				{
+					logger.setLevel(null);
+					if(logger.getEffectiveLevel().isGreaterOrEqual(constraintLevel))
+					{
+						throw new IllegalArgumentException("Logger " + loggerName
+							+ " must allow logs of level " + constraintLevel);
+					}
+				} finally
+				{
+					logger.setLevel(preLevel);
+				}
+			}
+		}
+		else
+		{
+			for(java.util.Map.Entry<String, org.apache.log4j.Level> entry : theLogConstraints
+				.entrySet())
+			{
+				if(entry.getKey().startsWith(loggerName)
+					&& !entry.getValue().isGreaterOrEqual(level))
+				{
+					Logger logger = Logger.getLogger(entry.getKey());
+					if(logger.getLevel() == null)
+						/* This action would cause the constrained logger to be set at an effective
+						 * level higher than its threshold. Allow the action, but modify the logger
+						 * specifically so its configured logs go through. */
+						logger.setLevel(entry.getValue());
+				}
+			}
+		}
 		String sql = "UPDATE " + theTransactor.getTablePrefix()
 			+ "prisms_logger_config SET logLevel=" + (level == null ? "NULL" : "" + level.toInt())
 			+ ", setTime=" + DBUtils.formatDate(System.currentTimeMillis(), isOracle())
@@ -2753,7 +2842,7 @@ public class PrismsLogger implements
 							if(srchStr.length() > 1024)
 								continue;
 							sql = "INSERT INTO " + theTransactor.getTablePrefix()
-								+ "prisms_purge_logger (loggerName) VALUES ("
+								+ "prisms_log_purge_exclude (search) VALUES ("
 								+ DBUtils.toSQL(srchStr) + ")";
 							stmt.executeUpdate(sql);
 						}
