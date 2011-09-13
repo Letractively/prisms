@@ -99,7 +99,8 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 		PrefValue val = thePrefs.get(pref);
 		if(val == null)
 			return null;
-		val.pref.setDescription(pref.getDescription());
+		if(pref.getDescription() != null)
+			val.pref.setDescription(pref.getDescription());
 		pref.setID(val.pref.getID());
 		theActivePrefs.add(pref);
 		return (T) val.value;
@@ -154,6 +155,29 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 		PreferenceEvent evt = new PreferenceEvent(this, pref, oldVal, value, withRecord);
 		for(Listener L : theListeners)
 			L.prefChanged(evt);
+	}
+
+	/**
+	 * @param pref The preference to check the activity of
+	 * @return Whether the given preference is active
+	 */
+	public boolean isActive(Preference<?> pref)
+	{
+		return theActivePrefs.contains(pref);
+	}
+
+	/**
+	 * Sets whether a given preference is active
+	 * 
+	 * @param pref The preference to set
+	 * @param active Whether the given preference should be active or not
+	 */
+	public void setActive(Preference<?> pref, boolean active)
+	{
+		if(!active)
+			theActivePrefs.remove(pref);
+		else if(pref.getDomain().equals(this))
+			theActivePrefs.add(pref);
 	}
 
 	/** @return All domains contained in this set of preferences */
