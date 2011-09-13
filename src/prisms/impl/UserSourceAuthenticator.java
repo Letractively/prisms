@@ -343,7 +343,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 						request.httpRequest.getParameter("data"));
 					if(ret != null)
 						return ret;
-					log.error("Decryption of " + encryptedText + " failed with encryption "
+					log.debug("Decryption of " + encryptedText + " failed with encryption "
 						+ theEncryption, e);
 					loginFailed();
 					if(theUser.isLocked())
