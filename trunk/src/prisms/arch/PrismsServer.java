@@ -305,10 +305,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theSerializer = serializer;
 			version = req.getParameter("version");
 			serverMethod = req.getParameter("method");
-			appName = req.getParameter("app");
-			clientName = req.getParameter("client");
+			appName = PrismsUtils.decodeSafe(req.getParameter("app"));
+			clientName = PrismsUtils.decodeSafe(req.getParameter("client"));
 			if(clientName == null)
-				clientName = req.getParameter("service");
+				clientName = PrismsUtils.decodeSafe(req.getParameter("service"));
 			dataString = req.getParameter("data");
 			isWMS = PrismsWmsRequest.isWMS(req);
 		}
@@ -595,7 +595,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				String className = theAuth.getClass().getName();
 				if(className.indexOf('.') >= 0)
 					className = className.substring(className.lastIndexOf('.') + 1);
-				sessionLog.info("User " + theUser + " was authenticated by " + className);
+				sessionLog.info("User " + theUser + " at " + req.httpRequest.getRemoteHost()
+					+ " was authenticated by " + className);
 				isLoggedIn = true;
 			}
 
@@ -695,6 +696,24 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				event = null;
 			// The encryption succeeded--the session knows the password
 
+			if("getServerTime".equals(req.serverMethod))
+			{
+				java.util.Calendar cal = java.util.Calendar.getInstance();
+				JSONObject toSend = new JSONObject();
+				toSend.put("time", Long.valueOf(cal.getTimeInMillis()));
+				toSend.put("timeZoneOffset",
+					Integer.valueOf(cal.getTimeZone().getOffset(cal.getTimeInMillis())));
+				toSend.put("timeZoneDisplay",
+					cal.getTimeZone().getDisplayName(true, java.util.TimeZone.SHORT));
+				toSend.put("year", Integer.valueOf(cal.get(java.util.Calendar.YEAR)));
+				toSend.put("month", Integer.valueOf(cal.get(java.util.Calendar.MONTH) + 1));
+				toSend.put("day", Integer.valueOf(cal.get(java.util.Calendar.DAY_OF_MONTH)));
+				toSend.put("hour", Integer.valueOf(cal.get(java.util.Calendar.HOUR_OF_DAY)));
+				toSend.put("minute", Integer.valueOf(cal.get(java.util.Calendar.MINUTE)));
+				toSend.put("second", Integer.valueOf(cal.get(java.util.Calendar.SECOND)));
+				toSend.put("millis", Integer.valueOf(cal.get(java.util.Calendar.MILLISECOND)));
+				return singleMessage(reqAuth, req, toSend, true);
+			}
 			if("changePassword".equals(req.serverMethod))
 			{
 				PrismsAuthenticator.AuthenticationError error;
@@ -933,13 +952,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		void destroy()
 		{
-			try
-			{
-				theSessionAuth.destroy();
-			} catch(PrismsException e)
-			{
-				log.error("Error destroying authentication metadata", e);
-			}
+			if(theSessionAuth != null)
+				try
+				{
+					theSessionAuth.destroy();
+				} catch(PrismsException e)
+				{
+					log.error("Error destroying authentication metadata", e);
+				}
 		}
 	}
 
@@ -1517,9 +1537,27 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		SecuritySession getSecurity(PrismsAuthenticator auth, User user)
 		{
 			theLastUsed = System.currentTimeMillis();
-			for(SecuritySession sec : theSecurities)
+			SecuritySession [] secs = theSecurities;
+			for(int s = 0; s < secs.length; s++)
+			{
+				SecuritySession sec = secs[s];
 				if(sec.getAuth().equals(auth) && sec.getUser().equals(user))
+				{
+					if(sec.untilExpires() <= 0)
+					{
+						synchronized(this)
+						{
+							sec.destroy();
+							if(theSecurities == secs)
+								theSecurities = ArrayUtils.remove(theSecurities, s);
+							else
+								theSecurities = ArrayUtils.remove(theSecurities, sec);
+						}
+						sec = null;
+					}
 					return sec;
+				}
+			}
 			return null;
 		}
 
@@ -1536,9 +1574,35 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		PrismsSessionHolder getSession(User user, ClientConfig client)
 		{
-			for(PrismsSessionHolder session : theSessionHolders)
+			PrismsSessionHolder [] sessions = theSessionHolders;
+			for(int s = 0; s < sessions.length; s++)
+			{
+				PrismsSessionHolder session = sessions[s];
 				if(session.getUser().equals(user) && session.getClient().equals(client))
+				{
+					if(session.untilExpires() <= 0)
+					{
+						synchronized(this)
+						{
+							if(theSessionHolders == sessions)
+								theSessionHolders = ArrayUtils.remove(theSessionHolders, s);
+							else
+								theSessionHolders = ArrayUtils.remove(theSessionHolders, session);
+							session.destroy();
+							sessionLog.info("Session "
+								+ (session.getSession() == null ? "" : session.getSession()
+									.getMetadata().getID()
+									+ " ") + ", user " + session.getUser() + ", client "
+								+ session.getClient() + " has timed out.");
+							String key = theID + "/" + session.getClient().getApp().getName() + "/"
+								+ session.getClient().getName() + "/" + session.getUser().getName();
+							theEpitaphs.put(key, new SessionEpitaph("Session has timed out."));
+						}
+						session = null;
+					}
 					return session;
+				}
+			}
 			return null;
 		}
 
@@ -1556,11 +1620,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		synchronized void removeSession(PrismsSessionHolder session)
 		{
 			for(int s = 0; s < theSessionHolders.length; s++)
-				if(theSessionHolders[s] == session)
+				if(theSessionHolders[s] == session || theSessionHolders[s].untilExpires() <= 0)
 				{
 					theSessionHolders = ArrayUtils.remove(theSessionHolders, s);
 					s--;
 				}
+			if(theSessionHolders.length == 0)
+			{
+				for(SecuritySession ss : theSecurities)
+					ss.destroy();
+				theSecurities = new SecuritySession [0];
+			}
 		}
 
 		boolean check()
@@ -1666,8 +1736,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		CONNECTION_FACTORY,
 		/** The user source is being created */
 		USER_SOURCE,
-		/** The ID generator and logger are being configured */
+		/** The ID generator is being configured */
 		ID_GENERATOR,
+		/** The logger is being configured */
+		LOGGING,
 		/** Global (cross-app) listeners are being created and configured */
 		GLOBAL_LISTENERS,
 		/** Applications are being loaded */
@@ -2120,6 +2192,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if(theConfigProgress.theStage == ConfigStage.CONFIGURED)
 			return null;
 		log.info("Configuring PRISMS...");
+		Logger prismsUsersLog = Logger.getLogger("prisms.users");
+		if(prismsUsersLog.getEffectiveLevel().isGreaterOrEqual(org.apache.log4j.Level.INFO))
+			prismsUsersLog.setLevel(org.apache.log4j.Level.INFO);
 		PrismsConfig pConfig = getPrismsConfig();
 		isCheckingForRunaways = pConfig.is("checkForRunaways", true);
 		String configXmlRef = getClass().getResource("PRISMSConfig.xml").toString();
@@ -2379,7 +2454,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				throw new IllegalStateException("Could not configure ID generator for environment",
 					e);
 			}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
 
+		if(theConfigProgress.theStage.compareTo(ConfigStage.LOGGING) <= 0)
+		{
 			Worker worker;
 			PrismsConfig workerEl = pConfig.subConfig("worker");
 			if(workerEl == null || "threadpool".equals(workerEl.get("type")))
@@ -3159,6 +3238,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if(pReq.client.isCommonSession())
 			sessionID = pReq.user.getName() + "/" + pReq.app.getName() + "/"
 				+ pReq.client.getName();
+		else if(req.getSession() != null && !req.getSession().isNew())
+			sessionID = rh + "/" + req.getSession().getId();
 		else
 			sessionID = rh;
 

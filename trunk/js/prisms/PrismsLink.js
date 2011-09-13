@@ -483,6 +483,15 @@ __dojo.declare("prisms.PrismsLink", null, {
 	},
 
 	_processAjaxInput: function(data){
+		var originalData=data;
+		data=this._getValidData(data);
+		if(originalData.charAt(0)=='[')
+			this.processEvents(data);
+		else if(originalData.charAt(0)=='{')
+			this.processEvent(data);
+	},
+
+	_getValidData: function(data){
 		if((data.charAt(0)!='[' || data.charAt(data.length-1)!=']')
 			&& (data.charAt(0)!='{' || data.charAt(data.length-1)!='}'))
 		{
@@ -509,10 +518,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 			throw new Error("Error with js eval: "+err.message);
 		}
 		this.validateJson(data);
-		if(originalData.charAt(0)=='[')
-			this.processEvents(data);
-		else if(originalData.charAt(0)=='{')
-			this.processEvent(data);
+		return data;
 	},
 
 	callServer: function(method, params, xhrArgs){
@@ -540,10 +546,10 @@ __dojo.declare("prisms.PrismsLink", null, {
 		var ret=this.imageURL+"?";
 		if(this.sessionID)
 			ret+="sessionID="+this.sessionID+"&";
-		ret+="app="+escape(this.application);
-		ret+="&client="+escape(this.client);
+		ret+="app="+PrismsUtils.safeEscape(this.application);
+		ret+="&client="+PrismsUtils.safeEscape(this.client);
 		if(this._login && this._login.userName)
-			ret+="&user="+this._login.userName;
+			ret+="&user="+PrismsUtils.safeEscape(this._login.userName);
 		ret+="&encrypted="+(this.cipher ? true : false);
 		ret+="&method=generateImage";
 		if(this.cipher)
@@ -632,6 +638,34 @@ __dojo.declare("prisms.PrismsLink", null, {
 		else
 			params=this.toJson(params);
 		ret+="&data="+escape(params);
+		return ret;
+	},
+
+	callServerSync: function(method, params){
+		if(!params)
+			params={};
+		params.method=method;
+		params=this.getServerRequest(params);
+		var self=this;
+		var ret=null;
+		var err=null;
+		var args={
+			url: self.servletURL,
+			sync: true,
+			timeout: 60000,
+			preventCache: true,
+			handleAs: "text",
+			content: params,
+			load: function(data){
+				ret=self._getValidData(data);
+			},
+			error: function(error){
+				err=error;
+			}
+		};
+		__dojo.xhrPost(args);
+		if(err!=null)
+			throw err;
 		return ret;
 	},
 

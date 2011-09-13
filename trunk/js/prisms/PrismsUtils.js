@@ -125,13 +125,14 @@ window.PrismsUtils =  {
 			cell.style.display="none";
 	},
 
+	monthStrings: ["Jan","Feb","Mar","Apr","May","Jun", "Jul","Aug","Sep","Oct","Nov","Dec"],
+
 	printTime: function(time) {
 		time=new Date(time);
 		var day=""+time.getUTCDate();
 		if (day.length<2) 
 			day="0"+day;
-		var monthStrings=["Jan","Feb","Mar","Apr","May","Jun", "Jul","Aug","Sep","Oct","Nov","Dec"];
-		var month=monthStrings[time.getUTCMonth()];
+		var month=this.monthStrings[time.getUTCMonth()];
 		var year=time.getUTCFullYear();
 		var hour=""+time.getUTCHours();
 		if (hour.length<2)
@@ -140,6 +141,25 @@ window.PrismsUtils =  {
 		if (minute.length<2)
 			minute="0"+minute;
 		return day+month+year+" "+hour+minute+"Z";
+	},
+
+	monthDays: [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
+
+	getMaxDay: function(month, year){
+		var ret=this.monthDays[month-1];
+		if(month==2 && this.isLeapYear(year))
+			ret++;
+		return ret;
+	},
+
+	isLeapYear: function(year){
+		if(year%4!=0)
+			return false;
+		if(year%400==0)
+			return true;
+		if(year%100==0)
+			return false;
+		return true;
 	},
 
 	setComboValue: function(select, value){

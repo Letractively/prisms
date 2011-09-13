@@ -10,6 +10,8 @@
 				<span>Preferences</span>
 				<div __dojoType="dijit.Menu">
 					<div __dojoType="dijit.MenuItem" dojoAttachEvent="onClick:editPreferences">Editor</div>
+					<div __dojoType="dijit.MenuItem" dojoAttachPoint="serverTimeToggle"
+						dojoAttachEvent="onClick:toggleSvrTime">Show Server Time</div>
 				</div>
 			</div>
 			<div __dojoType="dijit.form.DropDownButton" dojoAttachPoint="helpMenu">
@@ -20,6 +22,7 @@
 						dojoAttachPoint="aboutMenuItem">About</div>
 				</div>
 			</div>
+			<div dojoAttachPoint="serverTimeDiv" dojoAttachEvent="onclick:_switchTimeZone" style="display:inline"></div>
 			<div __dojoType="dijit.form.DropDownButton" style="float:right" dojoAttachPoint="loginMenu">
 				<span>Login</span>
 				<div __dojoType="dijit.Menu">

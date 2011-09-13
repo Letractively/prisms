@@ -490,6 +490,20 @@ public class PrismsUtils
 		return str;
 	}
 
+	/**
+	 * Decodes a string that was encoded using __XENC
+	 * 
+	 * @param str The string to decode
+	 * @return The decoded string
+	 */
+	public static String decodeSafe(String str)
+	{
+		str = str.replaceAll("__XENC", "\\\\u");
+		str = str.replaceAll("\\\\\\\\u", "\\\\u");
+		str = prisms.util.PrismsUtils.decodeUnicode(str);
+		return str;
+	}
+
 	private static int fromHex(char c)
 	{
 		if(c >= '0' && c <= '9')
