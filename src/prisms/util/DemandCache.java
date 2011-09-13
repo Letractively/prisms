@@ -28,7 +28,7 @@ import java.util.*;
  * 
  * @param <K> The type of key to use for the cache
  * @param <V> The type of value to cache
- * @see #shouldRemove(CacheValue, float, float, float)
+ * @see #shouldRemove(CacheValue, float, float, int)
  */
 public class DemandCache<K, V> implements Map<K, V>
 {
@@ -540,7 +540,7 @@ public class DemandCache<K, V> implements Map<K, V>
 
 	/**
 	 * Purges the cache of values that are deemed of less use to the accessor. The behavior of this
-	 * method depends the behavior of {@link #shouldRemove(CacheValue, float, float, float)}
+	 * method depends the behavior of {@link #shouldRemove(CacheValue, float, float, int)}
 	 * 
 	 * @param force If false, the purge operation will only be performed if this cache determines
 	 *        that a purge is needed (determined by the number of modifications directly to this
@@ -651,7 +651,7 @@ public class DemandCache<K, V> implements Map<K, V>
 	 * @return Whether the value should be removed from the cache
 	 */
 	protected boolean shouldRemove(CacheValue value, float totalSize, float avgQuality,
-		float entryCount)
+		int entryCount)
 	{
 		float quality;
 		float size;
@@ -677,11 +677,19 @@ public class DemandCache<K, V> implements Map<K, V>
 		/* Take into account the inherent quality in the value compareed to the average */
 		valueQuality *= quality / avgQuality;
 		/* Take into account the value's size compared with the average size */
-		valueQuality /= size / (totalSize / entryCount);
+		float avgSize = totalSize / entryCount;
+		valueQuality /= size / avgSize;
 		/* Take into account the overall size of this cache compared with the preferred size
 		 * (Whether it is too big or has room to spare) */
+		float sizeToQual = (size / avgSize) / (quality / avgQuality);
 		if(thePreferredSize > 0)
-			valueQuality /= totalSize / thePreferredSize;
+		{
+			if(totalSize > thePreferredSize)
+				valueQuality /= Math.pow(2, totalSize / thePreferredSize * 4 * sizeToQual
+					* sizeToQual);
+			else
+				valueQuality /= totalSize / thePreferredSize;
+		}
 		return valueQuality < 0.5f;
 	}
 
