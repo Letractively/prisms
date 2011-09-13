@@ -475,10 +475,13 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		private boolean propertiesSet;
 
+		private boolean useJMX;
+
 		InstanceNode(InstancesNode parent)
 		{
 			super(AppSessionServerTree.this, parent, false);
 			theApp = getParent().getParent().getApp();
+			useJMX = true;
 		}
 
 		@Override
@@ -519,6 +522,35 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 					prisms.util.PrismsUtils.print(theInstance.initTime));
 			Runtime runtime = Runtime.getRuntime();
 			ret.append("            \nCPUs:").append(runtime.availableProcessors());
+			if(useJMX)
+				try
+				{
+					java.lang.management.OperatingSystemMXBean osMX = java.lang.management.ManagementFactory
+						.getOperatingSystemMXBean();
+					if(osMX instanceof com.sun.management.OperatingSystemMXBean)
+					{
+						com.sun.management.OperatingSystemMXBean sunMXB = (com.sun.management.OperatingSystemMXBean) osMX;
+						long startClock = System.currentTimeMillis();
+						long startCPU = sunMXB.getProcessCpuTime();
+						try
+						{
+							Thread.sleep(500);
+						} catch(InterruptedException e)
+						{}
+						long endClock = System.currentTimeMillis();
+						long endCPU = sunMXB.getProcessCpuTime();
+						ret.append("            \n")
+							.append(
+								Math.round((endCPU - startCPU) * 100 / 1.0e6
+									/ (endClock - startClock) / osMX.getAvailableProcessors()))
+							.append("% usage");
+					}
+					else
+						useJMX = false;
+				} catch(Exception e)
+				{
+					useJMX = false;
+				}
 			ret.append("            \nAvailableMem:")
 				.append(Math.round(runtime.maxMemory() / 1024 / 1024)).append("MB");
 			ret.append("            \nMemInUse:")
