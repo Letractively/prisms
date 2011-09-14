@@ -1,0 +1,16 @@
+
+<table>
+	<tr><td><table><tr>
+		<td><div __dojoType="dijit.form.Button" dojoAttachPoint="boldButton"
+			dojoAttachEvent="onClick:_bold" style="font-weight:bolder">B</div></td>
+		<td><div __dojoType="dijit.form.Button" dojoAttachPoint="italicButton"
+			dojoAttachEvent="onClick:_italic" style="font-weight:bold;font-style:italic">I</div></td>
+		<td><div __dojoType="dijit.form.Button" dojoAttachPoint="underlineButton"
+			dojoAttachEvent="onClick:_underline" style="font-weight:bold">
+			<span style="text-decoration:underline">U</span></div></td>
+	</tr></table></td></tr>
+	<tr>
+		<td style="width:100%;height:300px;border:1px solid black;background-color:white" dojoAttachPoint="editArea"
+			dojoAttachEvent="onblur:_editOut,onfocus:_editIn,onkeypress:_key,ondblclick:_dblClick"></td>
+	</tr>
+</table>

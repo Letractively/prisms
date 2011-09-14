@@ -1,0 +1,44 @@
+
+<table>
+	<tr><td><table style="width:100%"><tr>
+		<td dojoAttachPoint="inboxTab" style="font-weight:bold;font-size:large"
+			dojoAttachEvent="onclick:_inbox">Inbox</td>
+		<td style="width:10px"></td>
+		<td dojoAttachPoint="sentTab" style="font-weight:bold;font-size:large"
+			dojoAttachEvent="onclick:_sent">Sent Mail</td>
+		<td style="width:10px"></td>
+		<td dojoAttachPoint="draftsTab" style="font-weight:bold;font-size:large"
+			dojoAttachEvent="onclick:_drafts">Drafts</td>
+		<td style="width:10px"></td>
+		<td dojoAttachPoint="allMailTab" style="font-weight:bold;font-size:large"
+			dojoAttachEvent="onclick:_allMail">All Mail</td>
+		<td style="width:10px"></td>
+		<td dojoAttachPoint="trashTab" style="font-weight:bold;font-size:large"
+			dojoAttachEvent="onclick:_trash">Trash</td>
+		<td style="width:10px"></td>
+		<td><input type="text" dojoAttachPoint="searchBox" /></td>
+		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_search">Search</div></td>
+	</tr></table></td></tr>
+	<tr><td><table style="width:100%"><tr>
+		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_archive">Archive</div></td>
+		<td style="width:10px"></td>
+		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_delete">Delete</div></td>
+		<td style="width:10px"></td>
+		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_markAsRead">Mark as Read</div></td>
+		<td style="width:10px"></td>
+		<td><a href="" onclick="event.returnValue=false; return false;" style="color:blue"
+			dojoAttachEvent="onclick:_refresh">Refresh</a></td>
+		<td style="width:10px"></td>
+		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_compose">Compose Message</div></td>
+	</tr></table></td></tr>
+	<tr dojoAttachPoint="noMailRow"><td style="text-align:center">No Messages</td></tr>
+	<tr dojoAttachPoint="mailTableRow"><td>
+		<div __dojoType="prisms.widget.SortTable" dojoAttachPoint="sortTable" style="width:100%"
+			dojoAttachEvent="sortOn:_sortBy,goToLink:_goTo,navTo:_navTo,selectChanged:_selectChanged">
+		</div>
+	</td></tr>
+	<tr dojoAttachPoint="composerRow"><td>
+		<div __dojoType="prisms.widget.MessageComposer" dojoAttachPoint="composer" style="width:100%"
+			dojoAttachEvent="send:_send,save:_save,discard:_discard"></div>
+	</td></tr>
+</table>
