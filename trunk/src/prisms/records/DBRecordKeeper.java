@@ -1792,7 +1792,8 @@ public class DBRecordKeeper implements RecordKeeper
 	{
 		boolean closeStmt = stmt == null;
 		ResultSet rs = null;
-		String sql = "SELECT id FROM " + theTransactor.getTablePrefix() + "prisms_change_record";
+		String sql = "SELECT " + theTransactor.getTablePrefix() + "prisms_change_record.id FROM "
+			+ theTransactor.getTablePrefix() + "prisms_change_record";
 		if(join != null)
 			sql += " " + join;
 		sql += " WHERE " + theTransactor.getTablePrefix() + "prisms_change_record.recordNS="
