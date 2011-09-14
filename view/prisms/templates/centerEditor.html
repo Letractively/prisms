@@ -162,9 +162,9 @@
 		</div></td></tr>
 </table>
 <div __dojoType="dijit.Dialog" dojoAttachPoint="certificateDialog" dojoAttachEvent:"hide:_certDeny">
-	<div __dojoType="dijit.layout.BorderContainer" style="height:450px;text-align:center">
+	<div __dojoType="dijit.layout.BorderContainer" style="height:450px;text-align:center" dojoAttachPoint="certContainer">
 		<div __dojoType="dijit.layout.ContentPane" dojoAttachPoint="certDialogText1" region="top" style="height:36px"></div>
-		<div __dojoType="dijit.layout.ContentPane" region="center" >
+		<div __dojoType="dijit.layout.ContentPane" region="center">
 			<div __dojoType="prisms.widget.CertificateViewer" style="left:150px" dojoAttachPoint="soloViewer"></div>
 			<div __dojoType="dijit.layout.BorderContainer" region="center" style="width:680px;height:300px"
 				dojoAttachPoint="comparePane">

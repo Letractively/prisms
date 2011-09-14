@@ -201,6 +201,7 @@ __dojo.declare("prisms.widget.CenterEditor", [prisms.widget.TabWidget, __dijit._
 
 		this.isChecking=false;
 		this.certificateDialog.show();
+		this.certContainer.resize();
 	},
 
 	checkCertificate: function(newCert, oldCert){
