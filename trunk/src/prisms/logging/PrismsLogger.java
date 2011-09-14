@@ -867,7 +867,7 @@ public class PrismsLogger implements
 			}
 			theLogConstraints.put(loggerName, level);
 			Logger logger = Logger.getLogger(loggerName);
-			if(logger.getEffectiveLevel().isGreaterOrEqual(level))
+			if(!level.isGreaterOrEqual(logger.getEffectiveLevel()))
 			{ // The effective level is greater, so logs at the given level won't show up
 				log.info("Level of logger " + loggerName + " level reduced from "
 					+ logger.getEffectiveLevel() + " to " + level);
