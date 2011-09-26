@@ -2,8 +2,8 @@
 <application>
 	<name>Logging</name>
 	<description>Allows viewing of system logs and configuration of logging</description>
-	<version>2.0.0</version>
-	<modified>08Aug2011</modified>
+	<version>2.0.1</version>
+	<modified>26Sep2011</modified>
 
 	<properties>
 		<property globalRef="prisms-preferences" />
