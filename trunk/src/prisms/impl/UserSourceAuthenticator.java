@@ -340,7 +340,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				} catch(Exception e)
 				{
 					USReqAuth ret = checkOlderPasswords(request,
-						request.httpRequest.getParameter("data"));
+						request.httpRequest.getParameter("data").replaceAll(" ", "+"));
 					if(ret != null)
 						return ret;
 					log.debug("Decryption of " + encryptedText + " failed with encryption "
@@ -790,6 +790,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			String data = request.httpRequest.getParameter("data");
 			if(data != null && !isEncrypted(data))
 			{
+				data = prisms.util.PrismsUtils.decodeSafe(data);
 				org.json.simple.JSONObject desData;
 				try
 				{
@@ -797,7 +798,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 					userName = (String) desData.get(theUserParam);
 				} catch(Throwable e)
 				{
-					log.error("Could not parse data", e);
+					log.error("Could not parse data: " + data, e);
 				}
 			}
 		}
