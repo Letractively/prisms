@@ -316,32 +316,44 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 		this.progressBar.update();
 
 		var now=new Date().getTime();
-		if(this.prisms.isActive())
+		if(this.prisms.isActive() && !this._waitingToUpdate)
 		{
+			this._waitingtoUpdate=true;
 			if(now-this._lastUpdate>500)
 			{
 				this._lastUpdate=now;
-				this.prisms.callApp(this.pluginName, "refresh");
+				this.prisms.callApp(this.pluginName, "refresh", null, {
+					finished: __dojo.hitch(this, function(){
+						this._waitingToUpdate=false;
+					})
+				});
 			}
-			else if(!this._waitingToUpdate)
+			else
 			{
-				this._waitingToUpdate=true;
 				window.setTimeout(__dojo.hitch(this, function(){
 					this._lastUpdate=new Date().getTime();
-					this._waitingToUpdate=false;
-					this.prisms.callApp(this.pluginName, "refresh");
+					this.prisms.callApp(this.pluginName, "refresh", null, {
+						finished: __dojo.hitch(this, function(){
+							this._waitingToUpdate=false;
+						})
+					});
 				}), 500);
 			}
 		}
 		if(!this.updateInterval)
 			this.updateInterval=window.setInterval(__dojo.hitch(this, function(){
 				var now=new Date().getTime();
-				if(!this._waitingToUpdate && now-this._lastUpdate>9000)
+				if(!this._waitingToUpdate && now-this._lastUpdate>4500)
 				{
 					this._lastUpdate=now;
 					this.prisms.callApp(this.pluginName, "refresh");
 				}
-			}), 10000);
+				else if(now-this._lastUpdate>=60000)
+				{
+					this._lastUpdate=now;
+					this.prisms.callApp(this.pluginName, "refresh");
+				}
+			}), 5000);
 
 		this.returnType="cancel";
 		this.show();
