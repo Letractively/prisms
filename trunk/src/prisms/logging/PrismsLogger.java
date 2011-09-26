@@ -107,6 +107,8 @@ public class PrismsLogger implements
 				if(lts.logTime == null)
 					types.add(java.sql.Types.TIMESTAMP);
 				break;
+			case age:
+				break;
 			case app:
 				LogEntrySearch.LogAppSearch las = (LogEntrySearch.LogAppSearch) search;
 				if(las.search == null && !las.isNull())
@@ -306,6 +308,10 @@ public class PrismsLogger implements
 				}
 				else
 					return lts.logTime.matches(lts.operator, entry.getLogTime());
+			case age:
+				LogEntrySearch.LogAgeSearch lAgeS = (LogEntrySearch.LogAgeSearch) search;
+				return lAgeS.logAge.matches(lAgeS.operator, System.currentTimeMillis(),
+					entry.getLogTime());
 			case level:
 				LogEntrySearch.LogLevelSearch lls = (LogEntrySearch.LogLevelSearch) search;
 				int level;
@@ -465,14 +471,11 @@ public class PrismsLogger implements
 	}
 
 	/**
-	 * Configures this logger
-	 * 
-	 * @param config The configuration element to use to configure this logger
+	 * @param config The logger configuration
+	 * @return The directory to which exposed logging attachments may be written
 	 */
-	public void configure(prisms.arch.PrismsConfig config)
+	public static String getConfiguredExposedDir(prisms.arch.PrismsConfig config)
 	{
-		if(isConfigured)
-			throw new IllegalStateException("This logger has already been configured");
 		String exposed = config.get("exposed");
 		if(exposed != null)
 			try
@@ -505,7 +508,19 @@ public class PrismsLogger implements
 			}
 		if(exposed != null && !exposed.endsWith(java.io.File.separator))
 			exposed += java.io.File.separator;
-		theExposedDir = exposed;
+		return exposed;
+	}
+
+	/**
+	 * Configures this logger
+	 * 
+	 * @param config The configuration element to use to configure this logger
+	 */
+	public void configure(prisms.arch.PrismsConfig config)
+	{
+		if(isConfigured)
+			throw new IllegalStateException("This logger has already been configured");
+		theExposedDir = getConfiguredExposedDir(config);
 		prisms.arch.PrismsConfig purge = config.subConfig("purge");
 		prisms.logging.LogEntrySearch.LogEntrySearchBuilder builder;
 		builder = new prisms.logging.LogEntrySearch.LogEntrySearchBuilder(theEnv);
@@ -1377,7 +1392,7 @@ public class PrismsLogger implements
 								}
 							}
 						}
-						if(entry.getStackTrace() != null)
+						if(entry.getStackTrace() != null && entry.getStackTrace().length() > 0)
 						{
 							theContentInserter.setInt(1, id);
 							theContentInserter.setString(4, "S");
@@ -1408,7 +1423,7 @@ public class PrismsLogger implements
 								}
 							}
 						}
-						if(entry.getTrackingData() != null)
+						if(entry.getTrackingData() != null && entry.getTrackingData().length() > 0)
 						{
 							theContentInserter.setInt(1, id);
 							theContentInserter.setString(4, "T");
@@ -2206,6 +2221,42 @@ public class PrismsLogger implements
 				LogEntrySearch.LogTimeSearch lts = (LogEntrySearch.LogTimeSearch) search;
 				appendTime(lts.operator, lts.logTime, "logEntry.logTime", wheres, withParameters);
 				break;
+			case age:
+				LogEntrySearch.LogAgeSearch lAgeS = (LogEntrySearch.LogAgeSearch) search;
+				wheres.append("logEntry.logTime");
+				long now = System.currentTimeMillis();
+				switch(lAgeS.operator)
+				{
+				case EQ:
+					wheres.append(">=").append(
+						DBUtils.formatDate(lAgeS.logAge.getMin(now), isOracle()));
+					wheres.append(" AND logEntry.logTime<=").append(
+						DBUtils.formatDate(lAgeS.logAge.getMax(now), isOracle()));
+					break;
+				case GT:
+					wheres.append("<").append(
+						DBUtils.formatDate(lAgeS.logAge.getTime(now), isOracle()));
+					break;
+				case GTE:
+					wheres.append("<=").append(
+						DBUtils.formatDate(lAgeS.logAge.getMax(now), isOracle()));
+					break;
+				case LT:
+					wheres.append(">").append(
+						DBUtils.formatDate(lAgeS.logAge.getTime(now), isOracle()));
+					break;
+				case LTE:
+					wheres.append(">=").append(
+						DBUtils.formatDate(lAgeS.logAge.getMin(now), isOracle()));
+					break;
+				case NEQ:
+					wheres.append("<").append(
+						DBUtils.formatDate(lAgeS.logAge.getMin(now), isOracle()));
+					wheres.append(" OR logEntry.logTime>").append(
+						DBUtils.formatDate(lAgeS.logAge.getMax(now), isOracle()));
+					break;
+				}
+				break;
 			case app:
 				LogEntrySearch.LogAppSearch las = (LogEntrySearch.LogAppSearch) search;
 				wheres.append("logEntry.logApp");
@@ -2609,7 +2660,7 @@ public class PrismsLogger implements
 		java.io.File[] files = dir.listFiles();
 		for(java.io.File f : files)
 		{
-			if(f.isHidden() || !f.canRead())
+			if(f.isHidden() || f.getName().startsWith(".") || !f.canRead())
 				continue;
 			if(f.isDirectory())
 				autoPurge(f, false, thresh);
@@ -3075,6 +3126,8 @@ public class PrismsLogger implements
 			LogEntrySearch.LogTimeSearch lts = (LogEntrySearch.LogTimeSearch) search;
 			if(lts.logTime == null)
 				types.add(java.util.Date.class);
+			break;
+		case age:
 			break;
 		case app:
 			LogEntrySearch.LogAppSearch las = (LogEntrySearch.LogAppSearch) search;
