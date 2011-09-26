@@ -853,16 +853,6 @@ public abstract class Search implements Cloneable
 				&& equal(sd.weekDay, weekDay);
 		}
 
-		private static boolean equal(Object o1, Object o2)
-		{
-			return o1 == null ? o2 == null : o1.equals(o2);
-		}
-
-		private static int hash(Object o1)
-		{
-			return o1 == null ? 0 : o1.hashCode();
-		}
-
 		@Override
 		public int hashCode()
 		{
@@ -921,6 +911,376 @@ public abstract class Search implements Cloneable
 				ret.append('"');
 			return ret.toString();
 		}
+	}
+
+	/** Implements a searchable age range */
+	public static class SearchAge
+	{
+		/** The number of years in the age */
+		public final Integer years;
+
+		/** The number of months in the age */
+		public final Integer months;
+
+		/** The number of weeks in the age */
+		public final Integer weeks;
+
+		/** The number of days in the age */
+		public final Integer days;
+
+		/** The number of hours in the age */
+		public final Integer hours;
+
+		/** The number of minutes in the age */
+		public final Integer minutes;
+
+		/** The number of seconds in the age */
+		public final Integer seconds;
+
+		/**
+		 * @param y The number of years in the age
+		 * @param mo The number of months in the age
+		 * @param w The number of weeks in the age
+		 * @param d The number of days in the age
+		 * @param h The number of hours in the age
+		 * @param min The number of minutes in the age
+		 * @param sec The number of seconds in the age
+		 */
+		public SearchAge(Integer y, Integer mo, Integer w, Integer d, Integer h, Integer min,
+			Integer sec)
+		{
+			years = y;
+			months = mo;
+			weeks = w;
+			days = d;
+			hours = h;
+			minutes = min;
+			seconds = sec;
+		}
+
+		/**
+		 * Parses a search age from a string
+		 * 
+		 * @param sb The string to parse the search age out of
+		 * @param srch The search as a whole, for error throwing
+		 * @return The parsed search age
+		 */
+		public static SearchAge parse(StringBuilder sb, String srch)
+		{
+			Integer y = null, mo = null, w = null, d = null, h = null, min = null, sec = null;
+			int c = 0;
+			for(; c < sb.length() && !Character.isLetter(sb.charAt(c))
+				&& (sb.charAt(c) < '0' || sb.charAt(c) > '9'); c++);
+
+			while(c < sb.length())
+			{
+				int amt = 0;
+				for(; c < sb.length() && sb.charAt(c) >= '0' && sb.charAt(c) <= '9'; c++)
+					amt = amt * 10 + sb.charAt(c) - '0';
+
+				for(; c < sb.length() && !Character.isLetter(sb.charAt(c))
+					&& (sb.charAt(c) < '0' || sb.charAt(c) > '9'); c++);
+
+				StringBuilder unit = new StringBuilder();
+				for(; c < sb.length() && Character.isLetter(sb.charAt(c)); c++)
+					unit.append(sb.charAt(c));
+				String unitS = unit.toString().toLowerCase();
+				if(unitS.length() == 0)
+					throw new IllegalArgumentException("No unit for age: " + srch);
+				if("years".startsWith(unitS))
+				{
+					if(y != null)
+						throw new IllegalArgumentException("Multiple years specified for age: "
+							+ srch);
+					y = Integer.valueOf(amt);
+				}
+				else if("months".startsWith(unitS) && unitS.length() > 1)
+				{ // "m" means minutes, not months
+					if(mo != null)
+						throw new IllegalArgumentException("Multiple months specified for age: "
+							+ srch);
+					mo = Integer.valueOf(amt);
+				}
+				else if("weeks".startsWith(unitS))
+				{
+					if(w != null)
+						throw new IllegalArgumentException("Multiple weeks specified for age: "
+							+ srch);
+					w = Integer.valueOf(amt);
+				}
+				else if("days".startsWith(unitS))
+				{
+					if(d != null)
+						throw new IllegalArgumentException("Multiple days specified for age: "
+							+ srch);
+					d = Integer.valueOf(amt);
+				}
+				else if("hours".startsWith(unitS))
+				{
+					if(h != null)
+						throw new IllegalArgumentException("Multiple hours specified for age: "
+							+ srch);
+					h = Integer.valueOf(amt);
+				}
+				else if("minutes".startsWith(unitS))
+				{
+					if(min != null)
+						throw new IllegalArgumentException("Multiple minutes specified for age: "
+							+ srch);
+					min = Integer.valueOf(amt);
+				}
+				else if("seconds".startsWith(unitS))
+				{
+					if(sec != null)
+						throw new IllegalArgumentException("Multiple seconds specified for age: "
+							+ srch);
+					sec = Integer.valueOf(amt);
+				}
+				else
+					throw new IllegalArgumentException("Unrecognized age unit: " + unitS
+						+ " in search " + srch);
+
+				for(; c < sb.length() && !Character.isLetter(sb.charAt(c))
+					&& (sb.charAt(c) < '0' || sb.charAt(c) > '9'); c++);
+				if(c < sb.length() && sb.charAt(c) == ',')
+				{
+					c++;
+					for(; c < sb.length() && !Character.isLetter(sb.charAt(c))
+						&& (sb.charAt(c) < '0' || sb.charAt(c) > '9'); c++);
+				}
+			}
+			if(y == null && mo == null && w == null && d == null && h == null && min == null
+				&& sec == null)
+				throw new IllegalArgumentException("No age specified in search: " + srch);
+			return new SearchAge(y, mo, w, d, h, min, sec);
+		}
+
+		/**
+		 * @param now The current time
+		 * @return The time that is this age's time ago from the given time
+		 */
+		public long getTime(long now)
+		{
+			if(years != null && years.intValue() > 0)
+				now -= years.intValue() * 365L * 24 * 60 * 60 * 1000;
+			if(months != null && months.intValue() > 0)
+				now -= months.intValue() * 30L * 24 * 60 * 60 * 1000;
+			if(weeks != null && weeks.intValue() > 0)
+				now -= weeks.intValue() * 7L * 24 * 60 * 60 * 1000;
+			if(days != null && days.intValue() > 0)
+				now -= days.intValue() * 24L * 60 * 60 * 1000;
+			if(hours != null && hours.intValue() > 0)
+				now -= hours.intValue() * 60L * 60 * 1000;
+			if(minutes != null && minutes.intValue() > 0)
+				now -= minutes.intValue() * 60L * 1000;
+			if(seconds != null && seconds.intValue() > 0)
+				now -= seconds.intValue() * 1000L;
+			return now;
+		}
+
+		/** @return The precision of this age */
+		public long getPrecision()
+		{
+			long prec = 0;
+			if(years != null && years.intValue() > 0)
+			{
+				if(years.intValue() <= 4)
+					prec = years.intValue() * 3L * 30 * 24 * 60 * 60 * 1000;
+				else
+					prec = 365L * 24 * 60 * 60 * 1000;
+			}
+			if(months != null && months.intValue() > 0)
+			{
+				if(months.intValue() <= 4)
+					prec = months.intValue() * 7L * 24 * 60 * 60 * 1000;
+				else
+					prec = 30L * 24 * 60 * 60 * 1000;
+			}
+			if(weeks != null && weeks.intValue() > 0)
+			{
+				if(weeks.intValue() <= 3)
+					prec = weeks.intValue() * 2L * 24 * 60 * 60 * 1000;
+				else
+					prec = 7L * 24 * 60 * 60 * 1000;
+			}
+			if(days != null && days.intValue() > 0)
+			{
+				if(days.intValue() <= 4)
+					prec = days.intValue() * 6L * 60 * 60 * 1000;
+				else
+					prec = 24L * 60 * 60 * 1000;
+			}
+			if(hours != null && hours.intValue() > 0)
+			{
+				if(hours.intValue() < 4)
+					prec = hours.intValue() * 15L * 60 * 1000;
+				else
+					prec = 60L * 60 * 1000;
+			}
+			if(minutes != null && minutes.intValue() > 0)
+			{
+				if(minutes.intValue() < 4)
+					prec = minutes.intValue() * 15L * 1000;
+				else
+					prec = 60L * 1000;
+			}
+			if(seconds != null && seconds.intValue() > 0)
+			{
+				if(seconds.intValue() <= 4)
+					prec = seconds.intValue() * 250L;
+				else
+					prec = 1000L;
+			}
+			return prec;
+		}
+
+		/**
+		 * @param now The current time
+		 * @return The minimum time included in this search age
+		 */
+		public long getMin(long now)
+		{
+			return getTime(now) - getPrecision();
+		}
+
+		/**
+		 * @param now The current time
+		 * @return The maximum time included in this search age
+		 */
+		public long getMax(long now)
+		{
+			return getTime(now) + getPrecision();
+		}
+
+		/**
+		 * Checks a time to see if it matches this search age
+		 * 
+		 * @param op The operator to check against
+		 * @param now The current time
+		 * @param time The time to test
+		 * @return Whether the given time matches this age
+		 */
+		public boolean matches(Operator op, long now, long time)
+		{
+			long ageTime = getTime(now);
+			long prec = getPrecision();
+			switch(op)
+			{
+			case EQ:
+				return Math.abs(time - ageTime) <= prec;
+			case GT:
+				return time < ageTime;
+			case GTE:
+				return time <= ageTime + prec;
+			case LT:
+				return time > ageTime;
+			case LTE:
+				return time >= ageTime - prec;
+			case NEQ:
+				return Math.abs(time - ageTime) > prec;
+			}
+			throw new IllegalStateException("Unrecognized operator: " + op);
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			if(!(o instanceof SearchAge))
+				return false;
+			SearchAge a = (SearchAge) o;
+			return equal(years, a.years) && equal(months, a.months) && equal(weeks, a.weeks)
+				&& equal(days, a.days) && equal(hours, a.hours) && equal(minutes, a.minutes)
+				&& equal(seconds, a.seconds);
+		}
+
+		@Override
+		public int hashCode()
+		{
+			long ret = hash(years) + hash(months) + hash(weeks) + hash(days) + hash(hours)
+				+ hash(minutes) + hash(seconds);
+			return (int) ((ret & 0xffffffffL) + (ret >>> 32));
+		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			boolean comma = false;
+			if(years != null && years.intValue() > 0)
+			{
+				if(comma)
+					ret.append(",");
+				comma = true;
+				ret.append(years).append("year");
+				if(years.intValue() > 1)
+					ret.append('s');
+			}
+			if(months != null && months.intValue() > 0)
+			{
+				if(comma)
+					ret.append(",");
+				comma = true;
+				ret.append(months).append("month");
+				if(months.intValue() > 1)
+					ret.append('s');
+			}
+			if(weeks != null && weeks.intValue() > 0)
+			{
+				if(comma)
+					ret.append(",");
+				comma = true;
+				ret.append(weeks).append("week");
+				if(weeks.intValue() > 1)
+					ret.append('s');
+			}
+			if(days != null && days.intValue() > 0)
+			{
+				if(comma)
+					ret.append(",");
+				comma = true;
+				ret.append(days).append("day");
+				if(days.intValue() > 1)
+					ret.append('s');
+			}
+			if(hours != null)
+			{
+				if(comma)
+					ret.append(",");
+				comma = true;
+				ret.append(hours).append("hour");
+				if(hours.intValue() > 1)
+					ret.append('s');
+			}
+			if(minutes != null)
+			{
+				if(comma)
+					ret.append(",");
+				comma = true;
+				ret.append(minutes).append("minute");
+				if(minutes.intValue() > 1)
+					ret.append('s');
+			}
+			if(seconds != null)
+			{
+				if(comma)
+					ret.append(",");
+				comma = true;
+				ret.append(seconds).append("second");
+				if(seconds.intValue() > 1)
+					ret.append('s');
+			}
+			return ret.toString();
+		}
+	}
+
+	static boolean equal(Object o1, Object o2)
+	{
+		return o1 == null ? o2 == null : o1.equals(o2);
+	}
+
+	static int hash(Object o1)
+	{
+		return o1 == null ? 0 : o1.hashCode();
 	}
 
 	/** Iterates through a {@link CompoundSearch}'s children */

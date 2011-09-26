@@ -27,10 +27,17 @@ public abstract class LogEntrySearch extends Search
 			}
 		},
 		/** Searches on log time */
-		time("time:"/* TODO, "age:" */) {
+		time("time:") {
 			public LogTimeSearch create(String search, SearchBuilder builder)
 			{
 				return new LogTimeSearch(search);
+			}
+		},
+		/** Searches on log time */
+		age("age:") {
+			public LogAgeSearch create(String search, SearchBuilder builder)
+			{
+				return new LogAgeSearch(search);
 			}
 		},
 		/** Searches on the application from which a log entry was made */
@@ -420,7 +427,7 @@ public abstract class LogEntrySearch extends Search
 		@Override
 		public String toString()
 		{
-			return type.headers.get(0) + operator + logTime;
+			return type.headers.get(0) + operator + (logTime == null ? "?" : logTime.toString());
 		}
 
 		@Override
@@ -428,6 +435,63 @@ public abstract class LogEntrySearch extends Search
 		{
 			return o instanceof LogTimeSearch && operator.equals(((LogTimeSearch) o).operator)
 				&& equal(logTime, ((LogTimeSearch) o).logTime);
+		}
+	}
+
+	/** A search for log entries by age */
+	public static class LogAgeSearch extends LogEntrySearch
+	{
+		/** The type of this search */
+		public static final LogEntrySearchType type = LogEntrySearchType.age;
+
+		/** The operator determining how to use the search date */
+		public final Operator operator;
+
+		/** The age of the entry. May not be null. */
+		public final SearchAge logAge;
+
+		/** @param srch The entire search query (with or without header) */
+		public LogAgeSearch(String srch)
+		{
+			srch = type.clean(srch);
+			StringBuilder sb = new StringBuilder(srch);
+			operator = Operator.parse(sb, srch);
+			logAge = SearchAge.parse(sb, srch);
+		}
+
+		/**
+		 * @param op The operato to determine how to use the age
+		 * @param age The age to search against. May not be null.
+		 */
+		public LogAgeSearch(Operator op, SearchAge age)
+		{
+			operator = op;
+			logAge = age;
+		}
+
+		@Override
+		public LogEntrySearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public LogAgeSearch clone()
+		{
+			return this; // Immutable
+		}
+
+		@Override
+		public String toString()
+		{
+			return type.headers.get(0) + operator + logAge.toString();
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return o instanceof LogAgeSearch && operator.equals(((LogAgeSearch) o).operator)
+				&& logAge.equals(((LogAgeSearch) o).logAge);
 		}
 	}
 
