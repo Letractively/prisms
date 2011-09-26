@@ -782,14 +782,14 @@ public interface UI extends prisms.arch.AppPlugin
 	 */
 	public static class AppLockProgress extends DefaultProgressInformer
 	{
-		private final prisms.arch.PrismsApplication theApp;
+		private final prisms.arch.PrismsApplication[] theApps;
 
 		private boolean postReload;
 
-		/** @param app The application to lock for this progress */
-		public AppLockProgress(prisms.arch.PrismsApplication app)
+		/** @param apps The applications to lock for this progress */
+		public AppLockProgress(prisms.arch.PrismsApplication... apps)
 		{
-			theApp = app;
+			theApps = apps;
 		}
 
 		/**
@@ -827,27 +827,31 @@ public interface UI extends prisms.arch.AppPlugin
 		{
 			super.setDone();
 			if(postReload)
-				theApp.reloadSessions();
-			try
-			{
-				theApp.setApplicationLock(null, 0, 0, null);
-			} catch(prisms.arch.PrismsException e)
-			{
-				throw new IllegalStateException("Could not release application lock", e);
-			}
+				for(prisms.arch.PrismsApplication app : theApps)
+				{
+					app.reloadSessions();
+					try
+					{
+						app.setApplicationLock(null, 0, 0, null);
+					} catch(prisms.arch.PrismsException e)
+					{
+						throw new IllegalStateException("Could not release application lock", e);
+					}
+				}
 		}
 
 		private void setAppLock()
 		{
 			if(!isTaskDone())
-				try
-				{
-					theApp.setApplicationLock(getTaskText(), getTaskScale(), getTaskProgress(),
-						null);
-				} catch(prisms.arch.PrismsException e)
-				{
-					throw new IllegalStateException("Could not set application lock", e);
-				}
+				for(prisms.arch.PrismsApplication app : theApps)
+					try
+					{
+						app.setApplicationLock(getTaskText(), getTaskScale(), getTaskProgress(),
+							null);
+					} catch(prisms.arch.PrismsException e)
+					{
+						throw new IllegalStateException("Could not set application lock", e);
+					}
 		}
 	}
 }
