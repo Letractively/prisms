@@ -86,7 +86,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				 * secure enough without verifying the HTTPS certificates that might be presented.
 				 * This validation would be difficult to configure and seems unnecessary, so we'll
 				 * implicitly trust any connection just as we would for HTTP. */
-				conn.setTrustManager(new javax.net.ssl.X509TrustManager()
+				conn.getConnector().setTrustManager(new javax.net.ssl.X509TrustManager()
 				{
 					public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
 						String authType) throws java.security.cert.CertificateException
@@ -103,7 +103,6 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						return null;
 					}
 				});
-				log.info("Set trust manager for client tree");
 			} catch(java.security.GeneralSecurityException e)
 			{
 				log.error("Could not set trust manager for service connector", e);
