@@ -47,6 +47,13 @@ public interface RecordKeeper extends
 	PrismsCenter [] getCenters() throws PrismsRecordException;
 
 	/**
+	 * @param id The ID of the center to get
+	 * @return The center with the given ID, or null if there is no such center in the data source
+	 * @throws PrismsRecordException If an error occurs retrieving the data
+	 */
+	PrismsCenter getCenter(int id) throws PrismsRecordException;
+
+	/**
 	 * Adds a new center to the record keeper or updates an existing center
 	 * 
 	 * @param center The center to add or update

@@ -28,6 +28,11 @@
 			<permission>Inspect</permission>
 		</group>
 
+		<group app="MANAGER" name="Exporter">
+			<description>Users can export PRISMS data to a backup file</description>
+			<permission>Export Data</permission>
+		</group>
+
 		<!--Logger groups -->
 		<group app="Logging" name="Log Admin">
 			<description>Users have unlimited permissions to modify logging configuration</description>
@@ -47,6 +52,7 @@
 			<app-assoc>Logging</app-assoc>
 			<group app="MANAGER" name="userAdmin" />
 			<group app="MANAGER" name="Inspector" />
+			<group app="MANAGER" name="Exporter" />
 			<group app="Logging" name="Log Admin" />
 			<password>admin</password>
 		</user>

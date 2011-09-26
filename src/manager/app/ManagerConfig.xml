@@ -4,8 +4,8 @@
 	<name>MANAGER</name>
 	<description>Allows management of PRISMS users, applications, permissions, etc.</description>
 	<config-class>prisms.arch.AppConfig</config-class>
-	<version>1.5.0</version>
-	<modified>31Aug2011</modified>
+	<version>1.5.1</version>
+	<modified>26Sep2011</modified>
 
 	<properties>
 		<property globalRef="prisms-users" />
@@ -54,6 +54,14 @@
 		<permission>
 			<name>Inspect</name>
 			<description>Allows users to view and interact with the properties of sessions and applications</description>
+		</permission>
+		<permission>
+			<name>Export Data</name>
+			<description>Allows users to export all synchronizable PRISMS data to a server file for backup</description>
+		</permission>
+		<permission>
+			<name>Engineering</name>
+			<description>Users have permissions to perform actions needed by engineering staff</description>
 		</permission>
 	</permissions>
 </application>

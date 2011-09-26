@@ -1,5 +1,5 @@
 /*
- * AppSessionTree.java Created Apr 13, 2011 by Andrew Butler, PSL
+ * AppSessionServerTree.java Created Apr 13, 2011 by Andrew Butler, PSL
  */
 package manager.ui.app.inspect;
 
@@ -203,7 +203,61 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		public String getDescription()
 		{
-			return null;
+			StringBuilder ret = new StringBuilder();
+			ret.append("Installed:").append(
+				prisms.util.PrismsUtils.print(getSession().getApp().getEnvironment().getIDs()
+					.getInstallDate()));
+			ret.append("            \nInstallation ID:").append(
+				getSession().getApp().getEnvironment().getIDs().getCenterID());
+			return ret.toString();
+		}
+
+		@Override
+		public NodeAction [] getActions(TreeClient client)
+		{
+			NodeAction [] ret = super.getActions(client);
+			if(client.getUser().getPermissions(getSession().getApp()).has("Export Data"))
+				ret = ArrayUtils.add(ret, new NodeAction("Export Data", false));
+			return ret;
+		}
+
+		@Override
+		public void doAction(final TreeClient client, String action)
+		{
+			if(action.equals("Export Data"))
+			{
+				if(!client.getUser().getPermissions(getSession().getApp()).has("Export Data"))
+				{
+					client.getUI().error("You do not have permissions to export data");
+					return;
+				}
+				if(getSession().getApp().getEnvironment().getLogger().getExposedDir() == null)
+				{
+					client.getUI().error("No exposed directory to export data to");
+					return;
+				}
+				final prisms.arch.ds.PrismsDataExportImport.Export exporter;
+				exporter = new prisms.arch.ds.PrismsDataExportImport.Export(getSession()
+					.getProperty(PrismsProperties.applications));
+				if(client.getUser().getPermissions(getSession().getApp()).has("Engineering"))
+				{
+					client.getUI().select("Select the type of export to perform",
+						new String [] {"Local", "Global"}, 0, new prisms.ui.UI.SelectListener()
+						{
+							public void selected(String option)
+							{
+								if(option == null)
+									return;
+								boolean global = option.equals("Global");
+								exporter.exportData(client.getUI(), global);
+							}
+						});
+				}
+				else
+					exporter.exportData(client.getUI(), false);
+			}
+			else
+				super.doAction(client, action);
 		}
 
 		void check()

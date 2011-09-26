@@ -390,14 +390,7 @@ public class DBRecordKeeper implements RecordKeeper
 			selfCenter.setNamespace(theNamespace);
 			selfCenter.setCenterID(theIDs.getCenterID());
 			theLocalPriority = selfCenter.getPriority();
-			ignoreUser = true;
-			try
-			{
-				putCenter(selfCenter, null);
-			} finally
-			{
-				ignoreUser = false;
-			}
+			putCenter(selfCenter, null);
 			log.debug("Created data center with ID " + selfCenter.getCenterID());
 		}
 		else if(selfCenter.getCenterID() != theIDs.getCenterID())
@@ -484,7 +477,6 @@ public class DBRecordKeeper implements RecordKeeper
 				{
 					ResultSet rs = null;
 					String sql;
-					ignoreUser = true;
 					PrismsCenter sc = selfCenter;
 					try
 					{
@@ -551,7 +543,6 @@ public class DBRecordKeeper implements RecordKeeper
 						throw new PrismsRecordException("Could not install record keeper", e);
 					} finally
 					{
-						ignoreUser = false;
 						if(rs != null)
 							try
 							{
@@ -671,6 +662,11 @@ public class DBRecordKeeper implements RecordKeeper
 		}
 	}
 
+	public PrismsCenter getCenter(int id) throws PrismsRecordException
+	{
+		return getCenter(id, null);
+	}
+
 	/**
 	 * Retrieves a center by ID
 	 * 
@@ -764,8 +760,6 @@ public class DBRecordKeeper implements RecordKeeper
 		return pc;
 	}
 
-	boolean ignoreUser = false;
-
 	public void putCenter(final PrismsCenter center, final RecordsTransaction trans)
 		throws PrismsRecordException
 	{
@@ -836,12 +830,6 @@ public class DBRecordKeeper implements RecordKeeper
 				}
 				if(dbCenter == null)
 				{
-					if((trans == null || trans.getUser() == null) && center.getID() != 0
-						&& !ignoreUser)
-					{
-						log.warn("Cannot insert PRISMS center view--no user");
-						return null;
-					}
 					log.debug("Adding center " + center);
 					sql = "INSERT INTO " + theTransactor.getTablePrefix() + "prisms_center_view"
 						+ " (id, centerID, recordNS, name, url, serverUserName, serverPassword,"
@@ -932,15 +920,8 @@ public class DBRecordKeeper implements RecordKeeper
 						changeMsg += "Changed name from " + dbCenter.getName() + " to "
 							+ center.getName() + "\n";
 						modified = true;
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.name, 0, dbCenter, null,
-								dbCenter.getName(), null, null);
-						}
+						addModification(trans, PrismsChange.center, PrismsChange.CenterChange.name,
+							0, dbCenter, null, dbCenter.getName(), null, null);
 						dbCenter.setName(center.getName());
 					}
 					if(!equal(dbCenter.getServerURL(), center.getServerURL()))
@@ -948,15 +929,8 @@ public class DBRecordKeeper implements RecordKeeper
 						changeMsg += "Changed URL from " + dbCenter.getServerURL() + " to "
 							+ center.getServerURL() + "\n";
 						modified = true;
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.url, 0, dbCenter, null,
-								dbCenter.getServerURL(), null, null);
-						}
+						addModification(trans, PrismsChange.center, PrismsChange.CenterChange.url,
+							0, dbCenter, null, dbCenter.getServerURL(), null, null);
 						dbCenter.setServerURL(center.getServerURL());
 					}
 					if(!ArrayUtils.equals(dbCenter.getCertificates(), center.getCertificates()))
@@ -980,7 +954,7 @@ public class DBRecordKeeper implements RecordKeeper
 						{
 							byte [] bytes;
 							if(center.getCertificates() != null)
-								bytes = getCertBytes(center);
+								bytes = getCertBytes(center.getCertificates());
 							else
 								bytes = null;
 							if(bytes != null)
@@ -1000,15 +974,9 @@ public class DBRecordKeeper implements RecordKeeper
 						{
 							log.error("Could not set server certificates for center " + center, e);
 						}
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.serverCerts, 0, dbCenter, null,
-								dbCenter.getCertificates(), null, null);
-						}
+						addModification(trans, PrismsChange.center,
+							PrismsChange.CenterChange.serverCerts, 0, dbCenter, null,
+							dbCenter.getCertificates(), null, null);
 					}
 					if(!equal(dbCenter.getServerUserName(), center.getServerUserName()))
 					{
@@ -1016,15 +984,9 @@ public class DBRecordKeeper implements RecordKeeper
 							+ dbCenter.getServerUserName() + " to " + center.getServerUserName()
 							+ "\n";
 						modified = true;
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.serverUserName, 0, dbCenter, null,
-								dbCenter.getServerUserName(), null, null);
-						}
+						addModification(trans, PrismsChange.center,
+							PrismsChange.CenterChange.serverUserName, 0, dbCenter, null,
+							dbCenter.getServerUserName(), null, null);
 						dbCenter.setServerUserName(center.getServerUserName());
 					}
 					if(!equal(dbCenter.getServerPassword(), center.getServerPassword()))
@@ -1043,15 +1005,9 @@ public class DBRecordKeeper implements RecordKeeper
 								msg.append('*');
 						msg.append('\n');
 						modified = true;
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.serverPassword, 0, dbCenter, null,
-								dbCenter.getServerPassword(), null, null);
-						}
+						addModification(trans, PrismsChange.center,
+							PrismsChange.CenterChange.serverPassword, 0, dbCenter, null,
+							dbCenter.getServerPassword(), null, null);
 						dbCenter.setServerPassword(center.getServerPassword());
 						changeMsg += msg.toString();
 					}
@@ -1064,15 +1020,9 @@ public class DBRecordKeeper implements RecordKeeper
 							+ (center.getServerSyncFrequency() >= 0 ? PrismsUtils
 								.printTimeLength(center.getServerSyncFrequency()) : "none") + "\n";
 						modified = true;
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.syncFrequency, 0, dbCenter, null,
-								Long.valueOf(dbCenter.getServerSyncFrequency()), null, null);
-						}
+						addModification(trans, PrismsChange.center,
+							PrismsChange.CenterChange.syncFrequency, 0, dbCenter, null,
+							Long.valueOf(dbCenter.getServerSyncFrequency()), null, null);
 						dbCenter.setServerSyncFrequency(center.getServerSyncFrequency());
 					}
 					if(!equal(dbCenter.getClientUser(), center.getClientUser()))
@@ -1084,15 +1034,9 @@ public class DBRecordKeeper implements RecordKeeper
 							+ (center.getClientUser() == null ? "none" : center.getClientUser()
 								.getName()) + "\n";
 						modified = true;
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.clientUser, 0, dbCenter, null,
-								dbCenter.getClientUser(), null, null);
-						}
+						addModification(trans, PrismsChange.center,
+							PrismsChange.CenterChange.clientUser, 0, dbCenter, null,
+							dbCenter.getClientUser(), null, null);
 						dbCenter.setClientUser(center.getClientUser());
 					}
 					if(dbCenter.getChangeSaveTime() != center.getChangeSaveTime())
@@ -1104,15 +1048,9 @@ public class DBRecordKeeper implements RecordKeeper
 							+ (center.getChangeSaveTime() >= 0 ? PrismsUtils.printTimeLength(center
 								.getChangeSaveTime()) : "none") + "\n";
 						modified = true;
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException(
-									"Cannot modify a center without a user");
-							addModification(trans, PrismsChange.center,
-								PrismsChange.CenterChange.changeSaveTime, 0, dbCenter, null,
-								Long.valueOf(dbCenter.getChangeSaveTime()), null, null);
-						}
+						addModification(trans, PrismsChange.center,
+							PrismsChange.CenterChange.changeSaveTime, 0, dbCenter, null,
+							Long.valueOf(dbCenter.getChangeSaveTime()), null, null);
 						dbCenter.setChangeSaveTime(center.getChangeSaveTime());
 					}
 					if(dbCenter.getLastImport() != center.getLastImport())
@@ -1141,14 +1079,8 @@ public class DBRecordKeeper implements RecordKeeper
 					if(dbCenter.isDeleted() && !center.isDeleted())
 					{
 						changeMsg += "Re-creating center";
-						if(!ignoreUser)
-						{
-							if(trans == null || trans.getUser() == null)
-								throw new PrismsRecordException("Cannot modify a data center"
-									+ " without a user");
-							addModification(trans, PrismsChange.center, null, 1, dbCenter, null,
-								null, null, null);
-						}
+						addModification(trans, PrismsChange.center, null, 1, dbCenter, null, null,
+							null, null);
 						dbCenter.setDeleted(false);
 						modified = true;
 					}
@@ -1194,17 +1126,21 @@ public class DBRecordKeeper implements RecordKeeper
 		}, "Could not add/modify center " + center);
 	}
 
-	byte [] getCertBytes(PrismsCenter center)
+	/**
+	 * @param certs The certificates to encode
+	 * @return The serialized certificates
+	 */
+	public static byte [] getCertBytes(java.security.cert.X509Certificate[] certs)
 	{
 		java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
 		try
 		{
-			for(int c = 0; c < center.getCertificates().length; c++)
-				for(byte enc : center.getCertificates()[c].getEncoded())
+			for(int c = 0; c < certs.length; c++)
+				for(byte enc : certs[c].getEncoded())
 					bytes.write(enc & 0xff);
 		} catch(java.security.cert.CertificateEncodingException e)
 		{
-			log.error("Could not encode server certificates for center " + center, e);
+			log.error("Could not encode server certificates", e);
 			return null;
 		}
 		return bytes.toByteArray();
@@ -1239,7 +1175,7 @@ public class DBRecordKeeper implements RecordKeeper
 		prisms.records.ChangeType changeType, int add, Object majorSubject, Object minorSubject,
 		Object previousValue, Object data1, Object data2) throws PrismsRecordException
 	{
-		if(trans == null)
+		if(trans == null || trans.isMemoryOnly() || !trans.shouldRecord())
 			return;
 		prisms.records.ChangeRecord record;
 		record = persist(trans, subjectType, changeType, add, majorSubject, minorSubject,
@@ -2026,7 +1962,7 @@ public class DBRecordKeeper implements RecordKeeper
 		}
 
 		StringBuilder order = new StringBuilder();
-		if(sorter.getSortCount() > 0)
+		if(sorter != null && sorter.getSortCount() > 0)
 		{
 			for(int sc = 0; sc < sorter.getSortCount(); sc++)
 			{
@@ -2051,7 +1987,7 @@ public class DBRecordKeeper implements RecordKeeper
 			}
 		}
 		else
-			order.append("modTime DESC");
+			order.append("changeTime DESC");
 		return getChangeRecords(null, join, where.length() == 0 ? null : where.toString(),
 			order.toString());
 	}
@@ -2069,7 +2005,7 @@ public class DBRecordKeeper implements RecordKeeper
 	public long [] sortChangeIDs(long [] ids, Sorter<ChangeField> sorter)
 		throws PrismsRecordException
 	{
-		if(ids.length <= 1 || sorter.getSortCount() == 0)
+		if(ids.length <= 1 || sorter == null || sorter.getSortCount() == 0)
 			return ids;
 		prisms.util.DBUtils.KeyExpression expr = prisms.util.DBUtils.simplifyKeySet(ids, 200);
 		String where = expr.toSQL("id");
@@ -2100,7 +2036,7 @@ public class DBRecordKeeper implements RecordKeeper
 			}
 		}
 		else
-			order.append("modTime DESC");
+			order.append("changeTime DESC");
 		return getChangeRecords(null, null, where, order.toString());
 	}
 
@@ -2511,6 +2447,84 @@ public class DBRecordKeeper implements RecordKeeper
 		return RecordUtils.getCenterID(thePersister.getID(obj));
 	}
 
+	/**
+	 * Serializes a set of server certificates into a string
+	 * 
+	 * @param certs The server certificates to serialize
+	 * @return The serialized certificates
+	 * @throws PrismsRecordException If an error occurs encoding the certificates
+	 */
+	public static String serializeCerts(java.security.cert.X509Certificate[] certs)
+		throws PrismsRecordException
+	{
+		if(certs == null)
+			return null;
+		char [] hex = new char [] {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C',
+			'D', 'E', 'F'};
+		StringBuilder ret = new StringBuilder();
+		try
+		{
+			for(java.security.cert.X509Certificate cert : certs)
+				for(byte enc : cert.getEncoded())
+				{
+					ret.append(hex[(enc >>> 4) & 0xf]);
+					ret.append(hex[enc & 0xf]);
+				}
+		} catch(java.security.cert.CertificateEncodingException e)
+		{
+			throw new PrismsRecordException("Could not encode certificates", e);
+		}
+		return ret.toString();
+	}
+
+	/**
+	 * Deserializes a set of server certificates encoded by
+	 * {@link #serializeCerts(java.security.cert.X509Certificate[])}
+	 * 
+	 * @param str The serialized certificates
+	 * @return The deserialized certificates
+	 * @throws PrismsRecordException If an error occurs decoding the certificates
+	 */
+	public static java.security.cert.X509Certificate[] deserializeCerts(String str)
+		throws PrismsRecordException
+	{
+		if(str == null)
+			return null;
+		byte [] bytes = new byte [str.length() / 2];
+		for(int i = 0; i < str.length(); i += 2)
+		{
+			int dig = hexDig(str.charAt(i));
+			if(dig < 0)
+				throw new PrismsRecordException("Non-hex digit! Could not decode certificates");
+			bytes[i / 2] = (byte) (dig << 4);
+			dig = hexDig(str.charAt(i + 1));
+			if(dig < 0)
+				throw new PrismsRecordException("Non-hex digit! Could not decode certificates");
+			bytes[i / 2] |= dig;
+		}
+		try
+		{
+			return java.security.cert.CertificateFactory.getInstance("X.509")
+				.generateCertificates(new java.io.ByteArrayInputStream(bytes))
+				.toArray(new java.security.cert.X509Certificate [0]);
+		} catch(java.security.cert.CertificateException e)
+		{
+			throw new PrismsRecordException("Could not decode certificates", e);
+		}
+	}
+
+	private static int hexDig(char c)
+	{
+		if(c >= '0' && c <= '9')
+			return c - '0';
+		else if(c >= 'A' && c <= 'F')
+			return c - 'A' + 10;
+		else if(c >= 'a' && c <= 'f')
+			return c - 'a' + 10;
+		else
+			return -1;
+	}
+
 	ChangeData getChangeData(SubjectType subjectType, ChangeType changeType, long majorSubjectID,
 		Number minorSubjectID, Number data1ID, Number data2ID, Number preValueID,
 		String serialPreValue) throws PrismsRecordException
@@ -2539,29 +2553,7 @@ public class DBRecordKeeper implements RecordKeeper
 				case serverCerts:
 					if(serialPreValue == null)
 						return ret;
-					byte [] bytes = new byte [serialPreValue.length() / 2];
-					for(int i = 0; i < serialPreValue.length(); i += 2)
-					{
-						int dig = hexDig(serialPreValue.charAt(i));
-						if(dig < 0)
-							throw new PrismsRecordException(
-								"Non-hex digit! Could not decode certificates");
-						bytes[i / 2] = (byte) (dig << 4);
-						dig = hexDig(serialPreValue.charAt(i + 1));
-						if(dig < 0)
-							throw new PrismsRecordException(
-								"Non-hex digit! Could not decode certificates");
-						bytes[i / 2] |= dig;
-					}
-					try
-					{
-						ret.preValue = java.security.cert.CertificateFactory.getInstance("X.509")
-							.generateCertificates(new java.io.ByteArrayInputStream(bytes))
-							.toArray(new java.security.cert.X509Certificate [0]);
-					} catch(java.security.cert.CertificateException e)
-					{
-						throw new PrismsRecordException("Could not decode certificates", e);
-					}
+					ret.preValue = deserializeCerts(serialPreValue);
 					return ret;
 				case syncFrequency:
 				case changeSaveTime:
@@ -2643,18 +2635,6 @@ public class DBRecordKeeper implements RecordKeeper
 			minorSubjectID, data1ID, data2ID, preValue);
 	}
 
-	private int hexDig(char c)
-	{
-		if(c >= '0' && c <= '9')
-			return c - '0';
-		else if(c >= 'A' && c <= 'F')
-			return c - 'A' + 10;
-		else if(c >= 'a' && c <= 'f')
-			return c - 'a' + 10;
-		else
-			return -1;
-	}
-
 	String serializePreValue(ChangeRecord change) throws PrismsRecordException
 	{
 		Object obj = change.previousValue;
@@ -2672,50 +2652,12 @@ public class DBRecordKeeper implements RecordKeeper
 			return ret.toString();
 		}
 		else if(obj instanceof java.security.cert.X509Certificate[])
-		{
-			char [] hex = new char [] {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B',
-				'C', 'D', 'E', 'F'};
-			StringBuilder ret = new StringBuilder();
-			try
-			{
-				for(java.security.cert.X509Certificate cert : (java.security.cert.X509Certificate[]) obj)
-					for(byte enc : cert.getEncoded())
-					{
-						ret.append(hex[(enc >>> 4) & 0xf]);
-						ret.append(hex[enc & 0xf]);
-					}
-			} catch(java.security.cert.CertificateEncodingException e)
-			{
-				throw new PrismsRecordException("Could not encode certificates", e);
-			}
-			return ret.toString();
-		}
+			return serializeCerts((java.security.cert.X509Certificate[]) obj);
 		else if(obj instanceof Boolean || obj instanceof Integer || obj instanceof Long
 			|| obj instanceof Float || obj instanceof Double || obj instanceof String)
 			return obj.toString();
 		return thePersister.serializePreValue(change);
 	}
-
-	// TODO This code might be useful somewhere
-	// Object deserialize(Class<?> type, String serialized) throws PrismsRecordException
-	// {
-	// if(type == null || serialized == null)
-	// return null;
-	// else if(type == String.class)
-	// return serialized;
-	// else if(type == Boolean.class)
-	// return "true".equalsIgnoreCase(serialized) ? Boolean.TRUE : Boolean.FALSE;
-	// else if(type == Integer.class)
-	// return new Integer(serialized);
-	// else if(type == Long.class)
-	// return new Long(serialized);
-	// else if(type == Float.class)
-	// return new Float(serialized);
-	// else if(type == Double.class)
-	// return new Double(serialized);
-	// else
-	// return thePersister.deserialize(type, serialized);
-	// }
 
 	/**
 	 * @return The auto-purger that manages the changes in this record keeper
@@ -2938,6 +2880,7 @@ public class DBRecordKeeper implements RecordKeeper
 					}
 				}
 			}
+			sql = null;
 			synchronized(this)
 			{
 				java.sql.PreparedStatement pStmt = theChangeInserter;
@@ -3276,6 +3219,8 @@ public class DBRecordKeeper implements RecordKeeper
 
 	void checkForExpiredData(ChangeRecord record, Statement stmt) throws PrismsRecordException
 	{
+		if(record instanceof ChangeRecordError)
+			return;
 		if(getRecords(record.majorSubject, stmt).length == 0)
 			checkItemForDelete(record.majorSubject, stmt);
 		if(record.data1 != null && getRecords(record.data1, stmt).length == 0)

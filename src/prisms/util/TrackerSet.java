@@ -213,7 +213,7 @@ public class TrackerSet
 		java.util.ArrayList<TrackerSet.TrackConfig> ret = new java.util.ArrayList<TrackerSet.TrackConfig>();
 		for(prisms.arch.PrismsConfig track : config.subConfigs("track"))
 		{
-			long time = prisms.arch.PrismsConfig.parseEnglishTime(track.getValue());
+			long time = PrismsUtils.parseEnglishTime(track.getValue());
 			if(time < 0)
 			{
 				log.warn("Unrecognized track time: " + track.getValue());

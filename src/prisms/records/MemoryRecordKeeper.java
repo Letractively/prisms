@@ -837,6 +837,14 @@ public class MemoryRecordKeeper implements RecordKeeper
 		return theCenters.toArray(new PrismsCenter [theCenters.size()]);
 	}
 
+	public PrismsCenter getCenter(int id) throws PrismsRecordException
+	{
+		for(PrismsCenter c : theCenters)
+			if(c.getID() == id)
+				return c;
+		return null;
+	}
+
 	public void putCenter(PrismsCenter center, RecordsTransaction trans)
 		throws PrismsRecordException
 	{
