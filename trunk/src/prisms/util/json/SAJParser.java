@@ -348,7 +348,8 @@ public class SAJParser
 
 		private boolean hasContent;
 
-		ParseNode(ParseToken _token)
+		/** @param _token The parse token that this node is for */
+		public ParseNode(ParseToken _token)
 		{
 			token = _token;
 		}
@@ -391,6 +392,19 @@ public class SAJParser
 				return "property(" + thePropertyName + ")";
 			}
 			return "Unrecognized";
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return o instanceof ParseNode && ((ParseNode) o).token == token
+				&& prisms.util.ArrayUtils.equals(thePropertyName, ((ParseNode) o).thePropertyName);
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return token.hashCode() * 17 + thePropertyName == null ? 0 : thePropertyName.hashCode();
 		}
 	}
 
@@ -714,7 +728,7 @@ public class SAJParser
 
 		/**
 		 * @param depth The depth of the item to get
-		 * @return The item that is being parsed at the given depth, or null if depth>
+		 * @return The item that is being parsed at the given depth, or null if depth>=
 		 *         {@link #getDepth()}
 		 */
 		public ParseNode fromTop(int depth)
@@ -801,7 +815,8 @@ public class SAJParser
 			StringBuilder ret = new StringBuilder();
 			for(ParseNode node : thePath)
 				ret.append(node.toString()).append('/');
-			ret.setLength(ret.length() - 1);
+			if(ret.length() > 0)
+				ret.setLength(ret.length() - 1);
 			return ret.toString();
 		}
 	}
@@ -893,60 +908,88 @@ public class SAJParser
 	{
 		StringBuilder sb = new StringBuilder();
 		ParseState state = new ParseState(reader, handlers);
-		int ch = state.nextChar();
 		boolean hadContent = false;
+		int origDepth = state.getDepth();
 		do
 		{
-			if(ch < 0)
+			if(!parseNext(state, sb))
 				state.error("Unexpected end of content");
-			else if(isWhiteSpace(ch))
-				state.whiteSpace(parseWhiteSpace(sb, state));
-			else if(ch == '{')
-			{
-				state.startObject();
+			if(state.getDepth() != origDepth)
 				hadContent = true;
-			}
-			else if(ch == '[')
-			{
-				state.startArray();
-				hadContent = true;
-			}
-			else if(ch == ',' || ch == ':')
-				state.separate((char) ch);
-			else if(ch == '}')
-				state.pop(ParseToken.OBJECT);
-			else if(ch == ']')
-				state.pop(ParseToken.ARRAY);
-			else if(ch == '/' && allowComments)
-				parseComment(sb, state);
-			else
-			{
-				if(state.top() == null)
-				{
-					state.setPrimitive(parsePrimitive(sb, state));
-					hadContent = true;
-				}
-				else
-				{
-					switch(state.top().token)
-					{
-					case OBJECT:
-						state.startProperty(parsePropertyName(sb, state));
-						break;
-					case ARRAY:
-					case PROPERTY:
-						state.setPrimitive(parsePrimitive(sb, state));
-						break;
-					}
-				}
-			}
-			if(state.getDepth() > 0 || !hadContent)
-				ch = state.nextChar();
 		} while(state.getDepth() > 0 || !hadContent);
 		if(handlers.length > 0)
 			return handlers[0].finalValue();
 		else
 			return null;
+	}
+
+	/**
+	 * Parses the next JSON-related item in the stream. The next item may be:
+	 * <ul>
+	 * <li>White space--a set of spaces, new lines, etc. that are acceptable characters that do not
+	 * affect the content of a JSON document.</li>
+	 * <li>A comment. Either a line comment or a block comment</li>
+	 * <li>The beginning of a JSON object</li>
+	 * <li>The end of a JSON object</li>
+	 * <li>The beginning of a JSON array</li>
+	 * <li>The end of a JSON array</li>
+	 * <li>A separator. A comma between object property name/value pairs or between array elements
+	 * or a colon between the name and value of an object property</li>
+	 * <li>A string</li>
+	 * <li>A number</li>
+	 * <li>A boolean</li>
+	 * <li>null</li>
+	 * </ul>
+	 * 
+	 * @param state The state to parse the next item for
+	 * @return Whether there was more data in the stream
+	 * @throws IOException If an error occurs reading the data from the stream
+	 * @throws ParseException If the next item cannot be parsed
+	 */
+	public boolean parseNext(ParseState state) throws IOException, ParseException
+	{
+		return parseNext(state, new StringBuilder());
+	}
+
+	private boolean parseNext(ParseState state, StringBuilder sb) throws IOException,
+		ParseException
+	{
+		int ch = state.nextChar();
+		if(ch < 0)
+			return false;
+		else if(isWhiteSpace(ch))
+			state.whiteSpace(parseWhiteSpace(sb, state));
+		else if(ch == '{')
+			state.startObject();
+		else if(ch == '[')
+			state.startArray();
+		else if(ch == ',' || ch == ':')
+			state.separate((char) ch);
+		else if(ch == '}')
+			state.pop(ParseToken.OBJECT);
+		else if(ch == ']')
+			state.pop(ParseToken.ARRAY);
+		else if(ch == '/' && allowComments)
+			parseComment(sb, state);
+		else
+		{
+			if(state.top() == null)
+				state.setPrimitive(parsePrimitive(sb, state));
+			else
+			{
+				switch(state.top().token)
+				{
+				case OBJECT:
+					state.startProperty(parsePropertyName(sb, state));
+					break;
+				case ARRAY:
+				case PROPERTY:
+					state.setPrimitive(parsePrimitive(sb, state));
+					break;
+				}
+			}
+		}
+		return true;
 	}
 
 	/**

@@ -8,9 +8,7 @@ import java.io.IOException;
 import prisms.util.json.SAJParser.ParseNode;
 import prisms.util.json.SAJParser.ParseToken;
 
-/**
- * Writes JSON content to a stream
- */
+/** Writes JSON content to a stream */
 public class JsonStreamWriter implements JsonSerialWriter
 {
 	private final java.io.Writer theWriter;
@@ -25,9 +23,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	private String theFormatIndent;
 
-	/**
-	 * @return Whether this writer writes formal JSON
-	 */
+	/** @return Whether this writer writes formal JSON */
 	public boolean isFormal()
 	{
 		return useFormalJson;
@@ -67,22 +63,24 @@ public class JsonStreamWriter implements JsonSerialWriter
 		theFormatIndent = indent;
 	}
 
-	/**
-	 * @return The number of lines that have been written by this writer.
-	 */
+	/** @return The number of lines that have been written by this writer. */
 	public int getLineNumber()
 	{
 		return theLineNumber;
 	}
 
-	/**
-	 * @param writer The writer to write the JSON content to
-	 */
+	/** @param writer The writer to write the JSON content to */
 	public JsonStreamWriter(java.io.Writer writer)
 	{
 		theWriter = writer;
 		thePath = new java.util.ArrayList<ParseNode>();
 		theSB = new StringBuilder();
+	}
+
+	/** @return The stream writer that this JSON writer writes to */
+	public java.io.Writer getWriter()
+	{
+		return theWriter;
 	}
 
 	public void startObject() throws IOException
@@ -305,7 +303,69 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * Finishes writing the JSON content that has been started
+	 * Writes a comment to the stream
+	 * 
+	 * @param comment The content of the comment
+	 * @param block Whether to write a block-style or line-style comment. If this writer is not
+	 *        formatted ({@link #getFormatIndent()} is null) or the comment has newline characters
+	 *        in it, this parameter will ignored and a block-style comment will be written.
+	 * @throws IOException If an error occurs writing the data to the stream
+	 * @throws IllegalStateException If this writer is specified to be formal JSON--the formal JSON
+	 *         specification does not support comments
+	 */
+	public void writeComment(String comment, boolean block) throws IOException
+	{
+		if(useFormalJson)
+			throw new IllegalStateException("Comments are not allowed in formal JSON");
+		boolean hasLine = comment.indexOf('\n') >= 0;
+		block |= hasLine;
+		if(theFormatIndent == null)
+		{
+			block = true;
+			comment = comment.replaceAll("\n", " ").replaceAll("\r", "");
+			hasLine = false;
+		}
+		if(!block)
+		{
+			theWriter.write("// ");
+			theWriter.write("comment");
+			writeLine();
+		}
+		else if(!hasLine)
+		{
+			theWriter.write("/* ");
+			theWriter.write(comment);
+			theWriter.write(" */");
+			writeLine();
+		}
+		else
+		{
+			theWriter.write("/*");
+			writeLine();
+			int lineIdx = comment.indexOf('\n');
+			while(lineIdx >= 0)
+			{
+				theWriter.write(" *");
+				theWriter.write(comment.substring(0, lineIdx));
+				writeLine();
+				comment = comment.substring(lineIdx + 1);
+				lineIdx = comment.indexOf('\n');
+			}
+			if(comment.length() > 0)
+			{
+				theWriter.write(" * ");
+				theWriter.write(comment);
+				writeLine();
+			}
+			theWriter.write(" */");
+			writeLine();
+		}
+	}
+
+	/**
+	 * Finishes writing the JSON content that has been started. This method does NOT flush or close
+	 * the underlying stream. It merely finishes writing JSON data that may have been opened but not
+	 * closed.
 	 * 
 	 * @throws IOException If an error occurs writing to the stream
 	 */
@@ -363,17 +423,13 @@ public class JsonStreamWriter implements JsonSerialWriter
 		theSB.setLength(0);
 	}
 
-	/**
-	 * @return The current depth of the content being written
-	 */
+	/** @return The current depth of the content being written */
 	public int getDepth()
 	{
 		return thePath.size();
 	}
 
-	/**
-	 * @return The node that is currently being written
-	 */
+	/** @return The node that is currently being written */
 	public ParseNode top()
 	{
 		if(thePath.size() == 0)
