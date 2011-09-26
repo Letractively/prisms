@@ -366,7 +366,7 @@ public abstract class PrismsConfig
 
 	/**
 	 * Parses a time from an attribute of this config. This method uses
-	 * {@link #parseEnglishTime(String)} to parse the time.
+	 * {@link prisms.util.PrismsUtils#parseEnglishTime(String)} to parse the time.
 	 * 
 	 * @param key The name of the attribute to get the value of
 	 * @return The time parsed from the given attribute of this config, or -1 if the attribute is
@@ -377,12 +377,12 @@ public abstract class PrismsConfig
 		String ret = get(key);
 		if(ret == null)
 			return -1;
-		return parseEnglishTime(ret);
+		return prisms.util.PrismsUtils.parseEnglishTime(ret);
 	}
 
 	/**
 	 * Parses a time interval from an attribute of this config. This method uses
-	 * {@link #parseEnglishTime(String)} to parse the time.
+	 * {@link prisms.util.PrismsUtils#parseEnglishTime(String)} to parse the time.
 	 * 
 	 * @param key The name of the attribute to get the value of
 	 * @param def The default value to return if the given key does not exist in this config
@@ -394,7 +394,7 @@ public abstract class PrismsConfig
 		String ret = get(key);
 		if(ret == null)
 			return def;
-		return parseEnglishTime(ret);
+		return prisms.util.PrismsUtils.parseEnglishTime(ret);
 	}
 
 	/**
@@ -1184,108 +1184,6 @@ public abstract class PrismsConfig
 			return dotIdx;
 		else
 			return undIdx;
-	}
-
-	/**
-	 * Parses a time interval expressed in english. Some examples:
-	 * <ul>
-	 * <li>5min</li>
-	 * <li>10 sec</li>
-	 * <li>3d (3 days)</li>
-	 * <li>2 weeks</li>
-	 * <li>6mo (6 months)</li>
-	 * <li>1.5y</li>
-	 * </ul>
-	 * <p>
-	 * As shown, the number may have a decimal and the unit may or may not be separated by white
-	 * space, may be abbreviated back to a single character (except months, which may have 2
-	 * characters) or be spelled out completely. Case is insensitive. If no unit is specified,
-	 * minutes are assumed. Supported units are seconds, minutes, hours, days, weeks, months, and
-	 * years.
-	 * </p>
-	 * <p>
-	 * Negative values are also supported and returned as such. An empty string is interpreted as a
-	 * zero-length time interval. If no unit is given and no decimal is present in the number, the
-	 * value is assumed to be in milliseconds if the value is a multiple of 250 or of 100, or in
-	 * seconds otherwise. To avoid problems that may arise from incorrect assumptions of the unit,
-	 * use units explicitly.
-	 * </p>
-	 * 
-	 * @param time The time to parse
-	 * @return The parsed time amount, in milliseconds
-	 * @throws IllegalArgumentException If the time cannot be parsed
-	 */
-	public static long parseEnglishTime(String time)
-	{
-		time = time.trim();
-		if(time.length() == 0)
-			return 0;
-		StringBuilder num = new StringBuilder();
-		int c = 0;
-		boolean neg = time.charAt(0) == '-';
-		if(neg)
-			c++;
-		for(; c < time.length()
-			&& ((time.charAt(c) >= '0' && time.charAt(c) <= '9') || time.charAt(c) == '.'); c++)
-			num.append(time.charAt(c));
-
-		if(num.length() == time.length() - (neg ? 1 : 0))
-		{ // No unit specified
-			boolean hasDec = false;
-			for(c = 0; c < num.length() && !hasDec; c++)
-				hasDec = num.charAt(c) == '.';
-
-			if(!hasDec)
-			{
-				long ret;
-				try
-				{
-					ret = Long.parseLong(num.toString());
-				} catch(NumberFormatException e)
-				{
-					throw new IllegalArgumentException("Could not parse numeric time " + time, e);
-				}
-				if(ret % 250 != 0 && ret % 100 != 0)
-					ret *= 1000;
-				if(neg)
-					ret = -ret;
-				return ret;
-			}
-		}
-		float scalar;
-		try
-		{
-			scalar = Float.parseFloat(num.toString());
-		} catch(NumberFormatException e)
-		{
-			throw new IllegalArgumentException("Could not parse numeric part of time " + time, e);
-		}
-		while(c < time.length() && Character.isWhitespace(time.charAt(c)))
-			c++;
-		String unit = time.substring(c).trim().toLowerCase();
-		if(unit.length() > 1 && unit.charAt(unit.length() - 1) == 's')
-			unit = unit.substring(0, unit.length() - 1);
-
-		long mult;
-		if(unit.startsWith("s"))
-			mult = 1000;
-		else if(unit.equals("m") || unit.startsWith("min"))
-			mult = 60000;
-		else if(unit.startsWith("h"))
-			mult = 60L * 60000;
-		else if(unit.startsWith("d"))
-			mult = 24L * 60 * 60000;
-		else if(unit.startsWith("w"))
-			mult = 7L * 24 * 60 * 60000;
-		else if(unit.startsWith("mo"))
-			mult = 30L * 24 * 60 * 60000;
-		else if(unit.startsWith("y"))
-			mult = 365L * 24 * 60 * 60000;
-		else
-			throw new IllegalArgumentException("Could not parse unit part of time " + time);
-		if(neg)
-			scalar = -scalar;
-		return Math.round((double) scalar * mult);
 	}
 
 	/**
