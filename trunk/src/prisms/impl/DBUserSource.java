@@ -1,4 +1,4 @@
-/**
+/*
  * DBUserSource.java Created Jun 24, 2008 by Andrew Butler, PSL
  */
 package prisms.impl;
@@ -205,13 +205,8 @@ public class DBUserSource implements ScalableUserSource
 		}
 	}
 
-	private boolean addingAnonymous;
-
 	private void fillUserCache(Statement stmt) throws PrismsException
 	{
-		theAnonymousUser = new User(this, theAnonymousUserName, IDGenerator.getMaxID(theIDs
-			.getCenterID()) - 1);
-		theAnonymousUser.setReadOnly(true);
 		boolean killStatement = false;
 		if(stmt == null)
 		{
@@ -319,19 +314,6 @@ public class DBUserSource implements ScalableUserSource
 				}
 		}
 		theUserCache = users;
-
-		if(!ArrayUtils.contains(theUserCache, theAnonymousUser))
-		{
-			addingAnonymous = true;
-			try
-			{
-				putUser(theAnonymousUser, new RecordsTransaction(getSystemUser()));
-			} finally
-			{
-				addingAnonymous = false;
-			}
-		}
-		theUserCache = ArrayUtils.remove(theUserCache, theAnonymousUser);
 	}
 
 	private void fillGroupCache(Statement stmt) throws PrismsException
@@ -851,12 +833,33 @@ public class DBUserSource implements ScalableUserSource
 		return theSystemUser;
 	}
 
+	private boolean addingAnonymous;
+
 	public User getUser(String name) throws PrismsException
 	{
 		if(theUserCache == null)
 			fillUserCache(null);
-		if(name == null || name.equals(theAnonymousUser.getName()))
+		if(name == null || name.equals(theAnonymousUserName))
+		{
+			if(theAnonymousUser == null)
+			{
+				theAnonymousUser = new User(this, theAnonymousUserName, IDGenerator.getMaxID(theIDs
+					.getCenterID()) - 1);
+				theAnonymousUser.setReadOnly(true);
+				addingAnonymous = true;
+				try
+				{
+					putUser(theAnonymousUser, new RecordsTransaction(getSystemUser()));
+				} finally
+				{
+					addingAnonymous = false;
+				}
+				theUserCache = ArrayUtils.remove(theUserCache, theAnonymousUser);
+			}
 			return theAnonymousUser;
+		}
+		else if(name.equals("System"))
+			return getSystemUser();
 		for(User user : theUserCache)
 			if(user.getName().equals(name))
 				return user;
@@ -867,9 +870,9 @@ public class DBUserSource implements ScalableUserSource
 	{
 		if(theUserCache == null)
 			fillUserCache(null);
-		if(getSystemUser().getID() == id)
-			return getSystemUser();
-		if(theAnonymousUser.getID() == id)
+		if(id == IDGenerator.getMaxID(theIDs.getCenterID()))
+			return theSystemUser;
+		if(id == IDGenerator.getMaxID(theIDs.getCenterID()) - 1)
 			return theAnonymousUser;
 		for(User user : theUserCache)
 			if(user.getID() == id)
@@ -1727,7 +1730,7 @@ public class DBUserSource implements ScalableUserSource
 
 	User dbGetUser(long id, Statement stmt) throws PrismsException
 	{
-		if(id == theAnonymousUser.getID())
+		if(id == IDGenerator.getMaxID(theIDs.getCenterID()) - 1)
 			return theAnonymousUser;
 		if(id < 0)
 			return null;
@@ -1878,15 +1881,7 @@ public class DBUserSource implements ScalableUserSource
 					{
 						log.error("Could not insert group membership: SQL=" + sql, e);
 					}
-					boolean ro = dbUser.isReadOnly();
-					dbUser.setReadOnly(false);
-					try
-					{
-						dbUser.addTo(o);
-					} finally
-					{
-						dbUser.setReadOnly(ro);
-					}
+					dbUser.addTo(o);
 					addModification(trans, PrismsSubjectType.user, UserChange.group, 1, dbUser, o,
 						null, null, null);
 					authChange[0] = true;
@@ -1910,15 +1905,7 @@ public class DBUserSource implements ScalableUserSource
 					{
 						log.error("Could not remove group membership: SQL=" + sql, e);
 					}
-					boolean ro = dbUser.isReadOnly();
-					dbUser.setReadOnly(false);
-					try
-					{
-						dbUser.removeFrom(o);
-					} finally
-					{
-						dbUser.setReadOnly(ro);
-					}
+					dbUser.removeFrom(o);
 					addModification(trans, PrismsSubjectType.user, UserChange.group, -1, dbUser, o,
 						null, null, null);
 					authChange[0] = true;
@@ -1938,15 +1925,7 @@ public class DBUserSource implements ScalableUserSource
 			update += "userName=" + toSQL(setUser.getName()) + ", ";
 			addModification(trans, PrismsSubjectType.user, UserChange.name, 0, setUser, null,
 				dbUser.getName(), null, null);
-			boolean ro = dbUser.isReadOnly();
-			dbUser.setReadOnly(false);
-			try
-			{
-				dbUser.setName(setUser.getName());
-			} finally
-			{
-				dbUser.setReadOnly(ro);
-			}
+			dbUser.setName(setUser.getName());
 		}
 		if(dbUser.isAdmin() != setUser.isAdmin())
 		{

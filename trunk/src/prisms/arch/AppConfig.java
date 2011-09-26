@@ -24,8 +24,11 @@ public class AppConfig
 	 * 
 	 * @param app The application to configure
 	 * @param config The XML configuration
+	 * @param withInitializers false if this method should not configure intitializers for the
+	 *        application; true if this method should only configure intitializers; null if this
+	 *        method should configure all listeners whether initializers or not
 	 */
-	public void configureApp(PrismsApplication app, PrismsConfig config)
+	public void configureApp(PrismsApplication app, PrismsConfig config, Boolean withInitializers)
 	{
 		synchronized(app)
 		{
@@ -39,10 +42,12 @@ public class AppConfig
 				trackConfigs = app.getEnvironment().getTrackConfigs();
 			if(trackConfigs != null)
 				configureTracking(app, trackConfigs);
+			java.util.Collection<PropertyManager<?>> newMgrs = new java.util.ArrayList<PropertyManager<?>>();
 			for(PrismsConfig propConfig : config.subConfigs("properties/property"))
 				try
 				{
-					addPropertyManager(app, propConfig);
+					if(testInitializer(propConfig, withInitializers))
+						addPropertyManager(app, propConfig, withInitializers, newMgrs);
 				} catch(RuntimeException e)
 				{
 					if(!propConfig.is("optional", false))
@@ -50,7 +55,7 @@ public class AppConfig
 					else
 						log.error("Could not add property manager: " + propConfig, e);
 				}
-			for(PropertyManager<?> pm : app.getManagers())
+			for(PropertyManager<?> pm : newMgrs)
 			{
 				try
 				{
@@ -63,7 +68,8 @@ public class AppConfig
 			for(PrismsConfig evtConfig : config.subConfigs("events/event"))
 				try
 				{
-					addEventListener(app, null, evtConfig);
+					if(testInitializer(evtConfig, withInitializers))
+						addEventListener(app, null, evtConfig);
 				} catch(Exception e)
 				{
 					log.error("Could not add event listener: " + evtConfig, e);
@@ -71,12 +77,20 @@ public class AppConfig
 			for(PrismsConfig monConfig : config.subConfigs("monitors/monitor"))
 				try
 				{
-					addMonitor(app, null, monConfig);
+					if(testInitializer(monConfig, withInitializers))
+						addMonitor(app, null, monConfig);
 				} catch(Exception e)
 				{
 					log.error("Could not add monitor: " + monConfig, e);
 				}
 		}
+	}
+
+	private static boolean testInitializer(PrismsConfig config, Boolean withInitializers)
+	{
+		if(withInitializers == null)
+			return true;
+		return config.is("initializer", false) == withInitializers.booleanValue();
 	}
 
 	/**
@@ -140,9 +154,14 @@ public class AppConfig
 	 * 
 	 * @param app The application to add the plugin type to
 	 * @param propConfig The configuration for the property manager
+	 * @param withInitializers false if this method should not configure intitializers for the
+	 *        application; true if this method should only configure intitializers; null if this
+	 *        method should configure all listeners whether initializers or not
+	 * @param newMgrs The collection to add newly configured property managers to
 	 * @throws IllegalArgumentException If the property manager cannot be registered as specified
 	 */
-	public void addPropertyManager(PrismsApplication app, PrismsConfig propConfig)
+	public void addPropertyManager(PrismsApplication app, PrismsConfig propConfig,
+		Boolean withInitializers, java.util.Collection<PropertyManager<?>> newMgrs)
 		throws IllegalArgumentException
 	{
 		log.debug("Adding property manager:\n" + propConfig);
@@ -158,19 +177,23 @@ public class AppConfig
 				return;
 			}
 			for(int m = 0; m < mgrs.length; m++)
-			{
-				mgrs[m].configure(app, configs[m]);
-				app.addManager(mgrs[m]);
-			}
+				if(testInitializer(configs[m], withInitializers))
+				{
+					mgrs[m].configure(app, configs[m]);
+					app.addManager(mgrs[m]);
+					newMgrs.add(mgrs[m]);
+				}
 
 			PrismsConfig [] els = app.getEnvironment().getEventConfigs(globalName);
 			if(els != null)
 				for(PrismsConfig e : els)
-					addEventListener(app, null, e);
+					if(testInitializer(e, withInitializers))
+						addEventListener(app, null, e);
 			PrismsConfig [] monEls = app.getEnvironment().getMonitorConfigs(globalName);
 			if(monEls != null)
 				for(PrismsConfig m : monEls)
-					addMonitor(app, null, m);
+					if(testInitializer(m, withInitializers))
+						addMonitor(app, null, m);
 		}
 		else
 		{
@@ -186,6 +209,7 @@ public class AppConfig
 			}
 			mgr.configure(app, propConfig);
 			app.addManager(mgr);
+			newMgrs.add(mgr);
 		}
 	}
 

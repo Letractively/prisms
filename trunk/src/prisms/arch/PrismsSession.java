@@ -148,7 +148,7 @@ public class PrismsSession
 
 	private final ConcurrentHashMap<PrismsProperty<?>, Object> theProperties;
 
-	private final ConcurrentHashMap<PrismsProperty<?>, Object> thePropertyLocks;
+	private final ConcurrentHashMap<PrismsProperty<?>, PrismsApplication.PrismsPropertyLock> thePropertyLocks;
 
 	private final ConcurrentHashMap<PrismsProperty<?>, PrismsSession> thePropertyStack;
 
@@ -188,7 +188,7 @@ public class PrismsSession
 		thePlugins = new java.util.LinkedHashMap<String, AppPlugin>();
 		theStandardPlugins = new java.util.LinkedHashMap<String, AppPlugin>();
 		theProperties = new ConcurrentHashMap<PrismsProperty<?>, Object>();
-		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, Object>();
+		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, PrismsApplication.PrismsPropertyLock>();
 		thePropertyStack = new ConcurrentHashMap<PrismsProperty<?>, PrismsSession>();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
 		theELs = new ListenerManager<PrismsEventListener>(PrismsEventListener.class);
@@ -907,7 +907,7 @@ public class PrismsSession
 
 	private Object getPropertyLock(PrismsProperty<?> property)
 	{
-		Object ret = thePropertyLocks.get(property);
+		PrismsApplication.PrismsPropertyLock ret = thePropertyLocks.get(property);
 		if(ret == null)
 		{
 			synchronized(thePropertyLocks)
@@ -915,7 +915,7 @@ public class PrismsSession
 				ret = thePropertyLocks.get(property);
 				if(ret == null)
 				{
-					ret = new Object();
+					ret = new PrismsApplication.PrismsPropertyLock(property, theApp, this);
 					thePropertyLocks.put(property, ret);
 				}
 			}

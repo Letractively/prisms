@@ -186,7 +186,7 @@ public class PrismsApplication
 
 	private final ArrayList<Runnable> theDestroyTasks;
 
-	private final ConcurrentHashMap<PrismsProperty<?>, Object> thePropertyLocks;
+	private final ConcurrentHashMap<PrismsProperty<?>, PrismsPropertyLock> thePropertyLocks;
 
 	private final ConcurrentHashMap<PrismsProperty<?>, PrismsApplication> thePropertyStack;
 
@@ -235,7 +235,7 @@ public class PrismsApplication
 		theRecurringTasks = new ArrayList<ScheduledTask>();
 		theDestroyTasks = new ArrayList<Runnable>();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
-		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, Object>();
+		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, PrismsPropertyLock>();
 		thePropertyStack = new ConcurrentHashMap<PrismsProperty<?>, PrismsApplication>();
 		theTrackSet = new prisms.util.TrackerSet("App: " + name, null);
 	}
@@ -683,9 +683,53 @@ public class PrismsApplication
 	// }
 	// }
 
+	/**
+	 * A lock for a given property so that two set operations do not occur on the same property at
+	 * the same time
+	 */
+	public static class PrismsPropertyLock
+	{
+		/** The property that this lock represents */
+		public final PrismsProperty<?> property;
+
+		/** The application that this lock is for */
+		public final PrismsApplication app;
+
+		/** The session that this lock is for */
+		public final PrismsSession session;
+
+		/**
+		 * @param prop The property that this lock represents
+		 * @param ap The application that this lock is for
+		 * @param sess The session that this lock is for
+		 */
+		public PrismsPropertyLock(PrismsProperty<?> prop, PrismsApplication ap, PrismsSession sess)
+		{
+			property = prop;
+			app = ap;
+			session = sess;
+		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			if(session != null)
+				ret.append("Session ").append(session.getApp().getName()).append('/')
+					.append(session.getClient().getName()).append('/')
+					.append(session.getUser().getName()).append(':')
+					.append(session.getMetadata().getID());
+			else
+				ret.append("Application ").append(app.getName());
+			ret.append(" lock for property ").append(property.toString()).append('@')
+				.append(hashCode());
+			return ret.toString();
+		}
+	}
+
 	private Object getPropertyLock(PrismsProperty<?> property)
 	{
-		Object ret = thePropertyLocks.get(property);
+		PrismsPropertyLock ret = thePropertyLocks.get(property);
 		if(ret == null)
 		{
 			synchronized(thePropertyLocks)
@@ -693,7 +737,7 @@ public class PrismsApplication
 				ret = thePropertyLocks.get(property);
 				if(ret == null)
 				{
-					ret = new Object();
+					ret = new PrismsPropertyLock(property, this, null);
 					thePropertyLocks.put(property, ret);
 				}
 			}

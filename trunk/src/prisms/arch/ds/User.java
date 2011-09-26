@@ -79,8 +79,6 @@ public class User implements prisms.records.RecordUser, Cloneable
 	/** @param admin Whether this user is an admin or not */
 	public void setAdmin(boolean admin)
 	{
-		if(isReadOnly && admin != isAdmin)
-			throw new IllegalStateException("User " + theName + " is read-only");
 		isAdmin = admin;
 	}
 
@@ -97,8 +95,6 @@ public class User implements prisms.records.RecordUser, Cloneable
 	 */
 	public void setName(String name)
 	{
-		if(isReadOnly && !theName.equals(name))
-			throw new IllegalStateException("User " + theName + " is read-only");
 		theName = name;
 	}
 
@@ -116,11 +112,7 @@ public class User implements prisms.records.RecordUser, Cloneable
 	public void addTo(UserGroup group)
 	{
 		if(!theGroups.contains(group))
-		{
-			if(isReadOnly)
-				throw new IllegalStateException("User " + theName + " is read-only");
 			theGroups.add(group);
-		}
 	}
 
 	/**
@@ -131,11 +123,7 @@ public class User implements prisms.records.RecordUser, Cloneable
 	public void removeFrom(UserGroup group)
 	{
 		if(theGroups.contains(group))
-		{
-			if(isReadOnly)
-				throw new IllegalStateException("User " + theName + " is read-only");
 			theGroups.remove(group);
-		}
 	}
 
 	/**

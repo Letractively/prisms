@@ -11,7 +11,6 @@ import prisms.arch.ds.Transactor;
 import prisms.arch.ds.User;
 import prisms.records.ChangeSearch.ChangeFieldSearch.FieldType;
 import prisms.records.MemoryRecordKeeper.IDGetter;
-import prisms.util.ObfuscatingStream;
 import prisms.util.Search;
 import prisms.util.json.SAJParser.ParseException;
 
@@ -787,33 +786,6 @@ public class RecordUtils
 	}
 
 	/**
-	 * Wraps a stream to write exported data. The data is first zipped, then obfuscated to prevent
-	 * human modification.
-	 * 
-	 * @param os The output stream to write the exported data to
-	 * @return The wrapped output stream to write data to in-the-clear
-	 * @throws java.io.IOException If an error occurs wrapping the stream
-	 */
-	public static java.io.OutputStream exportStream(java.io.OutputStream os)
-		throws java.io.IOException
-	{
-		return prisms.util.ObfuscatingStream.obfuscate(new java.util.zip.GZIPOutputStream(os));
-	}
-
-	/**
-	 * Wraps an exported stream.
-	 * 
-	 * @param is The exported stream to read the data from
-	 * @return The plain-text stream
-	 * @throws java.io.IOException If an error occurs wrapping the stream
-	 */
-	public static java.io.InputStream importStream(java.io.InputStream is)
-		throws java.io.IOException
-	{
-		return ObfuscatingStream.unobfuscate(new java.util.zip.GZIPInputStream(is));
-	}
-
-	/**
 	 * Implements
 	 * {@link prisms.util.AbstractPreparedSearch#addParamTypes(Search, java.util.Collection)} for
 	 * change records
@@ -957,6 +929,8 @@ public class RecordUtils
 				center.setServerURL((String) currentValue);
 				break;
 			case serverCerts:
+				if(currentValue instanceof String)
+					currentValue = DBRecordKeeper.deserializeCerts((String) currentValue);
 				center.setCertificates((java.security.cert.X509Certificate[]) currentValue);
 				break;
 			case serverUserName:

@@ -166,7 +166,7 @@ public class SyncServiceClient
 		conn.setPassword(center.getServerPassword());
 		try
 		{
-			conn.setTrustManager(new javax.net.ssl.X509TrustManager()
+			conn.getConnector().setTrustManager(new javax.net.ssl.X509TrustManager()
 			{
 				public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
 					String authType) throws java.security.cert.CertificateException
@@ -250,7 +250,7 @@ public class SyncServiceClient
 			center.getServerURL(), theAppName, theClientName, center.getServerUserName());
 		try
 		{
-			return conn.getServerCerts();
+			return conn.getConnector().getServerCerts();
 		} catch(java.security.GeneralSecurityException e)
 		{
 			throw new PrismsRecordException("Security environment does not permit", e);

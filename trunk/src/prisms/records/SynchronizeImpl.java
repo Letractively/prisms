@@ -270,4 +270,7 @@ public interface SynchronizeImpl
 	 * @throws PrismsRecordException If an error occurs getting the data
 	 */
 	Object getCurrentValue(ChangeRecord change) throws PrismsRecordException;
+
+	/** @return The property that holds the center set for this namespace */
+	prisms.arch.event.PrismsProperty<PrismsCenter []> getCentersProperty();
 }

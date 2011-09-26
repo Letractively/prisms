@@ -161,9 +161,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			synchronized String configureClient(AppConfig appConfig)
 			{
 				if(theError != null)
-					return theError;
+					return theError; // If configuration fails, don't try again
 				if(theClientConfigEl == null)
-					return null;
+					return null; // The client has already been configured
 				log.info("Configuring client " + theClient.getName() + " of PRISMS application "
 					+ theClient.getApp());
 				try
@@ -194,6 +194,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		PrismsConfig theAppConfigEl;
 
+		private boolean hasConfigedNonInit;
+
 		private String theError;
 
 		private java.util.HashMap<String, ClientConfigurator> theClients;
@@ -218,16 +220,28 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return ace.subConfig("load-immediately") != null;
 		}
 
-		synchronized String configureApp()
+		synchronized String configureApp(boolean withInitializers)
 		{
 			if(theError != null)
 				return theError; // If configuration fails, don't try again
 			if(theAppConfigEl == null)
-				return null;
+				return null; // The application has already been configured
 			log.info("Configuring PRISMS application " + theApp.getName());
+			Boolean wi;
+			if(!withInitializers)
+			{
+				if(hasConfigedNonInit)
+					return null;
+				wi = Boolean.FALSE;
+				hasConfigedNonInit = true;
+			}
+			else if(hasConfigedNonInit)
+				wi = Boolean.TRUE;
+			else
+				wi = null;
 			try
 			{
-				theAppConfig.configureApp(theApp, theAppConfigEl);
+				theAppConfig.configureApp(theApp, theAppConfigEl, wi);
 			} catch(RuntimeException e)
 			{
 				log.error("Could not configure application " + theApp, e);
@@ -1746,10 +1760,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		APPLICATIONS,
 		/** The user source is being configured */
 		CONFIG_USER_SOURCE,
-		/** Default content (users, groups, etc.) is being loaded */
-		LOAD_CONTENT,
+		/** Importing data exported from a previous installation */
+		IMPORT_DATA,
 		/** The manager application is being configured */
 		LOAD_MANAGER,
+		/** Default content (users, groups, etc.) is being loaded */
+		LOAD_CONTENT,
 		/** Session authenticators are being loaded and configured */
 		AUTHENTICATORS,
 		/** This PRISMS server is completely configured */
@@ -1766,6 +1782,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		ConfigStage theStage;
 
 		PrismsConfig theUsEl;
+
+		prisms.arch.ds.PrismsDataExportImport.Import theImporter;
 
 		ConfigProgress()
 		{
@@ -2445,9 +2463,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						+ " connections will not be available");
 			}
 
+			prisms.arch.ds.PrismsDataExportImport.Import importer = theConfigProgress.theImporter;
+			if(importer == null)
+				importer = new prisms.arch.ds.PrismsDataExportImport.Import();
+			int exportedCenterID = importer.getInstanceID(prisms.logging.PrismsLogger
+				.getConfiguredExposedDir(pConfig.subConfig("logger")));
+
 			try
 			{
-				ids.setConfigured();
+				if(ids.setConfigured(exportedCenterID) && exportedCenterID >= 0)
+					theConfigProgress.theImporter = importer;
+				else
+					importer.close();
 			} catch(PrismsException e)
 			{
 				log.error("Could not configure ID generator for environment", e);
@@ -2589,6 +2616,65 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
+		if(theConfigProgress.theStage.compareTo(ConfigStage.IMPORT_DATA) <= 0)
+		{
+			if(theConfigProgress.theImporter != null)
+			{
+				// All applications have to be configured before import data will work correctly.
+				// Configure the manager application first
+				String error = null;
+				for(AppConfigurator config : theConfigs.values())
+					if(theEnv.isManager(config.theApp))
+					{
+						error = config.configureApp(false);
+						if(error != null)
+						{
+							log.error("Could not load manager application--"
+								+ "PRISMS configuration failed: " + error);
+							return "Could not load manager application: " + error;
+						}
+						break;
+					}
+				for(AppConfigurator config : theConfigs.values())
+					if(!theEnv.isManager(config.theApp))
+					{
+						error = config.configureApp(false);
+						if(error != null)
+						{
+							log.error("Could not load application " + config.theApp.getName()
+								+ "--PRISMS configuration failed: " + error);
+							return "Could not load application " + config.theApp.getName() + ": "
+								+ error;
+						}
+					}
+				theConfigProgress.theImporter.importData(theApps.values().toArray(
+					new PrismsApplication [theApps.size()]));
+				theConfigProgress.theImporter = null;
+			}
+
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
+		if(theConfigProgress.theStage.compareTo(ConfigStage.LOAD_MANAGER) <= 0)
+		{
+			for(PrismsApplication app : theApps.values())
+				if(theEnv.isManager(app))
+				{
+					app.addManager(new prisms.util.persisters.ReadOnlyManager<PrismsApplication []>(
+						app, prisms.arch.event.PrismsProperties.applications, apps));
+					String error = theConfigs.get(app.getName()).configureApp(true);
+					if(error != null)
+					{
+						log.error("Could not load manager application--PRISMS configuration failed: "
+							+ error);
+						return "Could not load manager application: " + error;
+					}
+					log.info("Configured manager application \"" + app.getName() + "\"");
+					break;
+				}
+			theConfigProgress.theStage = theConfigProgress.theStage.next();
+		}
+
 		if(theConfigProgress.theStage.compareTo(ConfigStage.LOAD_CONTENT) <= 0)
 		{
 			boolean init;
@@ -2624,26 +2710,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			else
 				log.info("No default users to load");
-			theConfigProgress.theStage = theConfigProgress.theStage.next();
-		}
-
-		if(theConfigProgress.theStage.compareTo(ConfigStage.LOAD_MANAGER) <= 0)
-		{
-			for(PrismsApplication app : theApps.values())
-				if(theEnv.isManager(app))
-				{
-					app.addManager(new prisms.util.persisters.ReadOnlyManager<PrismsApplication []>(
-						app, prisms.arch.event.PrismsProperties.applications, apps));
-					String error = theConfigs.get(app.getName()).configureApp();
-					if(error != null)
-					{
-						log.error("Could not load manager application--PRISMS configuration failed: "
-							+ error);
-						return "Could not load manager application: " + error;
-					}
-					log.info("Configured manager application \"" + app.getName() + "\"");
-					break;
-				}
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
@@ -2687,7 +2753,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		// Now we configure applications that have been marked to be loaded immediately
 		for(AppConfigurator config : theConfigs.values())
 			if(config.shouldConfigureOnLoad())
-				config.configureApp();
+				config.configureApp(true);
 		return null;
 	}
 
@@ -3071,15 +3137,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(!ArrayUtils.contains(user.getGroups(), group))
 				{
 					changed = true;
-					boolean ro = user.isReadOnly();
-					user.setReadOnly(false);
-					try
-					{
-						user.addTo(group);
-					} finally
-					{
-						user.setReadOnly(ro);
-					}
+					user.addTo(group);
 					log.debug("Associated user " + userName + " with " + appName + " group "
 						+ groupName);
 				}
@@ -3234,22 +3292,46 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return;
 		}
 
-		final String sessionID;
+		String [] sessionIDs;
+		HttpSession httpSession;
 		if(pReq.client.isCommonSession())
-			sessionID = pReq.user.getName() + "/" + pReq.app.getName() + "/"
-				+ pReq.client.getName();
-		else if(req.getSession() != null && !req.getSession().isNew())
-			sessionID = rh + "/" + req.getSession().getId();
+		{
+			sessionIDs = new String [] {pReq.user.getName() + "/" + pReq.app.getName() + "/"
+				+ pReq.client.getName()};
+			httpSession = theSessions.get(sessionIDs[0]);
+		}
+		else if(req.getSession().isNew())
+		{
+			String sessionID = rh;
+			httpSession = theSessions.get(sessionID);
+			if(httpSession == null)
+				sessionIDs = new String [] {rh + "/" + req.getSession().getId(), sessionID};
+			else
+				sessionIDs = new String [] {sessionID};
+		}
 		else
-			sessionID = rh;
+		{
+			sessionIDs = new String [] {rh + "/" + req.getSession().getId()};
+			httpSession = theSessions.get(sessionIDs[0]);
+			if(theSessions.get(rh) == httpSession)
+				theSessions.remove(rh);
+		}
 
-		HttpSession httpSession = theSessions.get(sessionID);
 		if(httpSession == null)
 		{
 			if(pReq.client.isCommonSession() || pReq.isWMS || "init".equals(pReq.serverMethod))
 			{
 				/* If init is being called, they're already restarting--no need to tell them again. */
-				httpSession = createSession(sessionID, clientGovernor);
+				synchronized(this)
+				{
+					httpSession = theSessions.get(sessionIDs[0]);
+					if(httpSession == null)
+					{
+						httpSession = new HttpSession(sessionIDs[0], clientGovernor);
+						for(String sessionID : sessionIDs)
+							theSessions.put(sessionID, httpSession);
+					}
+				}
 			}
 			else
 			{
@@ -3312,8 +3394,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			else
 			{
-				SessionEpitaph epitaph = theEpitaphs.get(sessionID + "/" + pReq.app.getName() + "/"
-					+ pReq.client.getName() + "/" + pReq.user.getName());
+				SessionEpitaph epitaph = null;
+				for(int i = 0; i < sessionIDs.length && epitaph == null; i++)
+					epitaph = theEpitaphs.get(sessionIDs[0] + "/" + pReq.app.getName() + "/"
+						+ pReq.client.getName() + "/" + pReq.user.getName());
 				if(epitaph != null)
 				{
 					events.add(toEvent("restart", "message", epitaph.message + " Refresh to use "
@@ -3427,7 +3511,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			String error;
 			try
 			{
-				error = theConfigs.get(req.app.getName()).configureApp();
+				error = theConfigs.get(req.app.getName()).configureApp(true);
 			} catch(Throwable e)
 			{
 				log.error("Could not configure applcation " + req.appName, e);
@@ -3469,22 +3553,6 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return error(ErrorCode.ServerError, "Could not get user: " + e.getMessage());
 		}
 		return null;
-	}
-
-	/**
-	 * Creates a session in response to an init request
-	 * 
-	 * @param req The request to create the session for
-	 * @return The new session
-	 */
-	private synchronized HttpSession createSession(String sessionID, ClientGovernor cc)
-	{
-		HttpSession ret = theSessions.get(sessionID);
-		if(ret != null)
-			return ret;
-		ret = new HttpSession(sessionID, cc);
-		theSessions.put(sessionID, ret);
-		return ret;
 	}
 
 	void removeSession(String id)
@@ -3646,9 +3714,36 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			msg.append("\n\tSession: ");
 			msg.append(trans[t].getSession() == null ? "none" : trans[t].getSession().toString());
 			msg.append("\n\tThread: ");
-			msg.append(trans[t].getThread().getName());
+			msg.append(trans[t].getThread().getName()).append(" (ID ")
+				.append(trans[t].getThread().getId()).append(')');
 			msg.append("\n\tStage: ");
 			msg.append(trans[t].getStage());
+			java.lang.management.ThreadMXBean tmxb = java.lang.management.ManagementFactory
+				.getThreadMXBean();
+			java.lang.management.ThreadInfo ti = tmxb.getThreadInfo(trans[t].getThread().getId());
+			java.lang.management.LockInfo lock = ti.getLockInfo();
+			if(lock != null)
+				msg.append("\n\tWaiting for ").append(lock.toString()).append(" owned by ")
+					.append(ti.getLockOwnerName()).append(" (ID ").append(ti.getLockOwnerId())
+					.append(')');
+			java.lang.management.MonitorInfo[] monitors = ti.getLockedMonitors();
+			java.lang.management.LockInfo[] locks = ti.getLockedSynchronizers();
+			if(monitors.length > 0 || locks.length > 0)
+			{
+				msg.append("Holding ");
+				for(int i = 0; i < monitors.length; i++)
+				{
+					if(i > 0)
+						msg.append(", ");
+					msg.append(monitors[i].toString());
+				}
+				for(int i = 0; i < locks.length; i++)
+				{
+					if(i > 0 || monitors.length > 0)
+						msg.append(", ");
+					msg.append(locks[i].toString());
+				}
+			}
 			msg.append("\n\tTracking Data: ");
 			prisms.util.ProgramTracker.PrintConfig config = new prisms.util.ProgramTracker.PrintConfig();
 			config.setAccentThreshold(8);
@@ -3657,7 +3752,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			trans[t].getTracker().printData(msg, config);
 			Exception ex = new Exception("Current Stack Trace:");
 			ex.setStackTrace(trans[t].getThread().getStackTrace());
-			log.error(msg.toString(), ex);
+			log.warn(msg.toString(), ex);
 			checks[t].lastLogged = now;
 		}
 	}

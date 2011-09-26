@@ -118,7 +118,7 @@ public class ChangeRecord
 			if(!type.changeType.getMinorType().isInstance(minorSubject))
 				throw new IllegalArgumentException("Minor subject (" + minorSubject
 					+ (minorSubject == null ? "" : ", class " + minorSubject.getClass().getName())
-					+ ") is not valid for change type " + type.changeType);
+					+ ") is not valid for change type " + type.subjectType + "/" + type.changeType);
 		}
 		else if(minorSubject != null)
 			throw new IllegalArgumentException("Change type " + type.changeType

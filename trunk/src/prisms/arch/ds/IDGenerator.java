@@ -179,6 +179,8 @@ public class IDGenerator
 
 	private int theCenterID;
 
+	private long theInstallDate;
+
 	private String theLocalLocation;
 
 	private boolean isConfigured;
@@ -236,7 +238,8 @@ public class IDGenerator
 		{
 			public void reconnected(boolean initial)
 			{
-				createPreparedCalls();
+				if(!initial)
+					createPreparedCalls();
 			}
 
 			public void released()
@@ -264,16 +267,19 @@ public class IDGenerator
 	/**
 	 * Finishes configuring this ID generator
 	 * 
+	 * @param exportedCenterID The center ID to install this installation with, or -1 if no center
+	 *        ID was exported and this may be a brand new installation
+	 * @return true if a new installation was created
 	 * @throws PrismsException If the ID generator cannot be configured
 	 */
-	public void setConfigured() throws PrismsException
+	public boolean setConfigured(int exportedCenterID) throws PrismsException
 	{
 		if(isConfigured)
-			throw new IllegalStateException("Local connection information cannot be set after the"
-				+ " ID generator has been configured");
+			throw new IllegalStateException("This ID generator has been configured");
 		isConfigured = true;
 		theInitTime = System.currentTimeMillis();
-		doStartup();
+		createPreparedCalls();
+		return doStartup(exportedCenterID);
 	}
 
 	/** @return The ID of this PRISMS installation */
@@ -294,18 +300,65 @@ public class IDGenerator
 	/**
 	 * Peforms initial functions to set up this data source
 	 * 
+	 * @param exportedCenterID The center ID to install this installation with, or -1 if no center
+	 *        ID was exported and this may be a brand new installation
+	 * @return Whether a new installation was created
 	 * @throws PrismsException If an error occurs getting the setup data
 	 */
-	protected void doStartup() throws PrismsException
+	protected boolean doStartup(int exportedCenterID) throws PrismsException
 	{
+		boolean ret;
 		theTransactor.checkConnected();
 		lock("prisms_installation", null);
 		try
 		{
-			if(getInstallDate() < 0)
+			Statement stmt = null;
+			ResultSet rs = null;
+			String sql = "SELECT centerID, installDate FROM " + theTransactor.getTablePrefix()
+				+ "prisms_installation";
+			try
+			{
+				stmt = theTransactor.getConnection().createStatement();
+				rs = stmt.executeQuery(sql);
+				if(rs.next())
+				{
+					ret = false;
+					theCenterID = rs.getInt("centerID");
+					theInstallDate = rs.getTimestamp("installDate").getTime();
+				}
+				else
+				{
+					ret = true;
+					theCenterID = exportedCenterID;
+					theInstallDate = -1;
+				}
+			} catch(SQLException e)
+			{
+				throw new PrismsException("Could not query PRISMS installation: SQL=" + sql, e);
+			} finally
+			{
+				if(rs != null)
+					try
+					{
+						rs.close();
+					} catch(SQLException e)
+					{
+						log.error("Connection error", e);
+					}
+				if(stmt != null)
+					try
+					{
+						stmt.close();
+					} catch(SQLException e)
+					{
+						log.error("Connection error", e);
+					}
+			}
+			if(theInstallDate < 0)
 			{
 				isNewInstall = true;
-				theCenterID = (int) (Math.random() * ID_RANGE);
+				if(theCenterID < 0)
+					theCenterID = (int) (Math.random() * ID_RANGE);
 				install();
 			}
 		} finally
@@ -354,6 +407,7 @@ public class IDGenerator
 			theLastInstanceUpdate = System.currentTimeMillis();
 			theLastInstancePurge = theLastInstanceUpdate;
 		}
+		return ret;
 	}
 
 	/** @return Whether this ID generator's connection is to an oracle database */
@@ -493,47 +547,10 @@ public class IDGenerator
 		}
 	}
 
-	/**
-	 * @return The date when this set of records was installed
-	 * @throws PrismsException If an error occurs retrieving the data
-	 */
-	public long getInstallDate() throws PrismsException
+	/** @return The date when this PRISMS installation was first started */
+	public long getInstallDate()
 	{
-		updateInstance();
-		Statement stmt = null;
-		ResultSet rs = null;
-		String sql = "SELECT centerID, installDate FROM " + theTransactor.getTablePrefix()
-			+ "prisms_installation";
-		try
-		{
-			stmt = theTransactor.getConnection().createStatement();
-			rs = stmt.executeQuery(sql);
-			if(!rs.next())
-				return -1;
-			theCenterID = rs.getInt("centerID");
-			return rs.getTimestamp("installDate").getTime();
-		} catch(SQLException e)
-		{
-			throw new PrismsException("Could not query PRISMS installation: SQL=" + sql, e);
-		} finally
-		{
-			if(rs != null)
-				try
-				{
-					rs.close();
-				} catch(SQLException e)
-				{
-					log.error("Connection error", e);
-				}
-			if(stmt != null)
-				try
-				{
-					stmt.close();
-				} catch(SQLException e)
-				{
-					log.error("Connection error", e);
-				}
-		}
+		return theInstallDate;
 	}
 
 	/**

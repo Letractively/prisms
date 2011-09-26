@@ -17,6 +17,10 @@ public class PrismsProperties
 	public static final PrismsProperty<User []> users = PrismsProperty.create("prisms/users",
 		User [].class);
 
+	/** A synchronizer for PRISMS user data */
+	public static final PrismsProperty<prisms.records.PrismsSynchronizer> synchronizer = PrismsProperty
+		.create("prisms/synchronizer", prisms.records.PrismsSynchronizer.class);
+
 	/**
 	 * All applications configured in PRISMS. This propery will only be available to the manager
 	 * application.

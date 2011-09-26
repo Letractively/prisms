@@ -13,6 +13,7 @@ import prisms.arch.PrismsApplication;
 import prisms.arch.PrismsException;
 import prisms.arch.ds.User;
 import prisms.arch.ds.UserGroup;
+import prisms.arch.event.PrismsProperty;
 import prisms.records.*;
 import prisms.util.json.JsonSerialWriter;
 
@@ -58,6 +59,15 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 		try
 		{
 			ret = theUserSource.getUser(id);
+			if(ret == null)
+			{
+				long systemID = prisms.arch.ds.IDGenerator.getMaxID(theApps[0].getEnvironment()
+					.getIDs().getCenterID());
+				if(id == systemID)
+					ret = theUserSource.getSystemUser();
+				else if(id == systemID - 1)
+					ret = theUserSource.getUser(null);
+			}
 		} catch(PrismsException e)
 		{
 			throw new PrismsRecordException("Could not get user", e);
@@ -622,8 +632,7 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 			if(changed[0])
 				try
 				{
-					theUserSource.putUser(user,
-						new RecordsTransaction(theUserSource.getSystemUser(), false));
+					theUserSource.putUser(user, new RecordsTransaction(null, false));
 				} catch(PrismsException e)
 				{
 					throw new PrismsRecordException("Could not modify user", e);
@@ -642,7 +651,7 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 				group.setName(name);
 			}
 			String descrip = (String) json.get("descrip");
-			if(!group.getDescription().equals(descrip))
+			if(!equal(group.getDescription(), descrip))
 			{
 				changed[0] = true;
 				group.setDescription(descrip);
@@ -683,8 +692,7 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 			if(changed[0])
 				try
 				{
-					theUserSource.putGroup(group,
-						new RecordsTransaction(theUserSource.getSystemUser(), false));
+					theUserSource.putGroup(group, new RecordsTransaction(null, false));
 				} catch(PrismsException e)
 				{
 					throw new PrismsRecordException("Could not modify group", e);
@@ -695,6 +703,11 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 		else
 			throw new PrismsRecordException("Unrecognized PRISMS item type: "
 				+ item.getClass().getName());
+	}
+
+	private static boolean equal(Object o1, Object o2)
+	{
+		return o1 == null ? o2 == null : o1.equals(o2);
 	}
 
 	public void delete(Object item, SyncRecord syncRecord) throws PrismsRecordException
@@ -913,6 +926,11 @@ public class PrismsSyncImpl implements RecordPersister, SynchronizeImpl, ScaleIm
 		}
 		throw new PrismsRecordException("Unrecognized PRISMS subject type: "
 			+ change.type.subjectType);
+	}
+
+	public PrismsProperty<PrismsCenter []> getCentersProperty()
+	{
+		return null;
 	}
 
 	// ScaleImpl methods

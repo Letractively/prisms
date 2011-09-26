@@ -32,7 +32,7 @@ public class PrismsUserManager extends prisms.util.persisters.PersistingProperty
 				public void userSetChanged(User [] users)
 				{
 					setValue(users);
-					globalAdjustValues();
+					globalAdjustValues("prismsPersisted", Boolean.TRUE);
 				}
 
 				public void userChanged(User user)
