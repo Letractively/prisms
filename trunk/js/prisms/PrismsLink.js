@@ -459,6 +459,8 @@ __dojo.declare("prisms.PrismsLink", null, {
 			content: params,
 			load: function(data){
 				this.lastPinged=new Date().getTime();
+				if(xhrArgs && typeof xhrArgs.finished=="function")
+					xhrArgs.finished(true);
 				self._processAjaxInput(data);
 			},
 			error: function(error){
@@ -474,6 +476,8 @@ __dojo.declare("prisms.PrismsLink", null, {
 						+"If that doesn't work, try again later.");
 				else
 					self.error("Could not execute server call: ", error);
+				if(xhrArgs && typeof xhrArgs.finished=="function")
+					xhrArgs.finished(false);
 				throw error;
 			}
 		};
