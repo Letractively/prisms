@@ -55,8 +55,7 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 	},
 
 	_setPreferencesVisible: function(visible){
-		if(!visible)
-			this.preferencesMenu.domNode.style.display="none";
+		this.preferencesMenuItem.domNode.style.display=visible ? "block" : "none";
 	},
 
 	editPreferences: function(){

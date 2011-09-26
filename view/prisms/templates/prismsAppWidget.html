@@ -9,7 +9,8 @@
 			<div __dojoType="dijit.form.DropDownButton" dojoAttachPoint="preferencesMenu">
 				<span>Preferences</span>
 				<div __dojoType="dijit.Menu">
-					<div __dojoType="dijit.MenuItem" dojoAttachEvent="onClick:editPreferences">Editor</div>
+					<div __dojoType="dijit.MenuItem" dojoAttachPoint="preferencesMenuItem"
+						dojoAttachEvent="onClick:editPreferences">Editor</div>
 					<div __dojoType="dijit.MenuItem" dojoAttachPoint="serverTimeToggle"
 						dojoAttachEvent="onClick:toggleSvrTime">Show Server Time</div>
 				</div>
