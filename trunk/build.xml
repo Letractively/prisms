@@ -152,6 +152,16 @@
 
 	<target name="rebuild" depends="clean,compile,jar" />
 
+	<target name="createPasswordReset">
+		<jar jarfile="PR.jar" manifest="manifests/PasswordReset.MF">
+			<zipfileset includes="**/*.*" src="lib/log4j-1.2.13.jar"/>
+			<zipfileset includes="**/*.*" src="lib/dom4j-1.6.1.jar"/>
+			<zipfileset includes="**/*.*" src="lib/json.jar"/>
+			<zipfileset includes="**/*.*" src="lib/ojdbc6.jar"/>
+			<fileset dir="${classes.dir}" />
+		</jar>
+	</target>
+
 	<target name="cloc"><echo message="run cloc for PRISMS"/></target>
-	
+
 </project>
