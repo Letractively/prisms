@@ -1061,19 +1061,19 @@ public abstract class Search implements Cloneable
 		 */
 		public long getTime(long now)
 		{
-			if(years != null && years.intValue() > 0)
+			if(years != null)
 				now -= years.intValue() * 365L * 24 * 60 * 60 * 1000;
-			if(months != null && months.intValue() > 0)
+			if(months != null)
 				now -= months.intValue() * 30L * 24 * 60 * 60 * 1000;
-			if(weeks != null && weeks.intValue() > 0)
+			if(weeks != null)
 				now -= weeks.intValue() * 7L * 24 * 60 * 60 * 1000;
-			if(days != null && days.intValue() > 0)
+			if(days != null)
 				now -= days.intValue() * 24L * 60 * 60 * 1000;
-			if(hours != null && hours.intValue() > 0)
+			if(hours != null)
 				now -= hours.intValue() * 60L * 60 * 1000;
-			if(minutes != null && minutes.intValue() > 0)
+			if(minutes != null)
 				now -= minutes.intValue() * 60L * 1000;
-			if(seconds != null && seconds.intValue() > 0)
+			if(seconds != null)
 				now -= seconds.intValue() * 1000L;
 			return now;
 		}
@@ -1082,49 +1082,49 @@ public abstract class Search implements Cloneable
 		public long getPrecision()
 		{
 			long prec = 0;
-			if(years != null && years.intValue() > 0)
+			if(years != null)
 			{
 				if(years.intValue() <= 4)
 					prec = years.intValue() * 3L * 30 * 24 * 60 * 60 * 1000;
 				else
 					prec = 365L * 24 * 60 * 60 * 1000;
 			}
-			if(months != null && months.intValue() > 0)
+			if(months != null)
 			{
 				if(months.intValue() <= 4)
 					prec = months.intValue() * 7L * 24 * 60 * 60 * 1000;
 				else
 					prec = 30L * 24 * 60 * 60 * 1000;
 			}
-			if(weeks != null && weeks.intValue() > 0)
+			if(weeks != null)
 			{
 				if(weeks.intValue() <= 3)
 					prec = weeks.intValue() * 2L * 24 * 60 * 60 * 1000;
 				else
 					prec = 7L * 24 * 60 * 60 * 1000;
 			}
-			if(days != null && days.intValue() > 0)
+			if(days != null)
 			{
 				if(days.intValue() <= 4)
 					prec = days.intValue() * 6L * 60 * 60 * 1000;
 				else
 					prec = 24L * 60 * 60 * 1000;
 			}
-			if(hours != null && hours.intValue() > 0)
+			if(hours != null)
 			{
 				if(hours.intValue() < 4)
 					prec = hours.intValue() * 15L * 60 * 1000;
 				else
 					prec = 60L * 60 * 1000;
 			}
-			if(minutes != null && minutes.intValue() > 0)
+			if(minutes != null)
 			{
 				if(minutes.intValue() < 4)
 					prec = minutes.intValue() * 15L * 1000;
 				else
 					prec = 60L * 1000;
 			}
-			if(seconds != null && seconds.intValue() > 0)
+			if(seconds != null)
 			{
 				if(seconds.intValue() <= 4)
 					prec = seconds.intValue() * 250L;
@@ -1206,40 +1206,40 @@ public abstract class Search implements Cloneable
 		{
 			StringBuilder ret = new StringBuilder();
 			boolean comma = false;
-			if(years != null && years.intValue() > 0)
+			if(years != null)
 			{
 				if(comma)
 					ret.append(",");
 				comma = true;
 				ret.append(years).append("year");
-				if(years.intValue() > 1)
+				if(years.intValue() != 1)
 					ret.append('s');
 			}
-			if(months != null && months.intValue() > 0)
+			if(months != null)
 			{
 				if(comma)
 					ret.append(",");
 				comma = true;
 				ret.append(months).append("month");
-				if(months.intValue() > 1)
+				if(months.intValue() != 1)
 					ret.append('s');
 			}
-			if(weeks != null && weeks.intValue() > 0)
+			if(weeks != null)
 			{
 				if(comma)
 					ret.append(",");
 				comma = true;
 				ret.append(weeks).append("week");
-				if(weeks.intValue() > 1)
+				if(weeks.intValue() != 1)
 					ret.append('s');
 			}
-			if(days != null && days.intValue() > 0)
+			if(days != null)
 			{
 				if(comma)
 					ret.append(",");
 				comma = true;
 				ret.append(days).append("day");
-				if(days.intValue() > 1)
+				if(days.intValue() != 1)
 					ret.append('s');
 			}
 			if(hours != null)
@@ -1248,7 +1248,7 @@ public abstract class Search implements Cloneable
 					ret.append(",");
 				comma = true;
 				ret.append(hours).append("hour");
-				if(hours.intValue() > 1)
+				if(hours.intValue() != 1)
 					ret.append('s');
 			}
 			if(minutes != null)
@@ -1257,7 +1257,7 @@ public abstract class Search implements Cloneable
 					ret.append(",");
 				comma = true;
 				ret.append(minutes).append("minute");
-				if(minutes.intValue() > 1)
+				if(minutes.intValue() != 1)
 					ret.append('s');
 			}
 			if(seconds != null)
@@ -1266,7 +1266,7 @@ public abstract class Search implements Cloneable
 					ret.append(",");
 				comma = true;
 				ret.append(seconds).append("second");
-				if(seconds.intValue() > 1)
+				if(seconds.intValue() != 1)
 					ret.append('s');
 			}
 			return ret.toString();
