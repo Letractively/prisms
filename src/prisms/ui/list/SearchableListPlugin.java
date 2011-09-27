@@ -150,6 +150,18 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	}
 
 	/**
+	 * @param node The node to check
+	 * @return Whether the given node is visible to the user via the search
+	 */
+	public boolean isVisible(DataListNode node)
+	{
+		for(int i = 0; i < getItemCount(); i++)
+			if(getItem(i).equals(node))
+				return theDisplayed == null || theDisplayed.contains(i);
+		return false;
+	}
+
+	/**
 	 * Called when anything happens that may change what is displayed to the user. This may be a
 	 * change to the
 	 */

@@ -18,6 +18,23 @@ import org.json.simple.JSONObject;
  */
 public abstract class SearchableScaledList<T> extends SearchableListPlugin<T>
 {
+	/** Only propagates events for nodes that are currently visible */
+	public static class ScaledNodeEventListener extends NodeEventListener
+	{
+		/** @see prisms.ui.list.DataListMgrPlugin.NodeEventListener#NodeEventListener(DataListMgrPlugin) */
+		public ScaledNodeEventListener(DataListMgrPlugin mgr)
+		{
+			super(mgr);
+		}
+
+		@Override
+		public void changeOccurred(DataListEvent evt)
+		{
+			if(((SearchableScaledList<?>) getMgr()).isVisible(evt.getNode()))
+				super.changeOccurred(evt);
+		}
+	}
+
 	private class NavNode extends SimpleListPluginNode
 	{
 		private final String theID;
@@ -212,6 +229,7 @@ public abstract class SearchableScaledList<T> extends SearchableListPlugin<T>
 		if(!isScaled)
 			return;
 		clearListener();
+		addListener(new ScaledNodeEventListener(this));
 		theBeginNode = new NavNode(false, true);
 		thePreviousNode = new NavNode(false, false);
 		theNextNode = new NavNode(true, false);
@@ -375,6 +393,24 @@ public abstract class SearchableScaledList<T> extends SearchableListPlugin<T>
 		else
 			total = 0;
 		return total;
+	}
+
+	@Override
+	public boolean isVisible(DataListNode node)
+	{
+		for(int i = 0; i < getItemCount(); i++)
+			if(getItem(i).equals(node))
+			{
+				prisms.util.IntList displayed = getSearchResults();
+				if(displayed != null)
+					return displayed.indexOf(i) >= theStart
+						&& displayed.indexOf(i) < theStart + theDisplayCount;
+				else if(isDisplayingAll)
+					return i >= theStart && i < theStart + theDisplayCount;
+				else
+					return false;
+			}
+		return false;
 	}
 
 	/** Navigates to the next set of items */
