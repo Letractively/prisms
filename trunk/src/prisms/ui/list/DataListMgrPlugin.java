@@ -1,4 +1,4 @@
-/**
+/*
  * DataListMgrPlugin.java Created Jan 29, 2008 by Andrew Butler, PSL
  */
 package prisms.ui.list;
@@ -12,6 +12,67 @@ import prisms.arch.PrismsSession;
 /** An PRISMS plugin that manages a list of data */
 public class DataListMgrPlugin extends DataListManager implements prisms.arch.AppPlugin
 {
+	/** A listener that posts appropriate events to the client to represent node changes */
+	public static class NodeEventListener implements DataListListener
+	{
+		private final DataListMgrPlugin theMgr;
+
+		/** @param mgr The manager plugin to listen for */
+		public NodeEventListener(DataListMgrPlugin mgr)
+		{
+			theMgr = mgr;
+		}
+
+		/** @return The manager that this listener is listening for */
+		public DataListMgrPlugin getMgr()
+		{
+			return theMgr;
+		}
+
+		public void changeOccurred(DataListEvent evt)
+		{
+			prisms.arch.PrismsTransaction trans = theMgr.getSession().getApp().getEnvironment()
+				.getTransaction();
+			if(trans != null
+				&& trans.getStage() != prisms.arch.PrismsTransaction.Stage.processEvent)
+				return;
+			JSONObject ret = new JSONObject();
+			ret.put("plugin", theMgr.getName());
+			String method;
+			JSONObject jsonNode = theMgr.serialize(evt.getNode());
+			switch(evt.getType())
+			{
+			case ADD:
+				method = "addItem";
+				ret.put("item", jsonNode);
+				ret.put("index", Integer.valueOf(evt.getIndex()));
+				break;
+			case REMOVE:
+				method = "removeItem";
+				ret.put("item", jsonNode);
+				break;
+			case MOVE:
+				method = "moveItem";
+				ret.put("item", jsonNode);
+				for(int i = 0; i < theMgr.getItemCount(); i++)
+					if(theMgr.getItem(i) == evt.getNode())
+					{
+						ret.put("index", Integer.valueOf(i));
+						break;
+					}
+				break;
+			case CHANGE:
+				method = "changeItem";
+				ret.put("item", jsonNode);
+				break;
+			default:
+				method = null;
+			}
+			ret.put("method", method);
+			theMgr.getSession().postOutgoingEvent(ret);
+		}
+	}
+
 	private static final Logger log = Logger.getLogger(DataListMgrPlugin.class);
 
 	/**
@@ -47,51 +108,7 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 	public DataListMgrPlugin()
 	{
 		theSelectionMode = SelectionMode.NONE;
-		theListener = new DataListListener()
-		{
-			public void changeOccurred(DataListEvent evt)
-			{
-				prisms.arch.PrismsTransaction trans = getSession().getApp().getEnvironment()
-					.getTransaction();
-				if(trans != null
-					&& trans.getStage() != prisms.arch.PrismsTransaction.Stage.processEvent)
-					return;
-				JSONObject ret = new JSONObject();
-				ret.put("plugin", getName());
-				String method;
-				JSONObject jsonNode = serialize(evt.getNode());
-				switch(evt.getType())
-				{
-				case ADD:
-					method = "addItem";
-					ret.put("item", jsonNode);
-					ret.put("index", Integer.valueOf(evt.getIndex()));
-					break;
-				case REMOVE:
-					method = "removeItem";
-					ret.put("item", jsonNode);
-					break;
-				case MOVE:
-					method = "moveItem";
-					ret.put("item", jsonNode);
-					for(int i = 0; i < getItemCount(); i++)
-						if(getItem(i) == evt.getNode())
-						{
-							ret.put("index", Integer.valueOf(i));
-							break;
-						}
-					break;
-				case CHANGE:
-					method = "changeItem";
-					ret.put("item", jsonNode);
-					break;
-				default:
-					method = null;
-				}
-				ret.put("method", method);
-				getSession().postOutgoingEvent(ret);
-			}
-		};
+		theListener = new NodeEventListener(this);
 		addListener(theListener);
 	}
 
