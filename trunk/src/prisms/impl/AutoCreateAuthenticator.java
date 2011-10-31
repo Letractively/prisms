@@ -16,7 +16,9 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 {
 	private static final Logger userLog = Logger.getLogger("prisms.users");
 
-	/** A {@link PrismsAuthenticator.SessionAuthenticator} for auto-create authenticators */
+	/**
+	 * A {@link prisms.arch.PrismsAuthenticator.SessionAuthenticator} for auto-create authenticators
+	 */
 	protected static class AutoCreateSessionAuthenticator implements SessionAuthenticator
 	{
 		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request)
@@ -57,7 +59,9 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 		}
 	}
 
-	/** A {@link PrismsAuthenticator.RequestAuthenticator} for auto-create authentication */
+	/**
+	 * A {@link prisms.arch.PrismsAuthenticator.RequestAuthenticator} for auto-create authentication
+	 */
 	protected static class AutoCreateRequestAuthenticator implements RequestAuthenticator
 	{
 		private PrismsRequest theRequest;
@@ -85,7 +89,7 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 
 		public String getData()
 		{
-			return theRequest.httpRequest.getParameter("data");
+			return theRequest.getParameter("data");
 		}
 
 		public String encrypt(javax.servlet.http.HttpServletResponse resp, String data)
@@ -195,13 +199,7 @@ public abstract class AutoCreateAuthenticator implements PrismsAuthenticator
 			}
 			else
 				ret.setDeleted(false);
-			for(prisms.arch.PrismsApplication app : theApps)
-				if(mus.canAccess(theTemplate, app) && !mus.canAccess(ret, app))
-					mus.setUserAccess(ret, app, true,
-						new prisms.records.RecordsTransaction(mus.getSystemUser()));
-			for(prisms.arch.ds.UserGroup group : theTemplate.getGroups())
-				if(!prisms.util.ArrayUtils.contains(ret.getGroups(), group))
-					ret.addTo(group);
+			manager.app.ManagerUtils.copy(theTemplate, ret, mus, theApps);
 			mus.putUser(ret, new prisms.records.RecordsTransaction(mus.getSystemUser()));
 			return ret;
 		}

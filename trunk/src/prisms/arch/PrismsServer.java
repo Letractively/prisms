@@ -293,6 +293,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		/** The version of the client--only valid for M2M clients */
 		public final String version;
 
+		private java.util.HashMap<String, String> theFormParams;
+
 		String serverMethod;
 
 		String appName;
@@ -311,19 +313,56 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		ClientConfig client;
 
+		java.util.List<org.apache.commons.fileupload.FileItem> theUploads;
+
 		PrismsRequest(HttpServletRequest req, HttpServletResponse resp,
 			RemoteEventSerializer serializer)
 		{
 			httpRequest = req;
 			theResponse = resp;
 			theSerializer = serializer;
-			version = req.getParameter("version");
-			serverMethod = req.getParameter("method");
-			appName = PrismsUtils.decodeSafe(req.getParameter("app"));
-			clientName = PrismsUtils.decodeSafe(req.getParameter("client"));
+			if(org.apache.commons.fileupload.servlet.ServletFileUpload.isMultipartContent(req))
+			{
+				theUploads = new java.util.ArrayList<org.apache.commons.fileupload.FileItem>();
+
+				// Create a factory for disk-based file items
+				org.apache.commons.fileupload.FileItemFactory factory;
+				factory = new org.apache.commons.fileupload.disk.DiskFileItemFactory();
+
+				// Create a new file upload handler
+				org.apache.commons.fileupload.servlet.ServletFileUpload upload;
+				upload = new org.apache.commons.fileupload.servlet.ServletFileUpload(factory);
+
+				// Parse the request
+				java.util.List<org.apache.commons.fileupload.FileItem> items;
+				try
+				{
+					items = upload.parseRequest(req);
+				} catch(org.apache.commons.fileupload.FileUploadException e)
+				{
+					throw new IllegalStateException("File upload failed", e);
+				}
+				for(int i = 0; i < items.size(); i++)
+				{
+					final org.apache.commons.fileupload.FileItem item = items.get(i);
+					if(item.isFormField())
+					{
+						if(theFormParams == null)
+							theFormParams = new java.util.HashMap<String, String>();
+						theFormParams.put(item.getFieldName(), item.getString());
+						continue;
+					}
+					else
+						theUploads.add(items.get(i));
+				}
+			}
+			version = getParameter("version");
+			serverMethod = getParameter("method");
+			appName = PrismsUtils.decodeSafe(getParameter("app"));
+			clientName = PrismsUtils.decodeSafe(getParameter("client"));
 			if(clientName == null)
-				clientName = PrismsUtils.decodeSafe(req.getParameter("service"));
-			dataString = req.getParameter("data");
+				clientName = PrismsUtils.decodeSafe(getParameter("service"));
+			dataString = getParameter("data");
 			isWMS = PrismsWmsRequest.isWMS(req);
 		}
 
@@ -361,6 +400,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(clientName == null)
 				clientName = "WMS";
 			return null;
+		}
+
+		/**
+		 * Gets a parameter from the request
+		 * 
+		 * @param paramName The name of the parameter to get
+		 * @return The value of the given parameter
+		 */
+		public String getParameter(String paramName)
+		{
+			String ret = httpRequest.getParameter(paramName);
+			if(ret == null && theFormParams != null)
+				ret = theFormParams.get(paramName);
+			return ret;
 		}
 
 		void send(JSONArray events) throws IOException
@@ -474,8 +527,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			UserSource us = getEnv().getUserSource();
 			isAnonymous = user.equals(us.getUser(null));
-			isSystem = us instanceof prisms.arch.ds.ManageableUserSource
-				&& ((prisms.arch.ds.ManageableUserSource) us).getSystemUser().equals(user);
+			isSystem = us.getSystemUser().equals(user);
 			checkAuthenticationData();
 			theCreationTime = theLastUsed;
 		}
@@ -890,6 +942,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		PrismsResponse sendLogin(prisms.arch.PrismsAuthenticator.RequestAuthenticator reqAuth,
 			PrismsRequest req, String error, boolean postInit, boolean isError)
 		{
+			if(theSessionAuth == null)
+			{
+				try
+				{
+					theSessionAuth = theAuth.createSessionAuthenticator(req, theUser);
+				} catch(PrismsException e)
+				{
+					log.error("Could not initialize authentication", e);
+					return error(null, req, ErrorCode.ServerError,
+						"Could not initialize authentication: " + e.getMessage(), false);
+				}
+			}
 			JSONObject evt;
 			try
 			{
@@ -1084,10 +1148,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						theHttpSession.removeSession(this);
 						destroy();
 						sessionLog.info("Session "
-							+ (theSession == null ? "" : theSession.getMetadata().getID() + " ")
-							+ ", user " + theUser + ", application " + theClient.getApp()
-							+ ", client " + theClient + " logged out.");
-						return theSecurity.sendLogin(reqAuth, req,
+							+ (theSession == null ? "" : theSession.getMetadata().getID() + ",")
+							+ " user " + theUser + ", application " + theClient.getApp()
+							+ ", client " + theClient.getName() + " logged out.");
+						/* After the call to HttpSession.removeSession(), the security session used
+						 * by this session holder may have been deleted. We need to retrieve the
+						 * security session from the HttpSession and if it's not there, create it. */
+						SecuritySession security = theHttpSession.getSecurity(
+							theSecurity.getAuth(), theSecurity.getUser());
+						if(security == null)
+							security = theHttpSession.createSecurity(theSecurity.getAuth(),
+								theSecurity.getUser(), req.httpRequest);
+						return security.sendLogin(reqAuth, req,
 							"You have been successfully logged out", false, false);
 					} finally
 					{
@@ -1134,7 +1206,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 				if("doUpload".equals(req.serverMethod))
 				{
-					doUpload(req.httpRequest, event);
+					doUpload(req, event);
 					// We redirect to avoid the browser's resend warning if the user refreshes
 					req.theResponse.setStatus(301);
 					req.theResponse.sendRedirect("nothing.html");
@@ -1264,7 +1336,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					writer.close();
 					break;
 				case Map:
-					if(wms.getFormat().equals("jpg"))
+					String format = wms.getFormat();
+					if(format.startsWith("image/"))
+						response.setContentType(format);
+					else if(wms.getFormat().equals("jpg"))
 						response.setContentType("image/jpeg");
 					else
 						response.setContentType("image/" + wms.getFormat());
@@ -1382,86 +1457,62 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 
-		private void doUpload(HttpServletRequest request, final JSONObject event)
+		private void doUpload(final PrismsRequest request, final JSONObject event)
 			throws IOException
 		{
+			if(request.theUploads == null)
+				throw new IllegalArgumentException("getUpload called without multipart content");
+			if(request.theUploads.isEmpty())
+				throw new IllegalStateException("getUpload called with no non-form field");
+
 			final String pluginName = (String) event.get("plugin");
-			if(theSession.getPlugin(pluginName) == null)
+			final UploadPlugin plugin = (UploadPlugin) theSession.getPlugin(pluginName);
+			if(plugin == null)
 			{
 				log.debug("No plugin " + pluginName + " loaded");
 				return;
 			}
-			final UploadPlugin plugin = (UploadPlugin) theSession.getPlugin(pluginName);
-			if(!org.apache.commons.fileupload.servlet.ServletFileUpload.isMultipartContent(request))
-				throw new IllegalArgumentException("getUpload called without multipart content");
-			// Create a factory for disk-based file items
-			org.apache.commons.fileupload.FileItemFactory factory;
-			factory = new org.apache.commons.fileupload.disk.DiskFileItemFactory();
-
-			// Create a new file upload handler
-			org.apache.commons.fileupload.servlet.ServletFileUpload upload;
-			upload = new org.apache.commons.fileupload.servlet.ServletFileUpload(factory);
-
-			// Parse the request
-			java.util.List<org.apache.commons.fileupload.FileItem> items;
-			try
+			Runnable toRun = new Runnable()
 			{
-				items = upload.parseRequest(request);
-			} catch(org.apache.commons.fileupload.FileUploadException e)
-			{
-				throw new IllegalStateException("File upload failed", e);
-			}
-			String eventFileName = (String) event.get("uploadFile");
-			if(eventFileName == null)
-				throw new IllegalArgumentException("No uploadFile specified");
-			eventFileName = org.apache.commons.io.FilenameUtils.getName(eventFileName);
-			boolean didUpload = false;
-			for(int i = 0; i < items.size(); i++)
-			{
-				final org.apache.commons.fileupload.FileItem item = items.get(i);
-				if(item.isFormField())
+				public void run()
 				{
-					log.info("Disregarded form field " + item.getFieldName() + ", value="
-						+ item.getString());
-					continue;
-				}
-				final String fileName = org.apache.commons.io.FilenameUtils.getName(item.getName());
-				if(!fileName.equals(eventFileName))
-				{
-					log.error("Uploaded file " + fileName
-						+ " does not match file specified in event: " + eventFileName);
-					throw new IllegalArgumentException("Invalid upload file");
-				}
-				theSession.runEventually(new Runnable()
-				{
-					public void run()
+					PrismsTransaction trans = getEnv().getTransaction();
+					TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName
+						+ ".doUpload");
+					try
 					{
-						TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName
-							+ ".doUpload");
-						try
+						for(org.apache.commons.fileupload.FileItem item : request.theUploads)
 						{
-							plugin.doUpload(event, fileName, item.getContentType(),
-								item.getInputStream(), item.getSize());
-						} catch(java.io.IOException e)
-						{
-							log.error("Upload " + fileName + " failed", e);
-						} catch(RuntimeException e)
-						{
-							log.error("Upload failed", e);
-						} catch(Error e)
-						{
-							log.error("Upload failed", e);
-						} finally
-						{
-							PrismsUtils.end(getEnv(), track);
-							item.delete();
+							String fileName = org.apache.commons.io.FilenameUtils.getName(item
+								.getName());
+							try
+							{
+								plugin.doUpload(event, fileName, item.getContentType(),
+									item.getInputStream(), item.getSize());
+							} catch(java.io.IOException e)
+							{
+								log.error("Upload " + fileName + " failed", e);
+							} catch(RuntimeException e)
+							{
+								log.error("Upload failed", e);
+							} catch(Error e)
+							{
+								log.error("Upload failed", e);
+							} finally
+							{
+								item.delete();
+							}
 						}
+					} finally
+					{
+						PrismsUtils.end(trans, track);
 					}
-				});
-				didUpload = true;
-			}
-			if(!didUpload)
-				throw new IllegalStateException("getUpload called with no non-form field");
+				}
+			};
+			if(request.getClient().isService())
+				toRun.run();
+			else
+				theSession.runEventually(toRun);
 		}
 
 		private prisms.arch.PrismsSession.SessionMetadata createMetadata()
@@ -1606,8 +1657,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 							sessionLog.info("Session "
 								+ (session.getSession() == null ? "" : session.getSession()
 									.getMetadata().getID()
-									+ " ") + ", user " + session.getUser() + ", client "
-								+ session.getClient() + " has timed out.");
+									+ ",") + " user " + session.getUser() + ", client "
+								+ session.getClient().getName() + " has timed out.");
 							String key = theID + "/" + session.getClient().getApp().getName() + "/"
 								+ session.getClient().getName() + "/" + session.getUser().getName();
 							theEpitaphs.put(key, new SessionEpitaph("Session has timed out."));
@@ -1692,9 +1743,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 								sessionLog.info("Session "
 									+ (holder.getSession() == null ? "" : holder.getSession()
 										.getMetadata().getID()
-										+ " ") + ", user " + holder.getUser() + ", application "
+										+ "") + ", user " + holder.getUser() + ", application "
 									+ holder.getClient().getApp() + ", client "
-									+ holder.getClient() + " has timed out.");
+									+ holder.getClient().getName() + " has timed out.");
 								theEpitaphs.put(key, new SessionEpitaph("Session has timed out."));
 							}
 							theSessionHolders = ArrayUtils.remove(theSessionHolders, s);
@@ -2086,7 +2137,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			log.info("Initialized Log4j successfully");
 		}
 		else
-			System.out.println("could not find log4j.xml resource!");
+			System.out.println("Could not find log4j.xml resource!");
 	}
 
 	/**
@@ -2605,9 +2656,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if(theConfigProgress.theStage.compareTo(ConfigStage.CONFIG_USER_SOURCE) <= 0)
 		{
 			// Now we can configure the user source
+			prisms.arch.ds.Hashing hashing = null;
+			if(theConfigProgress.theImporter != null)
+				hashing = theConfigProgress.theImporter.getHashing();
 			try
 			{
-				theEnv.getUserSource().configure(theConfigProgress.theUsEl, theEnv, apps);
+				theEnv.getUserSource().configure(theConfigProgress.theUsEl, theEnv, apps, hashing);
 			} catch(Exception e)
 			{
 				log.error("Could not configure data source " + e.getMessage());
@@ -3080,7 +3134,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				user.setAdmin(userEl.is("admin", false));
 			}
 			String password = userEl.get("password");
-			if(password != null && us.getPassword(user, us.getHashing()) == null)
+			if(password != null && us.getPassword(user) == null)
 			{
 				us.setPassword(user, us.getHashing().partialHash(password), true);
 				log.debug("Set initial password of user " + userName);
@@ -3302,10 +3356,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 		else if(req.getSession().isNew())
 		{
-			String sessionID = rh;
+			String sessionID = rh + "/" + req.getSession().getId();
 			httpSession = theSessions.get(sessionID);
 			if(httpSession == null)
-				sessionIDs = new String [] {rh + "/" + req.getSession().getId(), sessionID};
+			{
+				httpSession = theSessions.get(rh);
+				if(httpSession == null)
+					sessionIDs = new String [] {rh + "/" + req.getSession().getId(), rh};
+				else
+					sessionIDs = new String [] {rh};
+			}
 			else
 				sessionIDs = new String [] {sessionID};
 		}
@@ -3332,6 +3392,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 							theSessions.put(sessionID, httpSession);
 					}
 				}
+			}
+			else if(pReq.client.isService())
+			{
+				/* Service didn't call init before first request. Make them call init and then resubmit.*/
+				events.add(toEvent("callInit", "message",
+					"init needs to be called before service calls can be made."));
+				pReq.send(events);
+				return;
 			}
 			else
 			{
@@ -3714,43 +3782,88 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			msg.append("\n\tSession: ");
 			msg.append(trans[t].getSession() == null ? "none" : trans[t].getSession().toString());
 			msg.append("\n\tThread: ");
-			msg.append(trans[t].getThread().getName()).append(" (ID ")
-				.append(trans[t].getThread().getId()).append(')');
+			msg.append(trans[t].getThread().getName());
+			msg.append(" (").append(trans[t].getThread().getState().name().toLowerCase())
+				.append(')');
+			msg.append(" (ID ").append(trans[t].getThread().getId()).append(')');
 			msg.append("\n\tStage: ");
 			msg.append(trans[t].getStage());
 			java.lang.management.ThreadMXBean tmxb = java.lang.management.ManagementFactory
 				.getThreadMXBean();
-			java.lang.management.ThreadInfo ti = tmxb.getThreadInfo(trans[t].getThread().getId());
-			java.lang.management.LockInfo lock = ti.getLockInfo();
-			if(lock != null)
-				msg.append("\n\tWaiting for ").append(lock.toString()).append(" owned by ")
-					.append(ti.getLockOwnerName()).append(" (ID ").append(ti.getLockOwnerId())
-					.append(')');
-			java.lang.management.MonitorInfo[] monitors = ti.getLockedMonitors();
-			java.lang.management.LockInfo[] locks = ti.getLockedSynchronizers();
-			if(monitors.length > 0 || locks.length > 0)
+			if(PrismsUtils.isJava6())
 			{
-				msg.append("Holding ");
-				for(int i = 0; i < monitors.length; i++)
+				java.lang.management.ThreadInfo ti = tmxb.getThreadInfo(new long [] {trans[t]
+					.getThread().getId()}, true, true)[0];
+				java.lang.management.LockInfo lock = ti.getLockInfo();
+				if(lock != null)
+					msg.append("\n\tWaiting for ").append(lock.toString()).append(" owned by ")
+						.append(ti.getLockOwnerName()).append(" (ID ").append(ti.getLockOwnerId())
+						.append(')');
+				java.lang.management.MonitorInfo[] monitors = ti.getLockedMonitors();
+				java.lang.management.LockInfo[] locks = ti.getLockedSynchronizers();
+				if(monitors.length > 0 || locks.length > 0)
 				{
-					if(i > 0)
-						msg.append(", ");
-					msg.append(monitors[i].toString());
-				}
-				for(int i = 0; i < locks.length; i++)
-				{
-					if(i > 0 || monitors.length > 0)
-						msg.append(", ");
-					msg.append(locks[i].toString());
+					java.util.LinkedHashMap<String, StackTraceElement []> mons;
+					mons = new java.util.LinkedHashMap<String, StackTraceElement []>();
+					msg.append("\n\tHolding:");
+					for(int i = 0; i < monitors.length; i++)
+					{
+						String mString = monitors[i].toString();
+						StackTraceElement [] ste = mons.get(mString);
+						if(ste == null)
+							ste = new StackTraceElement [] {monitors[i].getLockedStackFrame()};
+						else
+							ste = ArrayUtils.add(ste, monitors[i].getLockedStackFrame());
+						mons.put(mString, ste);
+					}
+					for(java.util.Map.Entry<String, StackTraceElement []> entry : mons.entrySet())
+					{
+						msg.append("\n\t\t").append(entry.getKey());
+						StackTraceElement [] ste = entry.getValue();
+						if(ste[0] != null)
+						{
+							msg.append(" at ");
+							if(ste.length > 1)
+							{
+								msg.append("all of");
+								for(StackTraceElement el : ste)
+									msg.append("\n\t\t\t").append(el.toString());
+							}
+							else
+								msg.append(ste[0].toString());
+						}
+					}
+					if(locks.length > 0)
+						msg.append("\n\t\t");
+					mons.clear();
+					for(int i = 0; i < locks.length; i++)
+					{
+						String lString = locks[i].toString();
+						if(mons.containsKey(lString))
+							continue;
+						mons.put(lString, new StackTraceElement [0]);
+						if(i > 0)
+							msg.append(", ");
+						msg.append(lString);
+					}
 				}
 			}
-			msg.append("\n\tTracking Data: ");
+			msg.append("\n\tTracking Data:\n");
 			prisms.util.ProgramTracker.PrintConfig config = new prisms.util.ProgramTracker.PrintConfig();
-			config.setAccentThreshold(8);
+			config.setAccentThreshold(12);
 			config.setAsync(true);
 			config.setTaskDisplayThreshold(100);
+			config.setInitialIndent("\t   ");
+			config.setWithIntro(false);
 			trans[t].getTracker().printData(msg, config);
-			Exception ex = new Exception("Current Stack Trace:");
+			Exception ex = new Exception()
+			{
+				@Override
+				public String toString()
+				{
+					return "\tCurrent Stack Trace:";
+				}
+			};
 			ex.setStackTrace(trans[t].getThread().getStackTrace());
 			log.warn(msg.toString(), ex);
 			checks[t].lastLogged = now;
@@ -3768,9 +3881,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		for(PrismsApplication app : theApps.values())
 			app.destroy();
 		getEnv().getUserSource().disconnect();
-		getEnv().getIDs().destroy();
 		getEnv().getLogger().disconnect();
+		getEnv().getIDs().destroy();
 		getEnv().getConnectionFactory().destroy();
+		getEnv().getWorker().close();
 		System.gc();
 	}
 }
