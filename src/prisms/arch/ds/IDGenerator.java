@@ -173,7 +173,7 @@ public class IDGenerator
 		return (centerID + 1L) * ID_RANGE - 1;
 	}
 
-	private final prisms.arch.ds.Transactor<PrismsException> theTransactor;
+	private prisms.arch.ds.Transactor<PrismsException> theTransactor;
 
 	private Boolean isOracle;
 
@@ -446,7 +446,7 @@ public class IDGenerator
 	 */
 	public void updateInstance()
 	{
-		if(theLocalLocation == null || !isShared)
+		if(theLocalLocation == null || !isShared || theTransactor == null)
 			return;
 		long now = System.currentTimeMillis();
 		if(now - theLastInstanceUpdate > 60000)
@@ -734,6 +734,8 @@ public class IDGenerator
 	public synchronized long getNextID(String table, String column, Statement extStmt,
 		String extPrefix, String where) throws PrismsException
 	{
+		if(theTransactor == null)
+			throw new IllegalStateException("This ID generator has been closed");
 		updateInstance();
 		ResultSet rs = null;
 		String sql = null;
@@ -957,6 +959,8 @@ public class IDGenerator
 	public synchronized int getNextIntID(Statement stmt, String table, String prefix,
 		String column, String where) throws PrismsException
 	{
+		if(theTransactor == null)
+			throw new IllegalStateException("This ID generator has been closed");
 		updateInstance();
 		if(prefix == null)
 			prefix = "";
@@ -1102,8 +1106,10 @@ public class IDGenerator
 		}
 	}
 
-	void closePreparedCalls()
+	synchronized void closePreparedCalls()
 	{
+		if(theSyncStatement == null)
+			return;
 		try
 		{
 			theSyncStatement.close();
@@ -1189,9 +1195,11 @@ public class IDGenerator
 	}
 
 	/** Performs steps to shut down this PRISMS database connection */
-	public void destroy()
+	public synchronized void destroy()
 	{
 		dropInstance();
+		closePreparedCalls();
 		theTransactor.release();
+		theTransactor = null;
 	}
 }
