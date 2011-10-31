@@ -46,8 +46,7 @@ public class AppConfig
 			for(PrismsConfig propConfig : config.subConfigs("properties/property"))
 				try
 				{
-					if(testInitializer(propConfig, withInitializers))
-						addPropertyManager(app, propConfig, withInitializers, newMgrs);
+					addPropertyManager(app, propConfig, withInitializers, newMgrs);
 				} catch(RuntimeException e)
 				{
 					if(!propConfig.is("optional", false))
@@ -195,7 +194,7 @@ public class AppConfig
 					if(testInitializer(m, withInitializers))
 						addMonitor(app, null, m);
 		}
-		else
+		else if(testInitializer(propConfig, withInitializers))
 		{
 			PropertyManager<?> mgr;
 			String mgrType = propConfig.get("type");
