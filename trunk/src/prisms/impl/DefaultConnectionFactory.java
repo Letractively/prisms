@@ -40,19 +40,12 @@ public class DefaultConnectionFactory implements prisms.arch.ConnectionFactory
 
 		private prisms.arch.ds.Transactor.ReconnectListener[] theListeners;
 
-		private int theRefCount;
-
 		DefaultTransactor(prisms.arch.PrismsConfig connEl, String duplicateID)
 		{
 			theConnConfig = connEl;
 			theDuplicateID = duplicateID;
 			theLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
 			theListeners = new ReconnectListener [0];
-		}
-
-		void referred()
-		{
-			theRefCount++;
 		}
 
 		String getDuplicateID()
@@ -551,7 +544,14 @@ public class DefaultConnectionFactory implements prisms.arch.ConnectionFactory
 
 			public void error(String message, Throwable cause) throws SQLException
 			{
-				throw new SQLException(message, cause);
+				if(prisms.util.PrismsUtils.isJava6())
+					throw new SQLException(message, cause);
+				else
+				{
+					SQLException toThrow = new SQLException(message + ": " + cause.getMessage());
+					toThrow.setStackTrace(cause.getStackTrace());
+					throw toThrow;
+				}
 			}
 		};
 	}
@@ -704,7 +704,15 @@ public class DefaultConnectionFactory implements prisms.arch.ConnectionFactory
 				}
 			} catch(Throwable e)
 			{
-				throw new SQLException("Could not instantiate SQL Connection: " + config, e);
+				if(prisms.util.PrismsUtils.isJava6())
+					throw new SQLException("Could not instantiate SQL Connection: " + config, e);
+				else
+				{
+					SQLException toThrow = new SQLException(
+						"Could not instantiate SQL Connection: " + config + ": " + e.getMessage());
+					toThrow.setStackTrace(e.getStackTrace());
+					throw toThrow;
+				}
 			}
 			return ret;
 		}

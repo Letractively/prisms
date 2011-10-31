@@ -11,6 +11,10 @@ import java.lang.reflect.Array;
  */
 public final class ArrayUtils
 {
+	private ArrayUtils()
+	{
+	}
+	
 	/**
 	 * Gets the first element in the given array for which the
 	 * {@link EqualsChecker#equals(Object, Object)} returns true, or null if this never occurs. The

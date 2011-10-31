@@ -1505,14 +1505,9 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		}
 		else if(end - start > groupLimit * 5 / 4)
 		{
-			int power = 1;
 			int pLimit = groupLimit;
 			while(pLimit * 5 / 4 <= end - start)
-			{
-				power++;
 				pLimit *= groupLimit;
-			}
-			power--;
 			pLimit /= groupLimit;
 			int count = (end - start) / pLimit;
 			if((count > 1 && (end - start) % pLimit > pLimit / 4)
@@ -1520,7 +1515,6 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				count++;
 			if(count == 1)
 			{
-				power--;
 				pLimit /= groupLimit;
 				count = (end - start) / pLimit;
 				if((end - start) % pLimit > pLimit / 4)

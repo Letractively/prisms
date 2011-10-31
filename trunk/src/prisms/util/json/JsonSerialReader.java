@@ -974,11 +974,11 @@ public class JsonSerialReader
 	/**
 	 * Parses the next element in an array or value of a property in an object
 	 * 
-	 * @return The value of the current property or the next element in the array. May be
-	 *         {@link #NULL} an instance of {@link org.json.simple.JSONObject},
-	 *         {@link org.json.simple.JSONArray}, Number, String, Boolean, or may be {@link #NULL}
-	 *         if the next parsed value is null. An actual null will be returned if the last element
-	 *         of the array has already been parsed.
+	 * @return The value of the current property or the next element in the array. May be an
+	 *         instance of {@link org.json.simple.JSONObject}, {@link org.json.simple.JSONArray},
+	 *         Number, String, Boolean, or may be {@link #NULL} if the next parsed value is null. An
+	 *         actual null will be returned if the last element of the array has already been
+	 *         parsed.
 	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
 	 *         object property
 	 * @throws IOException If an error occurs reading the data from the stream
