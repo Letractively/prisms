@@ -224,9 +224,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		{
 			theUser = user;
 			isAnonymous = user.equals(theUserSource.getUser(null));
-			isSystem = theUserSource instanceof prisms.arch.ds.ManageableUserSource
-				&& user.equals(((prisms.arch.ds.ManageableUserSource) theUserSource)
-					.getSystemUser());
+			isSystem = user.equals(theUserSource.getSystemUser());
 			theHashing = theUserSource.getHashing();
 			checkAuthenticationData(true);
 		}
@@ -248,13 +246,13 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				if(time < userLastChecked)
 					return -1;
 				userLastChecked = time;
-				prisms.arch.ds.UserSource.Password pwd = theUserSource.getPassword(theUser,
-					theHashing);
+				prisms.arch.ds.UserSource.Password pwd = theUserSource.getPassword(theUser);
 				if(thePassword == null && pwd != null)
 				{
 					thePassword = pwd;
 					theEncryption = createEncryption();
-					theEncryption.init(thePassword.key, theEncryptionProperties);
+					theEncryption.init(theHashing.generateKey(thePassword.hash),
+						theEncryptionProperties);
 					return pwd.setTime;
 				}
 				else if(pwd == null)
@@ -266,7 +264,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 							.generateKey(theHashing.partialHash(java.util.UUID.randomUUID()
 								.toString())), true);
 						theEncryption = createEncryption();
-						theEncryption.init(thePassword.key, null);
+						theEncryption.init(theHashing.generateKey(thePassword.hash), null);
 						authChanged = true;
 						return thePassword.setTime;
 					}
@@ -274,7 +272,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 					theEncryption = null;
 					return -1;
 				}
-				else if(!ArrayUtils.equals(thePassword.key, pwd.key))
+				else if(!ArrayUtils.equals(thePassword.hash, pwd.hash))
 				{
 					thePassword = pwd;
 					// byte [] init = new byte [10];
@@ -283,7 +281,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 					if(thePassword != null)
 					{
 						theEncryption = createEncryption();
-						theEncryption.init(thePassword.key, null);
+						theEncryption.init(theHashing.generateKey(thePassword.hash), null);
 					}
 					authChanged = true;
 					return pwd.setTime;
@@ -295,7 +293,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 						theHashing.generateKey(theHashing.partialHash(java.util.UUID.randomUUID()
 							.toString())), true);
 					theEncryption = createEncryption();
-					theEncryption.init(thePassword.key, null);
+					theEncryption.init(theHashing.generateKey(thePassword.hash), null);
 					authChanged = true;
 					return thePassword.setTime;
 				}
@@ -319,6 +317,10 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				if(enc == null)
 					return new USReqAuth(request, "User " + theUser.getName()
 						+ " does not have a password set--consult your admin", true);
+				if(dataStr.length() < 20)
+					return new USReqAuth(request, "Data string null or too short"
+						+ "--at least 20 characters of data must be included to verify encryption."
+						+ "  Use \"-XXSERVERPADDING...\" for padding", false);
 				// For some reason, "+" gets mis-translated at a space
 				dataStr = dataStr.replaceAll(" ", "+");
 				String encryptedText = dataStr;
@@ -339,8 +341,8 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 					}
 				} catch(Exception e)
 				{
-					USReqAuth ret = checkOlderPasswords(request,
-						request.httpRequest.getParameter("data").replaceAll(" ", "+"));
+					USReqAuth ret = checkOlderPasswords(request, request.getParameter("data")
+						.replaceAll(" ", "+"));
 					if(ret != null)
 						return ret;
 					log.debug("Decryption of " + encryptedText + " failed with encryption "
@@ -360,20 +362,11 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				}
 
 				// Decryption succeeded
-				if(dataStr.length() < 20)
-					return new USReqAuth(request, "Data string null or too short"
-						+ "--at least 20 characters of data must be included to verify encryption."
-						+ "  Use \"-XXSERVERPADDING...\" for padding", false);
-				// Remove "-XXSERVERPADDING" comment if present
-				int commentIdx = dataStr.indexOf("-XXSERVERPADDING");
-				if(commentIdx >= 0)
-					dataStr = dataStr.substring(0, commentIdx);
 				loginSucceeded();
 			}
 			else if(isAnonymous)
 				return new USReqAuth(request, null, dataStr);
-			else if(!request.getClient().isService()
-				&& (!hasLoggedIn || !loginOnce || !request.httpRequest.isSecure()))
+			else if(!hasLoggedIn || !loginOnce || !request.httpRequest.isSecure())
 				return new USReqAuth(request, LOGIN_FAIL_MESSAGE, true);
 			return new USReqAuth(request, null, dataStr);
 		}
@@ -383,21 +376,25 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		{
 			if(enc == null)
 				return encrypted;
-			return enc.decrypt(encrypted);
+			String ret = enc.decrypt(encrypted);
+			// Remove "-XXSERVERPADDING" comment if present
+			int commentIdx = ret.indexOf("-XXSERVERPADDING");
+			if(commentIdx >= 0)
+				ret = ret.substring(0, commentIdx);
+			return ret;
 		}
 
 		private USReqAuth checkOlderPasswords(PrismsRequest request, String dataStr)
 			throws PrismsException
 		{
 			long now = System.currentTimeMillis();
-			prisms.arch.ds.UserSource.Password[] passwords = theUserSource.getOldPasswords(theUser,
-				theHashing);
+			prisms.arch.ds.UserSource.Password[] passwords = theUserSource.getOldPasswords(theUser);
 			for(int p = 0; p < passwords.length; p++)
 			{
 				if(passwords[p].expire < now)
 					continue;
 				Encryption enc = createEncryption();
-				enc.init(passwords[p].key, theEncryptionProperties);
+				enc.init(theHashing.generateKey(passwords[p].hash), theEncryptionProperties);
 				boolean used = false;
 				try
 				{
@@ -813,6 +810,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				id |= (Math.abs(userName.toUpperCase().hashCode()) ^ Math.abs(userName
 					.toLowerCase().hashCode()));
 				ret = new DummyUser(theDummyUser, userName);
+				ret.setID(id);
 				theDummyUsers.put(userName, (DummyUser) ret);
 			}
 		}
