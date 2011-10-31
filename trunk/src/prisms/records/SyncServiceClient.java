@@ -24,6 +24,10 @@ public class SyncServiceClient
 
 	javax.net.ssl.X509TrustManager theSyncTrustManager;
 
+	javax.net.ssl.X509KeyManager theSystemKeyManager;
+
+	javax.net.ssl.X509KeyManager theSyncKeyManager;
+
 	boolean isAllowAllCerts;
 
 	/**
@@ -58,7 +62,19 @@ public class SyncServiceClient
 					break;
 				}
 			if(theSystemTrustManager == null)
-				log.error("No X509 trust manager in system defaults");
+				log.warn("No X509 trust manager in system defaults");
+
+			javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory
+				.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+			kmf.init(null, null);
+			for(javax.net.ssl.KeyManager mgr : kmf.getKeyManagers())
+				if(mgr instanceof javax.net.ssl.X509KeyManager)
+				{
+					theSystemKeyManager = (javax.net.ssl.X509KeyManager) mgr;
+					break;
+				}
+			if(theSystemKeyManager == null)
+				log.warn("No X509 key manager in system defaults");
 		} catch(java.security.GeneralSecurityException e)
 		{
 			log.error("Security doesn't allow us to get the system trust manager", e);
@@ -74,16 +90,19 @@ public class SyncServiceClient
 	/**
 	 * Sets the trust store information for an HTTPS connection
 	 * 
-	 * @param trustStore The file location of the trust store to use for client certificates
+	 * @param keyStore The file location of the key store to use for client certificates
+	 * @param keyPassword The password to access the key store
+	 * @param trustStore The file location of the trust store to use for trusted server certificates
 	 * @param trustPassword The password to access the trust store
 	 * @throws java.security.GeneralSecurityException If the security settings prevent access to SSL
 	 *         settings
 	 * @throws IOException If the trust store pointed to does not exist or cannot be read or parsed
 	 */
-	public void setSecurityInfo(String trustStore, String trustPassword)
-		throws java.security.GeneralSecurityException, IOException
+	public void setSecurityInfo(String keyStore, String keyPassword, String trustStore,
+		String trustPassword) throws java.security.GeneralSecurityException, IOException
 	{
-		setSecurityInfo(trustStore == null ? null : new java.io.File(trustStore).toURI().toURL(),
+		setSecurityInfo(keyStore == null ? null : new java.io.File(keyStore).toURI().toURL(),
+			keyPassword, trustStore == null ? null : new java.io.File(trustStore).toURI().toURL(),
 			trustPassword);
 	}
 
@@ -96,37 +115,60 @@ public class SyncServiceClient
 	/**
 	 * Sets the trust store information for an HTTPS connection
 	 * 
-	 * @param trustStore The URL location of the trust store to use for client certificates
+	 * @param keyStore The URL location of the key store to use for client certificates
+	 * @param keyPassword The password to access the key store
+	 * @param trustStore The URL location of the trust store to use for trusted server certificates
 	 * @param trustPassword The password to access the trust store
 	 * @throws java.security.GeneralSecurityException If the security settings prevent access to SSL
 	 *         settings
 	 * @throws IOException If the trust store pointed to does not exist or cannot be read or parsed
 	 */
-	public void setSecurityInfo(java.net.URL trustStore, String trustPassword)
-		throws java.security.GeneralSecurityException, IOException
+	public void setSecurityInfo(java.net.URL keyStore, String keyPassword, java.net.URL trustStore,
+		String trustPassword) throws java.security.GeneralSecurityException, IOException
 	{
-		if(trustStore == null)
+		if(keyStore == null)
+			theSyncKeyManager = null;
+		else
 		{
-			theSyncTrustManager = null;
-			return;
+			java.security.KeyStore ks = java.security.KeyStore.getInstance("JKS");
+			ks.load(keyStore.openStream(), keyPassword.toCharArray());
+
+			javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory
+				.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+			kmf.init(ks, keyPassword.toCharArray());
+			javax.net.ssl.X509KeyManager syncKM = null;
+			for(javax.net.ssl.KeyManager km : kmf.getKeyManagers())
+				if(km instanceof javax.net.ssl.X509KeyManager)
+				{
+					syncKM = (javax.net.ssl.X509KeyManager) km;
+					break;
+				}
+			if(syncKM == null)
+				log.error("No X509 key manager found for synchronizer");
+			theSyncKeyManager = syncKM;
 		}
 
-		java.security.KeyStore ks = java.security.KeyStore.getInstance("JKS");
-		ks.load(trustStore.openStream(), trustPassword.toCharArray());
+		if(trustStore == null)
+			theSyncTrustManager = null;
+		else
+		{
+			java.security.KeyStore ks = java.security.KeyStore.getInstance("JKS");
+			ks.load(trustStore.openStream(), trustPassword.toCharArray());
 
-		javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory
-			.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
-		tmf.init(ks);
-		javax.net.ssl.X509TrustManager syncTM = null;
-		for(javax.net.ssl.TrustManager tm : tmf.getTrustManagers())
-			if(tm instanceof javax.net.ssl.X509TrustManager)
-			{
-				syncTM = (javax.net.ssl.X509TrustManager) tm;
-				break;
-			}
-		if(syncTM == null)
-			log.error("No X509 trust manager found for synchronizer");
-		theSyncTrustManager = syncTM;
+			javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory
+				.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+			tmf.init(ks);
+			javax.net.ssl.X509TrustManager syncTM = null;
+			for(javax.net.ssl.TrustManager tm : tmf.getTrustManagers())
+				if(tm instanceof javax.net.ssl.X509TrustManager)
+				{
+					syncTM = (javax.net.ssl.X509TrustManager) tm;
+					break;
+				}
+			if(syncTM == null)
+				log.error("No X509 trust manager found for synchronizer");
+			theSyncTrustManager = syncTM;
+		}
 	}
 
 	/**
@@ -164,6 +206,20 @@ public class SyncServiceClient
 		prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(
 			center.getServerURL(), theAppName, theClientName, center.getServerUserName());
 		conn.setPassword(center.getServerPassword());
+		if(theSystemKeyManager != null || theSyncKeyManager != null)
+			try
+			{
+				javax.net.ssl.KeyManager[] mgrs = new javax.net.ssl.KeyManager [0];
+				if(theSyncKeyManager != null)
+					mgrs = prisms.util.ArrayUtils.add(mgrs, theSyncKeyManager);
+				if(theSystemKeyManager != null)
+					mgrs = prisms.util.ArrayUtils.add(mgrs, theSystemKeyManager);
+				conn.getConnector().setKeyManager(mgrs);
+			} catch(java.security.GeneralSecurityException e)
+			{
+				if(center.getServerURL() != null && center.getServerURL().startsWith("https:"))
+					log.warn("Could not set key manager for HTTPS synchronization", e);
+			}
 		try
 		{
 			conn.getConnector().setTrustManager(new javax.net.ssl.X509TrustManager()
@@ -251,9 +307,6 @@ public class SyncServiceClient
 		try
 		{
 			return conn.getConnector().getServerCerts();
-		} catch(java.security.GeneralSecurityException e)
-		{
-			throw new PrismsRecordException("Security environment does not permit", e);
 		} catch(IOException e)
 		{
 			throw new PrismsRecordException("Could not contact server", e);
