@@ -153,7 +153,9 @@ __dojo.declare("prisms.widget.TimeAmountEditor", [__dijit._Widget, __dijit._Temp
 			return;
 		this.yearsLink.style.display="none";
 		this.yearsBox.domNode.style.display="block";
-		this.yearsBox.focusNode.focus();
+		setTimeout(__dojo.hitch(this, function(){
+			this.yearsBox.focusNode.focus();
+		}), 50);
 	},
 
 	_yearsDeselected: function(){
@@ -172,7 +174,9 @@ __dojo.declare("prisms.widget.TimeAmountEditor", [__dijit._Widget, __dijit._Temp
 			return;
 		this.monthsLink.style.display="none";
 		this.monthsBox.domNode.style.display="block";
-		this.monthsBox.focusNode.focus();
+		setTimeout(__dojo.hitch(this, function(){
+			this.monthsBox.focusNode.focus();
+		}), 50);
 	},
 
 	_monthsDeselected: function(){
@@ -191,7 +195,9 @@ __dojo.declare("prisms.widget.TimeAmountEditor", [__dijit._Widget, __dijit._Temp
 			return;
 		this.daysLink.style.display="none";
 		this.daysBox.domNode.style.display="block";
-		this.daysBox.focusNode.focus();
+		setTimeout(__dojo.hitch(this, function(){
+			this.daysBox.focusNode.focus();
+		}), 50);
 	},
 
 	_daysDeselected: function(){
@@ -209,7 +215,9 @@ __dojo.declare("prisms.widget.TimeAmountEditor", [__dijit._Widget, __dijit._Temp
 			return;
 		this.hoursLink.style.display="none";
 		this.hoursBox.domNode.style.display="block";
-		this.hoursBox.focusNode.focus();
+		setTimeout(__dojo.hitch(this, function(){
+			this.hoursBox.focusNode.focus();
+		}), 50);
 	},
 
 	_hoursDeselected: function(){
@@ -227,7 +235,9 @@ __dojo.declare("prisms.widget.TimeAmountEditor", [__dijit._Widget, __dijit._Temp
 			return;
 		this.minutesLink.style.display="none";
 		this.minutesBox.domNode.style.display="block";
-		this.minutesBox.focusNode.focus();
+		setTimeout(__dojo.hitch(this, function(){
+			this.minutesBox.focusNode.focus();
+		}), 50);
 	},
 
 	_minutesDeselected: function(){
@@ -245,7 +255,9 @@ __dojo.declare("prisms.widget.TimeAmountEditor", [__dijit._Widget, __dijit._Temp
 			return;
 		this.secondsLink.style.display="none";
 		this.secondsBox.domNode.style.display="block";
-		this.secondsBox.focusNode.focus();
+		setTimeout(__dojo.hitch(this, function(){
+			this.secondsBox.focusNode.focus();
+		}), 50);
 	},
 
 	_secondsDeselected: function(){
