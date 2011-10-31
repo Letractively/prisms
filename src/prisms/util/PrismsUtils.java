@@ -524,22 +524,40 @@ public class PrismsUtils
 		if(c == str.length())
 			return str;
 
-		StringBuilder ret = new StringBuilder();
-		ret.append(str.substring(0, c));
+		StringBuilder ret = new StringBuilder(str);
+		encodeUnicode(ret);
+		return ret.toString();
+	}
+
+	/**
+	 * @param str The sequence to encode
+	 * @return The number of characters replaced by their unicode equivalent strings
+	 */
+	public static int encodeUnicode(StringBuilder str)
+	{
+		int ret = 0;
+		int c;
+		for(c = 0; c < str.length() && str.codePointAt(c) <= 0x7f; c++);
+		if(c == str.length())
+			return ret;
+
 		for(; c < str.length(); c++)
 		{
-			if(str.codePointAt(c) > 0x7f)
+			int ch = str.codePointAt(c);
+			if(ch > 0x7f)
 			{
-				ret.append("\\u");
-				String hexString = Integer.toHexString(str.codePointAt(c));
-				for(int i = 0; i < 4 - hexString.length(); i++)
-					ret.append('0');
-				ret.append(hexString);
+				ret++;
+				str.setCharAt(c, '\\');
+				c++;
+				str.insert(c, "u0000");
+				c++;
+				String hexString = Integer.toHexString(ch);
+				c += 4 - hexString.length();
+				for(int i = 0; i < hexString.length(); i++)
+					str.setCharAt(c++, hexString.charAt(i));
 			}
-			else
-				ret.append(str.charAt(c));
 		}
-		return ret.toString();
+		return ret;
 	}
 
 	/**
@@ -615,7 +633,7 @@ public class PrismsUtils
 	{
 		if(str == null)
 			return null;
-		str = str.replaceAll("__XENC", "\\\\u");
+		str = replaceAll(str, "__XENC", "\\u");
 		str = prisms.util.PrismsUtils.decodeUnicode(str);
 		return str;
 	}
@@ -630,6 +648,62 @@ public class PrismsUtils
 			return c - 'A' + 10;
 		else
 			return -1;
+	}
+
+	/**
+	 * Replaces all instances of a string with its replacement. This method functions differently
+	 * than {@link String#replaceAll(String, String)} in that the strings are replaced literally
+	 * instead of being interpreted as regular expressions.
+	 * 
+	 * @param str The string to replace content in
+	 * @param srch The content to replace
+	 * @param replacement The content to replace <code>srch</code> with
+	 * @return The replaced string
+	 */
+	public static String replaceAll(String str, String srch, String replacement)
+	{
+		if(str.indexOf(srch) < 0)
+			return str;
+		StringBuilder ret = new StringBuilder(str);
+		replaceAll(ret, srch, replacement);
+		return ret.toString();
+	}
+
+	/**
+	 * Like {@link #replaceAll(String, String, String)}, but more efficient for string builders
+	 * 
+	 * @param str The string builder to replace content in
+	 * @param srch The content to replace
+	 * @param replacement The content to replace <code>srch</code> with
+	 * @return The number of times <code>srch</code> was found and replaced in <code>str</code>
+	 */
+	public static int replaceAll(StringBuilder str, String srch, String replacement)
+	{
+		if(srch.length() == 0)
+			return 0;
+		if(replacement == null)
+			replacement = "";
+		String sub = null;
+		if(replacement.length() > srch.length())
+			sub = replacement.substring(srch.length());
+		int ret = 0;
+		for(int i = 0; i <= str.length() - srch.length(); i++)
+		{
+			int j;
+			for(j = 0; j < srch.length() && str.charAt(i + j) == srch.charAt(j); j++);
+			if(j == srch.length())
+			{
+				ret++;
+				for(j = 0; j < srch.length() && j < replacement.length(); j++)
+					str.setCharAt(i + j, replacement.charAt(j));
+				if(srch.length() > replacement.length())
+					str.delete(i + replacement.length(), i + srch.length());
+				else if(replacement.length() > srch.length())
+					str.insert(i + srch.length(), sub);
+				i += replacement.length() - 1;
+			}
+		}
+		return ret;
 	}
 
 	/**
@@ -936,11 +1010,9 @@ public class PrismsUtils
 	 */
 	public static void main(String [] args)
 	{
-		String str = "This is a unicode string this (\\u00b0) is a unicode symbol";
+		String str = "blahsomethingblahblahsomethingsomethingblahsomething";
 		System.out.println("Original=" + str);
-		str = decodeUnicode(str);
-		System.out.println("Decoded=" + str);
-		str = encodeUnicode(str);
-		System.out.println("Encoded=" + str);
+		str = replaceAll(str, "something", "blah");
+		System.out.println("Replaced=" + str);
 	}
 }
