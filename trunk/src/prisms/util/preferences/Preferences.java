@@ -3,6 +3,8 @@
  */
 package prisms.util.preferences;
 
+import java.util.concurrent.locks.Lock;
+
 /** A set of preferences for a user */
 public class Preferences implements prisms.util.persisters.OwnedObject
 {
@@ -35,6 +37,8 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 
 	private java.util.LinkedHashSet<Preference<?>> theActivePrefs;
 
+	private java.util.concurrent.locks.ReentrantReadWriteLock theLock;
+
 	/**
 	 * Creates the preferences set
 	 * 
@@ -48,6 +52,7 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 		thePrefs = new java.util.TreeMap<Preference<?>, PrefValue>();
 		theActivePrefs = new java.util.LinkedHashSet<Preference<?>>();
 		theListeners = new Listener [0];
+		theLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
 	}
 
 	/** @return The application that these preferences apply to */
@@ -96,13 +101,35 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public <T> T get(Preference<T> pref)
 	{
-		PrefValue val = thePrefs.get(pref);
+		Lock lock = theLock.readLock();
+		lock.lock();
+		PrefValue val;
+		boolean isActive;
+		try
+		{
+			val = thePrefs.get(pref);
+			isActive = theActivePrefs.contains(pref);
+		} finally
+		{
+			lock.unlock();
+		}
 		if(val == null)
 			return null;
 		if(pref.getDescription() != null)
 			val.pref.setDescription(pref.getDescription());
 		pref.setID(val.pref.getID());
-		theActivePrefs.add(pref);
+		if(!isActive)
+		{
+			lock = theLock.writeLock();
+			lock.lock();
+			try
+			{
+				theActivePrefs.add(pref);
+			} finally
+			{
+				lock.unlock();
+			}
+		}
 		return (T) val.value;
 	}
 
@@ -113,9 +140,17 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public Preference<?> getPreference(String domain, String prefName)
 	{
-		for(Preference<?> pref : thePrefs.keySet())
-			if(pref.getDomain().equals(domain) && pref.getName().equals(prefName))
-				return pref;
+		Lock lock = theLock.readLock();
+		lock.lock();
+		try
+		{
+			for(Preference<?> pref : thePrefs.keySet())
+				if(pref.getDomain().equals(domain) && pref.getName().equals(prefName))
+					return pref;
+		} finally
+		{
+			lock.unlock();
+		}
 		return null;
 	}
 
@@ -136,21 +171,29 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	{
 		if(value != null)
 			pref.getType().validate(value);
-		PrefValue val = thePrefs.get(pref);
+		Lock lock = theLock.writeLock();
+		lock.lock();
 		T oldVal;
-		if(val == null)
+		try
 		{
-			oldVal = null;
-			if(value == null)
-				return;
-			thePrefs.put(pref, new PrefValue(pref, value));
-		}
-		else
+			PrefValue val = thePrefs.get(pref);
+			if(val == null)
+			{
+				oldVal = null;
+				if(value == null)
+					return;
+				thePrefs.put(pref, new PrefValue(pref, value));
+			}
+			else
+			{
+				oldVal = (T) val.value;
+				if(value == null)
+					thePrefs.remove(pref);
+				val.value = value;
+			}
+		} finally
 		{
-			oldVal = (T) val.value;
-			if(value == null)
-				thePrefs.remove(pref);
-			val.value = value;
+			lock.unlock();
 		}
 		PreferenceEvent evt = new PreferenceEvent(this, pref, oldVal, value, withRecord);
 		for(Listener L : theListeners)
@@ -163,7 +206,15 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public boolean isActive(Preference<?> pref)
 	{
-		return theActivePrefs.contains(pref);
+		Lock lock = theLock.readLock();
+		lock.lock();
+		try
+		{
+			return theActivePrefs.contains(pref);
+		} finally
+		{
+			lock.unlock();
+		}
 	}
 
 	/**
@@ -174,30 +225,54 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	 */
 	public void setActive(Preference<?> pref, boolean active)
 	{
-		if(!active)
-			theActivePrefs.remove(pref);
-		else if(pref.getDomain().equals(this))
-			theActivePrefs.add(pref);
+		Lock lock = theLock.writeLock();
+		lock.lock();
+		try
+		{
+			if(!active)
+				theActivePrefs.remove(pref);
+			else if(pref.getDomain().equals(this))
+				theActivePrefs.add(pref);
+		} finally
+		{
+			lock.unlock();
+		}
 	}
 
 	/** @return All domains contained in this set of preferences */
 	public String [] getAllDomains()
 	{
-		String [] ret = new String [0];
-		for(Preference<?> pref : thePrefs.keySet())
-			if(!prisms.util.ArrayUtils.contains(ret, pref.getDomain()))
-				ret = prisms.util.ArrayUtils.add(ret, pref.getDomain());
-		return ret;
+		java.util.ArrayList<String> ret = new java.util.ArrayList<String>();
+		Lock lock = theLock.readLock();
+		lock.lock();
+		try
+		{
+			for(Preference<?> pref : thePrefs.keySet())
+				if(!prisms.util.ArrayUtils.contains(ret, pref.getDomain()))
+					ret.add(pref.getDomain());
+		} finally
+		{
+			lock.unlock();
+		}
+		return ret.toArray(new String [ret.size()]);
 	}
 
 	/** @return All domains containing active preferences */
 	public String [] getActiveDomains()
 	{
-		String [] ret = new String [0];
-		for(Preference<?> pref : theActivePrefs)
-			if(!prisms.util.ArrayUtils.contains(ret, pref.getDomain()))
-				ret = prisms.util.ArrayUtils.add(ret, pref.getDomain());
-		return ret;
+		java.util.ArrayList<String> ret = new java.util.ArrayList<String>();
+		Lock lock = theLock.readLock();
+		lock.lock();
+		try
+		{
+			for(Preference<?> pref : theActivePrefs)
+				if(!prisms.util.ArrayUtils.contains(ret, pref.getDomain()))
+					ret.add(pref.getDomain());
+		} finally
+		{
+			lock.unlock();
+		}
+		return ret.toArray(new String [ret.size()]);
 	}
 
 	/**
@@ -207,9 +282,17 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	public Preference<?> [] getAllPreferences(String domain)
 	{
 		java.util.ArrayList<Preference<?>> ret = new java.util.ArrayList<Preference<?>>();
-		for(Preference<?> pref : thePrefs.keySet())
-			if(pref.getDomain().equals(domain))
-				ret.add(pref);
+		Lock lock = theLock.readLock();
+		lock.lock();
+		try
+		{
+			for(Preference<?> pref : thePrefs.keySet())
+				if(pref.getDomain().equals(domain))
+					ret.add(pref);
+		} finally
+		{
+			lock.unlock();
+		}
 		return ret.toArray(new Preference<?> [ret.size()]);
 	}
 
@@ -220,9 +303,17 @@ public class Preferences implements prisms.util.persisters.OwnedObject
 	public Preference<?> [] getActivePreferences(String domain)
 	{
 		java.util.ArrayList<Preference<?>> ret = new java.util.ArrayList<Preference<?>>();
-		for(Preference<?> pref : theActivePrefs)
-			if(pref.getDomain().equals(domain))
-				ret.add(pref);
+		Lock lock = theLock.readLock();
+		lock.lock();
+		try
+		{
+			for(Preference<?> pref : theActivePrefs)
+				if(pref.getDomain().equals(domain))
+					ret.add(pref);
+		} finally
+		{
+			lock.unlock();
+		}
 		return ret.toArray(new Preference<?> [ret.size()]);
 	}
 
