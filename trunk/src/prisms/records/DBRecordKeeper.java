@@ -606,7 +606,8 @@ public class DBRecordKeeper implements RecordKeeper
 							{
 								log.error("Could not close blob input stream", e);
 							}
-						certs.free();
+						if(PrismsUtils.isJava6())
+							certs.free();
 					}
 				}
 				pc.setServerUserName(rs.getString("serverUserName"));
@@ -2268,41 +2269,33 @@ public class DBRecordKeeper implements RecordKeeper
 			}
 		}
 		prisms.util.DBUtils.KeyExpression expr = prisms.util.DBUtils.simplifyKeySet(ids, 200);
-		prisms.util.DBUtils.KeyExpression[] exprs;
-		if(expr instanceof prisms.util.DBUtils.OrExpression && expr.getComplexity() > 200)
-			exprs = ((prisms.util.DBUtils.OrExpression) expr).exprs;
-		else
-			exprs = new prisms.util.DBUtils.KeyExpression [] {expr};
 
 		try
 		{
 			ArrayList<ChangeTemplate> changeList = new ArrayList<ChangeTemplate>();
-			for(int i = 0; i < exprs.length; i++)
+			String sql = "SELECT * FROM " + theTransactor.getTablePrefix()
+				+ "prisms_change_record WHERE recordNS=" + toSQL(theNamespace) + " AND ";
+			ResultSet rs = null;
+			try
 			{
-				String sql = "SELECT * FROM " + theTransactor.getTablePrefix()
-					+ "prisms_change_record WHERE recordNS=" + toSQL(theNamespace) + " AND ";
-				ResultSet rs = null;
+				rs = DBUtils.executeQuery(stmt, sql, expr, "", "id", 90);
+				while(rs.next())
+				{
+					ChangeTemplate template = getChangeTemplate(rs);
+					changeList.add(template);
+				}
+			} catch(SQLException e)
+			{
+				throw new PrismsRecordException("Could not get modifications: SQL=" + sql, e);
+			} finally
+			{
 				try
 				{
-					rs = DBUtils.executeQuery(stmt, sql, expr, "", "id", 90);
-					while(rs.next())
-					{
-						ChangeTemplate template = getChangeTemplate(rs);
-						changeList.add(template);
-					}
+					if(rs != null)
+						rs.close();
 				} catch(SQLException e)
 				{
-					throw new PrismsRecordException("Could not get modifications: SQL=" + sql, e);
-				} finally
-				{
-					try
-					{
-						if(rs != null)
-							rs.close();
-					} catch(SQLException e)
-					{
-						log.error("Connection error", e);
-					}
+					log.error("Connection error", e);
 				}
 			}
 
