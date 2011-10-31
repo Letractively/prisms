@@ -572,7 +572,9 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 		if(this.filterPlaceHeld)
 		{
 			this._filterFocusImpl();
-			this.filterText.textbox.focus();
+			window.setTimeout(__dojo.hitch(this, function(){
+				this.filterText.textbox.focus();
+			}), 50);
 		}
 	},
 
