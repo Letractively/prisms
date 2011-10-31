@@ -6,6 +6,8 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 
 	templatePath: "__webContentRoot/view/log4j/templates/logEntry.html",
 
+	widgetsInTemplate: true,
+
 	defaultSettings: {
 		id: true,
 		time: true,
@@ -36,9 +38,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 	postCreate: function(){
 		this.inherited(arguments);
 		this.settings=this.defaultSettings;
-		this.selectCheck=new dijit.form.CheckBox({});
 		this.fileConnects=[];
-		__dojo.connect(this.selectCheck, "onClick", this, this._selectClicked);
 	},
 
 	setValue: function(entry){
@@ -65,7 +65,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		var i;
 		if(entry.stackTrace)
 		{
-			this.stackTraceNode.style.display="block";
+			this.stackTraceNode.style.display="inline";
 			this.stackTraceNode.innerHTML="";
 			var stack=entry.stackTrace;
 			for(i=0;i<stack.length;i++)
@@ -161,7 +161,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 				while(textIdx<msg.length && msg.charAt(textIdx)!=' '
 					&& msg.charAt(textIdx)!='\n' && msg.charAt(textIdx)!='\r')
 					textIdx++;
-				if(textIdx==0)
+				if(textIdx==0 || msg.charAt(0)=='.')
 					this.messageNode.appendChild(document.createTextNode(this.exposedDir));
 				else
 				{
@@ -181,22 +181,19 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		else
 			this.messageNode.innerHTML=this.fix("\t"+msg);
 		this.messageNode.insertBefore(this.expandNode, this.messageNode.childNodes[0]);
-		var br=document.createElement("br");
-		this.messageNode.insertBefore(br, this.expandNode);
-		this.messageNode.insertBefore(this.iconNode, br);
-		this.messageNode.insertBefore(document.createTextNode(" "), br);
+
 		if(this.selectable)
-		{
-			this.messageNode.insertBefore(this.selectCheck.domNode, br);
-			this.messageNode.insertBefore(document.createTextNode(" "), br);
-		}
+			delete this.selectCheck.domNode.style["display"];
+		else
+			this.selectCheck.domNode.style.display="none";
+		this.metadataNode.innerHTML="";		
 		var s=this.settings;
 		if(s.id)
 		{
 			var span=document.createElement("span");
 			span.innerHTML=entry.id+" ";
 			span.style.display="inline";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 		if(s.time)
 		{
@@ -204,7 +201,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			span.innerHTML=entry.time+" ";
 			span.style.display="inline";
 			span.style.fontWeight="bold";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 		{
 			var span=document.createElement("span");
@@ -212,7 +209,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			span.style.display="inline";
 			span.style.fontWeight="bold";
 			span.style.color=entry.levelColor;
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 		if(s.logger)
 		{
@@ -221,7 +218,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			span.style.display="inline";
 			span.style.fontWeight="bold";
 			span.style.color="#00d000";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 		if(s.user)
 		{
@@ -233,14 +230,14 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			span.style.display="inline";
 			span.style.fontWeight="bold";
 			span.style.color="#0000ff";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 
 		if(s.instance)
 		{
 			var span=document.createElement("span");
 			span.innerHTML+=entry.instance+" ";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 		if(s.app)
 		{
@@ -249,7 +246,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 				span.innerHTML+=entry.app+" ";
 			else
 				span.innerHTML+="(No App) ";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 		if(s.client)
 		{
@@ -258,7 +255,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 				span.innerHTML+=entry.client+" ";
 			else if(entry.app)
 				span.innerHTML+="(No Client) ";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 		if(s.tracking && entry.tracking)
 		{
@@ -266,9 +263,9 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 			span.innerHTML+="tracking:"+entry.tracking;
 			span.style.display="inline";
 			span.style.textDecoration="underline";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span, br);
 			var text=document.createTextNode(" ");
-			this.messageNode.insertBefore(text, br);
+			this.metadataNode.appendChild(text);
 		}
 		if(s.showDuplicate && entry.duplicate)
 		{
@@ -277,7 +274,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 				span.innerHTML+="(duplicate of "+entry.duplicate+")";
 			else
 				span.innerHTML+="(duplicate)";
-			this.messageNode.insertBefore(span, br);
+			this.metadataNode.appendChild(span);
 		}
 
 		var title="Instance:"+entry.instance+"            \n";
@@ -293,7 +290,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 		if(entry.saveTime)
 			title+="Protected Until "+entry.saveTime;
 
-		this.domNode.title=title;
+		this.metadataNode.title=title;
 	},
 
 	fix: function(str){
@@ -334,6 +331,8 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 
 	_onMouseUp: function(event){
 		if(!this._clickEvent)
+			return;
+		if(event.target.tagName=="A")
 			return;
 		if(event.target!=this._clickEvent.target)
 			return;
@@ -403,6 +402,7 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 
 	_selectClicked: function(event){
 		this.entry.selected=this.selectCheck.getValue() ? true : false;
+		console.log("Select clicked: "+this.entry.selected);
 		this._selectJustClicked=true;
 		this.render();
 		this.selectChanged(event);
@@ -415,7 +415,14 @@ __dojo.declare("log4j.LogEntry", [__dijit._Widget, __dijit._Templated], {
 	},
 
 	remove: function(){
-		this.domNode.innerHTML="";
 		this.domNode.parentNode.removeChild(this.domNode);
+		this.destroy();
+	},
+
+	destroy: function(){
+		this.inherited(arguments);
+		for(var f=0;f<this.fileConnects.length;f++)
+			__dojo.disconnect(this.fileConnects[f]);
+		this.fileConnects=[];
 	}
 });

@@ -29,6 +29,10 @@ public class PrismsLogger implements
 
 	static final int MAX_SIZE = 1000000;
 
+	static final String MULTI_WILDCARD = "(<**>)";
+
+	static final String SINGLE_WILDCARD = "(<..>)";
+
 	/** Fields on which the history may be sorted */
 	public static enum LogField implements prisms.util.Sorter.Field
 	{
@@ -494,7 +498,8 @@ public class PrismsLogger implements
 						+ " is not a directory and could not be created");
 					exposed = null;
 				}
-				else if(!exposedFile.canWrite() && !exposedFile.setWritable(true))
+				else if(!exposedFile.canWrite()
+					&& (!PrismsUtils.isJava6() || !exposedFile.setWritable(true)))
 				{
 					log.error("Exposed directory " + exposed + " is not writable");
 					exposed = null;
@@ -1075,6 +1080,8 @@ public class PrismsLogger implements
 
 	void doPeriodicCheck()
 	{
+		if(isClosed)
+			return;
 		prisms.arch.PrismsTransaction trans = theEnv.transact(null);
 		try
 		{
@@ -1121,6 +1128,8 @@ public class PrismsLogger implements
 
 	private void doCheckForNewLoggers()
 	{
+		if(isClosed)
+			return;
 		long now = System.currentTimeMillis();
 		if(now - lastLoggerCheck < 5000)
 			return;
@@ -1171,7 +1180,8 @@ public class PrismsLogger implements
 			}
 		}
 		prisms.arch.PrismsTransaction trans = theEnv.getTransaction();
-		if(theQueueEntries.isEmpty() || theInserter == null || theDuplicateQuery == null)
+		if(isClosed || theQueueEntries.isEmpty() || theInserter == null
+			|| theDuplicateQuery == null)
 			return;
 		while(!theQueueEntries.isEmpty())
 		{
@@ -1878,12 +1888,13 @@ public class PrismsLogger implements
 		Statement stmt = null;
 		ResultSet rs = null;
 		LogEntry [] entries;
-		ProgramTracker.TrackNode track = PrismsUtils.track(theEnv, "Get Log Entries");
+		prisms.arch.PrismsTransaction trans = theEnv != null ? theEnv.getTransaction() : null;
+		ProgramTracker.TrackNode track = PrismsUtils.track(trans, "Get Log Entries");
 		try
 		{
 			java.util.ArrayList<LogEntry> ret = new java.util.ArrayList<LogEntry>();
 			stmt = theTransactor.getConnection().createStatement();
-			ProgramTracker.TrackNode track2 = PrismsUtils.track(theEnv, "Get Entry Headers");
+			ProgramTracker.TrackNode track2 = PrismsUtils.track(trans, "Get Entry Headers");
 			try
 			{
 				rs = DBUtils.executeQuery(stmt, sql, key, "", "id", 90);
@@ -1923,7 +1934,7 @@ public class PrismsLogger implements
 				rs = null;
 			} finally
 			{
-				PrismsUtils.end(theEnv, track2);
+				PrismsUtils.end(trans, track2);
 			}
 
 			// Sort the entries in the order of the IDs given
@@ -1972,7 +1983,7 @@ public class PrismsLogger implements
 			HashMap<Integer, StringBuilder> stacks = new HashMap<Integer, StringBuilder>();
 			HashMap<Integer, StringBuilder> tracking = new HashMap<Integer, StringBuilder>();
 			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_log_content WHERE ";
-			track2 = PrismsUtils.track(theEnv, "Get Log Content");
+			track2 = PrismsUtils.track(trans, "Get Log Content");
 			try
 			{
 				rs = DBUtils.executeQuery(stmt, sql, key, "ORDER BY indexNum", "logEntry", 90);
@@ -2001,7 +2012,7 @@ public class PrismsLogger implements
 				rs = null;
 			} finally
 			{
-				PrismsUtils.end(theEnv, track2);
+				PrismsUtils.end(trans, track2);
 			}
 
 			for(LogEntry entry : entries)
@@ -2041,7 +2052,7 @@ public class PrismsLogger implements
 				{
 					log.error("Connection error: " + e);
 				}
-			PrismsUtils.end(theEnv, track);
+			PrismsUtils.end(trans, track);
 		}
 		return entries;
 	}
@@ -2150,10 +2161,10 @@ public class PrismsLogger implements
 			&& ((LogEntrySearch.LogExpressionSearch) search).isSingle())
 		{
 			String srch = ((LogEntrySearch.StringSearch) ((LogEntrySearch.LogExpressionSearch) search)
-				.getOperand(0)).search;
-			srch = srch.replaceAll("%", "!%");
-			srch = "%" + srch + "%";
-			srch = DBUtils.toSQL(srch);
+				.getOperand(0)).search.toLowerCase();
+			srch = MULTI_WILDCARD + srch + MULTI_WILDCARD;
+			srch = DBUtils.toLikeClause(srch, DBUtils.getType(theTransactor.getConnection()),
+				MULTI_WILDCARD, SINGLE_WILDCARD);
 			if(joins.indexOf("logContent") < 0)
 			{
 				joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
@@ -2165,9 +2176,13 @@ public class PrismsLogger implements
 				joins.append("prisms_log_content logContentDup"
 					+ " ON logContentDup.logEntry=logEntry.logDuplicate");
 			}
-			wheres.append("(logEntry.shortMessage LIKE ").append(srch)
-				.append(" OR logContent.content LIKE ").append(srch)
-				.append(" OR logContentDup.content LIKE ").append(srch).append(')');
+			DBUtils.ConnType connType = DBUtils.getType(theTransactor.getConnection());
+			wheres.append('(').append(DBUtils.getLowerFn(connType))
+				.append("(logEntry.shortMessage) LIKE ").append(srch);
+			wheres.append(" OR ").append(DBUtils.getLowerFn(connType))
+				.append("(logContent.content) LIKE ").append(srch);
+			wheres.append(" OR ").append(DBUtils.getLowerFn(connType))
+				.append("(logContentDup.content) LIKE ").append(srch).append(')');
 		}
 		else if(search instanceof Search.ExpressionSearch)
 		{
@@ -2355,14 +2370,20 @@ public class PrismsLogger implements
 					joins.append("prisms_log_content logContentDup"
 						+ " ON logContentDup.logEntry=logEntry.logDuplicate");
 				}
-				String srch = lConS.search.replaceAll("%", "!%");
-				srch = "%" + srch + "%";
-				srch = DBUtils.toSQL(srch);
-				wheres.append("(logEntry.shortMessage LIKE ").append(srch)
-					.append(" OR (logContent.content LIKE ").append(srch)
-					.append(" AND logContent.contentType='M')");
-				wheres.append(" OR (logContentDup.content LIKE ").append(srch)
-					.append(" AND logContentDup.contentType='M'))");
+				DBUtils.ConnType connType = DBUtils.getType(theTransactor.getConnection());
+				String srch = lConS.search.toLowerCase();
+				srch = MULTI_WILDCARD + srch + MULTI_WILDCARD;
+				srch = DBUtils.toLikeClause(srch, connType, MULTI_WILDCARD, SINGLE_WILDCARD);
+				wheres.append('(');
+				wheres.append(DBUtils.getLowerFn(connType)).append("(logEntry.shortMessage) LIKE ")
+					.append(srch);
+				wheres.append(" OR (");
+				wheres.append(DBUtils.getLowerFn(connType)).append("(logContent.content) LIKE ")
+					.append(srch).append(" AND logContent.contentType='M'");
+				wheres.append(") OR (");
+				wheres.append(DBUtils.getLowerFn(connType)).append("(logContentDup.content) LIKE ")
+					.append(srch).append(" AND logContentDup.contentType='M'");
+				wheres.append("))");
 				break;
 			case stackTrace:
 				LogEntrySearch.LogStackTraceSearch lsts = (LogEntrySearch.LogStackTraceSearch) search;
@@ -2379,13 +2400,18 @@ public class PrismsLogger implements
 					joins.append("prisms_log_content logContentDup"
 						+ " ON logContentDup.logEntry=logEntry.logDuplicate");
 				}
-				srch = lsts.search.replaceAll("%", "!%");
-				srch = "%" + srch + "%";
-				srch = DBUtils.toSQL(srch);
-				wheres.append("(logContent.content LIKE ").append(srch)
-					.append(" AND logContent.contentType='S')");
-				wheres.append(" OR (logContentDup.content LIKE ").append(srch)
-					.append(" AND logContentDup.contentType='S')");
+				srch = lsts.search.toLowerCase();
+				srch = MULTI_WILDCARD + srch + MULTI_WILDCARD;
+				srch = DBUtils.toLikeClause(srch, DBUtils.getType(theTransactor.getConnection()),
+					MULTI_WILDCARD, SINGLE_WILDCARD);
+				connType = DBUtils.getType(theTransactor.getConnection());
+				wheres.append("((");
+				wheres.append(DBUtils.getLowerFn(connType)).append("(logContent.content) LIKE ")
+					.append(srch).append(" AND logContentDup.contentType='S'");
+				wheres.append(") OR (");
+				wheres.append(DBUtils.getLowerFn(connType)).append("(logContentDup.content) LIKE ")
+					.append(srch).append(" AND logContentDup.contentType='S'");
+				wheres.append("))");
 				break;
 			case duplicate:
 				LogEntrySearch.LogDuplicateSearch lds = (LogEntrySearch.LogDuplicateSearch) search;
@@ -3098,6 +3124,9 @@ public class PrismsLogger implements
 	{
 		isClosed = true;
 		destroyPreparedStatements();
+		for(Logger logger : theLoggers)
+			logger.removeAppender(theAppender);
+		theTransactor.release();
 	}
 
 	/**
