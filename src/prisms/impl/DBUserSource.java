@@ -83,8 +83,8 @@ public class DBUserSource implements ScalableUserSource
 		return theKeeper;
 	}
 
-	public void configure(PrismsConfig config, PrismsEnv env, PrismsApplication [] apps)
-		throws PrismsException
+	public void configure(PrismsConfig config, PrismsEnv env, PrismsApplication [] apps,
+		Hashing initHashing) throws PrismsException
 	{
 		PrismsConfig connEl = config.subConfig("connection");
 		theTransactor = env.getConnectionFactory().getConnection(connEl, null,
@@ -143,9 +143,12 @@ public class DBUserSource implements ScalableUserSource
 			}
 			theHashing.setPrimaryHashing(mults, mods);
 			if(theHashing.getPrimaryMultiples() == null
-				|| theHashing.getPrimaryMultiples().length < 10)
+				|| theHashing.getPrimaryMultiples().length == 0)
 			{
-				theHashing.randomlyFillPrimary(10);
+				if(initHashing != null)
+					theHashing = initHashing;
+				else
+					theHashing.randomlyFillPrimary(10);
 
 				sql = null;
 				try
@@ -981,24 +984,24 @@ public class DBUserSource implements ScalableUserSource
 		return data.toArray(new PasswordData [data.size()]);
 	}
 
-	public Password getPassword(User user, Hashing hashing) throws PrismsException
+	public Password getPassword(User user) throws PrismsException
 	{
 		PasswordData [] password = getPasswordData(user, true, null);
 		if(password == null || password.length == 0)
 			return null;
-		return new Password(hashing.generateKey(password[0].thePasswordHash),
-			password[0].thePasswordTime, password[0].thePasswordExpire);
+		return new Password(password[0].thePasswordHash, password[0].thePasswordTime,
+			password[0].thePasswordExpire);
 	}
 
-	public Password [] getOldPasswords(User user, Hashing hashing) throws PrismsException
+	public Password [] getOldPasswords(User user) throws PrismsException
 	{
 		PasswordData [] password = getPasswordData(user, false, null);
 		if(password == null || password.length == 0)
 			return null;
 		Password [] ret = new Password [password.length];
 		for(int p = 0; p < ret.length; p++)
-			ret[p] = new Password(hashing.generateKey(password[p].thePasswordHash),
-				password[p].thePasswordTime, password[p].thePasswordExpire);
+			ret[p] = new Password(password[p].thePasswordHash, password[p].thePasswordTime,
+				password[p].thePasswordExpire);
 		return ret;
 	}
 

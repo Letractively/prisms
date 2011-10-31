@@ -185,10 +185,10 @@ public class RecordUtils
 		RecordUser user = (RecordUser) evt.get(TRANS_USER_EVENT_PROP);
 		if(user == null && session != null)
 			user = session.getUser();
-		if(user == null && userSource instanceof prisms.arch.ds.ManageableUserSource)
+		if(user == null)
 			try
 			{
-				user = ((prisms.arch.ds.ManageableUserSource) userSource).getSystemUser();
+				user = userSource.getSystemUser();
 			} catch(prisms.arch.PrismsException e)
 			{
 				throw new IllegalStateException("Could not get system user", e);
@@ -225,10 +225,10 @@ public class RecordUtils
 		User user = (User) evt.getProperty(TRANS_USER_EVENT_PROP);
 		if(user == null && session != null)
 			user = session.getUser();
-		if(user == null && userSource instanceof prisms.arch.ds.ManageableUserSource)
+		if(user == null)
 			try
 			{
-				user = ((prisms.arch.ds.ManageableUserSource) userSource).getSystemUser();
+				user = userSource.getSystemUser();
 			} catch(PrismsException e)
 			{
 				throw new IllegalStateException("Could not get system user", e);

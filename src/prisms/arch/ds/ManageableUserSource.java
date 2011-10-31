@@ -66,13 +66,6 @@ public interface ManageableUserSource extends UserSource
 	prisms.records.DBRecordKeeper getRecordKeeper();
 
 	/**
-	 * @return The system user that can be used in record-keeping when an operation is not caused
-	 *         directly by an actual user
-	 * @throws PrismsException If an error occurs getting the system user
-	 */
-	User getSystemUser() throws PrismsException;
-
-	/**
 	 * Sets the constraints that determine whether a password is allowable within this PRISMS user
 	 * source
 	 * 
