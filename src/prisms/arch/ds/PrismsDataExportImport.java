@@ -85,10 +85,17 @@ public class PrismsDataExportImport
 							+ " is not yet configured. Configuring.");
 						try
 						{
-							conn.getVersion();
+							conn.init();
+							conn.logout(true);
 						} catch(java.io.IOException e)
 						{
-							log.debug("Connection failed. App configuration may still succeed", e);
+							if(!app.isConfigured())
+							{
+								ui.error("Could not configure application " + app.getName()
+									+ ". Export data cannot proceed.");
+								log.error("Could not configure application " + app.getName(), e);
+								return false;
+							}
 						}
 						if(!app.isConfigured())
 						{
@@ -147,10 +154,28 @@ public class PrismsDataExportImport
 			try
 			{
 				jsw.startObject();
+
 				jsw.startProperty("exportTime");
 				jsw.writeNumber(Long.valueOf(System.currentTimeMillis()));
+
 				jsw.startProperty("instance");
 				jsw.writeNumber(Integer.valueOf(theApps[0].getEnvironment().getIDs().getCenterID()));
+
+				jsw.startProperty("hashing");
+				Hashing hashing = theApps[0].getEnvironment().getUserSource().getHashing();
+				jsw.startObject();
+				jsw.startProperty("multiples");
+				jsw.startArray();
+				for(long h : hashing.getPrimaryMultiples())
+					jsw.writeNumber(Long.valueOf(h));
+				jsw.endArray();
+				jsw.startProperty("modulos");
+				jsw.startArray();
+				for(long h : hashing.getPrimaryModulos())
+					jsw.writeNumber(Long.valueOf(h));
+				jsw.endArray();
+				jsw.endObject();
+
 				jsw.startProperty("data");
 				jsw.startArray();
 				java.util.HashSet<String> namespaces = new java.util.HashSet<String>();
@@ -167,6 +192,25 @@ public class PrismsDataExportImport
 							exportData(ui, sync, jsw, namespaces, pi, global);
 						}
 					}
+				}
+				jsw.endArray();
+				jsw.startProperty("passwords");
+				jsw.startArray();
+				for(User user : theApps[0].getEnvironment().getUserSource().getActiveUsers())
+				{
+					prisms.arch.ds.UserSource.Password pwd = theApps[0].getEnvironment()
+						.getUserSource().getPassword(user);
+					if(pwd == null)
+						continue;
+					jsw.startObject();
+					jsw.startProperty("userName");
+					jsw.writeString(user.getName());
+					jsw.startProperty("passwordData");
+					jsw.startArray();
+					for(long h : pwd.hash)
+						jsw.writeNumber(Long.valueOf(h));
+					jsw.endArray();
+					jsw.endObject();
 				}
 				jsw.endArray();
 				jsw.endObject();
@@ -269,40 +313,45 @@ public class PrismsDataExportImport
 				changeIDs.arrayCopy(i, batch, 0, batch.length);
 				ChangeRecord [] changes = keeper.getItems(batch);
 				for(ChangeRecord change : changes)
-					if(change.type.subjectType instanceof PrismsChange || impl.shouldSend(change))
+					if(change != null
+						&& (change.type.subjectType instanceof PrismsChange || impl
+							.shouldSend(change)))
 						itemWriter.writeChange(change, false);
 			}
 			jsw.endArray();
 
-			pi.setProgressText("Exporting " + namespace + " sync records");
-			jsw.startProperty("syncRecords");
-			jsw.startArray();
-			for(PrismsCenter center : keeper.getCenters())
-				exportSyncRecords(center, keeper, jsw);
-			jsw.endArray();
+			if(global)
+			{
+				pi.setProgressText("Exporting " + namespace + " sync records");
+				jsw.startProperty("syncRecords");
+				jsw.startArray();
+				for(PrismsCenter center : keeper.getCenters())
+					exportSyncRecords(center, keeper, jsw);
+				jsw.endArray();
 
-			pi.setProgressText("Exporting " + namespace + " metadata");
-			jsw.startProperty("latestChanges");
-			jsw.startArray();
-			prisms.util.IntList allCenterIDs = new prisms.util.IntList(keeper.getAllCenterIDs());
-			for(int i = 0; i < allCenterIDs.size(); i++)
-				for(int j = 0; j < allCenterIDs.size(); j++)
-				{
-					long changeTime = keeper.getLatestChange(allCenterIDs.get(i),
-						allCenterIDs.get(j));
-					if(changeTime > 0)
+				pi.setProgressText("Exporting " + namespace + " metadata");
+				jsw.startProperty("latestChanges");
+				jsw.startArray();
+				prisms.util.IntList allCenterIDs = new prisms.util.IntList(keeper.getAllCenterIDs());
+				for(int i = 0; i < allCenterIDs.size(); i++)
+					for(int j = 0; j < allCenterIDs.size(); j++)
 					{
-						jsw.startObject();
-						jsw.startProperty("center");
-						jsw.writeNumber(Integer.valueOf(allCenterIDs.get(i)));
-						jsw.startProperty("subjectCenter");
-						jsw.writeNumber(Integer.valueOf(allCenterIDs.get(i)));
-						jsw.startProperty("latestChange");
-						jsw.writeNumber(Long.valueOf(changeTime));
-						jsw.endObject();
+						long changeTime = keeper.getLatestChange(allCenterIDs.get(i),
+							allCenterIDs.get(j));
+						if(changeTime > 0)
+						{
+							jsw.startObject();
+							jsw.startProperty("center");
+							jsw.writeNumber(Integer.valueOf(allCenterIDs.get(i)));
+							jsw.startProperty("subjectCenter");
+							jsw.writeNumber(Integer.valueOf(allCenterIDs.get(i)));
+							jsw.startProperty("latestChange");
+							jsw.writeNumber(Long.valueOf(changeTime));
+							jsw.endObject();
+						}
 					}
-				}
-			jsw.endArray();
+				jsw.endArray();
+			}
 			jsw.endObject();
 		}
 
@@ -453,6 +502,54 @@ public class PrismsDataExportImport
 			return theExportDataTime;
 		}
 
+		/** @return The hashing values for the user source that were stored in the backup */
+		public Hashing getHashing()
+		{
+			prisms.util.LongList mults = new prisms.util.LongList();
+			prisms.util.LongList mods = new prisms.util.LongList();
+			try
+			{
+				if(!"hashing".equals(theJsonReader.getNextProperty()))
+					return null;
+				JsonSerialReader.StructState rootState = theJsonReader.startObject();
+				try
+				{
+					if(!"multiples".equals(theJsonReader.getNextProperty()))
+						return null;
+					theJsonReader.startArray();
+					Number num;
+					do
+					{
+						num = theJsonReader.parseNumber();
+						if(num != null)
+							mults.add(num.longValue());
+					} while(num != null);
+					theJsonReader.endArray(null);
+
+					if(!"modulos".equals(theJsonReader.getNextProperty()))
+						return null;
+					theJsonReader.startArray();
+					do
+					{
+						num = theJsonReader.parseNumber();
+						if(num != null)
+							mods.add(num.longValue());
+					} while(num != null);
+					theJsonReader.endArray(null);
+				} finally
+				{
+					theJsonReader.endObject(rootState);
+				}
+			} catch(Exception e)
+			{
+				log.error("Could not read JSON backup data", e);
+				return null;
+			}
+			Hashing ret = new Hashing();
+			ret.setPrimaryHashing(mults.toArray(), mods.toArray());
+			return ret;
+		}
+
 		/**
 		 * Imports data stored in an export file
 		 * 
@@ -482,18 +579,13 @@ public class PrismsDataExportImport
 						}
 					}
 				}
-				String propName;
-				do
-				{
-					propName = theJsonReader.getNextProperty();
-				} while(propName != null && !"data".equals(propName));
-				if(propName == null)
+				if(!theJsonReader.goToProperty("data"))
 				{
 					log.error("No \"data\" property found in exported data");
 					return false;
 				}
 
-				theJsonReader.startArray();
+				JsonSerialReader.StructState rootState = theJsonReader.startArray();
 				JsonSerialReader.JsonParseItem item;
 				StringBuilder message = new StringBuilder();
 				message.append("Imported PRISMS data from ")
@@ -547,6 +639,51 @@ public class PrismsDataExportImport
 						theJsonReader.endObject(syncState);
 					}
 				}
+				theJsonReader.endArray(rootState);
+				int passwords = 0;
+				if(theJsonReader.goToProperty("passwords"))
+				{
+					rootState = theJsonReader.startArray();
+					prisms.util.LongList pwdData = new prisms.util.LongList();
+					for(item = theJsonReader.getNextItem(true); item instanceof JsonSerialReader.ObjectItem; item = theJsonReader
+						.getNextItem(true))
+					{
+						JsonSerialReader.StructState pwdState = theJsonReader.save();
+						try
+						{
+							theJsonReader.goToProperty("userName");
+							String userName = theJsonReader.parseString();
+							User user = apps[0].getEnvironment().getUserSource().getUser(userName);
+							if(user == null)
+								continue;
+							theJsonReader.goToProperty("passwordData");
+							theJsonReader.startArray();
+							Number num;
+							do
+							{
+								num = theJsonReader.parseNumber();
+								if(num != null)
+									pwdData.add(num.longValue());
+							} while(num != null);
+							theJsonReader.endArray(null);
+							try
+							{
+								apps[0].getEnvironment().getUserSource()
+									.setPassword(user, pwdData.toArray(), true);
+							} catch(prisms.arch.PrismsException e)
+							{
+								log.error("Could not set password for user " + userName, e);
+							}
+							passwords++;
+							pwdData.clear();
+						} finally
+						{
+							theJsonReader.endObject(pwdState);
+						}
+					}
+					theJsonReader.endArray(rootState);
+				}
+				message.append("\n\tImported ").append(passwords).append(" passwords");
 				log.info(message.toString());
 				return true;
 			} catch(Exception e)
@@ -647,208 +784,207 @@ public class PrismsDataExportImport
 			// Sync records
 			if(centers != null)
 			{
-				if(!jsr.goToProperty("syncRecords"))
+				if(jsr.goToProperty("syncRecords"))
 				{
-					message.append("\n\t\t").append("No syncRecords property in sync data");
-					return;
-				}
-				int syncRecords = 0;
-				jsr.startArray();
-				while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
-				{
-					JsonSerialReader.StructState centerState = jsr.save();
-					try
+					int syncRecords = 0;
+					jsr.startArray();
+					while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
 					{
-						if(!jsr.goToProperty("id"))
+						JsonSerialReader.StructState centerState = jsr.save();
+						try
 						{
-							message.append("\n\t\tID missing in sync records group");
-							break;
-						}
-						int centerID = jsr.parseInt();
-						PrismsCenter center = null;
-						for(PrismsCenter c : centers)
-							if(c.getID() == centerID)
+							if(!jsr.goToProperty("id"))
 							{
-								center = c;
+								message.append("\n\t\tID missing in sync records group");
 								break;
 							}
-						if(center == null)
-						{
-							log.warn("No such center with ID " + centerID);
-							continue;
-						}
-						if(!jsr.goToProperty("syncRecords"))
-						{
-							message.append("\n\t\tsyncRecords missing in sync records group");
-							continue;
-						}
-						jsr.startArray();
-						while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
-						{
-							JsonSerialReader.StructState srState = jsr.save();
-							try
+							int centerID = jsr.parseInt();
+							PrismsCenter center = null;
+							for(PrismsCenter c : centers)
+								if(c.getID() == centerID)
+								{
+									center = c;
+									break;
+								}
+							if(center == null)
 							{
-								if(!jsr.goToProperty("id"))
-								{
-									log.warn("No id property in sync record");
-									continue;
-								}
-								int srID = jsr.parseInt();
-								if(!jsr.goToProperty("parallelID"))
-								{
-									log.warn("No parallelID property in sync record");
-									continue;
-								}
-								int parallelID = jsr.parseInt();
-								if(!jsr.goToProperty("syncType"))
-								{
-									log.warn("No syncType property in sync record");
-									continue;
-								}
-								String typeName = jsr.parseString();
-								SyncRecord.Type type = SyncRecord.Type.byName(typeName);
-								if(type == null)
-								{
-									log.warn("Unrecognized sync type in sync record: " + typeName);
-									continue;
-								}
-								if(!jsr.goToProperty("time"))
-								{
-									log.warn("No time property in sync record");
-									continue;
-								}
-								long time = jsr.parseLong();
-								if(!jsr.goToProperty("isImport"))
-								{
-									log.warn("No isImport property in sync record");
-									continue;
-								}
-								boolean isImport = jsr.parseBoolean();
-								if(!jsr.goToProperty("syncError"))
-								{
-									log.warn("No syncError property in sync record");
-									continue;
-								}
-								Object syncError = jsr.parseNext();
-								SyncRecord sr = new SyncRecord(center, type, time, isImport);
-								sr.setID(srID);
-								sr.setParallelID(parallelID);
-								if(syncError instanceof String)
-									sr.setSyncError((String) syncError);
-								else if(syncError == JsonSerialReader.NULL)
-									sr.setSyncError(null);
-								else
-									String.class.cast(syncError);
+								log.warn("No such center with ID " + centerID);
+								continue;
+							}
+							if(!jsr.goToProperty("syncRecords"))
+							{
+								message.append("\n\t\tsyncRecords missing in sync records group");
+								continue;
+							}
+							jsr.startArray();
+							while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
+							{
+								JsonSerialReader.StructState srState = jsr.save();
 								try
-								{
-									sync.getKeeper().putSyncRecord(sr);
-								} catch(PrismsRecordException e)
-								{
-									log.error("Could not persist sync record", e);
-									continue;
-								}
-								syncRecords++;
-								if(!jsr.goToProperty("associated"))
-								{
-									log.warn("No associated property in sync record");
-									continue;
-								}
-								prisms.util.LongList assocIDs = new prisms.util.LongList();
-								prisms.util.BooleanList assocErrors = new prisms.util.BooleanList();
-								jsr.startArray();
-								while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
 								{
 									if(!jsr.goToProperty("id"))
 									{
-										log.warn("No id for associated change");
-										jsr.endObject(null);
+										log.warn("No id property in sync record");
 										continue;
 									}
-									assocIDs.add(jsr.parseLong());
-									if(jsr.goToProperty("error"))
-										assocErrors.add(jsr.parseBoolean());
+									int srID = jsr.parseInt();
+									if(!jsr.goToProperty("parallelID"))
+									{
+										log.warn("No parallelID property in sync record");
+										continue;
+									}
+									int parallelID = jsr.parseInt();
+									if(!jsr.goToProperty("syncType"))
+									{
+										log.warn("No syncType property in sync record");
+										continue;
+									}
+									String typeName = jsr.parseString();
+									SyncRecord.Type type = SyncRecord.Type.byName(typeName);
+									if(type == null)
+									{
+										log.warn("Unrecognized sync type in sync record: "
+											+ typeName);
+										continue;
+									}
+									if(!jsr.goToProperty("time"))
+									{
+										log.warn("No time property in sync record");
+										continue;
+									}
+									long time = jsr.parseLong();
+									if(!jsr.goToProperty("isImport"))
+									{
+										log.warn("No isImport property in sync record");
+										continue;
+									}
+									boolean isImport = jsr.parseBoolean();
+									if(!jsr.goToProperty("syncError"))
+									{
+										log.warn("No syncError property in sync record");
+										continue;
+									}
+									Object syncError = jsr.parseNext();
+									SyncRecord sr = new SyncRecord(center, type, time, isImport);
+									sr.setID(srID);
+									sr.setParallelID(parallelID);
+									if(syncError instanceof String)
+										sr.setSyncError((String) syncError);
+									else if(syncError == JsonSerialReader.NULL)
+										sr.setSyncError(null);
 									else
-										assocErrors.add(false);
-									jsr.endObject(null);
-								}
-								jsr.endArray(null);
-								ChangeRecord [] assocChanges;
-								try
-								{
-									assocChanges = sync.getKeeper().getItems(assocIDs.toArray());
-								} catch(PrismsRecordException e)
-								{
-									log.error("Could not get associated changes", e);
-									continue;
-								}
-								for(int i = 0; i < assocChanges.length; i++)
-								{
-									if(assocChanges[i] != null)
-										try
+										String.class.cast(syncError);
+									try
+									{
+										sync.getKeeper().putSyncRecord(sr);
+									} catch(PrismsRecordException e)
+									{
+										log.error("Could not persist sync record", e);
+										continue;
+									}
+									syncRecords++;
+									if(!jsr.goToProperty("associated"))
+									{
+										log.warn("No associated property in sync record");
+										continue;
+									}
+									prisms.util.LongList assocIDs = new prisms.util.LongList();
+									prisms.util.BooleanList assocErrors = new prisms.util.BooleanList();
+									jsr.startArray();
+									while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
+									{
+										if(!jsr.goToProperty("id"))
 										{
-											sync.getKeeper().associate(assocChanges[i], sr,
-												assocErrors.get(i));
-										} catch(PrismsRecordException e)
-										{
-											log.error("Could not associated change", e);
+											log.warn("No id for associated change");
+											jsr.endObject(null);
+											continue;
 										}
+										assocIDs.add(jsr.parseLong());
+										if(jsr.goToProperty("error"))
+											assocErrors.add(jsr.parseBoolean());
+										else
+											assocErrors.add(false);
+										jsr.endObject(null);
+									}
+									jsr.endArray(null);
+									ChangeRecord [] assocChanges;
+									try
+									{
+										assocChanges = sync.getKeeper()
+											.getItems(assocIDs.toArray());
+									} catch(PrismsRecordException e)
+									{
+										log.error("Could not get associated changes", e);
+										continue;
+									}
+									for(int i = 0; i < assocChanges.length; i++)
+									{
+										if(assocChanges[i] != null)
+											try
+											{
+												sync.getKeeper().associate(assocChanges[i], sr,
+													assocErrors.get(i));
+											} catch(PrismsRecordException e)
+											{
+												log.error("Could not associated change", e);
+											}
+									}
+								} finally
+								{
+									jsr.endObject(srState);
 								}
-							} finally
-							{
-								jsr.endObject(srState);
 							}
+							jsr.endArray(null);
+						} finally
+						{
+							jsr.endObject(centerState);
 						}
-						jsr.endArray(null);
-					} finally
-					{
-						jsr.endObject(centerState);
 					}
+					jsr.endArray(null);
+					message.append(", ").append(syncRecords).append(" sync records");
 				}
-				jsr.endArray(null);
-				message.append(", ").append(syncRecords).append(" sync records");
 			}
 
 			// Latest changes
-			if(!jsr.goToProperty("latestChanges"))
+			if(jsr.goToProperty("latestChanges"))
 			{
-				message.append("\n\t\t").append("No latestChanges property in sync data");
-				return;
-			}
-			jsr.startArray();
-			while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
-			{
-				JsonSerialReader.StructState lcState = jsr.save();
-				try
+				JsonSerialReader.StructState rootState = jsr.startArray();
+				while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
 				{
-					if(!jsr.goToProperty("center"))
-					{
-						log.warn("No center for latest change entry");
-						continue;
-					}
-					int centerID = jsr.parseInt();
-					if(!jsr.goToProperty("subjectCenter"))
-					{
-						log.warn("No subjectCenter for latest change entry");
-						continue;
-					}
-					int subjectCenter = jsr.parseInt();
-					if(!jsr.goToProperty("latestChange"))
-					{
-						log.warn("No latestChange for latest change entry");
-						continue;
-					}
-					long changeTime = jsr.parseLong();
+					JsonSerialReader.StructState lcState = jsr.save();
 					try
 					{
-						sync.getKeeper().setLatestChange(centerID, subjectCenter, changeTime);
-					} catch(PrismsRecordException e)
+						if(!jsr.goToProperty("center"))
+						{
+							log.warn("No center for latest change entry");
+							continue;
+						}
+						int centerID = jsr.parseInt();
+						if(!jsr.goToProperty("subjectCenter"))
+						{
+							log.warn("No subjectCenter for latest change entry");
+							continue;
+						}
+						int subjectCenter = jsr.parseInt();
+						if(!jsr.goToProperty("latestChange"))
+						{
+							log.warn("No latestChange for latest change entry");
+							continue;
+						}
+						long changeTime = jsr.parseLong();
+						try
+						{
+							sync.getKeeper().setLatestChange(centerID, subjectCenter, changeTime);
+						} catch(PrismsRecordException e)
+						{
+							log.error("Could not set latest change", e);
+						}
+					} finally
 					{
-						log.error("Could not set latest change", e);
+						jsr.endObject(lcState);
 					}
-				} finally
-				{
-					jsr.endObject(lcState);
 				}
+				jsr.endArray(rootState);
 			}
 		}
 	}

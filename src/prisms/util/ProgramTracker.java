@@ -13,7 +13,7 @@ public class ProgramTracker implements Cloneable
 {
 	private static final Logger log = Logger.getLogger(ProgramTracker.class);
 
-	private static final int DEFAULT_INDENT_INCREMENT = 3;
+	private static final String DEFAULT_INDENT_INCREMENT = "   ";
 
 	static final SimpleDateFormat [][] formats;
 
@@ -63,10 +63,11 @@ public class ProgramTracker implements Cloneable
 	 */
 	public static void setThreadTracker(ProgramTracker tracker)
 	{
-		if(tracker != null && tracker.theCurrentThread != Thread.currentThread())
+		Thread ct = Thread.currentThread();
+		if(tracker != null && tracker.theCurrentThread != ct)
 			throw new IllegalArgumentException("The given tracker is not tracking for this thread");
 		if(tracker == null)
-			theThreadTrackers.remove(Thread.currentThread());
+			theThreadTrackers.remove(ct);
 		else
 			theThreadTrackers.put(tracker.theCurrentThread, tracker);
 	}
@@ -89,7 +90,11 @@ public class ProgramTracker implements Cloneable
 
 		private long theTaskDisplayThreshold;
 
-		private int theIndent;
+		private String theIndent;
+
+		private String theInitialIndent;
+
+		private boolean isWithIntro;
 
 		/** Creates a print config */
 		public PrintConfig()
@@ -98,6 +103,8 @@ public class ProgramTracker implements Cloneable
 			isAsync = false;
 			theTaskDisplayThreshold = 0;
 			theIndent = DEFAULT_INDENT_INCREMENT;
+			theInitialIndent = "";
+			isWithIntro = true;
 		}
 
 		/** @return The threshold below which tasks will be omitted from the results */
@@ -136,16 +143,46 @@ public class ProgramTracker implements Cloneable
 			isAsync = async;
 		}
 
-		/** @return The number of spaces to indent nested tasks */
-		public int getIndent()
+		/** @return The string to indent nested tasks with */
+		public String getIndent()
 		{
 			return theIndent;
 		}
 
-		/** @param indent The number of spaces to indent nested tasks */
-		public void setIndent(int indent)
+		/** @param indent The string to indent nested tasks with */
+		public void setIndent(String indent)
 		{
 			theIndent = indent;
+		}
+
+		/** @return The number of spaces to start the indentation of with */
+		public String getInitialIndent()
+		{
+			return theInitialIndent;
+		}
+
+		/** @param indent The number of spaces to start the indentation of with */
+		public void setInitialIndent(String indent)
+		{
+			theInitialIndent = indent;
+		}
+
+		/**
+		 * @return Whether program trackers printed with this config will also print a description
+		 *         of the tracker
+		 */
+		public boolean isWithIntro()
+		{
+			return isWithIntro;
+		}
+
+		/**
+		 * @param wi Whether program trackers printed with this config should also print a
+		 *        description of the tracker
+		 */
+		public void setWithIntro(boolean wi)
+		{
+			isWithIntro = wi;
 		}
 
 		@Override
@@ -434,6 +471,12 @@ public class ProgramTracker implements Cloneable
 
 		void write(int indent, long lastTime, long totalTime, StringBuilder sb, PrintConfig config)
 		{
+			if(config != null)
+			{
+				sb.append(config.getInitialIndent());
+				for(int i = 0; i < indent; i++)
+					sb.append(config.getIndent());
+			}
 			long localLength = getLocalLength(config);
 			float localPercent = 0;
 			float totalPercent = 0;
@@ -462,14 +505,8 @@ public class ProgramTracker implements Cloneable
 					}
 				}
 			}
-			int actualIndent = indent;
 			if(accent)
-			{
 				sb.append("* ");
-				actualIndent -= 2;
-			}
-			for(int i = 0; i < actualIndent; i++)
-				sb.append(' ');
 			sb.append(name);
 			if(unfinished > 0 || endTime < latestStartTime)
 			{
@@ -729,11 +766,16 @@ public class ProgramTracker implements Cloneable
 	{
 		if(!isOn)
 			return null;
+		/* This code may be quite expensive, since this method is used very often and the call to
+		 * Thread.currentThread() is supposed to be fairly expensive. This code may be useful for
+		 * debugging in some situations, but it is not worth keeping it here to degrade performance
+		 * all the time. See also the beginning of #end(TrackNode)
 		Thread ct = Thread.currentThread();
 		if(theCurrentThread == null)
 			theCurrentThread = ct;
 		else if(theCurrentThread != ct)
 			throw new IllegalStateException("Program Trackers may not be used by multiple threads!");
+		*/
 		routine = routine.intern();
 		long time = System.currentTimeMillis();
 		long nanos = -1;
@@ -782,9 +824,11 @@ public class ProgramTracker implements Cloneable
 	{
 		if(!isOn || routine == null)
 			return;
+		/*
 		Thread ct = Thread.currentThread();
 		if(theCurrentThread != ct)
 			throw new IllegalStateException("Program Trackers may not be used by multiple threads!");
+		*/
 		long time = System.currentTimeMillis();
 		long nanos = -1;
 		if(isWithStats)
@@ -911,12 +955,16 @@ public class ProgramTracker implements Cloneable
 	 */
 	public final StringBuilder printData(StringBuilder sb, PrintConfig config)
 	{
+		if(config.isWithIntro())
+			sb.append(config.getInitialIndent());
 		if(theNodes.isEmpty())
 		{
-			sb.append("No profiling data for tracker " + theName);
+			if(config.isWithIntro())
+				sb.append("No profiling data for tracker " + theName);
 			return sb;
 		}
-		sb.append("Profiling data for tracker " + theName + ":");
+		if(config.isWithIntro())
+			sb.append("Profiling data for tracker " + theName + ":");
 		long totalTime = 0;
 		for(TrackNode node : theNodes)
 			totalTime += node.getRealLength();
@@ -1018,10 +1066,10 @@ public class ProgramTracker implements Cloneable
 		node.write(indent, lastTime, totalTime, sb, config);
 		if(!config.isAsync())
 			for(TrackNode ch : node.children)
-				print(ch, sb, lastTime, totalTime, indent + config.getIndent(), config);
+				print(ch, sb, lastTime, totalTime, indent + 1, config);
 		else
 			for(Object ch : node.children.toArray())
-				print((TrackNode) ch, sb, lastTime, totalTime, indent + config.getIndent(), config);
+				print((TrackNode) ch, sb, lastTime, totalTime, indent + 1, config);
 	}
 
 	/**

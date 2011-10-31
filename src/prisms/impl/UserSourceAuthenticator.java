@@ -125,7 +125,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				data = new DummySessionData();
 				theEncryptions.put(request.getUser().getName(), data);
 			}
-			String dataStr = request.httpRequest.getParameter("data");
+			String dataStr = request.getParameter("data");
 			if(dataStr != null && isEncrypted(dataStr))
 			{
 				if(data.loginFails > theLoginFailTolerance)
@@ -310,7 +310,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request)
 			throws PrismsException
 		{
-			String dataStr = request.httpRequest.getParameter("data");
+			String dataStr = request.getParameter("data");
 			Encryption enc = theEncryption;
 			if(dataStr != null && isEncrypted(dataStr))
 			{
@@ -781,10 +781,10 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 
 	public User getUser(PrismsRequest request) throws PrismsException
 	{
-		String userName = request.httpRequest.getParameter(theUserParam);
+		String userName = request.getParameter(theUserParam);
 		if(userName == null)
 		{
-			String data = request.httpRequest.getParameter("data");
+			String data = request.getParameter("data");
 			if(data != null && !isEncrypted(data))
 			{
 				data = prisms.util.PrismsUtils.decodeSafe(data);
