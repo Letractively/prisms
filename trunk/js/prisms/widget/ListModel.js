@@ -59,6 +59,14 @@ __dojo.declare("prisms.widget.ListModel", null, {
 		this.theValue.actions=[];
 		this.onChange(this.theValue);
 		this.onChildrenChange(this.theValue, this.theValue.children);
+		this.setListParams({
+			placeHolder: "",
+			filter: "",
+			icon: "",
+			title: "",
+			description: "",
+			actions: []
+		});
 	},
 
 	getRoot: function(onItem){
