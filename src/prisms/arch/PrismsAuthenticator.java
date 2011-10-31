@@ -62,7 +62,6 @@ public interface PrismsAuthenticator
 		 * Causes this authenticator to clear its caches for a particular session so that the
 		 * authentication data it uses is strictly up-to-date
 		 * 
-		 * @param authInfo The authentication information for the session
 		 * @return An ID for the authentication data being used now, or -1 if the authentication
 		 *         data was already up-to-date.
 		 * @throws PrismsException If an error occurs accessing the needed information
@@ -72,7 +71,6 @@ public interface PrismsAuthenticator
 		/**
 		 * Destroys the given authentication info, releasing its resources
 		 * 
-		 * @param authInfo The authentication info to destroy
 		 * @throws PrismsException If an error occurs accessing the needed information
 		 */
 		void destroy() throws PrismsException;
