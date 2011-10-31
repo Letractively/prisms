@@ -399,10 +399,6 @@ public class DBRecordKeeper implements RecordKeeper
 			theLocalPriority = selfCenter.getPriority();
 	}
 
-	/**
-	 * @return The namespace that this record keeper is in. More than one record keeper can use the
-	 *         same database, provided they keep different namespaces.
-	 */
 	public String getNamespace()
 	{
 		return theNamespace;

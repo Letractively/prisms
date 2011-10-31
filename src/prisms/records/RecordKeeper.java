@@ -31,6 +31,9 @@ public interface RecordKeeper extends
 		}
 	}
 
+	/** @return The namespace that distinguishes this keeper's data from others */
+	String getNamespace();
+
 	/** @return This database's identifier */
 	int getCenterID();
 

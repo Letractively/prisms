@@ -757,6 +757,8 @@ public class MemoryRecordKeeper implements RecordKeeper
 		}
 	}
 
+	private final String theNamespace;
+
 	private final int theCenterID;
 
 	private int theSyncPriority;
@@ -787,21 +789,24 @@ public class MemoryRecordKeeper implements RecordKeeper
 	/**
 	 * Creates a record keeper with a random center ID
 	 * 
+	 * @param namespace The namespace for this record keeper
 	 * @param getter The ID getter for this record keeper
 	 */
-	public MemoryRecordKeeper(IDGetter getter)
+	public MemoryRecordKeeper(String namespace, IDGetter getter)
 	{
-		this(getter, PrismsUtils.getRandomInt());
+		this(namespace, getter, PrismsUtils.getRandomInt());
 	}
 
 	/**
 	 * Creates a record keeper with a given ID
 	 * 
+	 * @param namespace The namespace for this record keeper
 	 * @param centerID The center ID for this record keeper
 	 * @param getter The ID getter for this record keeper
 	 */
-	public MemoryRecordKeeper(IDGetter getter, int centerID)
+	public MemoryRecordKeeper(String namespace, IDGetter getter, int centerID)
 	{
+		theNamespace = namespace;
 		theCenterID = centerID;
 		theIDGetter = getter;
 		theLock = new java.util.concurrent.locks.ReentrantLock();
@@ -811,6 +816,11 @@ public class MemoryRecordKeeper implements RecordKeeper
 		theLastPurge = System.currentTimeMillis();
 		theRecentPurges = new java.util.HashMap<DualKey<Integer, Integer>, Long>();
 		theRetrySetting = 2;
+	}
+
+	public String getNamespace()
+	{
+		return theNamespace;
 	}
 
 	public int getCenterID()
