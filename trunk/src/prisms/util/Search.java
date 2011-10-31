@@ -889,16 +889,22 @@ public abstract class Search implements Cloneable
 					ret.append(minute);
 					if(gmt)
 						ret.append('Z');
-					ret.append(':');
-					if(second.intValue() < 10)
-						ret.append('0');
-					ret.append(second);
-					ret.append('.');
-					if(milli.intValue() < 100)
-						ret.append('0');
-					if(milli.intValue() < 10)
-						ret.append('0');
-					ret.append(milli);
+					if(second != null)
+					{
+						ret.append(':');
+						if(second.intValue() < 10)
+							ret.append('0');
+						ret.append(second);
+						if(milli != null)
+						{
+							ret.append('.');
+							if(milli.intValue() < 100)
+								ret.append('0');
+							if(milli.intValue() < 10)
+								ret.append('0');
+							ret.append(milli);
+						}
+					}
 				}
 				else
 				{
