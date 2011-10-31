@@ -313,23 +313,43 @@ public class UserShareKey implements ShareKey
 			return true;
 		if(!(o instanceof UserShareKey))
 			return false;
-		UserShareKey psk = (UserShareKey) o;
+		final UserShareKey psk = (UserShareKey) o;
 		if(!(psk.isViewPublic == isViewPublic && psk.isEditPublic == isEditPublic
 			&& psk.theOwner.equals(theOwner)
 			&& equal(psk.theViewAllPermission, theViewAllPermission) && equal(
-			psk.theEditAllPermission, theEditAllPermission)))
+				psk.theEditAllPermission, theEditAllPermission)))
 			return false;
-		if(psk.theAccessUsers.length != theAccessUsers.length)
-			return false;
-		for(int g = 0; g < psk.theAccessUsers.length; g++)
-		{
-			int g2 = ArrayUtils.indexOf(theAccessUsers, psk.theAccessUsers[g]);
-			if(g2 < 0)
-				return false;
-			if(psk.theEditUsers[g] != theEditUsers[g2])
-				return false;
-		}
-		return true;
+		final boolean [] ret = new boolean [] {true};
+		ArrayUtils.adjust(theAccessUsers, psk.theAccessUsers,
+			new ArrayUtils.DifferenceListener<User, User>()
+			{
+				public boolean identity(User o1, User o2)
+				{
+					return o1.equals(o2);
+				}
+
+				public User added(User o1, int mIdx, int retIdx)
+				{
+					if(canView(o1) != psk.canView(o1) || canEdit(o1) != psk.canEdit(o1))
+						ret[0] = false;
+					return null;
+				}
+
+				public User removed(User o1, int oIdx, int incMod, int retIdx)
+				{
+					if(canView(o1) != psk.canView(o1) || canEdit(o1) != psk.canEdit(o1))
+						ret[0] = false;
+					return null;
+				}
+
+				public User set(User o1, int idx1, int incMod, User o2, int idx2, int retIdx)
+				{
+					if(canView(o1) != psk.canView(o1) || canEdit(o1) != psk.canEdit(o1))
+						ret[0] = false;
+					return null;
+				}
+			});
+		return ret[0];
 	}
 
 	@Override
