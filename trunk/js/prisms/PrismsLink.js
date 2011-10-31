@@ -293,7 +293,7 @@ __dojo.declare("prisms.PrismsLink", null, {
 			this.callServer("init");
 			this.appLoading();
 		}
-		else if(!this.tryEncryptAgain && (!this._login || error || !this._login.password || this._login.password.length==0))
+		else if(!this.tryEncryptAgain && (!this._login || error))
 		{
 			this._encryption=encryption;
 			this._hashing=hashing;
@@ -382,16 +382,8 @@ __dojo.declare("prisms.PrismsLink", null, {
 		{
 			if(this._postLoginAction=="startEncryption")
 			{
-				if(!password || password.length==0)
-				{
-					this.appLoaded();
-					this.doLogin(this._loginError);
-				}
-				else
-				{
-					delete this._postLoginAction;
-					this.startEncryption(this._encryption, this._hashing, null, "callInit");
-				}
+				delete this._postLoginAction;
+				this.startEncryption(this._encryption, this._hashing, null, "callInit");
 			}
 			else
 				this.error("Unrecognized post-login action: "+this._postLoginAction);
