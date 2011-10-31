@@ -59,6 +59,8 @@ public class SharedObjectEditor
 		json.put("shareUsers", jsonUsers);
 		for(User u : users)
 		{
+			if(u.equals(key.getOwner()))
+				continue;
 			JSONObject jsonUser = new JSONObject();
 			jsonUsers.add(jsonUser);
 			String serID;
@@ -165,8 +167,33 @@ public class SharedObjectEditor
 						{
 							User ret = new User(null, (String) o.get("userName"), o
 								.containsKey("id") ? Long.parseLong((String) o.get("id"), 16) : -1);
-							boolean edit = Boolean.TRUE.equals(o.get("canEdit"));
-							interpreter.setUserAccess(ret, true, edit);
+							prisms.arch.ds.UserGroup g = null;
+							if(Boolean.TRUE.equals(o.get("globalView")))
+							{
+								g = new prisms.arch.ds.UserGroup(null, "Key Gen Permissions", key
+									.getApp(), -1);
+								g.getPermissions().addPermission(
+									new prisms.arch.Permission(key.getApp(), key
+										.getViewPermission(), "Key Generated"));
+								ret.addTo(g);
+							}
+							if(Boolean.TRUE.equals(o.get("globalEdit")))
+							{
+								if(g == null)
+								{
+									g = new prisms.arch.ds.UserGroup(null, "Key Gen Permissions",
+										key.getApp(), -1);
+									ret.addTo(g);
+								}
+								g.getPermissions().addPermission(
+									new prisms.arch.Permission(key.getApp(), key
+										.getViewPermission(), "Key Generated"));
+							}
+							else
+							{
+								boolean edit = Boolean.TRUE.equals(o.get("canEdit"));
+								interpreter.setUserAccess(ret, true, edit);
+							}
 							return ret;
 						}
 						log.error("Unrecognized user: " + o);
