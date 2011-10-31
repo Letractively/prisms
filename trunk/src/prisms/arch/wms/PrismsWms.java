@@ -296,20 +296,20 @@ public abstract class PrismsWms implements prisms.arch.wms.WmsPlugin
 		java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(request.getWidth(),
 			request.getHeight(), java.awt.image.BufferedImage.TYPE_4BYTE_ABGR);
 		GeoRenderer renderer;
-		prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getSession()
-			.getApp().getEnvironment(), "Create WMS Render Context");
+		prisms.arch.PrismsTransaction trans = getSession().getTransaction();
+		prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(trans,
+			"Create WMS Render Context");
 		try
 		{
 			renderer = createRenderer(request, (java.awt.Graphics2D) image.getGraphics());
 		} finally
 		{
-			prisms.util.PrismsUtils.end(getSession().getApp().getEnvironment(), track);
+			prisms.util.PrismsUtils.end(trans, track);
 		}
 		if(renderer == null)
 		{
 			image.getGraphics().dispose();
-			track = prisms.util.PrismsUtils.track(getSession().getApp().getEnvironment(),
-				"Write WMS Image");
+			track = prisms.util.PrismsUtils.track(trans, "Write WMS Image");
 			try
 			{
 				if(request.getFormat().toLowerCase().contains("png"))
@@ -324,22 +324,20 @@ public abstract class PrismsWms implements prisms.arch.wms.WmsPlugin
 						+ request.getFormat());
 			} finally
 			{
-				prisms.util.PrismsUtils.end(getSession().getApp().getEnvironment(), track);
+				prisms.util.PrismsUtils.end(trans, track);
 			}
 			return;
 		}
-		track = prisms.util.PrismsUtils.track(getSession().getApp().getEnvironment(),
-			"Render WMS Map");
+		track = prisms.util.PrismsUtils.track(trans, "Render WMS Map");
 		try
 		{
 			doGetMap(request, event, renderer);
 		} finally
 		{
-			prisms.util.PrismsUtils.end(getSession().getApp().getEnvironment(), track);
+			prisms.util.PrismsUtils.end(trans, track);
 			renderer.getGraphics().dispose();
 		}
-		track = prisms.util.PrismsUtils.track(getSession().getApp().getEnvironment(),
-			"Write WMS Image");
+		track = prisms.util.PrismsUtils.track(trans, "Write WMS Image");
 		try
 		{
 			if(request.getFormat().toLowerCase().contains("png"))
@@ -354,7 +352,7 @@ public abstract class PrismsWms implements prisms.arch.wms.WmsPlugin
 					+ request.getFormat());
 		} finally
 		{
-			prisms.util.PrismsUtils.end(getSession().getApp().getEnvironment(), track);
+			prisms.util.PrismsUtils.end(trans, track);
 		}
 	}
 

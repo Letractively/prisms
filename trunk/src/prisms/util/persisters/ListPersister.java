@@ -110,13 +110,15 @@ public abstract class ListPersister<T> implements Persister<T []>
 	}
 
 	public synchronized void setValue(final PrismsSession session, Object [] value,
-		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
+		@SuppressWarnings("rawtypes")
+		prisms.arch.event.PrismsPCE evt)
 	{
 		final prisms.arch.event.PrismsPCE<T []> fEvt = evt;
 		dataLock++;
 		final int currentLock = dataLock;
 		ListElementContainer [] dbEls = theElements
 			.toArray(new ListPersister.ListElementContainer [theElements.size()]);
+		final prisms.arch.PrismsTransaction trans = getApp().getEnvironment().getTransaction();
 		ArrayUtils.adjust(dbEls, (T []) value,
 			new ArrayUtils.DifferenceListener<ListElementContainer, T>()
 			{
@@ -129,21 +131,15 @@ public abstract class ListPersister<T> implements Persister<T []>
 				{
 					if(currentLock != dataLock)
 						return null;
-					TrackNode track = null;
-					prisms.arch.PrismsTransaction trans = getApp().getEnvironment()
-						.getTransaction();
-					if(trans != null)
-						track = trans.getTracker().start(
-							"PRISMS: Adding value " + o + " in persister "
-								+ prisms.util.PrismsUtils.taskToString(this));
+					TrackNode track = prisms.util.PrismsUtils.track(trans, "PRISMS: Adding value "
+						+ o + " in persister " + prisms.util.PrismsUtils.taskToString(this));
 					T dbItem;
 					try
 					{
 						dbItem = add(session, o, fEvt);
 					} finally
 					{
-						if(track != null)
-							trans.getTracker().end(track);
+						prisms.util.PrismsUtils.end(trans, track);
 					}
 					if(currentLock != dataLock)
 						return null;
@@ -162,22 +158,17 @@ public abstract class ListPersister<T> implements Persister<T []>
 				{
 					if(currentLock != dataLock)
 						return null;
-					TrackNode track = null;
-					prisms.arch.PrismsTransaction trans = getApp().getEnvironment()
-						.getTransaction();
-					if(trans != null)
-						track = trans.getTracker().start(
-							"PRISMS: Removing value " + o + " from persister "
-								+ prisms.util.PrismsUtils.taskToString(this));
-					synchronized(o.theDBValue)
+					TrackNode track = prisms.util.PrismsUtils.track(trans,
+						"PRISMS: Removing value " + o + " from persister "
+							+ prisms.util.PrismsUtils.taskToString(this));
+					synchronized(o)
 					{
 						try
 						{
 							remove(session, o.theDBValue, fEvt);
 						} finally
 						{
-							if(track != null)
-								trans.getTracker().end(track);
+							prisms.util.PrismsUtils.end(trans, track);
 						}
 					}
 					if(currentLock != dataLock)
@@ -214,6 +205,7 @@ public abstract class ListPersister<T> implements Persister<T []>
 	public synchronized void valueChanged(PrismsSession session, T [] fullValue, Object o,
 		prisms.arch.event.PrismsEvent evt)
 	{
+		prisms.arch.PrismsTransaction trans = getApp().getEnvironment().getTransaction();
 		for(ListElementContainer el : theElements)
 			if(equivalent(el.theDBValue, (T) o))
 			{
@@ -226,25 +218,20 @@ public abstract class ListPersister<T> implements Persister<T []>
 				if(el.isLocked)
 					el.queue((T) o);
 				else
-					synchronized(el.theDBValue)
+					synchronized(el)
 					{
 						boolean preLocked = el.isLocked;
 						el.isLocked = true;
-						TrackNode track = null;
-						prisms.arch.PrismsTransaction trans = getApp().getEnvironment()
-							.getTransaction();
-						if(trans != null)
-							track = trans.getTracker().start(
-								"PRISMS: Value " + el.theDBValue + " changed in persister "
-									+ prisms.util.PrismsUtils.taskToString(this));
+						TrackNode track = prisms.util.PrismsUtils.track(trans,
+							"PRISMS: Value " + el.theDBValue + " changed in persister "
+								+ prisms.util.PrismsUtils.taskToString(this));
 						try
 						{
 							update(session, el.theDBValue, (T) o, evt);
 						} finally
 						{
 							el.isLocked = preLocked;
-							if(track != null)
-								trans.getTracker().end(track);
+							prisms.util.PrismsUtils.end(trans, track);
 						}
 					}
 				break;

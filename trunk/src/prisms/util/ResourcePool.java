@@ -230,20 +230,27 @@ public class ResourcePool<T>
 					// Don't give a resource immediately if other threads are waiting for it. We'll
 					// try to be fair. Instead wake up the longest-waiting thread to grab the
 					// resource.
+					Thread ct = null;
 					if(tries == 0 && !theWaitingThreads.isEmpty())
 					{
 						toWake = theWaitingThreads.removeFirst();
 						if(wait)
 						{
 							waiting = true;
-							theWaitingThreads.add(Thread.currentThread());
+							if(ct == null)
+								ct = Thread.currentThread();
+							theWaitingThreads.add(ct);
 						}
 					}
 					if(theWaitingThreads.isEmpty() && theAvailableResources.size() > 0)
 					{
 						// Resources are available. Stop waiting and return the resource.
 						if(waiting)
-							theWaitingThreads.remove(Thread.currentThread());
+						{
+							if(ct == null)
+								ct = Thread.currentThread();
+							theWaitingThreads.remove(ct);
+						}
 						waiting = false;
 						// Remote the resource from the available set and add to the in-use set
 						ret = theAvailableResources.remove(theAvailableResources.size() - 1);
@@ -253,10 +260,12 @@ public class ResourcePool<T>
 					{
 						// No resources available. Wait until one is.
 						waiting = true;
+						if(ct == null)
+							ct = Thread.currentThread();
 						if(tries > 0)
-							theWaitingThreads.addFirst(Thread.currentThread());
+							theWaitingThreads.addFirst(ct);
 						else
-							theWaitingThreads.add(Thread.currentThread());
+							theWaitingThreads.add(ct);
 					}
 				} finally
 				{

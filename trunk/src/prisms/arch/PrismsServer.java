@@ -1272,27 +1272,28 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		private PrismsResponse process(RequestAuthenticator reqAuth, JSONObject event)
 		{
 			JSONArray ret = null;
+			PrismsTransaction trans = getEnv().getTransaction();
 			if(theSession.getClient().isService()
 				|| Boolean.TRUE.equals(event.get("prisms-synchronous")))
 			{
-				TrackNode track = PrismsUtils.track(getEnv(), "processSync");
+				TrackNode track = PrismsUtils.track(trans, "processSync");
 				try
 				{
 					ret = theSession.processSync(event);
 				} finally
 				{
-					PrismsUtils.end(getEnv(), track);
+					PrismsUtils.end(trans, track);
 				}
 			}
 			else
 			{
-				TrackNode track = PrismsUtils.track(getEnv(), "processAsync");
+				TrackNode track = PrismsUtils.track(trans, "processAsync");
 				try
 				{
 					ret = theSession.processAsync(event, null);
 				} finally
 				{
-					PrismsUtils.end(getEnv(), track);
+					PrismsUtils.end(trans, track);
 				}
 			}
 			long exp = untilExpires();
@@ -1315,7 +1316,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(plugin == null)
 				return error(reqAuth, req, ErrorCode.RequestInvalid, "No plugin " + pluginName
 					+ " loaded");
-			TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName + ".wms("
+			PrismsTransaction trans = getEnv().getTransaction();
+			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName + ".wms("
 				+ wms.getRequest().name() + ")");
 			try
 			{
@@ -1383,7 +1385,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					+ ": " + e.getMessage());
 			} finally
 			{
-				PrismsUtils.end(getEnv(), track);
+				PrismsUtils.end(trans, track);
 			}
 			return new PrismsResponse(reqAuth, null);
 		}
@@ -1408,7 +1410,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				return;
 			}
 			theSession.runTasks();
-			TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName
+			PrismsTransaction trans = getEnv().getTransaction();
+			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName
 				+ ".writeImage()");
 			try
 			{
@@ -1416,7 +1419,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					xOffset, yOffset, refWidth, refHeight, imWidth, imHeight, out);
 			} finally
 			{
-				PrismsUtils.end(getEnv(), track);
+				PrismsUtils.end(trans, track);
 			}
 		}
 
@@ -1440,7 +1443,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			int size = plugin.getDownloadSize(event);
 			if(size >= 0)
 				response.setContentLength(size);
-			TrackNode track = PrismsUtils.track(getEnv(), "PRISMS Plugin " + pluginName
+			PrismsTransaction trans = getEnv().getTransaction();
+			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName
 				+ ".doDownload");
 			try
 			{
@@ -1453,7 +1457,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				log.error("Download failed", e);
 			} finally
 			{
-				PrismsUtils.end(getEnv(), track);
+				PrismsUtils.end(trans, track);
 			}
 		}
 

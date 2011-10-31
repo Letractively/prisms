@@ -145,7 +145,9 @@ public class PrismsServiceConnector
 		/** Returns a stream of data */
 		getDownload,
 		/** Uploads data to the service */
-		doUpload
+		doUpload,
+		/** Disposes of the session */
+		logout
 	}
 
 	/** Used when client validation is requested by the server */
@@ -244,6 +246,8 @@ public class PrismsServiceConnector
 	private prisms.arch.PrismsEnv theEnv;
 
 	private prisms.arch.Worker theWorker;
+
+	private boolean isOwnWorker;
 
 	private java.util.concurrent.locks.ReentrantReadWriteLock theCredentialLock;
 
@@ -392,6 +396,9 @@ public class PrismsServiceConnector
 	{
 		if(worker == null)
 			throw new NullPointerException();
+		if(isOwnWorker)
+			theWorker.close();
+		isOwnWorker = false;
 		theWorker = worker;
 	}
 
@@ -441,6 +448,18 @@ public class PrismsServiceConnector
 	}
 
 	/**
+	 * @param sync Whether to halt the thread until the logout request returns
+	 * @throws IOException If an error occurs calling the server or logging out
+	 */
+	public void logout(boolean sync) throws IOException
+	{
+		_callProcedure(ServerMethod.logout, new JSONObject(), sync);
+		if(isOwnWorker)
+			theWorker.close();
+		theWorker = null;
+	}
+
+	/**
 	 * Queries the service for version information on the application that this connector accesses
 	 * 
 	 * @return The version information for the given application
@@ -453,16 +472,15 @@ public class PrismsServiceConnector
 		IOException
 	{
 		JSONArray retArray;
+		prisms.arch.PrismsTransaction trans = theEnv != null ? theEnv.getTransaction() : null;
 		prisms.util.ProgramTracker.TrackNode track = null;
-		if(theEnv != null)
-			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		track = PrismsUtils.track(trans, "PRISMS connect");
 		try
 		{
 			retArray = callServer(ServerMethod.getVersion, new JSONObject());
 		} finally
 		{
-			if(theEnv != null)
-				PrismsUtils.end(theEnv, track);
+			PrismsUtils.end(trans, track);
 		}
 		if(retArray.size() == 0)
 			throw new IOException("Error interfacing with server: No result returned: " + retArray);
@@ -495,16 +513,15 @@ public class PrismsServiceConnector
 	public JSONObject getResult(String plugin, String method, Object... params) throws IOException
 	{
 		JSONObject rEventProps;
+		prisms.arch.PrismsTransaction trans = theEnv != null ? theEnv.getTransaction() : null;
 		prisms.util.ProgramTracker.TrackNode track = null;
-		if(theEnv != null)
-			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		track = PrismsUtils.track(trans, "PRISMS connect");
 		try
 		{
 			rEventProps = PrismsUtils.rEventProps(params);
 		} finally
 		{
-			if(theEnv != null)
-				PrismsUtils.end(theEnv, track);
+			PrismsUtils.end(trans, track);
 		}
 		if(rEventProps == null)
 			rEventProps = new JSONObject();
@@ -528,16 +545,15 @@ public class PrismsServiceConnector
 		params.put("plugin", plugin);
 		params.put("method", method);
 		JSONArray serverReturn;
+		prisms.arch.PrismsTransaction trans = theEnv != null ? theEnv.getTransaction() : null;
 		prisms.util.ProgramTracker.TrackNode track = null;
-		if(theEnv != null)
-			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		track = PrismsUtils.track(trans, "PRISMS connect");
 		try
 		{
 			serverReturn = callServer(ServerMethod.processEvent, params);
 		} finally
 		{
-			if(theEnv != null)
-				PrismsUtils.end(theEnv, track);
+			PrismsUtils.end(trans, track);
 		}
 		if(serverReturn.size() == 0)
 			throw new IOException("Error interfacing with server: No result returned: "
@@ -565,16 +581,15 @@ public class PrismsServiceConnector
 			rEventProps = new JSONObject();
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
+		prisms.arch.PrismsTransaction trans = theEnv != null ? theEnv.getTransaction() : null;
 		prisms.util.ProgramTracker.TrackNode track = null;
-		if(theEnv != null)
-			track = PrismsUtils.track(theEnv, "PRISMS connect");
+		track = PrismsUtils.track(trans, "PRISMS connect");
 		try
 		{
 			return callServer(ServerMethod.processEvent, rEventProps);
 		} finally
 		{
-			if(theEnv != null)
-				PrismsUtils.end(theEnv, track);
+			PrismsUtils.end(trans, track);
 		}
 	}
 
@@ -592,7 +607,7 @@ public class PrismsServiceConnector
 	 * @throws PrismsServiceException If a PRISMS error occurs
 	 * @throws IOException If any other problem occurs calling the server
 	 */
-	public void callProcedure(String plugin, String method, final boolean sync, Object... params)
+	public void callProcedure(String plugin, String method, boolean sync, Object... params)
 		throws IOException
 	{
 		final JSONObject rEventProps;
@@ -604,6 +619,12 @@ public class PrismsServiceConnector
 		}
 		rEventProps.put("plugin", plugin);
 		rEventProps.put("method", method);
+		_callProcedure(ServerMethod.processEvent, rEventProps, sync);
+	}
+
+	private void _callProcedure(final ServerMethod method, final JSONObject event,
+		final boolean sync) throws IOException
+	{
 		final IOException [] thrown = new IOException [1];
 		final Exception [] outerStack = new Exception [1];
 		final prisms.arch.PrismsTransaction.Stage[] stage = new prisms.arch.PrismsTransaction.Stage [1];
@@ -619,11 +640,10 @@ public class PrismsServiceConnector
 				else if(app[0] != null)
 					trans = getEnv().transact(app[0]);
 				prisms.util.ProgramTracker.TrackNode track = null;
-				if(getEnv() != null)
-					track = PrismsUtils.track(getEnv(), "PRISMS connect");
+				track = PrismsUtils.track(trans, "PRISMS connect");
 				try
 				{
-					callServer(ServerMethod.processEvent, rEventProps);
+					callServer(method, event);
 				} catch(IOException e)
 				{
 					if(sync)
@@ -636,8 +656,7 @@ public class PrismsServiceConnector
 					}
 				} finally
 				{
-					if(getEnv() != null)
-						PrismsUtils.end(getEnv(), track);
+					PrismsUtils.end(trans, track);
 					if(trans != null)
 						getEnv().finish(trans);
 				}
@@ -645,16 +664,15 @@ public class PrismsServiceConnector
 		};
 		if(sync)
 		{
+			prisms.arch.PrismsTransaction trans = theEnv != null ? theEnv.getTransaction() : null;
 			prisms.util.ProgramTracker.TrackNode track = null;
-			if(theEnv != null)
-				track = PrismsUtils.track(theEnv, "PRISMS connect");
+			track = PrismsUtils.track(trans, "PRISMS connect");
 			try
 			{
 				run.run();
 			} finally
 			{
-				if(theEnv != null)
-					PrismsUtils.end(theEnv, track);
+				PrismsUtils.end(trans, track);
 			}
 			if(thrown[0] != null)
 				throw thrown[0];
@@ -724,8 +742,7 @@ public class PrismsServiceConnector
 				try
 				{
 					prisms.util.ProgramTracker.TrackNode track = null;
-					if(getEnv() != null)
-						track = PrismsUtils.track(getEnv(), "PRISMS connect");
+					track = PrismsUtils.track(trans, "PRISMS connect");
 					JSONArray serverReturn;
 					try
 					{
@@ -738,8 +755,7 @@ public class PrismsServiceConnector
 						return;
 					} finally
 					{
-						if(getEnv() != null)
-							PrismsUtils.end(getEnv(), track);
+						PrismsUtils.end(trans, track);
 					}
 					if(serverReturn.size() == 0)
 					{
@@ -821,8 +837,7 @@ public class PrismsServiceConnector
 				try
 				{
 					prisms.util.ProgramTracker.TrackNode track = null;
-					if(getEnv() != null)
-						track = PrismsUtils.track(getEnv(), "PRISMS connect");
+					track = PrismsUtils.track(trans, "PRISMS connect");
 					JSONArray serverReturn;
 					try
 					{
@@ -835,8 +850,7 @@ public class PrismsServiceConnector
 						return;
 					} finally
 					{
-						if(getEnv() != null)
-							PrismsUtils.end(getEnv(), track);
+						PrismsUtils.end(trans, track);
 					}
 					aRet.doReturn(serverReturn);
 				} finally
@@ -924,6 +938,8 @@ public class PrismsServiceConnector
 								+ " for request " + event);
 						}
 					}
+					else if(serverMethod == ServerMethod.logout)
+						continue;
 					Number authID = (Number) json.get("authID");
 					serverReturn.addAll(
 						i + 1,
@@ -1175,8 +1191,6 @@ public class PrismsServiceConnector
 		return getResultStream(ServerMethod.getDownload, params).input;
 	}
 
-	String BOUNDARY = Long.toHexString((long) (Math.random() * Long.MAX_VALUE));
-
 	/**
 	 * Uploads data to the service TODO This does not currently work
 	 * 
@@ -1188,7 +1202,6 @@ public class PrismsServiceConnector
 	 * @return The output stream to write the upload data to
 	 * @throws IOException If an error occurs doing the upload
 	 */
-	/*
 	public java.io.OutputStream uploadData(String fileName, String mimeType, String plugin,
 		String method, Object... params) throws IOException
 	{
@@ -1197,109 +1210,41 @@ public class PrismsServiceConnector
 		JSONObject jsonParams = PrismsUtils.rEventProps(params);
 		jsonParams.put("plugin", plugin);
 		jsonParams.put("method", method);
-		jsonParams.put("uploadFile", fileName);
-		String dataStr = getEncodedDataString(jsonParams);
+		String dataStr;
 		Encryption enc;
-		final java.net.HttpURLConnection conn;
 		Lock lock = theCredentialLock.readLock();
 		lock.lock();
 		try
 		{
 			enc = theEncryption;
-			conn = getURL(ServerMethod.doUpload, dataStr, enc);
+			dataStr = getEncodedDataString(jsonParams);
 		} finally
 		{
 			lock.unlock();
 		}
-		conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.defaultCharset().name());
-		conn.setDoOutput(true);
-		conn.setDoInput(true);
-		conn.setUseCaches(false);
-		conn.setDefaultUseCaches(false);
-		conn.setRequestMethod("POST");
-		conn.setRequestProperty("Connection", "Keep-Alive");
-		// c.setRequestProperty("HTTP_REFERER", codebase);
-		conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + BOUNDARY);
-		final java.io.OutputStream os = conn.getOutputStream();
-		final java.io.Writer out = new java.io.OutputStreamWriter(os,
-			java.nio.charset.Charset.defaultCharset());
-		if(isPost && dataStr != null)
+		java.util.HashMap<String, String> gets = new java.util.HashMap<String, String>();
+		gets.put("app", theAppName);
+		gets.put("client", theServiceName);
+		gets.put("method", ServerMethod.doUpload.toString());
+		gets.put("version", PRISMS_SERVICE_VERSION);
+		if(!isPost)
+			gets.put("data", dataStr);
+		if(theSessionID != null)
+			gets.put("sessionID", theSessionID);
+		if(theUserName != null)
+			gets.put("user", theUserName);
+		if(enc != null)
+			gets.put("encrypted", "true");
+		java.util.HashMap<String, Object> posts = null;
+		if(isPost)
 		{
-			out.write("--");
-			out.write(BOUNDARY);
-			out.write("\r\n");
-			// write content header
-			out.write("Content-Disposition: form-data; name=\"data\";");
-			out.write("\r\n");
-			out.write("Content-Type: text/plain\r\nContent-Transfer-Encoding: 8bit");
-			out.write("\r\n");
-			out.write("\r\n");
-			out.write(dataStr);
+			posts = new java.util.HashMap<String, Object>();
+			posts.put("data", dataStr);
 		}
-
-		out.write("\r\n");
-		out.write("--");
-		out.write(BOUNDARY);
-		out.write("\r\n");
-		// write content header
-		out.flush();
-		out.write("Content-Disposition: file; name=\"Upload Data\"; filename=\"" + fileName + "\"");
-		out.write("\r\n");
-		if(mimeType != null)
-		{
-			out.write("Content-Type: " + mimeType);
-			out.write("\r\n");
-		}
-		out.write("\r\n");
-		out.flush();
-		// TODO Outgoing data is not encrypted. Should it be?
-		return new java.io.OutputStream()
-		{
-			@Override
-			public void write(int b) throws IOException
-			{
-				os.write(b);
-			}
-
-			@Override
-			public void write(byte [] b) throws IOException
-			{
-				os.write(b);
-			}
-
-			@Override
-			public void write(byte [] b, int off, int len) throws IOException
-			{
-				os.write(b, off, len);
-			}
-
-			@Override
-			public void flush() throws IOException
-			{
-				os.flush();
-			}
-
-			@Override
-			public void close() throws IOException
-			{
-				os.flush();
-				out.write("\r\n");
-				out.write("--");
-				out.write(BOUNDARY);
-				out.write("--");
-				out.write("\r\n");
-				out.write("\r\n");
-				out.flush();
-				out.close();
-				java.io.InputStream in = conn.getInputStream();
-				int read = in.read();
-				while(read >= 0)
-					read = in.read();
-				in.close();
-				conn.disconnect();
-			}
-		};
-	}*/
+		java.util.HashMap<String, String> reqParams = new java.util.HashMap<String, String>();
+		reqParams.put("User-Agent", "PRISMS-Service/" + PRISMS_SERVICE_VERSION);
+		return theConnector.uploadData(fileName, mimeType, gets, posts, reqParams, null);
+	}
 
 	private JSONArray callInit(JSONObject postRequest) throws IOException
 	{
@@ -1321,34 +1266,34 @@ public class PrismsServiceConnector
 			{
 				prisms.arch.ds.User user = theUserSource.getUser(theUserName);
 				if(user == null)
-					throw new IOException("No such user " + theUserName + " in data source");
-				prisms.arch.ds.UserSource.Password pwd = theUserSource.getPassword(user, hashing);
+					throw new AuthenticationFailedException("No such user " + theUserName
+						+ " in data source");
+				prisms.arch.ds.UserSource.Password pwd = theUserSource.getPassword(user);
 				if(pwd == null)
-					throw new IOException("No password set for user " + theUserName);
+					throw new AuthenticationFailedException("No password set for user "
+						+ theUserName);
 				if(authID < 0 || pwd.setTime == authID)
-					key = pwd.key;
+					key = hashing.generateKey(pwd.hash);
 				else
 				{
-					System.out.println("Changed passwords");
 					key = null;
-					prisms.arch.ds.UserSource.Password[] pwds = theUserSource.getOldPasswords(user,
-						hashing);
+					prisms.arch.ds.UserSource.Password[] pwds = theUserSource.getOldPasswords(user);
 					for(prisms.arch.ds.UserSource.Password p : pwds)
 						if(p.setTime == authID)
 						{
-							key = p.key;
+							key = hashing.generateKey(p.hash);
 							break;
 						}
 					if(key == null)
-						throw new IOException("Password set at " + PrismsUtils.print(authID)
-							+ " not found");
+						throw new AuthenticationFailedException("Password set at "
+							+ PrismsUtils.print(authID) + " not found");
 				}
 			}
 			else if(authID >= 0)
 			{
 				if(thePasswordChanger == null)
-					throw new IOException("Password changed externally and no password"
-						+ " changer configured");
+					throw new AuthenticationFailedException("Password changed externally"
+						+ " and no password changer configured");
 				thePassword = thePasswordChanger.getChangedPassword(authID);
 				long [] partialHash = hashing.partialHash(thePassword);
 				key = hashing.generateKey(partialHash);
@@ -1359,8 +1304,9 @@ public class PrismsServiceConnector
 				key = hashing.generateKey(partialHash);
 			}
 			else
-				throw new IOException("Encryption required for access to application " + theAppName
-					+ " by user " + theUserName);
+				throw new AuthenticationFailedException(
+					"Encryption required for access to application " + theAppName + " by user "
+						+ theUserName);
 			theEncryption = createEncryption((String) encryptionParams.get("type"));
 			theEncryption.init(key, encryptionParams);
 		} finally
@@ -1442,15 +1388,23 @@ public class PrismsServiceConnector
 		if(lc < constraints.getMinLowerCase())
 			return "Password must contain at least " + constraints.getMinLowerCase()
 				+ " lower-case letter" + (constraints.getMinLowerCase() > 1 ? "s" : "");
-		if(lc < constraints.getMinUpperCase())
+		if(uc < constraints.getMinUpperCase())
 			return "Password must contain at least " + constraints.getMinUpperCase()
 				+ " upper-case letter" + (constraints.getMinUpperCase() > 1 ? "s" : "");
-		if(lc < constraints.getMinDigits())
+		if(dig < constraints.getMinDigits())
 			return "Password must contain at least " + constraints.getMinDigits()
 				+ " numeric digit" + (constraints.getMinDigits() > 1 ? "s" : "");
-		if(lc < constraints.getMinLowerCase())
+		if(special < constraints.getMinLowerCase())
 			return "Password must contain at least " + constraints.getMinSpecialChars()
 				+ " special character" + (constraints.getMinSpecialChars() > 1 ? "s" : "");
 		return null;
+	}
+
+	@Override
+	protected void finalize() throws Throwable
+	{
+		super.finalize();
+		if(isOwnWorker)
+			theWorker.close();
 	}
 }
