@@ -19,7 +19,7 @@ public abstract class SynchronizerPersister implements prisms.arch.Persister<Pri
 			theSynchronizer = createSynchronizer(config, app);
 			if(theSynchronizer == null)
 				return;
-			String logDir = config.get("logging");
+			String logDir = app.getEnvironment().getLogger().getExposedDir();
 			if(logDir != null)
 				theSynchronizer.setSyncLoggingLoc(logDir);
 			theSynchronizer.setSyncListener(new prisms.records.PrismsSynchronizer.SyncListener()
