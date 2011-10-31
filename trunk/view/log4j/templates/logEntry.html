@@ -1,9 +1,14 @@
 
 <div style="padding-bottom:3px">
-	<div dojoAttachPoint="messageNode"
-		dojoAttachEvent="onmousedown:_onMouseDown,onmouseup:_onMouseUp,onmousemove:_onMouseMove,onmouseout:_onMouseOut">
+	<div dojoAttachPoint="titleNode">
 		<img src="__webContentRoot/rsrc/icons/log4j/logEntry.png" style="display:inline;padding:2px 2px 0px 2px"
 			dojoAttachPoint="iconNode" />
+		<div __dojoType="dijit.form.CheckBox" dojoAttachPoint="selectCheck"
+			dojoAttachEvent="onClick:_selectClicked"></div>
+		<div dojoAttachPoint="metadataNode" style="display:inline"></div>
+	</div>
+	<div dojoAttachPoint="messageNode"
+		dojoAttachEvent="onmousedown:_onMouseDown,onmouseup:_onMouseUp,onmousemove:_onMouseMove,onmouseout:_onMouseOut">
 		<img src="__webContentRoot/rsrc/icons/prisms/expandNode.png" style="display:inline;padding:2px 2px 0px 2px"
 			dojoAttachPoint="expandNode" />
 	</div>
