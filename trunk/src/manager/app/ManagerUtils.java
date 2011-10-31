@@ -85,6 +85,28 @@ public class ManagerUtils
 	}
 
 	/**
+	 * Copies one user's permissions to another user
+	 * 
+	 * @param from The user to copy permissions from
+	 * @param to The user to copy permissions to
+	 * @param userSource The user source to get and set access permissions with
+	 * @param apps The applications in this environment
+	 * @throws prisms.arch.PrismsException If an error occurs getting or setting permissions
+	 */
+	public static void copy(prisms.arch.ds.User from, prisms.arch.ds.User to,
+		prisms.arch.ds.ManageableUserSource userSource, prisms.arch.PrismsApplication[] apps)
+		throws prisms.arch.PrismsException
+	{
+		for(prisms.arch.PrismsApplication app : apps)
+			if(userSource.canAccess(from, app) && !userSource.canAccess(to, app))
+				userSource.setUserAccess(to, app, true, new prisms.records.RecordsTransaction(
+					userSource.getSystemUser()));
+		for(prisms.arch.ds.UserGroup group : from.getGroups())
+			if(!prisms.util.ArrayUtils.contains(to.getGroups(), group))
+				to.addTo(group);
+	}
+
+	/**
 	 * Gets the management level of a user--the lower the number, the more users a user can manage.
 	 * 
 	 * @param perms The permissions of the user to get the management level for

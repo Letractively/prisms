@@ -12,6 +12,7 @@
 		<plugin>
 			<name>All Users</name>
 			<class>manager.ui.user.AllUsersList</class>
+			<user-template if="${user-template}">${user-template}</user-template>
 		</plugin>
 		<plugin>
 			<name>User Editor</name>
