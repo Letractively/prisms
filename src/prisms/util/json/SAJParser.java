@@ -1189,11 +1189,11 @@ public class SAJParser
 					{
 						ch2 = state.nextChar();
 						if(ch2 >= '0' && ch2 <= '9')
-							unicode = unicode << 4 + (ch2 - '0');
+							unicode = (unicode << 4) | (ch2 - '0');
 						else if(ch2 >= 'a' && ch2 <= 'f')
-							unicode = unicode << 4 + (ch2 - 'a' + 10);
+							unicode = (unicode << 4) | (ch2 - 'a' + 10);
 						else if(ch2 >= 'A' && ch2 <= 'F')
-							unicode = unicode << 4 + (ch2 - 'A' + 10);
+							unicode = (unicode << 4) | (ch2 - 'A' + 10);
 						else
 							break;
 					}
