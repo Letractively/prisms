@@ -11,11 +11,19 @@ import java.sql.*;
 import java.util.Calendar;
 import java.util.Map;
 
+import org.apache.log4j.Logger;
+
 import prisms.arch.PrismsException;
 
 /** Contains database utility methods for general use */
 public class DBUtils
 {
+	private static final Logger log = Logger.getLogger(DBUtils.class);
+
+	private DBUtils()
+	{
+	}
+
 	/** An enumeration of database flavors */
 	public static enum ConnType
 	{
@@ -96,7 +104,7 @@ public class DBUtils
 		else if(str.length() == 0)
 			return toSQL(EMPTY);
 		str = PrismsUtils.encodeUnicode(str);
-		return "'" + str.replaceAll("'", "''") + "'";
+		return "'" + PrismsUtils.replaceAll(str, "'", "''") + "'";
 	}
 
 	/**
@@ -113,6 +121,53 @@ public class DBUtils
 			return "";
 		else
 			return PrismsUtils.decodeUnicode(dbString);
+	}
+
+	/**
+	 * Converts a string from user-entered or other input into an expression that may be passed to
+	 * an SQL statement as a "LIKE" expression.
+	 * 
+	 * @param str The string to escape
+	 * @param type The type of connection to escape the string for
+	 * @param multi The character that may be used in the input to specify an arbitrary sequence of
+	 *        characters
+	 * @param single The character that may be used in the input to specify a single arbitrary
+	 *        charater
+	 * @return The escaped string
+	 */
+	public static String toLikeClause(String str, ConnType type, String multi, String single)
+	{
+		switch(type)
+		{
+		case MSSQL:
+		case SYBASE:
+			str = PrismsUtils.replaceAll(str, "[", "[[]");
+			str = PrismsUtils.replaceAll(str, "]", "[]]");
+			//$FALL-THROUGH$
+		case HSQL:
+		case MYSQL:
+		case ORACLE:
+		case POSTGRES:
+		case INFORMIX:
+			str = PrismsUtils.replaceAll(str, "\\\\", "\\\\");
+			if(!"%".equals(multi))
+			{
+				str = PrismsUtils.replaceAll(str, "%", "\\%");
+				str = PrismsUtils.replaceAll(str, multi, "%");
+			}
+			if(!"_".equals(single))
+			{
+				str = PrismsUtils.replaceAll(str, "_", "\\_");
+				str = PrismsUtils.replaceAll(str, single, "_");
+			}
+
+			return toSQL(str) + " ESCAPE '\\'";
+		case UNKNOWN:
+			log.warn("Cannot escape LIKE expression--database type unrecognized");
+			return str;
+		}
+		log.warn("Cannot escape LIKE expression--database type " + type + " unrecognized");
+		return str;
 	}
 
 	/**
@@ -389,17 +444,16 @@ public class DBUtils
 	 * 
 	 * @param stmt The prepared statement
 	 * @param index The index that the binary data goes in
-	 * @param type The SQL type of the data
 	 * @param input The binary data to put in the blob
 	 * @throws SQLException If the data cannot be set for the statement
 	 */
-	public static void setBlob(java.sql.PreparedStatement stmt, int index, int type,
-		java.io.InputStream input) throws SQLException
+	public static void setBlob(java.sql.PreparedStatement stmt, int index, java.io.InputStream input)
+		throws SQLException
 	{
 		if(!PrismsUtils.isJava6())
 			throw new SQLException("Cannot set binary data in <JDK 6 machine");
 		if(input == null)
-			stmt.setNull(index, type);
+			stmt.setNull(index, java.sql.Types.BLOB);
 		else
 		{
 			java.sql.Blob blob = stmt.getConnection().createBlob();
@@ -426,17 +480,16 @@ public class DBUtils
 	 * 
 	 * @param stmt The prepared statement
 	 * @param index The index that the character data goes in
-	 * @param type The SQL type of the data
 	 * @param input The character data to put in the blob
 	 * @throws SQLException If the data cannot be set for the statement
 	 */
-	public static void setClob(java.sql.PreparedStatement stmt, int index, int type,
-		java.io.Reader input) throws SQLException
+	public static void setClob(java.sql.PreparedStatement stmt, int index, java.io.Reader input)
+		throws SQLException
 	{
 		if(!PrismsUtils.isJava6())
 			throw new SQLException("Cannot set CLOB in <JDK 6 machine");
 		if(input == null)
-			stmt.setNull(index, type);
+			stmt.setNull(index, java.sql.Types.CLOB);
 		else
 		{
 			java.sql.Clob clob = stmt.getConnection().createClob();
@@ -599,6 +652,12 @@ public class DBUtils
 		{
 			return "(" + column + "=0 AND " + column + "=1)";
 		}
+
+		@Override
+		public String toString()
+		{
+			return "none";
+		}
 	}
 
 	/** Matches rows whose key matches a comparison expresion */
@@ -651,6 +710,12 @@ public class DBUtils
 				ret = "(" + column + "=0 AND " + column + "=1)";
 			return ret;
 		}
+
+		@Override
+		public String toString()
+		{
+			return toSQL("id");
+		}
 	}
 
 	/** Matches rows whose keys are in a set */
@@ -684,6 +749,12 @@ public class DBUtils
 				ret.append(')');
 			}
 			return ret.toString();
+		}
+
+		@Override
+		public String toString()
+		{
+			return toSQL("id");
 		}
 	}
 
@@ -747,6 +818,12 @@ public class DBUtils
 			}
 			ret.append(')');
 			return ret.toString();
+		}
+
+		@Override
+		public String toString()
+		{
+			return toSQL("id");
 		}
 	}
 
@@ -885,6 +962,7 @@ public class DBUtils
 				ret_i.theValues = new long [nextIdx - idx];
 				for(int j = idx; j < nextIdx; j++)
 					ret_i.theValues[j - idx] = cont.theValues[j];
+				idx = nextIdx;
 			}
 			return ret;
 		}

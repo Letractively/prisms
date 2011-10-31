@@ -226,9 +226,9 @@ public abstract class DBPreparedSearch<S extends Search, F extends Sorter.Field,
 			else if(param instanceof String)
 				thePS.setString(index, (String) param);
 			else if(param instanceof java.io.InputStream)
-				DBUtils.setBlob(thePS, index, type, (java.io.InputStream) param);
+				DBUtils.setBlob(thePS, index, (java.io.InputStream) param);
 			else if(param instanceof java.io.Reader)
-				DBUtils.setClob(thePS, index, type, (java.io.Reader) param);
+				DBUtils.setClob(thePS, index, (java.io.Reader) param);
 			else if(param instanceof java.sql.Date)
 				thePS.setDate(index, (java.sql.Date) param);
 			else if(param instanceof java.sql.Timestamp)
