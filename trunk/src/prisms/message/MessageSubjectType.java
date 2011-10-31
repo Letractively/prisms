@@ -9,14 +9,18 @@ import prisms.records.ChangeType;
 public enum MessageSubjectType implements prisms.records.SubjectType
 {
 	/** Changes to a message's data */
-	message(MessageHeader.class, null, null, MessageChangeTypes.MessageChange.class),
+	message(Message.class, null, null, MessageChangeTypes.MessageChange.class),
 	/** Changes to one of the recipients of a message */
-	recipient(Receipt.class, MessageHeader.class, null, MessageChangeTypes.RecipientChange.class),
+	recipient(Recipient.class, Message.class, null, MessageChangeTypes.RecipientChange.class),
 	/** Changes to one of a message's attachments */
-	attachment(Attachment.class, MessageHeader.class, null, null),
-	/** Changes to a user's view of a conversation */
-	view(ConversationView.class, prisms.arch.ds.User.class, null,
-		MessageChangeTypes.ViewChange.class);
+	attachment(Attachment.class, Message.class, null, MessageChangeTypes.AttachmentChange.class),
+	/** Changes to one of a message's actions */
+	action(MessageAction.class, Message.class, null, MessageChangeTypes.ActionChange.class),
+	/** Changes to a user's view of a message */
+	messageView(MessageView.class, Message.class, ConversationView.class, null),
+	/** Changes to a user's view of a conversation. The metadata 2 is the conversation ID. */
+	conversationView(ConversationView.class, prisms.arch.ds.User.class, Long.class,
+		MessageChangeTypes.ConversationViewChange.class);
 
 	private final Class<?> theMajorType;
 

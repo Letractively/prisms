@@ -14,11 +14,11 @@ public class MessageChangeTypes
 		/** Change to the sent status of a message */
 		sent(null, Boolean.class, false),
 		/** Change to a message's priority */
-		priority(null, MessageHeader.Priority.class, false),
+		priority(null, Message.Priority.class, false),
 		/** Change to a message's subject */
 		subject(null, String.class, false),
 		/** Change of a message's predecessor */
-		predecessor(null, MessageHeader.class, true),
+		predecessor(null, Message.class, true),
 		/** Change to whether a message overrides its predecessor */
 		override(null, Boolean.class, false),
 		/** Change to a message's content */
@@ -95,37 +95,32 @@ public class MessageChangeTypes
 			case time:
 				if(additivity != 0)
 					return null;
-				return "Sent time of message " + ((MessageHeader) majorSubject).getSubject()
-					+ " changed";
+				return "Sent time of message " + ((Message) majorSubject).getSubject() + " changed";
 			case sent:
 				if(additivity != 0)
 					return null;
-				return "Message " + ((MessageHeader) majorSubject).getSubject() + " sent";
+				return "Message " + ((Message) majorSubject).getSubject() + " sent";
 			case priority:
 				if(additivity != 0)
 					return null;
-				return "Priority of message " + ((MessageHeader) majorSubject).getSubject()
-					+ " changed";
+				return "Priority of message " + ((Message) majorSubject).getSubject() + " changed";
 			case subject:
 				if(additivity != 0)
 					return null;
-				return "Subject of message " + ((MessageHeader) majorSubject).getSubject()
-					+ " changed";
+				return "Subject of message " + ((Message) majorSubject).getSubject() + " changed";
 			case predecessor:
 				if(additivity != 0)
 					return null;
-				return "Predecessor of message " + ((MessageHeader) majorSubject).getSubject()
+				return "Predecessor of message " + ((Message) majorSubject).getSubject()
 					+ " changed";
 			case override:
 				if(additivity != 0)
 					return null;
-				return "Override of message " + ((MessageHeader) majorSubject).getSubject()
-					+ " changed";
+				return "Override of message " + ((Message) majorSubject).getSubject() + " changed";
 			case content:
 				if(additivity != 0)
 					return null;
-				return "Content of message " + ((MessageHeader) majorSubject).getSubject()
-					+ " changed";
+				return "Content of message " + ((Message) majorSubject).getSubject() + " changed";
 			}
 			throw new IllegalStateException("Unrecognized change type " + name());
 		}
@@ -138,36 +133,36 @@ public class MessageChangeTypes
 			case time:
 				if(additivity != 0)
 					return null;
-				return "Sent time of message " + ((MessageHeader) majorSubject).getSubject()
+				return "Sent time of message " + ((Message) majorSubject).getSubject()
 					+ " changed to " + prisms.util.PrismsUtils.print(((Long) after).longValue());
 			case sent:
 				if(additivity != 0)
 					return null;
-				return "Message " + ((MessageHeader) majorSubject).getSubject() + " sent";
+				return "Message " + ((Message) majorSubject).getSubject() + " sent";
 			case priority:
 				if(additivity != 0)
 					return null;
-				return "Priority of message " + ((MessageHeader) majorSubject).getSubject()
+				return "Priority of message " + ((Message) majorSubject).getSubject()
 					+ " changed from " + before + " to " + after;
 			case subject:
 				if(additivity != 0)
 					return null;
-				return "Subject of message " + ((MessageHeader) majorSubject).getSubject()
+				return "Subject of message " + ((Message) majorSubject).getSubject()
 					+ " changed from " + before + " to " + after;
 			case predecessor:
 				if(additivity != 0)
 					return null;
-				return "Predecessor of message " + ((MessageHeader) majorSubject).getSubject()
-					+ " changed to " + ((MessageHeader) after).getSubject();
+				return "Predecessor of message " + ((Message) majorSubject).getSubject()
+					+ " changed to " + ((Message) after).getSubject();
 			case override:
 				if(additivity != 0)
 					return null;
-				return "Override of message " + ((MessageHeader) majorSubject).getSubject()
+				return "Override of message " + ((Message) majorSubject).getSubject()
 					+ " changed from " + before + " to " + after;
 			case content:
 				if(additivity != 0)
 					return null;
-				return "Content of message " + ((MessageHeader) majorSubject).getSubject()
+				return "Content of message " + ((Message) majorSubject).getSubject()
 					+ " changed from " + ((String) before).length() + " to "
 					+ ((String) after).length() + " characters";
 			}
@@ -179,11 +174,11 @@ public class MessageChangeTypes
 	public enum RecipientChange implements prisms.records.ChangeType
 	{
 		/** Change to a recepient's applicability (TO:, CC:, BCC:) */
-		applicability(null, Receipt.Applicability.class, false),
+		applicability(null, Recipient.Applicability.class, false),
 		/** Changed when a user first receives and views a message */
-		firstReadTime(null, Long.class, false),
+		firstViewed(null, Long.class, false),
 		/** Changed every time a user views a message */
-		lastReadTime(null, Long.class, false);
+		lastViewed(null, Long.class, false);
 
 		private final Class<?> theMinorType;
 
@@ -221,11 +216,11 @@ public class MessageChangeTypes
 				if(additivity != 0)
 					return null;
 				return "Recipient Applicability Changed";
-			case firstReadTime:
+			case firstViewed:
 				if(additivity != 0)
 					return null;
 				return "Message Received";
-			case lastReadTime:
+			case lastViewed:
 				if(additivity != 0)
 					return null;
 				return "Message Viewed";
@@ -235,7 +230,7 @@ public class MessageChangeTypes
 
 		public String toString(int additivity, Object majorSubject, Object minorSubject)
 		{
-			Receipt receipt = (Receipt) majorSubject;
+			Recipient receipt = (Recipient) majorSubject;
 			switch(this)
 			{
 			case applicability:
@@ -243,12 +238,12 @@ public class MessageChangeTypes
 					return null;
 				return "Applicability of " + majorSubject + " to message "
 					+ receipt.getMessage().getSubject() + " changed";
-			case firstReadTime:
+			case firstViewed:
 				if(additivity != 0)
 					return null;
 				return "Message " + receipt.getMessage().getSubject() + " received by "
 					+ receipt.getUser();
-			case lastReadTime:
+			case lastViewed:
 				if(additivity != 0)
 					return null;
 				return "Message " + receipt.getMessage().getSubject() + " viewed by "
@@ -260,7 +255,7 @@ public class MessageChangeTypes
 		public String toString(int additivity, Object majorSubject, Object minorSubject,
 			Object before, Object after)
 		{
-			Receipt receipt = (Receipt) majorSubject;
+			Recipient receipt = (Recipient) majorSubject;
 			switch(this)
 			{
 			case applicability:
@@ -269,13 +264,13 @@ public class MessageChangeTypes
 				return "Applicability of " + majorSubject + " to message "
 					+ receipt.getMessage().getSubject() + " changed from " + before + " to "
 					+ after;
-			case firstReadTime:
+			case firstViewed:
 				if(additivity != 0)
 					return null;
 				return "Message " + receipt.getMessage().getSubject() + " received by "
 					+ receipt.getUser() + " at "
 					+ prisms.util.PrismsUtils.print(((Long) after).longValue());
-			case lastReadTime:
+			case lastViewed:
 				if(additivity != 0)
 					return null;
 				return "Message " + receipt.getMessage().getSubject() + " viewed by "
@@ -286,20 +281,155 @@ public class MessageChangeTypes
 		}
 	}
 
-	/** Changes that may be made to a user's view of a message */
-	public enum ViewChange implements prisms.records.ChangeType
+	/** Changes to an attachment of a message */
+	public enum AttachmentChange implements prisms.records.ChangeType
 	{
-		/** Changed when a user archives a message or moves it back to the inbox */
-		archived(null, Boolean.class, false),
-		/** Changed when a user marks a message as starred or unstarred */
-		starred(null, Boolean.class, false);
+		/** Change to an attachment's name */
+		name(null, String.class, false);
+
 		private final Class<?> theMinorType;
 
 		private final Class<?> theObjectType;
 
 		private final boolean isIdentifiable;
 
-		ViewChange(Class<?> minorType, Class<?> objectType, boolean id)
+		AttachmentChange(Class<?> minorType, Class<?> objectType, boolean id)
+		{
+			theMinorType = minorType;
+			theObjectType = objectType;
+			isIdentifiable = id;
+		}
+
+		public Class<?> getMinorType()
+		{
+			return theMinorType;
+		}
+
+		public Class<?> getObjectType()
+		{
+			return theObjectType;
+		}
+
+		public boolean isObjectIdentifiable()
+		{
+			return isIdentifiable;
+		}
+
+		public String toString(int additivity)
+		{
+			switch(this)
+			{
+			case name:
+				return "Name changed";
+			}
+			throw new IllegalStateException("Unrecognized change type " + name());
+		}
+
+		public String toString(int additivity, Object majorSubject, Object minorSubject)
+		{
+			switch(this)
+			{
+			case name:
+				return "Name of attachment " + majorSubject + " changed";
+			}
+			throw new IllegalStateException("Unrecognized change type " + name());
+		}
+
+		public String toString(int additivity, Object majorSubject, Object minorSubject,
+			Object before, Object after)
+		{
+			switch(this)
+			{
+			case name:
+				return "Name of attachment " + majorSubject + " changed from " + before + " to "
+					+ after;
+			}
+			throw new IllegalStateException("Unrecognized change type " + name());
+		}
+	}
+
+	/** Changes to an attachment of a message */
+	public enum ActionChange implements prisms.records.ChangeType
+	{
+		/** Change to an action's description */
+		descrip(null, String.class, false);
+
+		private final Class<?> theMinorType;
+
+		private final Class<?> theObjectType;
+
+		private final boolean isIdentifiable;
+
+		ActionChange(Class<?> minorType, Class<?> objectType, boolean id)
+		{
+			theMinorType = minorType;
+			theObjectType = objectType;
+			isIdentifiable = id;
+		}
+
+		public Class<?> getMinorType()
+		{
+			return theMinorType;
+		}
+
+		public Class<?> getObjectType()
+		{
+			return theObjectType;
+		}
+
+		public boolean isObjectIdentifiable()
+		{
+			return isIdentifiable;
+		}
+
+		public String toString(int additivity)
+		{
+			switch(this)
+			{
+			case descrip:
+				return "Descrip changed";
+			}
+			throw new IllegalStateException("Unrecognized change type " + name());
+		}
+
+		public String toString(int additivity, Object majorSubject, Object minorSubject)
+		{
+			switch(this)
+			{
+			case descrip:
+				return "Descrip of action " + majorSubject + " changed";
+			}
+			throw new IllegalStateException("Unrecognized change type " + name());
+		}
+
+		public String toString(int additivity, Object majorSubject, Object minorSubject,
+			Object before, Object after)
+		{
+			switch(this)
+			{
+			case descrip:
+				return "Descrip of action " + majorSubject + " changed from " + before + " to "
+					+ after;
+			}
+			throw new IllegalStateException("Unrecognized change type " + name());
+		}
+	}
+
+	/** Changes that may be made to a user's view of a conversation */
+	public enum ConversationViewChange implements prisms.records.ChangeType
+	{
+		/** Changed when a user archives a message or moves it back to the inbox */
+		archived(null, Boolean.class, false),
+		/** Changed when a user marks a message as starred or unstarred */
+		starred(null, Boolean.class, false);
+
+		private final Class<?> theMinorType;
+
+		private final Class<?> theObjectType;
+
+		private final boolean isIdentifiable;
+
+		ConversationViewChange(Class<?> minorType, Class<?> objectType, boolean id)
 		{
 			theMinorType = minorType;
 			theObjectType = objectType;

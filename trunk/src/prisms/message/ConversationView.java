@@ -1,14 +1,16 @@
 /*
- * Conversation.java Created Feb 15, 2011 by Andrew Butler, PSL
+ * ConversationView.java Created Feb 15, 2011 by Andrew Butler, PSL
  */
 package prisms.message;
 
 import prisms.arch.ds.User;
 
 /** Represents a user's view of a conversation */
-public class ConversationView implements Iterable<MessageHeader>
+public class ConversationView implements Iterable<MessageView>
 {
 	private long theID;
+
+	private long theConversationID;
 
 	private final User theViewer;
 
@@ -16,12 +18,18 @@ public class ConversationView implements Iterable<MessageHeader>
 
 	private boolean isStarred;
 
-	private java.util.ArrayList<MessageHeader> theMessages;
+	private java.util.ArrayList<MessageView> theMessages;
 
-	/** @param viewer The user that this conversation view is for */
-	public ConversationView(User viewer)
+	/**
+	 * @param conversationID The ID of the conversation that this is to be a view of
+	 * @param viewer The user that this conversation view is for
+	 */
+	public ConversationView(long conversationID, User viewer)
 	{
+		theConversationID = conversationID;
 		theViewer = viewer;
+		theMessages = new java.util.ArrayList<MessageView>();
+		theID = -1;
 	}
 
 	/** @return This conversation's ID */
@@ -36,6 +44,12 @@ public class ConversationView implements Iterable<MessageHeader>
 		theID = id;
 	}
 
+	/** @return The ID of the conversation that this is a view of */
+	public long getConversationID()
+	{
+		return theConversationID;
+	}
+
 	/** @return The user that this conversation view is for */
 	public User getViewer()
 	{
@@ -48,22 +62,13 @@ public class ConversationView implements Iterable<MessageHeader>
 		return theMessages.size();
 	}
 
-	/**
-	 * @param index The index of the message to get
-	 * @return The message in this conversation at the given index
-	 */
-	public MessageHeader getMessage(int index)
-	{
-		return theMessages.get(index);
-	}
-
-	public java.util.ListIterator<MessageHeader> iterator()
+	public java.util.ListIterator<MessageView> iterator()
 	{
 		return theMessages.listIterator();
 	}
 
 	/** @param message The message to add to this conversation */
-	public void addMessage(MessageHeader message)
+	public void addMessage(MessageView message)
 	{
 		theMessages.add(message);
 	}
@@ -96,5 +101,17 @@ public class ConversationView implements Iterable<MessageHeader>
 	public void setStarred(boolean starred)
 	{
 		isStarred = starred;
+	}
+
+	@Override
+	public boolean equals(Object o)
+	{
+		return o instanceof ConversationView && ((ConversationView) o).theID == theID;
+	}
+
+	@Override
+	public int hashCode()
+	{
+		return ((int) theID) ^ ((int) (theID >>> 32));
 	}
 }

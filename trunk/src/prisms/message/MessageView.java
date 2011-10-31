@@ -3,76 +3,65 @@
  */
 package prisms.message;
 
-import prisms.arch.ds.User;
-
 /**
  * A user's view of a message. Each user keeps their own settings for each message that can be
  * modified without affecting any other users' views.
  */
 public class MessageView
 {
-	private final MessageHeader theMessage;
+	private long theID;
 
-	private final User theViewer;
+	private ConversationView theConversation;
 
-	private boolean isArchived;
-
-	private boolean isStarred;
+	private Message theMessage;
 
 	private boolean isDeleted;
 
 	/**
 	 * Creates a message view
 	 * 
+	 * @param conversation The conversation view that this message view is a part of
 	 * @param message The message that this view is for
-	 * @param viewer The user that this view is for
 	 */
-	public MessageView(MessageHeader message, User viewer)
+	public MessageView(ConversationView conversation, Message message)
 	{
+		theID = -1;
+		theConversation = conversation;
 		theMessage = message;
-		theViewer = viewer;
+	}
+
+	/** @return This view's ID */
+	public long getID()
+	{
+		return theID;
+	}
+
+	/** @param id The database ID for this view */
+	public void setID(long id)
+	{
+		theID = id;
+	}
+
+	/** @return The conversation that this message is a part of */
+	public ConversationView getConversation()
+	{
+		return theConversation;
 	}
 
 	/** @return The message that this view is for */
-	public MessageHeader getMessage()
+	public Message getMessage()
 	{
 		return theMessage;
 	}
 
-	/** @return The user that this message view is for */
-	public User getViewer()
-	{
-		return theViewer;
-	}
-
 	/**
-	 * @return Whether the viewer has archived the message so that it no longer shows up in their
-	 *         inbox
+	 * This method should only be used by an implementation of {@link MessageManager}
+	 * 
+	 * @param msg The message that this view is for
 	 */
-	public boolean isArchived()
+	public void setMessage(Message msg)
 	{
-		return isArchived;
-	}
-
-	/**
-	 * @param archived Whether the viewer has archived the message so that it no longer shows up in
-	 *        their inbox
-	 */
-	public void setArchived(boolean archived)
-	{
-		isArchived = archived;
-	}
-
-	/** @return Whether the user has marked this message as starred */
-	public boolean isStarred()
-	{
-		return isStarred;
-	}
-
-	/** @param starred Whether the user has marked this message as starred */
-	public void setStarred(boolean starred)
-	{
-		isStarred = starred;
+		theMessage = msg;
 	}
 
 	/** @return Whether the user has deleted this message */
@@ -85,5 +74,17 @@ public class MessageView
 	public void setDeleted(boolean deleted)
 	{
 		isDeleted = deleted;
+	}
+
+	@Override
+	public boolean equals(Object o)
+	{
+		return o instanceof MessageView && ((MessageView) o).theID == theID;
+	}
+
+	@Override
+	public int hashCode()
+	{
+		return ((int) theID) ^ ((int) (theID >>> 32));
 	}
 }

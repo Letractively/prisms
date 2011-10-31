@@ -6,30 +6,30 @@
 			dojoAttachEvent="onClick:_save">Save</div></td>
 		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_discard">Discard</div></td>
 	<tr>
-		<td>From:</td>
+		<td style="width:50px">From:</td>
 		<td colspan="2" dojoAttachPoint="fromCell"></td>
 	</tr>
 	<tr>
 		<td>To:</td>
-		<td colspan="2"><textarea dojoAttachPoint="toText"></textarea></td>
+		<td colspan="2"><textarea dojoAttachPoint="toText" rows="2" style="width:100%"></textarea></td>
 	</tr>
 	<tr dojoAttachPoint="ccRow">
 		<td>Cc:</td>
-		<td colspan="2"><textarea dojoAttachPoint="ccText"></textarea></td>
+		<td colspan="2"><textarea dojoAttachPoint="ccText" rows="2" style="width:100%"></textarea></td>
 	</tr>
 	<tr dojoAttachPoint="bccRow">
 		<td>Bcc:</td>
-		<td colspan="2"><textarea dojoAttachPoint="bccText"></textarea></td>
+		<td colspan="2"><textarea dojoAttachPoint="bccText" rows="2" style="width:100%"></textarea></td>
 	</tr>
 	<tr>
 		<td>Subject:</td>
-		<td colspan="2"><input type="text" dojoAttachPoint="subjectText" /></td>
+		<td colspan="2"><input type="text" dojoAttachPoint="subjectText" style="width:100%" /></td>
 	</tr>
 	<tr>
 		<td></td>
 		<td colspan="2">
 			<table><tr>
-				<td><img src="__webContentRoot/icons/message/attachment.png" /></td>
+				<td><img src="__webContentRoot/rsrc/icons/message/attachment.png" /></td>
 				<td><a href="" onclick="event.returnValue=false; return false;" style="color:blue"
 					dojoAttachEvent="onclick:_attach">Attach a File</a></td>
 			</tr></table>

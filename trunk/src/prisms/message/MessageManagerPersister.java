@@ -19,13 +19,11 @@ public class MessageManagerPersister implements prisms.arch.Persister<MessageMan
 		boolean withRecords = configEl.is("records", false);
 		prisms.records.DBRecordKeeper keeper;
 		if(withRecords)
-			keeper = new prisms.records.DBRecordKeeper(messageNS + "/message", configEl, app
+			keeper = new prisms.records.DBRecordKeeper("messages/" + messageNS, configEl, app
 				.getEnvironment().getConnectionFactory(), app.getEnvironment().getIDs());
 		else
 			keeper = null;
-		theManager = new DefaultMessageManager(messageNS, app.getEnvironment().getIDs(), app
-			.getEnvironment().getUserSource(), app.getEnvironment().getConnectionFactory(),
-			configEl, keeper);
+		theManager = new DefaultMessageManager(messageNS, app.getEnvironment(), configEl, keeper);
 	}
 
 	public MessageManager getValue()
@@ -39,7 +37,8 @@ public class MessageManagerPersister implements prisms.arch.Persister<MessageMan
 	}
 
 	public <V extends MessageManager> void setValue(prisms.arch.PrismsSession session, V o,
-		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
+		@SuppressWarnings("rawtypes")
+		prisms.arch.event.PrismsPCE evt)
 	{
 	}
 

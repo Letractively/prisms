@@ -1,6 +1,10 @@
 
+__dojo.require("dijit.Toolbar");
 __dojo.require("dijit.form.Button");
+__dojo.require("dijit.form.TextBox");
 
+__dojo.require("prisms.widget.FillPane");
+__dojo.require("prisms.widget.SortTable");
 __dojo.require("prisms.widget.TabWidget");
 __dojo.require("prisms.widget.MessageComposer");
 
@@ -50,7 +54,7 @@ __dojo.declare("prisms.widget.Mail", [prisms.widget.TabWidget, __dijit._Template
 			}
 			else
 			{
-				this.sortTable.setData(event.data);
+//				this.sortTable.setData(event.data);
 				PrismsUtils.setTableRowVisible(this.noMailRow, false);
 				PrismsUtils.setTableRowVisible(this.mailTableRow, true);
 			}
@@ -65,46 +69,52 @@ __dojo.declare("prisms.widget.Mail", [prisms.widget.TabWidget, __dijit._Template
 
 	shutdown: function(){
 		this.sortTable.clear();
-		this.inboxTab.innerHTML="Inbox";
-		this.draftsTab.innerHTML="Drafts";
+		this.inboxButton.setLabel("Inbox");
+		this.draftsButton.setLabel("Drafts");
 	},
 
 	setMessageCount: function(event){
 		if(event.inboxCount)
-			this.inboxTab.innerHTML="Inbox ("+event.inboxCount+")";
+			this.inboxButton.setLabel("Inbox ("+event.inboxCount+")");
 		else
-			this.inboxTab.innerHTML="Inbox";
+			this.inboxButton.setLabel("Inbox");
 		if(event.draftCount)
-			this.draftsTab.innerHTML="Drafts ("+event.draftCount+")";
+			this.draftsButton.setLabel("Drafts ("+event.draftCount+")");
 		else
-			this.draftsTab.innerHTML="Drafts";
+			this.draftsButton.setLabel("Drafts");
 	},
 
 	setSearchError: function(error){
 		this.searchBox.style.backgroundColor=(error ? "red" : "white");
 	},
 
-	_inbox: function(){
+	_inboxClicked: function(){
 		this.prisms.callApp(this.pluginName, "goToBox", {box: "inbox"});
 	},
 
-	_sent: function(){
+	_sentMailClicked: function(){
 		this.prisms.callApp(this.pluginName, "goToBox", {box: "sent"});
 	},
 
-	_drafts: function(){
+	_draftsClicked: function(){
 		this.prisms.callApp(this.pluginName, "goToBox", {box: "drafts"});
 	},
 
-	_allMail: function(){
-		this.prisms.callApp(this.pluginName, "goToBox", {box: "allMail"});
+	_allMailClicked: function(){
+		this.prisms.callApp(this.pluginName, "goToBox", {box: "all"});
 	},
 
-	_trash: function(){
+	_trashClicked: function(){
 		this.prisms.callApp(this.pluginName, "goToBox", {box: "trash"});
 	},
 
-	_search: function(){
+	_searchTyped: function(event){
+		var keyCode=event.keyCode;
+		if(keyCode==__dojo.keys.ENTER)
+			this._searchClicked();
+	},
+
+	_searchClicked: function(){
 		var searchText=this.searchBox.value;
 		if(searchText=="")
 			this._allMail();
@@ -112,33 +122,33 @@ __dojo.declare("prisms.widget.Mail", [prisms.widget.TabWidget, __dijit._Template
 			this.prisms.callApp(this.pluginName, "search", {searchText: searchText});
 	},
 
-	_archive: function(){
+	_archiveClicked: function(){
 		this.prisms.callApp(this.pluginName, "archive");
 	},
 
-	_delete: function(){
+	_deleteClicked: function(){
 		this.prisms.callApp(this.pluginName, "delete");
 	},
 
-	_markAsRead: function(){
+	_markAsReadClicked: function(){
 		this.prisms.callApp(this.pluginName, "markAsRead");
 	},
 
-	_refresh: function(){
+	_refreshClicked: function(){
 		this.prisms.callApp(this.pluginName, "refresh");
 	},
 
-	_compose: function(){
+	_composeClicked: function(){
 		this.prisms.callApp(this.pluginName, "compose");
 	},
 
-	_send: function(){
+	_sendClicked: function(){
 	},
 
-	_save: function(){
+	_saveClicked: function(){
 	},
 
-	_discard: function(){
+	_discardClicked: function(){
 	},
 
 	_sortBy: function(columnLabel, ascending){
