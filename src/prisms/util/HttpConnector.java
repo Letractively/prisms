@@ -7,9 +7,13 @@ import java.io.IOException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 
+import org.apache.log4j.Logger;
+
 /** Facilitates easier HTTP connections. */
 public class HttpConnector
 {
+	private static final Logger log = Logger.getLogger(HttpConnector.class);
+
 	/**
 	 * The delimiter that signfies following parameters as GET parameters in the connect and read
 	 * methods
@@ -100,13 +104,21 @@ public class HttpConnector
 
 	private String theURL;
 
-	private javax.net.ssl.X509TrustManager theTrustManager;
+	private javax.net.ssl.KeyManager[] theKeyManagers;
+
+	private javax.net.ssl.TrustManager[] theTrustManagers;
 
 	private javax.net.ssl.HostnameVerifier theHostnameVerifier;
 
 	private javax.net.ssl.SSLSocketFactory theSocketFactory;
 
 	private java.util.LinkedHashMap<String, String> theCookies;
+
+	private Boolean isFollowingRedirects;
+
+	private int theConnectTimeout;
+
+	private int theReadTimeout;
 
 	/**
 	 * Creates an HTTP connector
@@ -117,6 +129,8 @@ public class HttpConnector
 	{
 		theURL = url;
 		theCookies = new java.util.LinkedHashMap<String, String>();
+		theConnectTimeout = -1;
+		theReadTimeout = -1;
 	}
 
 	/** @return The URL that this connector connects to */
@@ -156,6 +170,72 @@ public class HttpConnector
 	}
 
 	/**
+	 * @return Whether connections made by this connector automatically follow redirect codes sent
+	 *         from the server. Null means the property has not been set and the default value will
+	 *         be used.
+	 * @see java.net.HttpURLConnection#setFollowRedirects(boolean)
+	 */
+	public Boolean isFollowingRedirects()
+	{
+		return isFollowingRedirects;
+	}
+
+	/**
+	 * @param follow Whether connections made by this connector should automatically follow redirect
+	 *        codes sent from the server. Null means this property will be unset and the default
+	 *        value should be used.
+	 * @see java.net.HttpURLConnection#setFollowRedirects(boolean)
+	 */
+	public void setFollowRedirects(Boolean follow)
+	{
+		isFollowingRedirects = follow;
+	}
+
+	/**
+	 * @return The timeout value, in milliseconds that connections made by this connector will wait
+	 *         for the connection to be established. A negative value indicates that this parameter
+	 *         is not set and the default will be used.
+	 * @see java.net.URLConnection#setConnectTimeout(int)
+	 */
+	public int getConnectTimeout()
+	{
+		return theConnectTimeout;
+	}
+
+	/**
+	 * @param timeout The timeout value, in milliseconds that connections made by this connector
+	 *        should wait for the connection to be established. A negative value indicates that this
+	 *        parameter should not be set and the default should be used.
+	 * @see java.net.URLConnection#setConnectTimeout(int)
+	 */
+	public void setConnectTimeout(int timeout)
+	{
+		theConnectTimeout = timeout;
+	}
+
+	/**
+	 * @return The timeout value, in milliseconds that connections made by this connector will wait
+	 *         for data to be available to read. A negative value indicates that this parameter is
+	 *         not set and the default will be used.
+	 * @see java.net.URLConnection#setReadTimeout(int)
+	 */
+	public int getReadTimeout()
+	{
+		return theReadTimeout;
+	}
+
+	/**
+	 * @param timeout The timeout value, in milliseconds that connections made by this connector
+	 *        should wait for data to be available to read. A negative value indicates that this
+	 *        parameter should not be set and the default should be used.
+	 * @see java.net.URLConnection#setReadTimeout(int)
+	 */
+	public void setReadTimeout(int timeout)
+	{
+		theReadTimeout = timeout;
+	}
+
+	/**
 	 * Sets the security parameters for a HTTPS connections in general
 	 * 
 	 * @param handlerPkg The handler package for the HTTPS protocol
@@ -174,21 +254,42 @@ public class HttpConnector
 	}
 
 	/**
-	 * Sets the trust manager that this connector will use with HTTPS connections
+	 * Sets the key managers that this connector will use to provide client certificates to HTTPS
+	 * connections when requested.
 	 * 
-	 * @param trustManager The trust manager to validate HTTPS connections
+	 * @param keyManagers The key managers to validate HTTPS connections. Typically this will be a
+	 *        single instance of {@link javax.net.ssl.X509KeyManager}.
 	 * @throws NoSuchAlgorithmException If the "SSL" algorithm cannot be found in the environment
-	 * @throws KeyManagementException If the SSL context cannot be initialized with the given trust
-	 *         manager
+	 * @throws KeyManagementException If the SSL context cannot be initialized with the given key
+	 *         managers
 	 */
-	public void setTrustManager(javax.net.ssl.X509TrustManager trustManager)
+	public void setKeyManager(javax.net.ssl.KeyManager... keyManagers)
 		throws NoSuchAlgorithmException, KeyManagementException
 	{
-		theTrustManager = trustManager;
+		theKeyManagers = keyManagers;
 		javax.net.ssl.SSLContext sc;
 		sc = javax.net.ssl.SSLContext.getInstance("SSL");
-		sc.init(null, new javax.net.ssl.TrustManager [] {theTrustManager},
-			new java.security.SecureRandom());
+		sc.init(theKeyManagers, theTrustManagers, new java.security.SecureRandom());
+		theSocketFactory = sc.getSocketFactory();
+	}
+
+	/**
+	 * Sets the trust managers that this connector will use to validate server certificates provided
+	 * from HTTPS connections
+	 * 
+	 * @param trustManagers The trust managers to validate HTTPS connections. Typically this will be
+	 *        a single instance of {@link javax.net.ssl.X509TrustManager}.
+	 * @throws NoSuchAlgorithmException If the "SSL" algorithm cannot be found in the environment
+	 * @throws KeyManagementException If the SSL context cannot be initialized with the given trust
+	 *         managers
+	 */
+	public void setTrustManager(javax.net.ssl.TrustManager... trustManagers)
+		throws NoSuchAlgorithmException, KeyManagementException
+	{
+		theTrustManagers = trustManagers;
+		javax.net.ssl.SSLContext sc;
+		sc = javax.net.ssl.SSLContext.getInstance("SSL");
+		sc.init(theKeyManagers, theTrustManagers, new java.security.SecureRandom());
 		theSocketFactory = sc.getSocketFactory();
 	}
 
@@ -382,7 +483,9 @@ public class HttpConnector
 	}
 
 	/**
-	 * Creates a connection to the server, setting the GET parameters and security settings
+	 * Creates a connection to the server, setting the GET parameters, cookies and security
+	 * settings. The connection returned from this method is ready to connect to the server, but has
+	 * not made a connection yet.
 	 * 
 	 * @param getParams The parameters to pass to the server in the URL, as name-value pairs
 	 * @return The URL connection, before the {@link java.net.URLConnection#connect()} method has
@@ -398,7 +501,9 @@ public class HttpConnector
 	}
 
 	/**
-	 * Creates a connection to the server, setting the GET parameters, cookies and security settings
+	 * Creates a connection to the server, setting the GET parameters, cookies and security
+	 * settings. The connection returned from this method is ready to connect to the server, but has
+	 * not made a connection yet.
 	 * 
 	 * @param getParams The parameters to pass to the server in the URL
 	 * @return The URL connection, before the {@link java.net.URLConnection#connect()} method has
@@ -424,11 +529,19 @@ public class HttpConnector
 		java.net.HttpURLConnection conn;
 		java.net.URL url = new java.net.URL(callURL);
 		conn = (java.net.HttpURLConnection) url.openConnection();
-		if(conn instanceof javax.net.ssl.HttpsURLConnection && theSocketFactory != null)
+		if(isFollowingRedirects != null)
+			conn.setInstanceFollowRedirects(isFollowingRedirects.booleanValue());
+		if(theConnectTimeout >= 0)
+			conn.setConnectTimeout(theConnectTimeout);
+		if(theReadTimeout >= 0)
+			conn.setReadTimeout(theReadTimeout);
+		if(conn instanceof javax.net.ssl.HttpsURLConnection)
 		{
 			javax.net.ssl.HttpsURLConnection sConn = (javax.net.ssl.HttpsURLConnection) conn;
-			((javax.net.ssl.HttpsURLConnection) conn).setSSLSocketFactory(theSocketFactory);
-			sConn.setHostnameVerifier(theHostnameVerifier);
+			if(theSocketFactory != null)
+				sConn.setSSLSocketFactory(theSocketFactory);
+			if(theHostnameVerifier != null)
+				sConn.setHostnameVerifier(theHostnameVerifier);
 		}
 		// Send client cookies
 		java.util.Map<String, String> cookies = theCookies;
@@ -448,34 +561,203 @@ public class HttpConnector
 		return conn;
 	}
 
+	String BOUNDARY = "----------------" + PrismsUtils.getRandomString(16);
+
+	/**
+	 * Uploads data to a server
+	 * 
+	 * @param fileName The file name to label the data with
+	 * @param mimeType The type of the data to send
+	 * @param getParams The parameters to send as part of the request URL
+	 * @param formParams The parameters to send as form data in the content of the request
+	 * @param reqProps The properties to set in the request
+	 * @param receiver The stream in which the server's return data will be placed. May be null if
+	 *        the return data not needed or expected. This stream will be used when the
+	 *        {@link java.io.OutputStream#close() close()} method is called on the return value of
+	 *        this method. This method will not call close on the receiver.
+	 * @return An output stream that the caller may use to write the file data to. The
+	 *         {@link java.io.OutputStream#close() close()} method must be called when data writing
+	 *         is finished.
+	 * @throws IOException
+	 */
+	public java.io.OutputStream uploadData(String fileName, String mimeType,
+		java.util.Map<String, String> getParams,
+		java.util.Map<String, ? extends Object> formParams, java.util.Map<String, String> reqProps,
+		final java.io.OutputStream receiver) throws IOException
+	{
+		final java.net.HttpURLConnection conn = getConnection(getParams);
+
+		conn.setRequestProperty("Accept-Charset", java.nio.charset.Charset.forName("UTF-8").name());
+		conn.setDoOutput(true);
+		conn.setDoInput(true);
+		conn.setUseCaches(false);
+		conn.setDefaultUseCaches(false);
+		if(reqProps != null)
+			for(java.util.Map.Entry<String, String> p : reqProps.entrySet())
+				conn.setRequestProperty(p.getKey(), p.getValue());
+		conn.setRequestProperty("Connection", "Keep-Alive");
+		// c.setRequestProperty("HTTP_REFERER", codebase);
+		conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + BOUNDARY);
+		final java.io.OutputStream os;
+		final java.io.Writer out;
+		if(formParams != null && !formParams.isEmpty())
+		{
+			conn.setRequestMethod("POST");
+			conn.connect();
+			os = conn.getOutputStream();
+			out = new prisms.util.LoggingWriter(new java.io.OutputStreamWriter(os,
+				java.nio.charset.Charset.forName("UTF-8")), null);
+			out.write("--");
+			out.write(BOUNDARY);
+			out.write("\r\n");
+
+			for(java.util.Map.Entry<String, ? extends Object> p : formParams.entrySet())
+			{
+				// write content header
+				out.write("Content-Disposition: form-data; name=\"" + p.getKey() + "\"\r\n\r\n");
+				if(p.getValue() instanceof String)
+					out.write((String) p.getValue());
+				else if(p.getValue() instanceof java.io.Reader)
+				{
+					java.io.Reader reader = (java.io.Reader) p.getValue();
+					int read = reader.read();
+					while(read >= 0)
+					{
+						out.write(read);
+						read = reader.read();
+					}
+					reader.close();
+				}
+				else if(p.getValue() instanceof java.io.InputStream)
+					throw new IllegalArgumentException(
+						"InputStreams may not be post parameters for uploading data");
+				else
+					throw new IllegalArgumentException("Unrecognized post parameter value type: "
+						+ (p.getValue() == null ? "null" : p.getValue().getClass().getName()));
+				out.write("\r\n--");
+				out.write(BOUNDARY);
+				out.write("\r\n");
+			}
+		}
+		else
+		{
+			conn.setRequestMethod("GET");
+			conn.connect();
+			os = conn.getOutputStream();
+			out = new prisms.util.LoggingWriter(new java.io.OutputStreamWriter(os,
+				java.nio.charset.Charset.forName("UTF-8")), null);
+			out.write("--");
+			out.write(BOUNDARY);
+			out.write("\r\n");
+		}
+
+		// write content header
+		out.write("Content-Disposition: form-data; name=\"Upload Data\"; filename=\"" + fileName
+			+ "\"");
+		out.write("\r\n");
+		out.write("Content-Type: ");
+		if(mimeType != null)
+			out.write(mimeType);
+		else
+			out.write("application/octet-stream");
+		out.write("\r\n");
+		out.write("\r\n");
+		out.flush();
+		return new java.io.OutputStream()
+		{
+			private boolean isClosed;
+
+			@Override
+			public void write(int b) throws IOException
+			{
+				os.write(b);
+			}
+
+			@Override
+			public void write(byte [] b) throws IOException
+			{
+				os.write(b);
+			}
+
+			@Override
+			public void write(byte [] b, int off, int len) throws IOException
+			{
+				os.write(b, off, len);
+			}
+
+			@Override
+			public void flush() throws IOException
+			{
+				os.flush();
+			}
+
+			@Override
+			public void close() throws IOException
+			{
+				if(isClosed)
+					return;
+				isClosed = true;
+				os.flush();
+				out.write("\r\n");
+				out.write("--");
+				out.write(BOUNDARY);
+				out.write("--");
+				out.write("\r\n");
+				out.flush();
+				out.close();
+				java.io.InputStream in = conn.getInputStream();
+				int read = in.read();
+				while(read >= 0)
+				{
+					if(receiver != null)
+						receiver.write(read);
+					read = in.read();
+				}
+				in.close();
+			}
+		};
+	}
+
 	/**
 	 * Contacts the server and retrieves the security certificate information provided by the SSL
 	 * server.
 	 * 
 	 * @return The SSL certificates provided by the server, or null if the connection is not over
-	 *         SSL
+	 *         HTTPS
 	 * @throws IOException If the connection cannot be made
-	 * @throws NoSuchAlgorithmException If the "SSL" algorithm cannot be found in the environment
-	 * @throws KeyManagementException If the SSL context cannot be initialized with the given trust
-	 *         manager
 	 */
-	public java.security.cert.X509Certificate[] getServerCerts() throws IOException,
-		NoSuchAlgorithmException, KeyManagementException
+	public java.security.cert.X509Certificate[] getServerCerts() throws IOException
 	{
 		String callURL = theURL;
 		callURL += "?method=test";
 		java.net.HttpURLConnection conn;
 		java.net.URL url = new java.net.URL(callURL);
 		conn = (java.net.HttpURLConnection) url.openConnection();
+		if(isFollowingRedirects != null)
+			conn.setInstanceFollowRedirects(isFollowingRedirects.booleanValue());
+		if(theConnectTimeout >= 0)
+			conn.setConnectTimeout(theConnectTimeout);
+		if(theReadTimeout >= 0)
+			conn.setReadTimeout(theReadTimeout);
 		if(conn instanceof javax.net.ssl.HttpsURLConnection)
 		{
 			SecurityRetriever retriever = new SecurityRetriever();
 			javax.net.ssl.SSLContext sc;
-			sc = javax.net.ssl.SSLContext.getInstance("SSL");
-			sc.init(null, new javax.net.ssl.TrustManager [] {retriever},
-				new java.security.SecureRandom());
+			try
+			{
+				sc = javax.net.ssl.SSLContext.getInstance("SSL");
+				sc.init(theKeyManagers, new javax.net.ssl.TrustManager [] {retriever},
+					new java.security.SecureRandom());
+			} catch(java.security.GeneralSecurityException e)
+			{
+				log.error("Could not initialize SSL context", e);
+				IOException toThrow = new IOException("Could not initialize SSL context: "
+					+ e.getMessage());
+				toThrow.setStackTrace(e.getStackTrace());
+				throw toThrow;
+			}
 			javax.net.ssl.HttpsURLConnection sConn = (javax.net.ssl.HttpsURLConnection) conn;
-			((javax.net.ssl.HttpsURLConnection) conn).setSSLSocketFactory(sc.getSocketFactory());
+			sConn.setSSLSocketFactory(sc.getSocketFactory());
 			sConn.setHostnameVerifier(new javax.net.ssl.HostnameVerifier()
 			{
 				public boolean verify(String hostname, javax.net.ssl.SSLSession session)

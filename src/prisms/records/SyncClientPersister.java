@@ -28,13 +28,15 @@ public class SyncClientPersister implements prisms.arch.Persister<SyncServiceCli
 			if(sync == null)
 				return;
 			theClient = new SyncServiceClient(sync, appName, clientName, servicePluginName);
+			String keyStore = config.get("key-store");
 			String trustStore = config.get("trust-store");
-			if(trustStore != null)
+			if(keyStore != null || trustStore != null)
 			{
+				String keyPwd = config.get("key-password");
 				String trustPwd = config.get("trust-password");
 				try
 				{
-					theClient.setSecurityInfo(trustStore, trustPwd);
+					theClient.setSecurityInfo(keyStore, keyPwd, trustStore, trustPwd);
 				} catch(java.security.GeneralSecurityException e)
 				{
 					log.error("Could not set security info", e);
@@ -71,7 +73,8 @@ public class SyncClientPersister implements prisms.arch.Persister<SyncServiceCli
 	}
 
 	public <V extends SyncServiceClient> void setValue(prisms.arch.PrismsSession session, V o,
-		@SuppressWarnings("rawtypes") prisms.arch.event.PrismsPCE evt)
+		@SuppressWarnings("rawtypes")
+		prisms.arch.event.PrismsPCE evt)
 	{
 	}
 
