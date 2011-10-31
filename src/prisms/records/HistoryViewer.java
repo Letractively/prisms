@@ -920,16 +920,19 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 		if(theSelectedIndices.contains(theSnapshot[index]))
 			return;
 		theSelectedIndices.add(theSnapshot[index]);
+		int viewIdx = index - theStart + 1;
+		if(viewIdx < 0 || viewIdx >= theCurrentView.length)
+			return;
 		ChangeGroup changeGroup = null;
 		for(ChangeGroup group : theChangeGroups)
-			if(group.absorb(theCurrentView[index - theStart + 1]))
+			if(group.absorb(theCurrentView[viewIdx]))
 			{
 				changeGroup = group;
 				break;
 			}
 		if(changeGroup == null)
 		{
-			changeGroup = new ChangeGroup(theCurrentView[index - theStart + 1]);
+			changeGroup = new ChangeGroup(theCurrentView[viewIdx]);
 			theChangeGroups.add(changeGroup);
 		}
 		boolean newSelection = false;
