@@ -12,8 +12,8 @@ public interface UserSource
 	/** Represents a password set for a user */
 	public static class Password
 	{
-		/** The password's key. See {@link Hashing#generateKey(long[])} */
-		public final long [] key;
+		/** The primary-hash of the password value. See {@link Hashing#partialHash(String)} */
+		public final long [] hash;
 
 		/** The time at which the password was set */
 		public final long setTime;
@@ -27,13 +27,13 @@ public interface UserSource
 		/**
 		 * Creates a password
 		 * 
-		 * @param k The key for the password
+		 * @param h The hashed password
 		 * @param time The time the password was set
 		 * @param ex The expire time for the password
 		 */
-		public Password(long [] k, long time, long ex)
+		public Password(long [] h, long time, long ex)
 		{
-			key = k;
+			hash = h;
 			setTime = time;
 			expire = ex;
 		}
@@ -71,10 +71,11 @@ public interface UserSource
 	 * @param configEl The configuration to configure this data source with
 	 * @param env The PRISMS environment that this user source will be used in
 	 * @param apps All applications configured in the PRISMS environment
+	 * @param initHashing The hashing values to use for an initial installation--may be null
 	 * @throws PrismsException If the user source could not be configured correctly
 	 */
 	void configure(prisms.arch.PrismsConfig configEl, prisms.arch.PrismsEnv env,
-		PrismsApplication [] apps) throws PrismsException;
+		PrismsApplication [] apps, Hashing initHashing) throws PrismsException;
 
 	/**
 	 * @param app The application to get the lock for
@@ -134,6 +135,13 @@ public interface UserSource
 	User getUser(long id) throws PrismsException;
 
 	/**
+	 * @return The system user that can be used in record-keeping when an operation is not caused
+	 *         directly by an actual user
+	 * @throws PrismsException If an error occurs getting the system user
+	 */
+	User getSystemUser() throws PrismsException;
+
+	/**
 	 * @param user The user requesting access to the application
 	 * @param app The application the user is requesting access to
 	 * @return Whether the user has permission to access the given application
@@ -157,7 +165,7 @@ public interface UserSource
 	 * @return An encryption key
 	 * @throws PrismsException If an error occurs getting the data
 	 */
-	Password getPassword(User user, Hashing hashing) throws PrismsException;
+	Password getPassword(User user) throws PrismsException;
 
 	/**
 	 * Gets all a user's stored passwords, sorted from the most recently set. The first element of
@@ -168,7 +176,7 @@ public interface UserSource
 	 * @return All a user's passwords
 	 * @throws PrismsException If an error occurs retrieving the data
 	 */
-	Password [] getOldPasswords(User user, Hashing hashing) throws PrismsException;
+	Password [] getOldPasswords(User user) throws PrismsException;
 
 	/**
 	 * Sets a user's password
