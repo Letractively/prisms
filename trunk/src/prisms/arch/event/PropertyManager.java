@@ -158,7 +158,7 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	protected void checkValue(PrismsSession session, T value, PrismsPCE<T> evt)
 	{
 		if(!isValueCorrect(session, value))
-			session.setProperty(getProperty(), getCorrectValue(session));
+			session.setProperty(getProperty(), getCorrectValue(session), evt.getPropertyList());
 	}
 
 	/**
@@ -170,17 +170,7 @@ public abstract class PropertyManager<T> implements PrismsPCL<T>
 	protected void globalAdjustValues(Object... eventProps)
 	{
 		for(PrismsApplication app : theApps)
-		{
 			app.setGlobalProperty(theProperty, getApplicationValue(app), eventProps);
-			// app.runSessionTask(null, new PrismsApplication.SessionTask()
-			// {
-			// public void run(PrismsSession session2)
-			// {
-			// if(!isValueCorrect(session2, session2.getProperty(getProperty())))
-			// session2.setProperty(getProperty(), getCorrectValue(session2));
-			// }
-			// }, false);
-		}
 	}
 
 	/**
