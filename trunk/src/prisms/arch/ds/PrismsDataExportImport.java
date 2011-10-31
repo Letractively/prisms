@@ -755,9 +755,19 @@ public class PrismsDataExportImport
 				log.error("Could not get centers", e);
 				centers = null;
 			}
-			if(trans.getImpl().getCentersProperty() != null)
-				app.setGlobalProperty(trans.getImpl().getCentersProperty(), centers,
+			if(centers != null && trans.getImpl().getCentersProperty() != null)
+			{
+				PrismsCenter [] appCenters = centers;
+				for(int i = 0; i < appCenters.length; i++)
+					if(centers[i].getID() == 0)
+					{
+						// Don't include the "Here" center in the UI value
+						appCenters = prisms.util.ArrayUtils.remove(appCenters, i);
+						break;
+					}
+				app.setGlobalProperty(trans.getImpl().getCentersProperty(), appCenters,
 					RecordUtils.TRANSACTION_EVENT_PROP, new prisms.records.RecordsTransaction());
+			}
 
 			// Changes
 			PrismsSynchronizer.ChangeReader changeReader = new PrismsSynchronizer.ChangeReader(

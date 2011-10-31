@@ -253,12 +253,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			if(theError != null)
 				return theError;
-			theApp.setConfigured(this);
-			theAppConfigEl = null;
+			if(withInitializers)
+			{
+				theApp.setConfigured(this);
+				theAppConfigEl = null;
 
-			for(ClientConfigurator cc : theClients.values())
-				if(cc.shouldConfigureOnLoad())
-					cc.configureClient(theAppConfig);
+				for(ClientConfigurator cc : theClients.values())
+					if(cc.shouldConfigureOnLoad())
+						cc.configureClient(theAppConfig);
+			}
 			return null;
 		}
 
