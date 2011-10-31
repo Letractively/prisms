@@ -21,10 +21,12 @@ import java.util.*;
  * purged. If the cache's qualitizer is set, larger items (according to
  * {@link Qualitizer#size(Object)}) will tend to be purged more quickly than smaller items. If the
  * qualitizer's size and quality methods return the same value for all items, these will cancel each
- * other out and function similarly to a cache with no qualitizer.</li>
+ * other out and function similarly to a cache with no qualitizer. As the cache fills up, items will
+ * tend to be purged more quickly to keep the size down.</li>
  * </ul>
- * All of these criteria can be used together to make, for example, a cache that tends to purge
- * items that have not been used in 30 minutes, but will fill up to 10MB under high demand.
+ * All of these criteria can be used together to make a cache that tends to purge items that have
+ * not been used in a given amount of time under normal load but will keep items around longer under
+ * low load or will purge them faster under high demand.
  * 
  * @param <K> The type of key to use for the cache
  * @param <V> The type of value to cache
@@ -206,10 +208,20 @@ public class DemandCache<K, V> implements Map<K, V>
 
 	public V put(K key, V value)
 	{
+		V ret = _put(key, value);
+		purge(false);
+		return ret;
+	}
+
+	private V _put(K key, V value)
+	{
+		CacheValue oldValue = theCache.get(key);
+		if(oldValue != null && oldValue.value == value)
+			return value;
 		CacheValue newValue = new CacheValue();
 		newValue.value = value;
 		_access(newValue, ACCESS_SET);
-		CacheValue oldValue = theCache.put(key, newValue);
+		oldValue = theCache.put(key, newValue);
 		if(theQualitizer == null || thePreferredSize <= 0)
 		{
 			if(oldValue == null)
@@ -217,12 +229,39 @@ public class DemandCache<K, V> implements Map<K, V>
 		}
 		else
 		{
-			thePurgeMods += theQualitizer.size(value);
+			thePurgeMods += s(value);
 			if(oldValue != null)
-				thePurgeMods -= theQualitizer.size(oldValue.value);
+				thePurgeMods -= s(oldValue.value);
 		}
-		purge(false);
 		return oldValue == null ? null : oldValue.value;
+	}
+
+	private float q(V value)
+	{
+		if(theQualitizer == null)
+			return 1;
+		float ret = theQualitizer.quality(value);
+		if(Float.isNaN(ret))
+			throw new IllegalStateException("NaN returned by quality method of qualitizer "
+				+ theQualitizer);
+		if(ret < 0)
+			throw new IllegalStateException(
+				"Negative value returned by quality method of qualitizer " + theQualitizer);
+		return ret;
+	}
+
+	private float s(V value)
+	{
+		if(theQualitizer == null)
+			return 1;
+		float ret = theQualitizer.size(value);
+		if(Float.isNaN(ret))
+			throw new IllegalStateException("NaN returned by size method of qualitizer "
+				+ theQualitizer);
+		if(ret < 0)
+			throw new IllegalStateException("Negative value returned by size method of qualitizer "
+				+ theQualitizer);
+		return ret;
 	}
 
 	public V remove(Object key)
@@ -233,7 +272,7 @@ public class DemandCache<K, V> implements Map<K, V>
 			if(theQualitizer == null || thePreferredSize <= 0)
 				thePurgeMods--;
 			else
-				thePurgeMods -= theQualitizer.size(oldValue.value);
+				thePurgeMods -= s(oldValue.value);
 		}
 		return oldValue == null ? null : oldValue.value;
 	}
@@ -282,23 +321,7 @@ public class DemandCache<K, V> implements Map<K, V>
 	public void putAll(Map<? extends K, ? extends V> m)
 	{
 		for(Map.Entry<? extends K, ? extends V> entry : m.entrySet())
-		{
-			CacheValue cv = new CacheValue();
-			cv.value = entry.getValue();
-			_access(cv, ACCESS_SET);
-			CacheValue oldValue = theCache.put(entry.getKey(), cv);
-			if(theQualitizer == null || thePreferredSize <= 0)
-			{
-				if(oldValue == null)
-					thePurgeMods++;
-			}
-			else
-			{
-				thePurgeMods += theQualitizer.size(cv.value);
-				if(oldValue != null)
-					thePurgeMods -= theQualitizer.size(oldValue.value);
-			}
-		}
+			_put(entry.getKey(), entry.getValue());
 		purge(false);
 	}
 
@@ -484,7 +507,7 @@ public class DemandCache<K, V> implements Map<K, V>
 			return theCache.size();
 		float ret = 0;
 		for(CacheValue value : theCache.values())
-			ret += theQualitizer.size(value.value);
+			ret += s(value.value);
 		return ret;
 	}
 
@@ -502,7 +525,7 @@ public class DemandCache<K, V> implements Map<K, V>
 		for(CacheValue value : theCache.values())
 		{
 			count++;
-			ret += theQualitizer.quality(value.value);
+			ret += q(value.value);
 		}
 		return ret / count;
 	}
@@ -577,8 +600,8 @@ public class DemandCache<K, V> implements Map<K, V>
 			for(CacheValue value : theCache.values())
 			{
 				count++;
-				totalSize += theQualitizer.size(value.value);
-				totalQuality += theQualitizer.quality(value.value);
+				totalSize += s(value.value);
+				totalQuality += q(value.value);
 			}
 
 		java.util.ArrayList<K> purgeKeys = new java.util.ArrayList<K>();
@@ -598,8 +621,8 @@ public class DemandCache<K, V> implements Map<K, V>
 			count--;
 			if(theQualitizer != null)
 			{
-				totalSize -= theQualitizer.size(value.value);
-				totalQuality -= theQualitizer.quality(value.value);
+				totalSize -= s(value.value);
+				totalQuality -= q(value.value);
 			}
 			else
 			{
@@ -653,22 +676,12 @@ public class DemandCache<K, V> implements Map<K, V>
 	protected boolean shouldRemove(CacheValue value, float totalSize, float avgQuality,
 		int entryCount)
 	{
-		float quality;
-		float size;
-		if(theQualitizer == null)
-		{
-			quality = 1;
-			size = 1;
-		}
-		else
-		{
-			quality = theQualitizer.quality(value.value);
-			size = theQualitizer.size(value.value);
-			if(quality == 0)
-				return true; // Remove if the value has no quality
-			if(size == 0)
-				return false; // Don't remove if the value takes up no space
-		}
+		float quality = q(value.value);
+		float size = s(value.value);
+		if(quality == 0)
+			return true; // Remove if the value has no quality
+		if(size == 0)
+			return false; // Don't remove if the value takes up no space
 
 		/* Take into account how frequently and recently the value was accessed */
 		float valueQuality = 1;
@@ -681,12 +694,16 @@ public class DemandCache<K, V> implements Map<K, V>
 		valueQuality /= size / avgSize;
 		/* Take into account the overall size of this cache compared with the preferred size
 		 * (Whether it is too big or has room to spare) */
-		float sizeToQual = (size / avgSize) / (quality / avgQuality);
 		if(thePreferredSize > 0)
 		{
-			if(totalSize > thePreferredSize)
+			if(totalSize > thePreferredSize * 2)
+				return size >= avgSize * .99;
+			else if(totalSize > thePreferredSize)
+			{
+				float sizeToQual = (size / avgSize) / (quality / avgQuality);
 				valueQuality /= Math.pow(2, totalSize / thePreferredSize * 4 * sizeToQual
 					* sizeToQual);
+			}
 			else
 				valueQuality /= totalSize / thePreferredSize;
 		}
@@ -722,9 +739,11 @@ public class DemandCache<K, V> implements Map<K, V>
 		}
 	}
 
-	private static final boolean DO_HL_TEST = true;
+	private static final boolean DO_HL_TEST = false;
 
 	private static final boolean DO_PS_TEST = false;
+
+	private static final boolean DO_MIX_TEST = true;
 
 	/**
 	 * Unit-test
@@ -885,6 +904,57 @@ public class DemandCache<K, V> implements Map<K, V>
 				+ total);
 			cache.clear();
 			cache = null;
+		}
+		if(DO_MIX_TEST)
+		{
+			class TestItem
+			{
+				float theSize;
+
+				float theQuality;
+			}
+			System.out.println("Testing the combined functionality");
+			DemandCache<TestItem, TestItem> cache2;
+			cache2 = new DemandCache<TestItem, TestItem>(new Qualitizer<TestItem>()
+			{
+				public float quality(TestItem value)
+				{
+					return value.theQuality;
+				}
+
+				public float size(TestItem value)
+				{
+					return value.theSize;
+				}
+			}, 10000, 60000);
+			Random rand = new Random();
+			long count = 0;
+			long time = System.currentTimeMillis();
+			while(true)
+			{
+				TestItem item = new TestItem();
+				item.theSize = 2 + rand.nextFloat() * 8;
+				item.theQuality = rand.nextFloat() * 100;
+				cache2.put(item, item);
+				count++;
+				if(count % 100 == 0 && count > 0)
+				{
+					long time2 = System.currentTimeMillis();
+					if(time2 >= time + 5000)
+					{
+						time = time2;
+						System.out.println(count + " items inserted, retaining " + cache2.size()
+							+ ", total size=" + cache2.getTotalSize() + ", avg size="
+							+ (cache2.getTotalSize() / cache2.size()) + ", avg qual="
+							+ cache2.getAverageQuality());
+					}
+				}
+				if(count % 1000 == 0)
+				{
+					for(TestItem item2 : cache2.values())
+						item2.theSize *= 1 + rand.nextFloat() / 3;
+				}
+			}
 		}
 	}
 }
