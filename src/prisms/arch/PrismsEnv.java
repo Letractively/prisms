@@ -478,7 +478,8 @@ public class PrismsEnv implements prisms.util.Sealable
 	 */
 	public PrismsTransaction transact(PrismsSession session, PrismsTransaction.Stage stage)
 	{
-		PrismsTransaction ret = theActiveTransactions.get(Thread.currentThread());
+		Thread ct = Thread.currentThread();
+		PrismsTransaction ret = theActiveTransactions.get(ct);
 		if(ret != null)
 		{
 			ret.theDuplicateStartCount++;
@@ -493,7 +494,7 @@ public class PrismsEnv implements prisms.util.Sealable
 			throw new IllegalStateException("Should not be thrown from here!", e);
 		}
 		ret.init(session, stage);
-		theActiveTransactions.put(Thread.currentThread(), ret);
+		theActiveTransactions.put(ct, ret);
 		return ret;
 	}
 
@@ -507,7 +508,8 @@ public class PrismsEnv implements prisms.util.Sealable
 	 */
 	public PrismsTransaction transact(PrismsApplication app)
 	{
-		PrismsTransaction ret = theActiveTransactions.get(Thread.currentThread());
+		Thread ct = Thread.currentThread();
+		PrismsTransaction ret = theActiveTransactions.get(ct);
 		if(ret != null)
 		{
 			ret.theDuplicateStartCount++;
@@ -522,7 +524,7 @@ public class PrismsEnv implements prisms.util.Sealable
 			throw new IllegalStateException("Should not be thrown from here!", e);
 		}
 		ret.init(app, PrismsTransaction.Stage.external);
-		theActiveTransactions.put(Thread.currentThread(), ret);
+		theActiveTransactions.put(ct, ret);
 		return ret;
 	}
 

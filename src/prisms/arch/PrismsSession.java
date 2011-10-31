@@ -152,6 +152,8 @@ public class PrismsSession
 
 	private final ConcurrentHashMap<PrismsProperty<?>, PrismsSession> thePropertyStack;
 
+	private final PropertySetActionQueue thePSAQueue;
+
 	@SuppressWarnings("rawtypes")
 	private final ListenerManager<PrismsPCL> thePCLs;
 
@@ -190,6 +192,7 @@ public class PrismsSession
 		theProperties = new ConcurrentHashMap<PrismsProperty<?>, Object>();
 		thePropertyLocks = new ConcurrentHashMap<PrismsProperty<?>, PrismsApplication.PrismsPropertyLock>();
 		thePropertyStack = new ConcurrentHashMap<PrismsProperty<?>, PrismsSession>();
+		thePSAQueue = new PropertySetActionQueue();
 		thePCLs = new ListenerManager<PrismsPCL>(PrismsPCL.class);
 		theELs = new ListenerManager<PrismsEventListener>(PrismsEventListener.class);
 		theTaskList = new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
@@ -401,11 +404,12 @@ public class PrismsSession
 		if(finished == null)
 			finished = new boolean [1];
 		final boolean [] fFinished = finished;
+		PrismsTransaction trans = getTransaction();
 		if(event.get("plugin") == null && "getEvents".equals(event.get("method"))
 			&& event.containsKey("taskID"))
 		{
-			prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getApp()
-				.getEnvironment(), "Check Running Tasks");
+			prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(trans,
+				"Check Running Tasks");
 			try
 			{
 				java.util.Iterator<boolean []> values = theRunningTasks.values().iterator();
@@ -428,7 +432,7 @@ public class PrismsSession
 				return ret;
 			} finally
 			{
-				prisms.util.PrismsUtils.end(getApp().getEnvironment(), track);
+				prisms.util.PrismsUtils.end(trans, track);
 				fFinished[0] = true;
 			}
 		}
@@ -436,15 +440,15 @@ public class PrismsSession
 		{
 			public void run()
 			{
-				final PrismsTransaction trans = getApp().getEnvironment().transact(
-					PrismsSession.this, PrismsTransaction.Stage.processEvent);
+				PrismsTransaction trans2 = getApp().getEnvironment().transact(PrismsSession.this,
+					PrismsTransaction.Stage.processEvent);
 				try
 				{
 					process(event);
 				} finally
 				{
 					fFinished[0] = true;
-					getApp().getEnvironment().finish(trans);
+					getApp().getEnvironment().finish(trans2);
 				}
 			}
 		};
@@ -469,8 +473,8 @@ public class PrismsSession
 			 * allows progress bars to be shown to the user quickly while a long operation
 			 * progresses, as well as releasing the server thread to be reused by other requests.
 			 */
-			prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(getApp()
-				.getEnvironment(), "Wait For Async Results");
+			prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(trans,
+				"Wait For Async Results");
 			long waitInc = theAsyncWait / 5;
 			if(waitInc < 50)
 			{
@@ -487,7 +491,7 @@ public class PrismsSession
 				} catch(InterruptedException e)
 				{}
 			} while(!finished[0] && System.currentTimeMillis() - now < theAsyncWait);
-			prisms.util.PrismsUtils.end(getApp().getEnvironment(), track);
+			prisms.util.PrismsUtils.end(trans, track);
 		}
 		if(!finished[0])
 		{
@@ -527,7 +531,6 @@ public class PrismsSession
 
 	void _process(JSONObject evt)
 	{
-		theApp.runScheduledTasks();
 		runTasks();
 		if(evt == null)
 			return;
@@ -541,68 +544,94 @@ public class PrismsSession
 			AppPlugin plugin = getPlugin((String) pName);
 			if(plugin == null)
 				throw new IllegalArgumentException("No such plugin: " + pName);
-			TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(),
-				"PRISMS: Plugin " + pName + "." + evt.get("method") + "()");
+			PrismsTransaction trans = getTransaction();
+			TrackNode track = prisms.util.PrismsUtils.track(trans, "PRISMS: Plugin " + pName + "."
+				+ evt.get("method") + "()");
 			try
 			{
 				plugin.processEvent(evt);
 			} finally
 			{
-				prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
+				prisms.util.PrismsUtils.end(trans, track);
 			}
 			renew();
 		}
 
 		runTasks();
-		theApp.runScheduledTasks();
 	}
 
 	/** Runs all tasks added with {@link #runEventually(Runnable)} */
 	public void runTasks()
 	{
-		if(theTaskList.isEmpty())
-			return;
-		Runnable [] tasks = new Runnable [theTaskList.size()];
-		java.util.Iterator<Runnable> iter = theTaskList.iterator();
-		for(int i = 0; i < tasks.length && iter.hasNext(); i++)
+		PrismsTransaction trans = getTransaction();
+		boolean hasTasks = false;
+		do
 		{
-			tasks[i] = iter.next();
-			iter.remove();
-		}
-		if(tasks.length > 0 && tasks[0] != null)
-		{
-			TrackNode totalTrack = prisms.util.PrismsUtils.track(theApp.getEnvironment(),
-				"Session Tasks");
-			try
+			hasTasks = false;
+			if(!theTaskList.isEmpty())
 			{
-				Exception outerE = new Exception();
-				for(Runnable task : tasks)
+				hasTasks = true;
+				Runnable [] tasks = new Runnable [theTaskList.size()];
+				java.util.Iterator<Runnable> iter = theTaskList.iterator();
+				for(int i = 0; i < tasks.length && iter.hasNext(); i++)
 				{
-					/* If a task was removed between the time when the tasks array was created and when
-					 * the item would have been reached in the iteration, the tasks array may not be
-					 * full. */
-					if(task == null)
-						break;
-					TrackNode track = prisms.util.PrismsUtils.track(theApp.getEnvironment(), task);
+					tasks[i] = iter.next();
+					iter.remove();
+				}
+				if(tasks.length > 0 && tasks[0] != null)
+				{
+					TrackNode totalTrack = prisms.util.PrismsUtils.track(trans, "Session Tasks");
 					try
 					{
-						task.run();
-					} catch(Throwable e)
-					{
-						e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(e.getStackTrace(),
-							outerE.getStackTrace(), getClass().getName(), "_process"));
-						log.error("Error Processing Task " + task, e);
-						postOutgoingEvent(wrapError("Error Processing Task " + task, e));
+						Exception outerE = new Exception();
+						for(Runnable task : tasks)
+						{
+							/* If a task was removed between the time when the tasks array was created and when
+							 * the item would have been reached in the iteration, the tasks array may not be
+							 * full. */
+							if(task == null)
+								break;
+							TrackNode track = prisms.util.PrismsUtils.track(trans, task);
+							try
+							{
+								task.run();
+							} catch(Throwable e)
+							{
+								e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(
+									e.getStackTrace(), outerE.getStackTrace(),
+									getClass().getName(), "_process"));
+								log.error("Error Processing Task " + task, e);
+								postOutgoingEvent(wrapError("Error Processing Task " + task, e));
+							} finally
+							{
+								prisms.util.PrismsUtils.end(trans, track);
+							}
+						}
 					} finally
 					{
-						prisms.util.PrismsUtils.end(theApp.getEnvironment(), track);
+						prisms.util.PrismsUtils.end(trans, totalTrack);
 					}
 				}
-			} finally
-			{
-				prisms.util.PrismsUtils.end(theApp.getEnvironment(), totalTrack);
 			}
-		}
+			hasTasks |= theApp.runPropertySetActions();
+			hasTasks |= theApp.runScheduledTasks();
+			PropertySetActionQueue.PropertySetAction<Object> [] actions = thePSAQueue.getActions();
+			if(actions.length > 0)
+			{
+				TrackNode totalTrack = prisms.util.PrismsUtils.track(trans,
+					"Queued Property Set Actions");
+				try
+				{
+					for(PropertySetActionQueue.PropertySetAction<Object> action : actions)
+						_setProperty(trans, action.property, action.oldValue, action.value,
+							action.eventProps);
+				} finally
+				{
+					prisms.util.PrismsUtils.end(trans, totalTrack);
+				}
+			}
+			hasTasks |= actions.length > 0;
+		} while(hasTasks);
 	}
 
 	JSONObject wrapError(String title, Throwable e)
@@ -849,6 +878,16 @@ public class PrismsSession
 	 */
 	public <T> void setProperty(PrismsProperty<T> property, T propValue, Object... eventProps)
 	{
+		PrismsTransaction trans = getTransaction();
+		if(trans == null || trans.getSession() != this)
+			thePSAQueue.add(property, (T) theProperties.get(property), propValue, null, eventProps);
+		else
+			_setProperty(trans, property, (T) theProperties.get(property), propValue, eventProps);
+	}
+
+	private <T> void _setProperty(PrismsTransaction trans, PrismsProperty<T> property, T oldValue,
+		T propValue, Object... eventProps)
+	{
 		// Generics *can* be defeated--check the type here
 		if(propValue != null && !property.getType().isInstance(propValue))
 			throw new IllegalArgumentException("Cannot set an instance of "
@@ -858,50 +897,55 @@ public class PrismsSession
 			throw new IllegalArgumentException("Event properties for property change event must be"
 				+ " in the form of name, value, name, value, etc.--" + eventProps.length
 				+ " arguments illegal");
-		/* Many property sets can be going on at once, but only one for each property in a session */
-		synchronized(getPropertyLock(property))
+		TrackNode [] tracks = new TrackNode [3];
+		tracks[0] = prisms.util.PrismsUtils.track(trans, "Session.setProperty");
+		tracks[1] = prisms.util.PrismsUtils.track(trans, "Property " + property.getName());
+		try
 		{
-			PrismsPCE<T> propEvt = new PrismsPCE<T>(getApp(), this, property,
-				(T) theProperties.get(property), propValue);
-			PrismsPCL<T> [] listeners;
-			thePropertyStack.put(property, this);
-			if(propValue == null)
-				theProperties.remove(property);
-			else
-				theProperties.put(property, propValue);
-			listeners = getPropertyChangeListeners(property);
+			/* Many property sets can be going on at once, but only one for each property in a session */
+			synchronized(getPropertyLock(property))
+			{
+				PrismsPCE<T> propEvt = new PrismsPCE<T>(getApp(), this, property, oldValue,
+					propValue);
+				PrismsPCL<T> [] listeners;
+				thePropertyStack.put(property, this);
+				if(propValue == null)
+					theProperties.remove(property);
+				else
+					theProperties.put(property, propValue);
+				listeners = getPropertyChangeListeners(property);
 
-			for(int i = 0; i < eventProps.length; i += 2)
-			{
-				if(!(eventProps[i] instanceof String))
-					throw new IllegalArgumentException("Event properties for property change event"
-						+ " must be in the form of name, value, name, value, etc.--eventProps[" + i
-						+ "] is not a string");
-				propEvt.set((String) eventProps[i], eventProps[i + 1]);
-			}
-			PrismsEnv env = getApp().getEnvironment();
-			for(PrismsPCL<T> l : listeners)
-			{
-				TrackNode [] tracks = new TrackNode [3];
-				tracks[0] = prisms.util.PrismsUtils.track(env, "PrismsPCL");
-				tracks[1] = prisms.util.PrismsUtils.track(env, "Property " + property.getName());
-				tracks[2] = prisms.util.PrismsUtils.track(env, l);
-				try
+				for(int i = 0; i < eventProps.length; i += 2)
 				{
-					l.propertyChange(propEvt);
-				} finally
-				{
-					for(int i = tracks.length - 1; i >= 0; i--)
-						prisms.util.PrismsUtils.end(env, tracks[i]);
+					if(!(eventProps[i] instanceof String))
+						throw new IllegalArgumentException("Event properties for property change"
+							+ " event must be in the form of name, value, name, value, etc."
+							+ "--eventProps[" + i + "] is not a string");
+					propEvt.set((String) eventProps[i], eventProps[i + 1]);
 				}
-				/* If this property is changed as a result of the above PCL, stop this notification */
-				if(!thePropertyStack.containsKey(property))
+				for(PrismsPCL<T> l : listeners)
 				{
-					propEvt.set("canceled", Boolean.TRUE);
-					break;
+					tracks[2] = prisms.util.PrismsUtils.track(trans, l);
+					try
+					{
+						l.propertyChange(propEvt);
+					} finally
+					{
+						prisms.util.PrismsUtils.end(trans, tracks[2]);
+					}
+					/* If this property is changed as a result of the above PCL, stop this notification */
+					if(!thePropertyStack.containsKey(property))
+					{
+						propEvt.set("canceled", Boolean.TRUE);
+						break;
+					}
 				}
+				thePropertyStack.remove(property);
 			}
-			thePropertyStack.remove(property);
+		} finally
+		{
+			prisms.util.PrismsUtils.end(trans, tracks[1]);
+			prisms.util.PrismsUtils.end(trans, tracks[0]);
 		}
 	}
 
@@ -986,21 +1030,21 @@ public class PrismsSession
 	 */
 	public void fireEvent(PrismsEvent event)
 	{
-		PrismsEnv env = theApp.getEnvironment();
 		PrismsEventListener [] listeners = getEventListeners(event.name);
+		PrismsTransaction trans = getTransaction();
 		for(PrismsEventListener l : listeners)
 		{
 			TrackNode [] tracks = new TrackNode [3];
-			tracks[0] = prisms.util.PrismsUtils.track(env, "Event Listener");
-			tracks[1] = prisms.util.PrismsUtils.track(env, "Event " + event.name);
-			tracks[2] = prisms.util.PrismsUtils.track(env, l);
+			tracks[0] = prisms.util.PrismsUtils.track(trans, "Event Listener");
+			tracks[1] = prisms.util.PrismsUtils.track(trans, "Event " + event.name);
+			tracks[2] = prisms.util.PrismsUtils.track(trans, l);
 			try
 			{
 				l.eventOccurred(this, event);
 			} finally
 			{
 				for(int i = tracks.length - 1; i >= 0; i--)
-					prisms.util.PrismsUtils.end(env, tracks[i]);
+					prisms.util.PrismsUtils.end(trans, tracks[i]);
 			}
 		}
 	}
