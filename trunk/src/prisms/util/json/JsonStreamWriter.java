@@ -23,6 +23,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	private String theFormatIndent;
 
+	private boolean isUnicodeEncoded;
+
 	/** @return Whether this writer writes formal JSON */
 	public boolean isFormal()
 	{
@@ -69,12 +71,31 @@ public class JsonStreamWriter implements JsonSerialWriter
 		return theLineNumber;
 	}
 
+	/**
+	 * @return Whether unicode characters in strings and property names written to this writer are
+	 *         encoded before they are written
+	 */
+	public boolean isUnicodeEncoded()
+	{
+		return isUnicodeEncoded;
+	}
+
+	/**
+	 * @param encode Whether unicode characters in strings and property names written to this writer
+	 *        are encoded before they are written
+	 */
+	public void setUnicodeEncoded(boolean encode)
+	{
+		isUnicodeEncoded = encode;
+	}
+
 	/** @param writer The writer to write the JSON content to */
 	public JsonStreamWriter(java.io.Writer writer)
 	{
 		theWriter = writer;
 		thePath = new java.util.ArrayList<ParseNode>();
 		theSB = new StringBuilder();
+		isUnicodeEncoded = true;
 	}
 
 	/** @return The stream writer that this JSON writer writes to */
@@ -102,7 +123,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 		case '"':
 		case '\\':
 			return ch;
-		case '\u2044':
+		case '\u2044': // Solidus/fraction slash
 			return '/';
 		case '\n':
 			return 'n';
@@ -142,6 +163,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 			break;
 		}
 		writeLine();
+		if(isUnicodeEncoded)
+			name = prisms.util.PrismsUtils.encodeUnicode(name);
 		theSB.append(name);
 		boolean quoted = useFormalJson;
 		if(!quoted)
@@ -238,6 +261,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 				theSB.setCharAt(c, (char) esc);
 			}
 		}
+		if(isUnicodeEncoded)
+			prisms.util.PrismsUtils.encodeUnicode(theSB);
 		theSB.insert(0, '"');
 		theSB.append('"');
 		content(null);
@@ -317,6 +342,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 	{
 		if(useFormalJson)
 			throw new IllegalStateException("Comments are not allowed in formal JSON");
+		if(isUnicodeEncoded)
+			comment = prisms.util.PrismsUtils.encodeUnicode(comment);
 		boolean hasLine = comment.indexOf('\n') >= 0;
 		block |= hasLine;
 		if(theFormatIndent == null)
@@ -328,7 +355,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 		if(!block)
 		{
 			theWriter.write("// ");
-			theWriter.write("comment");
+			theWriter.write(comment);
 			writeLine();
 		}
 		else if(!hasLine)
