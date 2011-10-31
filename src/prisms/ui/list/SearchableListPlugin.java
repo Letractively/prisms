@@ -59,6 +59,7 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	@Override
 	public void setListData(T [] items)
 	{
+		theDisplayed = null;
 		super.setListData(items);
 		filterChanged();
 	}
@@ -66,6 +67,7 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	@Override
 	public void setItems(DataListNode [] items)
 	{
+		theDisplayed = null;
 		super.setItems(items);
 		filterChanged();
 	}
@@ -73,6 +75,7 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	@Override
 	public void addNode(DataListNode node, int index)
 	{
+		theDisplayed = null;
 		super.addNode(node, index);
 		filterChanged();
 	}
@@ -87,6 +90,7 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	@Override
 	public void removeNode(int index)
 	{
+		theDisplayed = null;
 		super.removeNode(index);
 		if(theDisplayed != null)
 		{
