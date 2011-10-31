@@ -28,12 +28,6 @@
 		__dojo.registerModulePath("log4j","../../js/log4j");
 		__dojo.require("prisms.PrismsLink");
 		__dojo.require("log4j.Log4jApp");
-
-		function doResize()
-		{
-			resizeBy(-1,-1);
-			resizeBy(1,1);
-		}
 	</script>
 	
 	<style type="text/css">
@@ -58,7 +52,7 @@
 		}
 	</style>
 </head>
-<body class="tundra" onload="doResize()">
+<body class="tundra">
 	<div __dojoType="prisms.PrismsLink" application="Logging" client="Logging" jsId="loggingPrismsLink"
 		servletURL="__webContentRoot/prisms" imageURL="__webContentRoot/prismsImage.jpg"></div>
 	<div __dojoType="log4j.Log4jApp" prisms="loggingPrismsLink" style="width:100%;height:100%"></div>

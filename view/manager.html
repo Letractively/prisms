@@ -28,12 +28,6 @@
 		__dojo.registerModulePath("manager","../../js/manager");
 		__dojo.require("prisms.PrismsLink");
 		__dojo.require("manager.ManagerApp");
-
-		function doResize()
-		{
-			resizeBy(-1,-1);
-			resizeBy(1,1);
-		}
 	</script>
 	
 	<style type="text/css">
@@ -58,7 +52,7 @@
 		}
 	</style>
 </head>
-<body class="tundra" onload="doResize()">
+<body class="tundra">
 	<div __dojoType="prisms.PrismsLink" application="MANAGER" client="fullclient" jsId="managerPrismsLink"
 		servletURL="__webContentRoot/prisms" imageURL="__webContentRoot/prismsImage.png"></div>
 	<div __dojoType="manager.ManagerApp" prisms="managerPrismsLink" style="width:100%;height:100%"></div>
