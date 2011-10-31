@@ -23,6 +23,8 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 
 	withLogin: true,
 
+	withServerTime: true,
+
 	postCreate: function(){
 		this.inherited("postCreate", arguments);
 		if(!this.prisms)
@@ -32,6 +34,9 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 		if(!this.withLogin || !__showLogin)
 			this.loginMenu.domNode.style.display="none";
 
+		if(!this.withServerTime)
+			this.serverTimeToggle.domNode.style.display="none";
+
 		this.prismsContent.setHref(this.appHtml);
 	},
 
@@ -39,6 +44,7 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 		this.scanAttaches(this.prismsContent);
 		this.setPrisms(this.prisms);
 		this.prisms.prismsConnect();
+		this.visibleContent.resize();
 	},
 
 	addToolbarButton: function(text, callback){
@@ -55,7 +61,12 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 	},
 
 	_setPreferencesVisible: function(visible){
-		this.preferencesMenuItem.domNode.style.display=visible ? "block" : "none";
+		if(!visible)
+		{
+			this.preferencesMenuItem.domNode.style.display="none";
+			if(!this.withServerTime)
+				this.preferencesMenu.domNode.style.display="none";
+		}
 	},
 
 	editPreferences: function(){
@@ -91,16 +102,16 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 
 	redrawServerTime: function(){
 		var svrTime=this.showServerTime;
+		var newLocal=new Date().getTime();
 		if(newLocal-svrTime.localRef>10*60000)
 		{
 			var preTime=new Date().getTime();
-			svrTime=this.prisms.callServerSync("getServerTime");
+			svrTime=this.prisms.callServerSync("getServerTime")[0];
 			var postTime=new Date().getTime();
 			svrTime.localRef=(preTime+postTime)/2;
 			this.showServerTime=svrTime;
 		}
-		var newLocal=new Date().getTime();
-		var newOffset=(svrTime.time-svrTime.localRef)+(newLocal-svrTime.localRef);
+		var newOffset=newLocal-svrTime.localRef;
 		var mil=svrTime.millis+newOffset;
 		if(!this._timeMode) // Zulu/GMT
 			mil-=svrTime.timeZoneOffset
@@ -108,8 +119,6 @@ __dojo.declare("prisms.widget.PrismsAppWidget", [__dijit._Widget, __dijit._Conta
 		{}
 		var sec=svrTime.second+Math.floor(mil/1000);
 		mil%=1000;
-		if(mil>=500)
-			sec++;
 		var min=svrTime.minute+Math.floor(sec/60);
 		sec%=60;
 		if(sec==svrTime.displaySecond)
