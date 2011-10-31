@@ -76,18 +76,23 @@ __dojo.declare("prisms.widget.TabWidget", [__dijit._Widget, __dijit._Contained],
 			}
 		}
 		else
-		{
-			if(this.parentTabContainer.getChildren().length==1)
-			{
-				var toAdd=new __dijit.layout.ContentPane({title: "..."});
-				toAdd.isPlaceholder=true;
-				this.parentTabContainer.addChild(toAdd, 1);
+			try{
+				if(this.parentTabContainer.getChildren().length==1)
+				{
+					var toAdd=new __dijit.layout.ContentPane({title: "..."});
+					toAdd.isPlaceholder=true;
+					this.parentTabContainer.addChild(toAdd, 1);
+				}
+				var index=this.getContainerIndex();
+				if(index>=0)
+					this.parentTabContainer.removeChild(this.parentTab);
+				this._visible=false;
+			} catch(e){
+				if(__dojo.isIE)
+					console.log("Dojo IE resizing error", e);
+				else
+					throw e;
 			}
-			var index=this.getContainerIndex();
-			if(index>=0)
-				this.parentTabContainer.removeChild(this.parentTab);
-			this._visible=false;
-		}
 	},
 
 	isSelected: function(){

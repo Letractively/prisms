@@ -230,6 +230,7 @@ __dojo.declare("prisms.widget.CenterEditor", [prisms.widget.TabWidget, __dijit._
 		}
 		this.isChecking=true;
 		this.certificateDialog.show();
+		this.certContainer.resize();
 	},
 
 	_nameChanged: function(){
