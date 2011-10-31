@@ -4,8 +4,8 @@
 package prisms.message;
 
 import prisms.arch.ds.User;
-import prisms.message.MessageHeader.Priority;
-import prisms.message.Receipt.Applicability;
+import prisms.message.Message.Priority;
+import prisms.message.Recipient.Applicability;
 import prisms.util.Search;
 
 /** Represents a search for messages in a message source */
@@ -14,11 +14,25 @@ public abstract class MessageSearch extends Search
 	/** The available types of searches */
 	public static enum MessageSearchType implements SearchType
 	{
+		/** Searches for messages by ID */
+		id() {
+			public MessageSearch create(String search, SearchBuilder builder)
+			{
+				throw new IllegalStateException("Cannot create an ID search like this");
+			}
+		},
+		/** Searches for messages by conversationID */
+		conversation() {
+			public MessageSearch create(String search, SearchBuilder builder)
+			{
+				throw new IllegalStateException("Cannot create a conversation search like this");
+			}
+		},
 		/** Searches for successors to a message */
 		successor() {
 			public MessageSearch create(String search, SearchBuilder builder)
 			{
-				throw new IllegalStateException("Cannot create successor search like this");
+				throw new IllegalStateException("Cannot create a successor search like this");
 			}
 		},
 		/** Searches on subject */
@@ -32,7 +46,9 @@ public abstract class MessageSearch extends Search
 		author("from:") {
 			public AuthorSearch create(String search, SearchBuilder builder)
 			{
-				return new AuthorSearch(search);
+				MsgSearchBuilder msb = (MsgSearchBuilder) builder;
+				return new AuthorSearch(msb.getUser(), msb.getEnv() == null ? null : msb.getEnv()
+					.getUserSource(), search);
 			}
 		},
 		/** Searches on when (if ever) a message was sent */
@@ -42,6 +58,13 @@ public abstract class MessageSearch extends Search
 				return new SentSearch(search);
 			}
 		},
+		/** Searches on priority */
+		priority("priority:") {
+			public PrioritySearch create(String search, SearchBuilder builder)
+			{
+				return new PrioritySearch(search);
+			}
+		},
 		/** Searches on recipients */
 		recipient("to:", "direct:", "cc:", "bcc:") {
 			public RecipientSearch create(String search, SearchBuilder builder)
@@ -49,18 +72,22 @@ public abstract class MessageSearch extends Search
 				return new RecipientSearch(search);
 			}
 		},
-		/** Searches on users' views of messages */
-		view("view:", "readTime:", "firstReadTime:") {
-			public ViewSearch create(String search, SearchBuilder builder)
+		/** Searches on when a recipient read a message */
+		readTime("readTime:", "firstReadTime:") {
+			public ReadTimeSearch create(String search, SearchBuilder builder)
 			{
-				return new ViewSearch(search);
+				MsgSearchBuilder msb = (MsgSearchBuilder) builder;
+				return new ReadTimeSearch(msb.getUser(), msb.getEnv() == null ? null : msb.getEnv()
+					.getUserSource(), search);
 			}
 		},
-		/** Searches on priority */
-		priority("priority:") {
-			public PrioritySearch create(String search, SearchBuilder builder)
+		/** Searches on users' views of messages */
+		view("view:") {
+			public ViewSearch create(String search, SearchBuilder builder)
 			{
-				return new PrioritySearch(search);
+				MsgSearchBuilder msb = (MsgSearchBuilder) builder;
+				return new ViewSearch(msb.getUser(), msb.getEnv() == null ? null : msb.getEnv()
+					.getUserSource(), search);
 			}
 		},
 		/** Searches on content */
@@ -82,6 +109,13 @@ public abstract class MessageSearch extends Search
 			public SizeSearch create(String search, SearchBuilder builder)
 			{
 				return new SizeSearch(search);
+			}
+		},
+		/** Allows programmers to search for deleted messages as well */
+		deleted() {
+			public MessageSearch create(String search, SearchBuilder builder)
+			{
+				throw new IllegalStateException("Cannot create a deleted search like this");
 			}
 		};
 
@@ -171,17 +205,100 @@ public abstract class MessageSearch extends Search
 		}
 	}
 
+	/** A search for a messages whose IDs match a logical expression */
+	public static class IDSearch extends MessageSearch
+	{
+		/** The type of this search */
+		public static final MessageSearchType type = MessageSearchType.id;
+
+		/** The operator operating on the ID threshold */
+		public final Operator operator;
+
+		/** The ID threshold. May be null for a prepared search. */
+		public final Long id;
+
+		/**
+		 * @param op The operator to operate on the ID threshold
+		 * @param _id The ID threshold. May be null for a prepared search.
+		 */
+		public IDSearch(Operator op, Long _id)
+		{
+			operator = op;
+			id = _id;
+		}
+
+		@Override
+		public MessageSearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public String toString()
+		{
+			return type.headers.get(0) + operator + (id == null ? "?" : id);
+		}
+
+		@Override
+		public boolean equals(Object obj)
+		{
+			return obj instanceof IDSearch && operator.equals(((IDSearch) obj).operator)
+				&& id == ((IDSearch) obj).id;
+		}
+	}
+
+	/** Searches for messages in a given conversation */
+	public static class ConversationSearch extends MessageSearch
+	{
+		/** The type of this search */
+		public static final MessageSearchType type = MessageSearchType.conversation;
+
+		/** The ID of the conversation to get messages for. May be null for a prepared search. */
+		public final Long conversationID;
+
+		/**
+		 * @param _id The ID of the conversation to get messages for. May be null for a prepared
+		 *        search.
+		 */
+		public ConversationSearch(Long _id)
+		{
+			conversationID = _id;
+		}
+
+		@Override
+		public MessageSearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public String toString()
+		{
+			return type.headers.get(0) + (conversationID == null ? "?" : conversationID);
+		}
+
+		@Override
+		public boolean equals(Object obj)
+		{
+			return obj instanceof ConversationSearch
+				&& conversationID == ((ConversationSearch) obj).conversationID;
+		}
+	}
+
 	/** Searches for successors of a given message */
 	public static class SuccessorSearch extends MessageSearch
 	{
 		/** The type of this search */
 		public static final MessageSearchType type = MessageSearchType.successor;
 
-		/** The message to search for successors to */
-		public final MessageHeader message;
+		/** The message to search for successors to. May be null for a prepared search. */
+		public final Message message;
 
-		/** @param _message The message to search for successors to */
-		public SuccessorSearch(MessageHeader _message)
+		/**
+		 * @param _message The message to search for successors to. May be null for a prepared
+		 *        search.
+		 */
+		public SuccessorSearch(Message _message)
 		{
 			message = _message;
 		}
@@ -269,20 +386,43 @@ public abstract class MessageSearch extends Search
 		/** the user to search for */
 		public final User user;
 
-		/** The name of the user(s) to search for */
+		/** The name of the user(s) to search for. May be null for a prepared search. */
 		public final String userName;
 
 		/**
-		 * @param srch The name of the author to search for or the entire author search query (with
-		 *        header prefix)
+		 * Creates an author search from a user-entered search string
+		 * 
+		 * @param u The user who is searching
+		 * @param us The user source of the environment
+		 * @param srch The user-entered search string
 		 */
-		public AuthorSearch(String srch)
+		public AuthorSearch(User u, prisms.arch.ds.UserSource us, String srch)
 		{
-			userName = type.clean(srch);
-			user = null;
+			String oSearch = srch;
+			srch = type.clean(srch);
+			if("me".equals(srch))
+			{
+				user = u;
+				userName = null;
+			}
+			else
+			{
+				userName = srch;
+				if(us != null)
+					try
+					{
+						if(us.getUser(userName) == null)
+							throw new IllegalArgumentException("No such user named " + userName
+								+ " in search " + oSearch);
+					} catch(prisms.arch.PrismsException e)
+					{
+						throw new IllegalStateException("Could not check presence of user", e);
+					}
+				user = null;
+			}
 		}
 
-		/** @param _user The author to search for */
+		/** @param _user The author to search for. May be null for a prepared search. */
 		public AuthorSearch(User _user)
 		{
 			user = _user;
@@ -304,7 +444,15 @@ public abstract class MessageSearch extends Search
 		@Override
 		public String toString()
 		{
-			return type.headers.get(0) + userName;
+			StringBuilder ret = new StringBuilder();
+			ret.append(type.headers.get(0));
+			if(userName != null)
+				ret.append(userName);
+			else if(user != null)
+				ret.append(user);
+			else
+				ret.append('?');
+			return ret.toString();
 		}
 	}
 
@@ -320,7 +468,9 @@ public abstract class MessageSearch extends Search
 		/** The operator determining how to use the search date */
 		public final Operator operator;
 
-		/** When this message was sent */
+		/**
+		 * When this message was sent. May be null for a prepared search (if {@link #sent} is null).
+		 */
 		public final SearchDate sentTime;
 
 		/** @param srch The entire search query (with or without header) */
@@ -358,7 +508,8 @@ public abstract class MessageSearch extends Search
 
 		/**
 		 * @param op The operator to determine how to use the search time
-		 * @param time The send or creation time that will be the border of this search
+		 * @param time The send or creation time that will be the border of this search. May be null
+		 *        for a prepared search.
 		 */
 		public SentSearch(Operator op, SearchDate time)
 		{
@@ -389,6 +540,72 @@ public abstract class MessageSearch extends Search
 		}
 	}
 
+	/** Searches for messages whose priority match a logical expression */
+	public static class PrioritySearch extends MessageSearch
+	{
+		/** The type of this search */
+		public static MessageSearchType type = MessageSearchType.priority;
+
+		/** The operator determining how to use the priority */
+		public final Operator operator;
+
+		/** The priority to compare with. May be null for a prepared search. */
+		public final Priority priority;
+
+		/**
+		 * Creates a priority search with the given operator and priority
+		 * 
+		 * @param op The operator determining how to use the priority
+		 * @param pri The priority to compare with. May be null for a prepared search.
+		 */
+		public PrioritySearch(Operator op, Priority pri)
+		{
+			operator = op;
+			priority = pri;
+		}
+
+		/**
+		 * Creates a priority search from a user-typed search string
+		 * 
+		 * @param srch The search string to compile
+		 */
+		public PrioritySearch(String srch)
+		{
+			srch = type.clean(srch);
+			StringBuilder sb = new StringBuilder(srch);
+			operator = Operator.parse(sb, srch);
+			Priority p = null;
+			for(Priority pri : Priority.values())
+				if(pri.name().toLowerCase().startsWith(sb.toString().toLowerCase()))
+				{
+					p = pri;
+					break;
+				}
+			if(p == null)
+				throw new IllegalArgumentException("Unrecognized priority: " + sb.toString()
+					+ " in search " + srch);
+			priority = p;
+		}
+
+		@Override
+		public MessageSearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public PrioritySearch clone()
+		{
+			return this; // Immutable
+		}
+
+		@Override
+		public String toString()
+		{
+			return "priority:" + operator + priority;
+		}
+	}
+
 	/**
 	 * Searches for messages based on their subject text. Specified by "To:...", "Direct:...",
 	 * "Cc:...", or "Bcc:..."
@@ -398,7 +615,9 @@ public abstract class MessageSearch extends Search
 		/** The type of this search */
 		public static final MessageSearchType type = MessageSearchType.recipient;
 
-		/** The user to search for */
+		/**
+		 * The user to search for. May be null for a prepared search (if {@link #userName} is null).
+		 */
 		public final User user;
 
 		/** The name of the user(s) to search for */
@@ -407,13 +626,9 @@ public abstract class MessageSearch extends Search
 		/** The applicability to the searched recipient */
 		public final Applicability applicability;
 
-		/** Whether to include only deleted items or only active items, or null to include both */
-		public final Boolean withDeleted;
-
 		/** @param srch The recipient search query (with header prefix, required) */
 		public RecipientSearch(String srch)
 		{
-			withDeleted = null;
 			user = null;
 			int header = type.headerIndex(srch);
 			userName = type.clean(srch);
@@ -448,21 +663,17 @@ public abstract class MessageSearch extends Search
 			user = null;
 			userName = aUserName;
 			applicability = app;
-			withDeleted = withDel;
 		}
 
 		/**
-		 * @param _user The user to search for
+		 * @param _user The user to search for. May be null for a prepared search.
 		 * @param app The applicability of the recipient to search for
-		 * @param withDel Whether to include only deleted items or only active items (may be null to
-		 *        include both)
 		 */
-		public RecipientSearch(User _user, Applicability app, Boolean withDel)
+		public RecipientSearch(User _user, Applicability app)
 		{
 			user = _user;
 			userName = null;
 			applicability = app;
-			withDeleted = withDel;
 		}
 
 		@Override
@@ -489,20 +700,161 @@ public abstract class MessageSearch extends Search
 		}
 	}
 
+	/** Searches by when the user read a message */
+	public static class ReadTimeSearch extends MessageSearch
+	{
+		/** The type of this search */
+		public static final MessageSearchType type = MessageSearchType.readTime;
+
+		/**
+		 * The user to search the read times of. May be null for a prepared search (if
+		 * {@link #userName} is also null).
+		 */
+		public final User user;
+
+		/** The name of the user to search the read times of */
+		public final String userName;
+
+		/** The operator to use against the read time */
+		public final Operator operator;
+
+		/** The read time to search against. May be null for a prepared search. */
+		public final SearchDate readTime;
+
+		/**
+		 * Determines whether this search is for the first read time (the first time the user viewed
+		 * the message) or last read time (the most recent time the user viewed the message)
+		 */
+		public final boolean isLast;
+
+		/**
+		 * Creates a read time search from a user-entered search string
+		 * 
+		 * @param u The user who is searching
+		 * @param us The user source of the environment
+		 * @param srch The user-entered search string
+		 */
+		public ReadTimeSearch(User u, prisms.arch.ds.UserSource us, String srch)
+		{
+			String oSearch = srch;
+			int idx = type.headerIndex(srch);
+			srch = type.clean(srch);
+			int opIdx = -1;
+			for(Operator op : Operator.values())
+			{
+				int opIdx2 = srch.lastIndexOf(op.toString());
+				if(opIdx2 >= 0 && (opIdx < 0 || opIdx2 > opIdx))
+					opIdx = opIdx2;
+			}
+			if(opIdx < 0)
+				throw new IllegalArgumentException("No operator specified for read time search: "
+					+ oSearch);
+			if(opIdx == 0)
+			{
+				user = u;
+				userName = null;
+			}
+			else
+			{
+				userName = srch.substring(0, opIdx).trim();
+				if(us != null)
+					try
+					{
+						if(us.getUser(userName) == null)
+							throw new IllegalArgumentException("No such user named " + userName
+								+ " in search " + oSearch);
+					} catch(prisms.arch.PrismsException e)
+					{
+						throw new IllegalStateException("Could not check presence of user", e);
+					}
+				user = null;
+			}
+			StringBuilder sb = new StringBuilder(srch.substring(opIdx));
+			operator = Operator.parse(sb, srch);
+			readTime = SearchDate.parse(sb, srch);
+			isLast = idx > 0;
+		}
+
+		/**
+		 * Creates a read time search
+		 * 
+		 * @param u The user whose view to search. May be null for a prepared search.
+		 * @param op The operator to use against the read time
+		 * @param time The read time to search against
+		 * @param last Whether the given search time is for first or last read time
+		 */
+		public ReadTimeSearch(User u, Operator op, SearchDate time, boolean last)
+		{
+			user = u;
+			userName = null;
+			operator = op;
+			readTime = time;
+			isLast = last;
+		}
+
+		/**
+		 * Creates a read time search
+		 * 
+		 * @param uName The name of the user whose view to search
+		 * @param op The operator to use against the read time
+		 * @param time The read time to search against
+		 * @param last Whether the given search time is for first or last read time
+		 */
+		public ReadTimeSearch(String uName, Operator op, SearchDate time, boolean last)
+		{
+			userName = uName;
+			user = null;
+			operator = op;
+			readTime = time;
+			isLast = last;
+		}
+
+		@Override
+		public MessageSearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public ReadTimeSearch clone()
+		{
+			return this; // Immutable
+		}
+
+		@Override
+		public String toString()
+		{
+			StringBuilder ret = new StringBuilder();
+			ret.append(isLast ? "lastReadTime:" : "readTime:");
+			if(userName != null)
+				ret.append(userName);
+			else if(user != null)
+				ret.append(user);
+			else
+				ret.append('?');
+			ret.append(operator);
+			if(readTime != null)
+				ret.append(readTime);
+			else
+				ret.append('?');
+			return ret.toString();
+		}
+	}
+
 	/** Searches users' views of a message */
 	public static class ViewSearch extends MessageSearch
 	{
 		/** The type of this search */
 		public static final MessageSearchType type = MessageSearchType.view;
 
-		/** The user whose view to search for */
+		/**
+		 * The user whose view to search for. May be null for a prepared search (if
+		 * {@link #userName} is also null).
+		 */
 		public final User user;
 
 		/** The name of the user(s) whose views to search for */
 		public final String userName;
-
-		/** Whether the message has been read by the viewer */
-		public final Boolean read;
 
 		/** Whether the message has been archived by the user */
 		public final Boolean archived;
@@ -510,168 +862,140 @@ public abstract class MessageSearch extends Search
 		/** Whether the message has been starred by the user */
 		public final Boolean starred;
 
-		/** The operator to use against the read times */
-		public final Operator operator;
+		/** Whether the message has been deleted by the user */
+		public final Boolean deleted;
 
 		/**
-		 * The last read time to search against. This is the most recent time that the user opened
-		 * the message.
+		 * Creates a view search from a user-entered search string
+		 * 
+		 * @param u The user who is searching
+		 * @param us The user source of the environment
+		 * @param srch The view search query (with header prefix, required)
 		 */
-		public final SearchDate firstReadTime;
-
-		/**
-		 * The first read time to search against. This is the first time the user ever opened or
-		 * previewed the message.
-		 */
-		public final SearchDate lastReadTime;
-
-		/** @param srch The view search query (with header prefix, required) */
-		public ViewSearch(String srch)
+		public ViewSearch(User u, prisms.arch.ds.UserSource us, String srch)
 		{
-			user = null;
-			int header = type.headerIndex(srch);
-			if(header < 0)
-				throw new IllegalArgumentException("View header required");
+			String oSearch = srch;
 			srch = type.clean(srch);
-			StringBuilder sb = new StringBuilder(srch);
-			switch(header)
+			int idx = srch.lastIndexOf(':');
+			boolean not = false;
+			if(idx >= 0)
 			{
-			case 0: // view:
-				operator = null;
-				firstReadTime = null;
-				lastReadTime = null;
-				boolean not = false;
-				if(sb.charAt(0) == '!')
+				if(srch.length() > idx + 1 && srch.charAt(idx + 1) == '!')
 				{
 					not = true;
-					sb.delete(0, 1);
+					idx++;
 				}
-				if(sb.indexOf("read") == 0)
+				String action = srch.substring(idx + 1);
+				if(action.equals("read") || action.equals("archived") || action.equals("starred")
+					|| action.equals("deleted"))
 				{
-					sb.delete(0, "read".length());
-					read = Boolean.valueOf(!not);
-					archived = null;
-					starred = null;
-				}
-				else if(sb.indexOf("archived") == 0)
-				{
-					sb.delete(0, "archived".length());
-					archived = Boolean.valueOf(!not);
-					read = null;
-					starred = null;
-				}
-				else if(sb.indexOf("starred") == 0)
-				{
-					sb.delete(0, "starred".length());
-					starred = Boolean.valueOf(!not);
-					read = null;
-					archived = null;
+					userName = srch.substring(0, idx);
+					if(us != null)
+						try
+						{
+							if(us.getUser(userName) == null)
+								throw new IllegalArgumentException("No such user named " + userName
+									+ " in search " + oSearch);
+						} catch(prisms.arch.PrismsException e)
+						{
+							throw new IllegalStateException("Could not check presence of user", e);
+						}
+					user = null;
+					srch = action;
 				}
 				else
-					throw new IllegalArgumentException("Unrecognized view search: " + srch);
-				break;
-			case 1: // readTime:
-				operator = Operator.parse(sb, srch);
-				lastReadTime = SearchDate.parse(sb, srch);
-				read = null;
-				archived = null;
-				starred = null;
-				firstReadTime = null;
-				break;
-			case 2: // firstReadTime:
-				operator = Operator.parse(sb, srch);
-				firstReadTime = SearchDate.parse(sb, srch);
-				read = null;
-				archived = null;
-				starred = null;
-				lastReadTime = null;
-				break;
-			default:
-				throw new IllegalArgumentException("Unrecognized view header: " + header);
+				{
+					user = u;
+					userName = null;
+				}
 			}
-			trim(sb);
-			if(sb.length() >= 2 && sb.charAt(0) == '(' && sb.charAt(sb.length() - 1) == ')')
-			{
-				sb.delete(0, 1);
-				sb.delete(sb.length() - 1, sb.length());
-				trim(sb);
-				userName = sb.toString();
-			}
-			else if(sb.length() > 0)
-				throw new IllegalArgumentException("Unrecognized view search suffix: " + sb);
 			else
+			{
+				user = u;
 				userName = null;
+			}
+
+			StringBuilder sb = new StringBuilder(srch);
+			if(sb.charAt(0) == '!')
+			{
+				not = true;
+				sb.delete(0, 1);
+			}
+			if(srch.equals("archived"))
+			{
+				sb.delete(0, "archived".length());
+				archived = Boolean.valueOf(!not);
+				starred = null;
+				deleted = null;
+			}
+			else if(srch.equals("starred"))
+			{
+				sb.delete(0, "starred".length());
+				starred = Boolean.valueOf(!not);
+				archived = null;
+				deleted = null;
+			}
+			else if(srch.equals("deleted"))
+			{
+				sb.delete(0, "deleted".length());
+				deleted = Boolean.valueOf(!not);
+				archived = null;
+				starred = null;
+			}
+			else
+				throw new IllegalArgumentException("Unrecognized view search: " + srch);
 		}
 
 		/**
 		 * Constructs a view search. Only one parameter may be searched for with each ViewSearch.
 		 * User ExpressionSearch to form AND's or OR's of multiple view searches if desired.
 		 * 
-		 * @param _user The user whose view to search. May be null.
-		 * @param _read Whether to search for read or unread messages.
+		 * @param _user The user whose view to search. May be null for a prepared search.
 		 * @param _archived Whether to search for archived or unarchived messages.
 		 * @param _starred Whether to search for starred or unstarred messages.
-		 * @param op The operator to use against the read times.
-		 * @param frt The first read time to search against.
-		 * @param lrt The last read time to search against.
+		 * @param _deleted Whether to search for deleted or undeleted messages
 		 */
-		public ViewSearch(User _user, Boolean _read, Boolean _archived, Boolean _starred,
-			Operator op, SearchDate frt, SearchDate lrt)
+		public ViewSearch(User _user, Boolean _archived, Boolean _starred, Boolean _deleted)
 		{
-			this(_user, null, _read, _archived, _starred, op, frt, lrt);
+			this(_user, null, _archived, _starred, _deleted);
 		}
 
 		/**
 		 * Constructs a view search. Only one parameter may be searched for with each ViewSearch.
 		 * User ExpressionSearch to form AND's or OR's of multiple view searches if desired.
 		 * 
-		 * @param _userName The name of the user(s) whose view(s) to search. May be null.
-		 * @param _read Whether to search for read or unread messages.
+		 * @param _userName The name of the user(s) whose view(s) to search.
 		 * @param _archived Whether to search for archived or unarchived messages.
 		 * @param _starred Whether to search for starred or unstarred messages.
-		 * @param op The operator to use against the read times.
-		 * @param frt The first read time to search against.
-		 * @param lrt The last read time to search against.
+		 * @param _deleted Whether to search for deleted or undeleted messages
 		 */
-		public ViewSearch(String _userName, Boolean _read, Boolean _archived, Boolean _starred,
-			Operator op, SearchDate frt, SearchDate lrt)
+		public ViewSearch(String _userName, Boolean _archived, Boolean _starred, Boolean _deleted)
 		{
-			this(null, _userName, _read, _archived, _starred, op, frt, lrt);
+			this(null, _userName, _archived, _starred, _deleted);
 		}
 
-		private ViewSearch(User _user, String _userName, Boolean _read, Boolean _archived,
-			Boolean _starred, Operator op, SearchDate frt, SearchDate lrt)
+		private ViewSearch(User _user, String _userName, Boolean _archived, Boolean _starred,
+			Boolean _deleted)
 		{
 			int count = 0;
-			if(_read != null)
-				count++;
 			if(_archived != null)
 				count++;
 			if(_starred != null)
 				count++;
-			if(frt != null)
-				count++;
-			if(lrt != null)
+			if(_deleted != null)
 				count++;
 			if(count == 0)
 				throw new IllegalArgumentException("No search input. read, archived, starred,"
-					+ " first read time, or last read time must be searched for.");
+					+ "deleted, first read time, or last read time must be searched for.");
 			if(count > 1)
 				throw new IllegalArgumentException("Multiple search inputs. Only one of read,"
 					+ " archived, starred, first read time, or last read time may be searched for."
 					+ " Use expression search to combine multiple view searches.");
-			if((frt != null || lrt != null) && op == null)
-				throw new IllegalArgumentException("No operator provided for read time search");
-			else if(op != null && frt == null && lrt == null)
-				throw new IllegalArgumentException("Operator provided but no read time");
 			user = _user;
 			userName = _userName;
-			read = _read;
 			archived = _archived;
 			starred = _starred;
-			operator = op;
-			firstReadTime = frt;
-			lastReadTime = lrt;
+			deleted = _deleted;
 		}
 
 		@Override
@@ -690,16 +1014,10 @@ public abstract class MessageSearch extends Search
 		public String toString()
 		{
 			String ret;
-			if(read != null)
-				ret = type.headers.get(0) + (read.booleanValue() ? "" : "!") + "read";
-			else if(archived != null)
+			if(archived != null)
 				ret = type.headers.get(0) + (archived.booleanValue() ? "" : "!") + "archived";
 			else if(starred != null)
 				ret = type.headers.get(0) + (starred.booleanValue() ? "" : "!") + "starred";
-			else if(firstReadTime != null)
-				ret = type.headers.get(1) + operator + firstReadTime;
-			else if(lastReadTime != null)
-				ret = type.headers.get(2) + operator + lastReadTime;
 			else
 				throw new IllegalStateException("No parameter selected for view search");
 			if(user != null)
@@ -707,59 +1025,6 @@ public abstract class MessageSearch extends Search
 			else if(userName != null)
 				ret += "(" + userName + ")";
 			return ret;
-		}
-	}
-
-	/** Searches for messages based on their subject text. Specified by "priority:..." */
-	public static class PrioritySearch extends MessageSearch
-	{
-		/** The type of this search */
-		public static final MessageSearchType type = MessageSearchType.priority;
-
-		/** The priority of the messages to search for */
-		public final Priority priority;
-
-		/**
-		 * @param srch The name of the priority to search for or the entire priority search query
-		 *        (with header prefix)
-		 */
-		public PrioritySearch(String srch)
-		{
-			srch = type.clean(srch);
-			Priority selected = null;
-			for(Priority pri : Priority.values())
-				if(pri.name().toLowerCase().equals(srch))
-				{
-					selected = pri;
-					break;
-				}
-			if(selected == null)
-				throw new IllegalArgumentException(srch + " is not a valid priority");
-			priority = selected;
-		}
-
-		/** @param pri The priority to search for */
-		public PrioritySearch(Priority pri)
-		{
-			priority = pri;
-		}
-
-		@Override
-		public MessageSearchType getType()
-		{
-			return type;
-		}
-
-		@Override
-		public PrioritySearch clone()
-		{
-			return this; // Immutable
-		}
-
-		@Override
-		public String toString()
-		{
-			return type.headers.get(0) + priority.name().toLowerCase();
 		}
 	}
 
@@ -927,13 +1192,15 @@ public abstract class MessageSearch extends Search
 			size = Float.parseFloat(sb.substring(0, numberChars));
 			sb.delete(0, numberChars);
 			String unitS = sb.toString().toLowerCase();
-			if("gb".equalsIgnoreCase(unitS))
-				exp = 9;
-			else if("mb".equalsIgnoreCase(unitS))
-				exp = 6;
-			else if("kb".equalsIgnoreCase(unitS))
+			if(unitS.length() == 0)
 				exp = 3;
-			else if("b".equalsIgnoreCase(unitS))
+			else if("gb".equals(unitS))
+				exp = 9;
+			else if("mb".equals(unitS))
+				exp = 6;
+			else if("kb".equals(unitS))
+				exp = 3;
+			else if("b".equals(unitS))
 				exp = 0;
 			else
 				throw new IllegalArgumentException("Illegal size expression: " + srch + "--" + sb
@@ -993,6 +1260,44 @@ public abstract class MessageSearch extends Search
 			else
 				throw new IllegalStateException("Unrecognized unit size: " + exp);
 			return ret;
+		}
+	}
+
+	/** Allows programmers to search for deleted messages as well */
+	public static class DeletedSearch extends MessageSearch
+	{
+		/** The type of this search */
+		public static final MessageSearchType type = MessageSearchType.deleted;
+
+		/** Whether to search for deleted messages (true), undeleted ones (false), or both (null) */
+		public final Boolean deleted;
+
+		/**
+		 * @param del Whether to search for deleted messages (true), undeleted ones (false), or both
+		 *        (null)
+		 */
+		public DeletedSearch(Boolean del)
+		{
+			deleted = del;
+		}
+
+		@Override
+		public MessageSearchType getType()
+		{
+			return type;
+		}
+
+		@Override
+		public String toString()
+		{
+			return "deleted:" + (deleted == null ? "both" : deleted.toString());
+		}
+
+		@Override
+		public boolean equals(Object obj)
+		{
+			return obj instanceof DeletedSearch
+				&& prisms.util.ArrayUtils.equals(deleted, ((DeletedSearch) obj).deleted);
 		}
 	}
 
@@ -1071,6 +1376,32 @@ public abstract class MessageSearch extends Search
 	/** Builds a message search from a string representation */
 	public static class MsgSearchBuilder extends SearchBuilder
 	{
+		private prisms.arch.PrismsEnv theEnv;
+
+		private User theUser;
+
+		/**
+		 * @param env The PRISMS environment to build the search in
+		 * @param user The user who is building the search
+		 */
+		public MsgSearchBuilder(prisms.arch.PrismsEnv env, User user)
+		{
+			theEnv = env;
+			theUser = user;
+		}
+
+		/** @return The PRISMS environment that the search is being built in */
+		public prisms.arch.PrismsEnv getEnv()
+		{
+			return theEnv;
+		}
+
+		/** @return The user who built this search */
+		public User getUser()
+		{
+			return theUser;
+		}
+
 		@Override
 		public SearchType [] getAllTypes()
 		{
@@ -1105,7 +1436,7 @@ public abstract class MessageSearch extends Search
 	 */
 	public static void main(String [] args)
 	{
-		MsgSearchBuilder builder = new MsgSearchBuilder();
+		MsgSearchBuilder builder = new MsgSearchBuilder(null, null);
 		java.util.Scanner scanner = new java.util.Scanner(System.in);
 		String line;
 		do

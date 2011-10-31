@@ -6,11 +6,11 @@ package prisms.message;
 /** Represents an attachment of arbitrary type to a message */
 public class Attachment
 {
-	private final MessageHeader theMessage;
+	private Message theMessage;
 
 	private final long theID;
 
-	private final String theName;
+	private String theName;
 
 	private final String theType;
 
@@ -23,7 +23,7 @@ public class Attachment
 	/**
 	 * Creates an attachment. This is public so that classes from other packages can implement
 	 * {@link MessageManager}, but it should only be used by the
-	 * {@link MessageManager#createAttachment(MessageHeader, String, String, java.io.InputStream, prisms.records.RecordsTransaction)}
+	 * {@link MessageManager#createAttachment(Message, String, String, java.io.InputStream, prisms.records.RecordsTransaction)}
 	 * method of an implementation of that class.
 	 * 
 	 * @param message The message to attach the data to
@@ -33,8 +33,7 @@ public class Attachment
 	 * @param length The length of this attachment's content
 	 * @param crc The CRC code of this attachment's content
 	 */
-	public Attachment(MessageHeader message, long id, String name, String type, long length,
-		long crc)
+	public Attachment(Message message, long id, String name, String type, long length, long crc)
 	{
 		theMessage = message;
 		theID = id;
@@ -45,7 +44,7 @@ public class Attachment
 	}
 
 	/** @return The header of the message that the data is attached to */
-	public MessageHeader getMessage()
+	public Message getMessage()
 	{
 		return theMessage;
 	}
@@ -60,6 +59,12 @@ public class Attachment
 	public String getName()
 	{
 		return theName;
+	}
+
+	/** @param name The new name for this attachment */
+	public void setName(String name)
+	{
+		theName = name;
 	}
 
 	/** @return The type of this attachment--traditionally, but not necessarily, a MIME type */
@@ -90,5 +95,37 @@ public class Attachment
 	public void setDeleted(boolean deleted)
 	{
 		isDeleted = deleted;
+	}
+
+	/**
+	 * Clones this attachment for a clone of this attachment's message
+	 * 
+	 * @param msg The message to clone this attachment for
+	 * @return The cloned attachment
+	 */
+	Attachment clone(Message msg)
+	{
+		Attachment ret;
+		try
+		{
+			ret = (Attachment) super.clone();
+		} catch(CloneNotSupportedException e)
+		{
+			throw new IllegalStateException("Attachment.clone not supported", e);
+		}
+		ret.theMessage = msg;
+		return ret;
+	}
+
+	@Override
+	public boolean equals(Object o)
+	{
+		return o instanceof Attachment && ((Attachment) o).theID == theID;
+	}
+
+	@Override
+	public int hashCode()
+	{
+		return ((int) theID) ^ ((int) (theID >>> 32));
 	}
 }

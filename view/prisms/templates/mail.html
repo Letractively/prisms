@@ -1,6 +1,31 @@
 
-<table>
-	<tr><td><table style="width:100%"><tr>
+<div style="width:100%;height:100%">
+	<div __dojoType="dijit.Toolbar" dojoAttachPoint="mailBoxToolbar">
+		<div __dojoType="dijit.form.Button" dojoAttachPoint="inboxButton"
+			dojoAttachEvent="onClick:_inboxClicked">Inbox</div>
+		<div __dojoType="dijit.form.Button" dojoAttachPoint="sentMailButton"
+			dojoAttachEvent="onClick:_sentMailClicked">Sent Mail</div>
+		<div __dojoType="dijit.form.Button" dojoAttachPoint="draftsButton"
+			dojoAttachEvent="onClick:_draftsClicked">Drafts</div>
+		<div __dojoType="dijit.form.Button" dojoAttachPoint="allMailButton"
+			dojoAttachEvent="onClick:_allMailClicked">All Mail</div>
+		<div __dojoType="dijit.form.Button" dojoAttachPoint="trashButton"
+			dojoAttachEvent="onClick:_trashClicked">Trash</div>
+		<div __dojoType="dijit.form.TextBox" dojoAttachPoint="searchBox"
+			dojoAttachEvent="_onKeyPress:_searchTyped"></div>
+		<div __dojoType="dijit.form.Button" dojoAttachPoint="searchButton"
+			dojoAttachEvent="onClick:_searchClicked">Search</div>
+	</div>
+	<div dojoAttachPoint="noMailRow" style="text-align:center">No Messages</div>
+	<div __dojoType="prisms.widget.FillPane" dojoAttachPoint="mailTableDiv" style="display:none">
+		<div __dojoType="prisms.widget.SortTable" dojoAttachPoint="sortTable" style="width:100%;height:100%"
+			dojoAttachEvent="sortOn:_sortBy,goToLink:_goTo,navTo:_navTo,selectChanged:_selectChanged">
+		</div>
+	</div>
+</div>
+
+<!--<table style="height:100%">
+	<tr style="height:30px"><td><table style="width:100%"><tr>
 		<td dojoAttachPoint="inboxTab" style="font-weight:bold;font-size:large"
 			dojoAttachEvent="onclick:_inbox">Inbox</td>
 		<td style="width:10px"></td>
@@ -19,7 +44,7 @@
 		<td><input type="text" dojoAttachPoint="searchBox" /></td>
 		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_search">Search</div></td>
 	</tr></table></td></tr>
-	<tr><td><table style="width:100%"><tr>
+	<tr style="height:30px"><td><table style="width:100%"><tr>
 		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_archive">Archive</div></td>
 		<td style="width:10px"></td>
 		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_delete">Delete</div></td>
@@ -31,14 +56,14 @@
 		<td style="width:10px"></td>
 		<td><div __dojoType="dijit.form.Button" dojoAttachEvent="onClick:_compose">Compose Message</div></td>
 	</tr></table></td></tr>
-	<tr dojoAttachPoint="noMailRow"><td style="text-align:center">No Messages</td></tr>
+	<tr dojoAttachPoint="noMailRow" style="display:none"><td style="text-align:center">No Messages</td></tr>
 	<tr dojoAttachPoint="mailTableRow"><td>
-		<div __dojoType="prisms.widget.SortTable" dojoAttachPoint="sortTable" style="width:100%"
+		<div __dojoType="prisms.widget.SortTable" dojoAttachPoint="sortTable" style="width:100%;height:100%"
 			dojoAttachEvent="sortOn:_sortBy,goToLink:_goTo,navTo:_navTo,selectChanged:_selectChanged">
 		</div>
 	</td></tr>
-	<tr dojoAttachPoint="composerRow"><td>
+	<tr dojoAttachPoint="composerRow" style="display:none"><td>
 		<div __dojoType="prisms.widget.MessageComposer" dojoAttachPoint="composer" style="width:100%"
 			dojoAttachEvent="send:_send,save:_save,discard:_discard"></div>
 	</td></tr>
-</table>
+</table>-->

@@ -288,3 +288,107 @@ CREATE TABLE prisms_purge_record(
 	subjectCenter INT NOT NULL,
 	latestChange TIMESTAMP NOT NULL
 );
+
+-- The PRISMS messaging schema allows users to send messages to each other within an application
+
+CREATE TABLE prisms_conversation(
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+
+	CONSTRAINT prisms_conv_pk PRIMARY KEY(messageNS, id)
+);
+
+CREATE TABLE prisms_message(
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	msgConversation NUMERIC(20) NOT NULL,
+	msgAuthor NUMERIC(20) NOT NULL,
+	msgTime TIMESTAMP NOT NULL,
+	msgSent CHAR(1) NOT NULL,
+	msgPriority INT NOT NULL,
+	msgPredecessor NUMERIC(20) NULL,
+	msgShortSubject VARCHAR(100) NULL,
+	msgContentLength INT NOT NULL,
+	msgContentCrc INT NOT NULL,
+	msgSize INT NOT NULL,
+	deleted CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_msg_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_msg_conv_fk FOREIGN KEY(messageNS, msgConversation) REFERENCES prisms_conversation(messageNS, id) ON DELETE CASCADE,
+	CONSTRAINT prisms_msg_pre_fk FOREIGN KEY(messageNS, msgPredecessor) REFERENCES prisms_message(messageNS, id)
+);
+
+CREATE TABLE prisms_message_content(
+	messageNS VARCHAR(32) NOT NULL,
+	message NUMERIC(20) NOT NULL,
+	contentType CHAR(1) NOT NULL, --'S' for subject, 'C' for content
+	indexNum INT NOT NULL,
+	content VARCHAR(1024) NOT NULL,
+
+	CONSTRAINT prisms_msg_content_fk FOREIGN KEY(messageNS, message) REFERENCES prisms_message(messageNS, id) ON DELETE CASCADE
+);
+
+CREATE TABLE prisms_message_action(
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	actionMsg NUMERIC(20) NOT NULL,
+	actionContent LONGVARCHAR NOT NULL,
+	actionCompleted NUMERIC(20) NULL, --User who completed the action
+	deleted CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_msg_action_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_msg_action_fk FOREIGN KEY(messageNS, actionMsg) REFERENCES prisms_message(messageNS, id) ON DELETE CASCADE
+);
+
+CREATE TABLE prisms_message_recipient(
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	rcptMessage NUMERIC(20) NOT NULL,
+	rcptUser NUMERIC(20) NOT NULL,
+	rcptType INT NOT NULL, --To:, Cc:, Bcc:
+	firstViewed TIMESTAMP NULL,
+	lastViewed TIMESTAMP NULL,
+	deleted CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_rcpt_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_rcpt_msg_fk FOREIGN KEY(messageNS, rcptMessage) REFERENCES prisms_message(messageNS, id) ON DELETE CASCADE
+);
+
+CREATE TABLE prisms_message_attachement(
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	attMessage NUMERIC(20) NOT NULL,
+	attName VARCHAR(128) NOT NULL,
+	attType VARCHAR(32) NOT NULL,
+	attLength INT NOT NULL,
+	attContent LONGVARBINARY NOT NULL,
+	deleted CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_msg_attach_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_msg_attach_fk FOREIGN KEY(messageNS, attMessage) REFERENCES prisms_message(messageNS, id) ON DELETE CASCADE
+);
+
+CREATE TABLE prisms_conversation_view(
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	viewConversation NUMERIC(20) NOT NULL,
+	viewUser NUMERIC(20) NOT NULL,
+	viewArchived CHAR(1) NOT NULL,
+	viewStarred CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_conv_view_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_view_conv_fk FOREIGN KEY(messageNS, viewConversation) REFERENCES prisms_conversation(messageNS, id) ON DELETE CASCADE
+);
+
+CREATE TABLE prisms_message_view(
+	messageNS VARCHAR(32) NOT NULL,
+	id NUMERIC(20) NOT NULL,
+	viewMsg NUMERIC(20) NOT NULL,
+	viewUser NUMERIC(20) NOT NULL,
+	viewConversation NUMERIC(20) NOT NULL,
+	deleted CHAR(1) NOT NULL,
+
+	CONSTRAINT prisms_msg_view_pk PRIMARY KEY(messageNS, id),
+	CONSTRAINT prisms_msg_view_fk FOREIGN KEY(messageNS, viewMsg) REFERENCES prisms_message(messageNS, id) ON DELETE CASCADE,
+	CONSTRAINT prisms_msg_view_conv_fk FOREIGN KEY(messageNS, viewConversation) REFERENCES prisms_conversation_view(messageNS, id) ON DELETE CASCADE
+);

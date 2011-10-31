@@ -11,6 +11,8 @@ import org.json.simple.JSONObject;
 import prisms.arch.PrismsSession;
 import prisms.arch.ds.User;
 import prisms.util.Search;
+import prisms.util.SearchableAPI.PreparedSearch;
+import prisms.util.Sorter.Field;
 import prisms.util.preferences.Preference;
 
 /** Allows management of a user's messages from a user interface */
@@ -81,7 +83,7 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		void linkClicked(Link link);
 	}
 
-	static Preference<Integer> theCountPref;
+	static final Preference<Integer> theCountPref;
 
 	static int STAR = 0;
 
@@ -101,6 +103,9 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 	{
 		SAME_YEAR_FORMAT = new java.text.SimpleDateFormat("mmm dd");
 		CROSS_YEAR_FORMAT = new java.text.SimpleDateFormat("ddmmmyyyy");
+		theCountPref = new Preference<Integer>("Messaging", "Displayed Messages",
+			Preference.Type.NONEG_INT, Integer.class, true);
+		theCountPref.setDescription("The number of messages to display at a time");
 	}
 
 	private PrismsSession theSession;
@@ -125,33 +130,42 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 
 	long theSnapshotTime;
 
-	ConversationView [] theCurrentView;
-
 	prisms.util.LongList theSelectedIndices;
 
-	private Search theInboxSearch;
+	private PreparedSearch<Field> theInboxSearch;
 
-	@SuppressWarnings("unused")
-	private Search theSentSearch;
+	private PreparedSearch<Field> theSentSearch;
 
-	private Search theDraftsSearch;
+	private PreparedSearch<Field> theDraftsSearch;
 
-	@SuppressWarnings("unused")
-	private Search theAllMailSearch;
+	private PreparedSearch<Field> theAllMailSearch;
 
-	@SuppressWarnings("unused")
-	private Search theTrashSearch;
+	private PreparedSearch<Field> theTrashSearch;
 
-	private Search theCurrentSearch;
+	private PreparedSearch<Field> theCurrentSearch;
+
+	private PreparedSearch<Field> theInboxUnreadSearch;
+
+	private ConversationHolder [] theCurrentView;
 
 	public void initPlugin(PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		theSession = session;
 		theName = config.get("name");
-		theCountPref = new Preference<Integer>(theName, "Displayed Messages",
-			Preference.Type.NONEG_INT, Integer.class, true);
-		theCountPref.setDescription("The number of messages to display at a time");
+		String mgrPropName = config.get("manager");
+		if(mgrPropName == null)
+			throw new IllegalStateException("No manager configured for message plugin " + theName);
+		prisms.arch.event.PrismsProperty<? extends MessageManager> mgrProp;
+		mgrProp = prisms.arch.event.PrismsProperty.get(mgrPropName, MessageManager.class);
+		theManager = session.getProperty(mgrProp);
+
+		theCurrentView = new ConversationHolder [0];
+
 		theStart = 1;
+		prisms.util.preferences.Preferences prefs = theSession.getPreferences();
+		if(prefs.get(theCountPref) == null)
+			prefs.set(theCountPref, Integer.valueOf(10));
+		theCount = prefs.get(theCountPref).intValue();
 		session.addEventListener("preferencesChanged", new prisms.arch.event.PrismsEventListener()
 		{
 			public void eventOccurred(PrismsSession session2, prisms.arch.event.PrismsEvent evt)
@@ -173,32 +187,44 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 				return getSession().getApp().getName() + " Messaging Preference Applier";
 			}
 		});
-		prisms.util.preferences.Preferences prefs = theSession.getPreferences();
-		if(prefs.get(theCountPref) == null)
-			prefs.set(theCountPref, Integer.valueOf(10));
-		theCount = prefs.get(theCountPref).intValue();
 
 		theTable = new prisms.ui.SortTableStructure(TIME + 1);
 		theTable.setColumn(STAR, "", false);
 		theTable.setColumn(FROM, "", false);
-		theTable.setColumn(SUBJECT, "", true);
+		theTable.setColumn(SUBJECT, "", false);
 		theTable.setColumn(ATTACH, "", false);
 		theTable.setColumn(TIME, "", false);
 		theSelectedIndices = new prisms.util.LongList();
 
-		Search temp1, temp2;
-		temp1 = new MessageSearch.RecipientSearch(theSession.getUser(), null, Boolean.FALSE);
-		temp2 = new MessageSearch.SentSearch(true);
-		temp1 = temp1.and(temp2);
-		theAllMailSearch = temp1;
-		temp2 = new MessageSearch.ViewSearch(theSession.getUser(), null, Boolean.FALSE, null, null,
-			null, null);
-		theInboxSearch = temp1.and(temp2);
-		temp1 = new MessageSearch.AuthorSearch(theSession.getUser());
-		theSentSearch = temp1.and(new MessageSearch.SentSearch(true));
-		theDraftsSearch = temp1.and(new MessageSearch.SentSearch(false));
-		temp1 = new MessageSearch.RecipientSearch(theSession.getUser(), null, Boolean.TRUE);
-		theTrashSearch = temp1.and(new MessageSearch.SentSearch(true));
+		MessageSearch.ViewSearch noDelSearch = new MessageSearch.ViewSearch(theSession.getUser(),
+			null, null, Boolean.FALSE);
+		try
+		{
+			theAllMailSearch = theManager.views().prepare(
+				new MessageSearch.SentSearch(true).and(noDelSearch), null);
+			theInboxSearch = theManager
+				.views()
+				.prepare(
+					new MessageSearch.ViewSearch(theSession.getUser(), Boolean.FALSE, null, null)
+						.and(noDelSearch),
+					null);
+			theSentSearch = theManager.views().prepare(
+				new MessageSearch.AuthorSearch(theSession.getUser()).and(noDelSearch), null);
+			theDraftsSearch = theManager.views().prepare(
+				new MessageSearch.AuthorSearch(theSession.getUser()).and(
+					new MessageSearch.SentSearch(false)).and(noDelSearch), null);
+			theTrashSearch = theManager.views().prepare(
+				new MessageSearch.SentSearch(true).and(new MessageSearch.ViewSearch(theSession
+					.getUser(), null, null, Boolean.TRUE)), null);
+			theInboxUnreadSearch = theManager.views().prepare(
+				new MessageSearch.ViewSearch(theSession.getUser(), Boolean.FALSE, null, null).and(
+					noDelSearch).and(
+					new MessageSearch.ReadTimeSearch(theSession.getUser(), Search.Operator.GTE,
+						new Search.SearchDate(0), false)), null);
+		} catch(PrismsMessageException e)
+		{
+			throw new IllegalStateException("Could not prepare searches for messaging", e);
+		}
 
 		theCurrentSearch = theInboxSearch;
 
@@ -206,6 +232,7 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		{
 			public void run()
 			{
+				checkMessageCount();
 				checkForNewMessages();
 			}
 
@@ -223,18 +250,43 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 				getSession().getApp().stopRecurringTask(checkTask);
 			}
 		});
-		checkMessageCount();
 	}
 
 	public void initClient()
 	{
 		refresh(false);
+		checkMessageCount();
 	}
 
 	public void processEvent(JSONObject evt)
 	{
-		// TODO Auto-generated method stub
-
+		if("goToBox".equals(evt.get("method")))
+		{
+			PreparedSearch<Field> newSearch;
+			if("inbox".equals(evt.get("box")))
+				newSearch = theInboxSearch;
+			else if("sent".equals(evt.get("box")))
+				newSearch = theSentSearch;
+			else if("drafts".equals(evt.get("box")))
+				newSearch = theDraftsSearch;
+			else if("all".equals(evt.get("box")))
+				newSearch = theAllMailSearch;
+			else if("trash".equals(evt.get("box")))
+				newSearch = theTrashSearch;
+			else
+				throw new IllegalArgumentException("Unrecognized box name: " + evt.get("box"));
+			if(newSearch != theCurrentSearch)
+			{
+				theStart = 1;
+				refresh(false);
+			}
+		}
+		else if("search".equals(evt.get("method")))
+		{
+			// TODO
+		}
+		else
+			throw new IllegalArgumentException("Unrecognized " + theName + " event: " + evt);
 	}
 
 	/** @return The session that this plugin belongs to */
@@ -255,13 +307,6 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		return theManager;
 	}
 
-	/** @param manager The message manager that this plugin should use to get messages */
-	public void setManager(MessageManager manager)
-	{
-		theManager = manager;
-		checkForNewMessages();
-	}
-
 	/** @return The listener listening to link clicks in this manager */
 	public LinkListener getLinkListener()
 	{
@@ -274,23 +319,30 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		theListener = listener;
 	}
 
-	private void checkMessageCount()
+	void checkMessageCount()
 	{
 		if(theSession == null || theManager == null)
 			return;
+		int in, drafts;
 		try
 		{
-			theInboxCount = theManager.getConversations(theInboxSearch).length;
+			in = theManager.execute(theInboxUnreadSearch).length;
+			drafts = theManager.execute(theDraftsSearch).length;
 		} catch(PrismsMessageException e)
 		{
-			log.error("Could not get inbox count", e);
+			log.error("Could not get message count", e);
+			return;
 		}
-		try
+		if(in != theInboxCount || drafts != theDraftCount)
 		{
-			theDraftCount = theManager.getConversations(theDraftsSearch).length;
-		} catch(PrismsMessageException e)
-		{
-			log.error("Could not get drafts count", e);
+			theInboxCount = in;
+			theDraftCount = drafts;
+			JSONObject evt = new JSONObject();
+			evt.put("plugin", theName);
+			evt.put("method", "setMessageCount");
+			evt.put("inboxCount", Integer.valueOf(theInboxCount));
+			evt.put("draftCount", Integer.valueOf(theDraftCount));
+			theSession.postOutgoingEvent(evt);
 		}
 	}
 
@@ -299,23 +351,23 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 	{
 		if(theSession == null || theManager == null)
 			return;
-		boolean newMessages = theSnapshotTime <= 0;
-		if(!newMessages)
-		{
-			Search search = new MessageSearch.MsgExpressionSearch(true).addOps(theCurrentSearch,
-				new MessageSearch.SentSearch(MessageSearch.Operator.GTE,
-					new MessageSearch.SearchDate(theSnapshotTime)));
-			try
-			{
-				newMessages = theManager.getConversations(search).length > 0;
-			} catch(PrismsMessageException e)
-			{
-				log.error("Could not query for new messages", e);
-				return;
-			}
-		}
-		if(newMessages)
-			refresh(false);
+		// boolean newMessages = theSnapshotTime <= 0;
+		// if(!newMessages)
+		// {
+		// Search search = new MessageSearch.MsgExpressionSearch(true).addOps(theCurrentSearch,
+		// new MessageSearch.SentSearch(MessageSearch.Operator.GTE,
+		// new MessageSearch.SearchDate(theSnapshotTime)));
+		// try
+		// {
+		// newMessages = theManager.getConversations(search).length > 0;
+		// } catch(PrismsMessageException e)
+		// {
+		// log.error("Could not query for new messages", e);
+		// return;
+		// }
+		// }
+		// if(newMessages)
+		// refresh(false);
 	}
 
 	/**
@@ -323,21 +375,26 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 	 * 
 	 * @param show Whether to tab to the message view
 	 */
-	protected void refresh(boolean show)
+	protected synchronized void refresh(boolean show)
 	{
 		prisms.ui.UI.DefaultProgressInformer pi = new prisms.ui.UI.DefaultProgressInformer();
 		pi.setProgressText("Querying messages");
 		getSession().getUI().startTimedTask(pi);
 		try
 		{
-			if(theManager == null)
-				return;
 			theSnapshotTime = System.currentTimeMillis();
-			checkMessageCount();
+			try
+			{
+				theSnapshot = theManager.views().execute(theCurrentSearch);
+			} catch(PrismsMessageException e)
+			{
+				throw new IllegalStateException("Could not query messages for search "
+					+ theCurrentSearch.getSearch(), e);
+			}
 			String baseText;
 			try
 			{
-				theSnapshot = theManager.getConversations(theCurrentSearch);
+				theSnapshot = theManager.views().execute(theCurrentSearch);
 
 				baseText = pi.getTaskText();
 				pi.setProgressText(baseText + " (" + theSnapshot.length + " conversations total)");
@@ -346,15 +403,15 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 				theSnapshot = new long [0];
 				throw new IllegalStateException("Could not get messages", e);
 			}
-			if(theStart > theSnapshot.length)
-				theStart = 0;
+			if(theStart - 1 > theSnapshot.length)
+				theStart = 1;
 			java.util.Iterator<Long> selIter = theSelectedIndices.iterator();
 			while(selIter.hasNext())
 				if(!prisms.util.ArrayUtils.containsP(theSnapshot, selIter.next()))
 					selIter.remove();
 			int count = theCount;
-			if(count > theSnapshot.length - theStart)
-				count = theSnapshot.length - theStart;
+			if(count > theSnapshot.length - theStart + 1)
+				count = theSnapshot.length - theStart + 1;
 			pi.setProgressText(baseText + " (displaying " + count + " of " + theSnapshot.length
 				+ " conversations)");
 			sendDisplay(true, show);
@@ -376,11 +433,11 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		{
 			long [] fs = getFilteredSnapshot();
 			if(fs.length == 0)
-				theCurrentView = new ConversationView [0];
+				theCurrentView = new ConversationHolder [0];
 			else
 				try
 				{
-					theCurrentView = theManager.getConversations(theSession.getUser(), fs);
+					theCurrentView = theManager.getConversations(fs);
 				} catch(PrismsMessageException e)
 				{
 					throw new IllegalStateException("Could not get messages", e);
@@ -389,16 +446,19 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		theTable.setRowCount(theCurrentView.length);
 		for(int i = 0; i < theCurrentView.length; i++)
 		{
-			ConversationView c = theCurrentView[i];
+			ConversationHolder c = theCurrentView[i];
 			JSONObject starLink = prisms.util.PrismsUtils.rEventProps("type", "starClicked",
-				"conversation", Long.toHexString(c.getID()));
-			theTable.row(i).cell(STAR)
-				.set(null, starLink, c.isStarred() ? "message/starred" : "message/unstarred");
+				"conversation", Long.toHexString(c.getConversation().getID()));
+			theTable
+				.row(i)
+				.cell(STAR)
+				.set(null, starLink,
+					c.getConversation().isStarred() ? "message/starred" : "message/unstarred");
 			theTable.row(i).cell(FROM).setLabel(getFromLabel(c));
 			theTable.row(i).cell(SUBJECT).setLabel(getSubjectLabel(c));
 			boolean attach = false;
-			for(MessageHeader header : c)
-				if(header.getAttachmentCount() > 0)
+			for(MessageView msg : c)
+				if(msg.getMessage().getAttachmentCount() > 0)
 				{
 					attach = true;
 					break;
@@ -441,23 +501,24 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		return ret;
 	}
 
-	private String getFromLabel(ConversationView c)
+	private String getFromLabel(ConversationHolder c)
 	{
 		java.util.HashSet<User> users = new java.util.HashSet<User>();
-		String ret = getUserString(c.getMessage(0).getAuthor());
-		users.add(c.getMessage(0).getAuthor());
+		MessageView first = c.getFirstMessage();
+		String ret = getUserString(first.getMessage().getAuthor());
+		users.add(first.getMessage().getAuthor());
 		boolean addingNames = true;
 		int namesAdded = 1;
 		StringBuilder suffix = new StringBuilder();
-		for(int i = c.getMessageCount() - 1; i >= 1; i--)
+		for(MessageView m : c)
 		{
-			if(users.contains(c.getMessage(i).getAuthor()))
+			if(users.contains(m.getMessage().getAuthor()))
 				continue;
-			users.add(c.getMessage(i).getAuthor());
+			users.add(m.getMessage().getAuthor());
 
 			if(!addingNames)
 				continue;
-			String name = getUserString(c.getMessage(i).getAuthor());
+			String name = getUserString(m.getMessage().getAuthor());
 			if(ret.length() + suffix.length() + name.length() + 5 > 40)
 			{
 				addingNames = false;
@@ -487,32 +548,32 @@ public class MessagePlugin implements prisms.arch.AppPlugin
 		return user.getName();
 	}
 
-	private String getSubjectLabel(ConversationView c)
+	private String getSubjectLabel(ConversationHolder c)
 	{
-		String ret = c.getMessage(0).getSubject();
+		MessageView first = c.getFirstMessage();
+		String ret = first.getMessage().getSubject();
 		if(ret.length() > 50)
-			ret = ret.substring(0, 47) + "...";
+			ret = ret.substring(0, 48) + "\u2026";
 		else if(ret.length() < 35)
 		{
 			String preview;
 			try
 			{
-				preview = theManager.previewMessage(c.getMessage(0));
+				preview = c.getLastMessage().getMessage().getContent(47 - ret.length() + 1);
+				if(preview.length() > 47 - ret.length())
+					preview = preview.substring(0, 50 - ret.length() - 2) + "\u2026";
+				ret += " - " + preview;
 			} catch(PrismsMessageException e)
 			{
-				log.error("Could not preview message", e);
-				preview = "";
+				log.error("Could not preview message " + ret, e);
 			}
-			if(preview.length() + ret.length() > 50)
-				preview = preview.substring(0, 50 - ret.length());
-			ret += " - " + preview;
 		}
 		return ret;
 	}
 
-	private String getTimeLabel(ConversationView c)
+	private String getTimeLabel(ConversationHolder c)
 	{
-		long time = c.getMessage(c.getMessageCount() - 1).getTime();
+		long time = c.getLastMessage().getMessage().getTime();
 		long now = System.currentTimeMillis();
 		long diff = now - time;
 		if(diff < 60000)
