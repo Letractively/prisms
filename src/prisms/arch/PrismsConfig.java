@@ -625,6 +625,12 @@ public abstract class PrismsConfig
 		}
 	}
 
+	private static final java.util.regex.Pattern ENV_VAR_NAME_PATTERN = java.util.regex.Pattern
+		.compile("[a-zA-Z_\\-\\.]*");
+
+	private static final java.util.regex.Pattern ENV_VAR_REF_PATTERN = java.util.regex.Pattern
+		.compile("\\$\\{([a-zA-Z_\\-\\.]*)\\}");
+
 	private static PrismsConfig [] fromXml(PrismsEnv env, org.dom4j.Element xml, String location,
 		String... relative)
 	{
@@ -641,10 +647,21 @@ public abstract class PrismsConfig
 			}
 			String name = xml.attributeValue("name");
 			if(name == null)
+			{
 				log.error("No name attribute for variable setting: " + xml.asXML());
+				return new PrismsConfig [0];
+			}
+			if(!ENV_VAR_NAME_PATTERN.matcher(name).matches())
+			{
+				log.error("Invalid config variable name: " + name);
+				return new PrismsConfig [0];
+			}
 			String val = xml.attributeValue("value");
 			if(val == null)
+			{
 				log.error("No value attribute for variable setting: " + xml.asXML());
+				return new PrismsConfig [0];
+			}
 			if(val.equals("" + null))
 				val = null;
 			else
@@ -795,9 +812,6 @@ public abstract class PrismsConfig
 		}
 	}
 
-	private static final java.util.regex.Pattern ENV_VAR_PATTERN = java.util.regex.Pattern
-		.compile("\\$\\{([a-zA-Z_]\\w*)\\}");
-
 	/**
 	 * Replaces references to environment variables with their values as set in the given
 	 * environment. A reference to an environment variable has the form "${variable.name}".
@@ -811,7 +825,7 @@ public abstract class PrismsConfig
 		if(value == null || env == null)
 			return value;
 		value = value.trim();
-		java.util.regex.Matcher matcher = ENV_VAR_PATTERN.matcher(value);
+		java.util.regex.Matcher matcher = ENV_VAR_REF_PATTERN.matcher(value);
 		if(!matcher.find())
 			return value;
 		int lastEnd = 0;
@@ -969,7 +983,7 @@ public abstract class PrismsConfig
 		}
 		else
 		{
-			java.util.regex.Matcher matcher = ENV_VAR_PATTERN.matcher(ifStr);
+			java.util.regex.Matcher matcher = ENV_VAR_REF_PATTERN.matcher(ifStr);
 			if(matcher.matches())
 			{
 				String var = env.getVariable(matcher.group(1));
