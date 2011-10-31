@@ -1,4 +1,8 @@
 
+/*
+ * A FillPane attempts to fill all the space in its parent that is left over from the parent's other
+ * children
+ */
 __dojo.provide("prisms.widget.FillPane");
 __dojo.declare("prisms.widget.FillPane", [dijit.layout._LayoutWidget, dijit._Contained], {
 	postCreate: function(){
