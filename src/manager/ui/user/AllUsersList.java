@@ -24,10 +24,13 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 
 	private javax.swing.Action CLONE_USER_ACTION;
 
+	private String theTemplateUserName;
+
 	@Override
 	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		super.initPlugin(session, config);
+		theTemplateUserName = config.get("user-template");
 		setDisplaySelectedOnly(false);
 		DELETE_USER_ACTION = new javax.swing.AbstractAction("Delete")
 		{
@@ -204,6 +207,11 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 								return userExists(name, users);
 							}
 						}), new prisms.records.RecordsTransaction(getSession().getUser()));
+					User template = getTemplateUserName() == null ? null : source
+						.getUser(getTemplateUserName());
+					if(template != null)
+						manager.app.ManagerUtils.copy(template, newUser, source, getSession()
+							.getProperty(PrismsProperties.applications));
 				} catch(prisms.arch.PrismsException e)
 				{
 					throw new IllegalStateException("Could not create user", e);
@@ -244,6 +252,12 @@ public class AllUsersList extends prisms.ui.list.SelectableList<User>
 		}
 		else
 			super.processEvent(evt);
+	}
+
+	/** @return The name of the user whose permissions are transferred to new users on creation */
+	public String getTemplateUserName()
+	{
+		return theTemplateUserName;
 	}
 
 	boolean userExists(String name, User [] users)
