@@ -186,6 +186,8 @@ public class PrismsEnv implements prisms.util.Sealable
 
 	private final java.util.concurrent.ConcurrentHashMap<Thread, PrismsTransaction> theActiveTransactions;
 
+	private final java.util.concurrent.ConcurrentHashMap<Long, long []> theUserCPU;
+
 	private TrackerSet.TrackConfig[] theTrackConfigs;
 
 	private GlobalPrintConfig theDefaultPrintConfig;
@@ -215,6 +217,7 @@ public class PrismsEnv implements prisms.util.Sealable
 				}
 			}, Integer.MAX_VALUE);
 		theActiveTransactions = new java.util.concurrent.ConcurrentHashMap<Thread, PrismsTransaction>();
+		theUserCPU = new java.util.concurrent.ConcurrentHashMap<Long, long []>();
 		theDefaultPrintConfig = new GlobalPrintConfig();
 		theDefaultPrintConfig.setPrintThreshold(1500);
 		theDefaultPrintConfig.setTaskDisplayThreshold(100);
@@ -578,6 +581,41 @@ public class PrismsEnv implements prisms.util.Sealable
 			}
 		}
 		return theActiveTransactions.values().toArray(new PrismsTransaction [0]);
+	}
+
+	void addUserCPU(prisms.arch.ds.User user, long cpuTime)
+	{
+		long [] storedTime = theUserCPU.get(Long.valueOf(user.getID()));
+		if(storedTime == null)
+		{
+			storedTime = new long [] {cpuTime};
+			theUserCPU.put(Long.valueOf(user.getID()), storedTime);
+		}
+		else
+			storedTime[0] += cpuTime;
+	}
+
+	/** @return The IDs of all users that have used PRISMS since deployment */
+	public long [] getCpuUsers()
+	{
+		prisms.util.LongList ret = new prisms.util.LongList();
+		for(Long userID : theUserCPU.keySet())
+			ret.add(userID.longValue());
+		return ret.toArray();
+	}
+
+	/**
+	 * @param userID The ID of the user to get the activity of
+	 * @return The amount of this machine's processing resources the given user has used, in
+	 *         microseconds
+	 */
+	public long getUserCPU(long userID)
+	{
+		long [] storedTime = theUserCPU.get(Long.valueOf(userID));
+		if(storedTime != null)
+			return storedTime[0];
+		else
+			return 0;
 	}
 
 	/** @return Whether this environment has finished being configured */

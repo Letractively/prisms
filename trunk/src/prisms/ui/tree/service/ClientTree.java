@@ -798,17 +798,24 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			boolean found = false;
 			for(prisms.ui.UI.EventObject evtObj : getUI().getListeners())
 				if(evtObj.listener instanceof ForwardedProgress
-					&& ((ForwardedProgress) evtObj.listener).theMessageID == messageID)
+					&& ((ForwardedProgress) evtObj.listener).theMessageID.equals(messageID))
 				{
 					found = true;
+					evtObj.setTitle((String) event.get("title"));
+					evtObj.setOkLabel((String) event.get("okLabel"));
+					evtObj.setCancelLabel((String) event.get("cancelLabel"));
 					((ForwardedProgress) evtObj.listener).setEvent(event);
 				}
 			if(!found)
 			{
 				ForwardedProgress pi = new ForwardedProgress();
+				pi.theMessageID = messageID;
 				pi.setEvent(event);
-				getUI().startTimedTask(pi);
+				prisms.ui.UI.EventObject evtObj = getUI().startTimedTask(pi);
 				pi.start();
+				evtObj.setTitle((String) event.get("title"));
+				evtObj.setOkLabel((String) event.get("okLabel"));
+				evtObj.setCancelLabel((String) event.get("cancelLabel"));
 			}
 		}
 		else if("close".equals(method))
