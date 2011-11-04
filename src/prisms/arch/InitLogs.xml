@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<logger-init>
+	<logger name="prisms" max="WARN" />
+	<logger name="prisms.arch" level="INFO" />
+	<logger name="manager" min="INFO" />
+	<logger name="log4j" min="INFO" />
+</logger-init>

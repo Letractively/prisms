@@ -12,6 +12,7 @@ import java.util.HashMap;
 
 import org.apache.log4j.Logger;
 
+import prisms.arch.PrismsConfig;
 import prisms.arch.PrismsException;
 import prisms.util.*;
 
@@ -478,7 +479,7 @@ public class PrismsLogger implements
 	 * @param config The logger configuration
 	 * @return The directory to which exposed logging attachments may be written
 	 */
-	public static String getConfiguredExposedDir(prisms.arch.PrismsConfig config)
+	public static String getConfiguredExposedDir(PrismsConfig config)
 	{
 		String exposed = config.get("exposed");
 		if(exposed != null)
@@ -521,7 +522,7 @@ public class PrismsLogger implements
 	 * 
 	 * @param config The configuration element to use to configure this logger
 	 */
-	public void configure(prisms.arch.PrismsConfig config)
+	public void configure(PrismsConfig config)
 	{
 		if(isConfigured)
 			throw new IllegalStateException("This logger has already been configured");
@@ -865,7 +866,7 @@ public class PrismsLogger implements
 		}
 		/* Configures logger constraints, which force the level of a particular logger to allow
 		 * logs of a given level */
-		for(prisms.arch.PrismsConfig c : config.subConfigs("logger-constraints/logger"))
+		for(PrismsConfig c : config.subConfigs("logger-constraints/logger"))
 		{
 			String loggerName = c.get("name");
 			if(loggerName == null)
@@ -892,6 +893,58 @@ public class PrismsLogger implements
 				log.info("Level of logger " + loggerName + " level reduced from "
 					+ logger.getEffectiveLevel() + " to " + level);
 				logger.setLevel(level);
+			}
+		}
+		/* Configures initial log settings. This may be used to override the default configuration. */
+		for(PrismsConfig c : config.subConfigs("logger-init/logger"))
+		{
+			String loggerName = c.get("name");
+			if(loggerName == null)
+			{
+				log.warn("No logger name in logger constraint " + c);
+				continue;
+			}
+			Logger logger = Logger.getLogger(loggerName);
+			String levelName = c.get("level");
+			String minLevelName = c.get("min");
+			String maxLevelName = c.get("max");
+			if(levelName != null)
+			{
+				org.apache.log4j.Level level = org.apache.log4j.Level.toLevel(levelName
+					.toUpperCase());
+				if(level == null)
+				{
+					log.warn("No such level \"" + levelName + "\" in logger init " + c);
+					continue;
+				}
+				logger.setLevel(level);
+			}
+			else
+			{
+				if(minLevelName != null)
+				{
+					org.apache.log4j.Level level = org.apache.log4j.Level.toLevel(minLevelName
+						.toUpperCase());
+					if(level == null)
+					{
+						log.warn("No such level \"" + minLevelName + "\" in logger init " + c);
+						continue;
+					}
+					if(!logger.getEffectiveLevel().isGreaterOrEqual(level))
+						logger.setLevel(level);
+				}
+				if(maxLevelName != null)
+				{
+					org.apache.log4j.Level level = org.apache.log4j.Level.toLevel(maxLevelName
+						.toUpperCase());
+					if(level == null)
+					{
+						log.warn("No such level \"" + maxLevelName + "\" in logger init " + c);
+						continue;
+					}
+					if(!level.isGreaterOrEqual(logger.getEffectiveLevel()))
+						logger.setLevel(level);
+				}
 			}
 		}
 		isConfigured = true;
