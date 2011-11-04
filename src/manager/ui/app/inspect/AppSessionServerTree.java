@@ -576,6 +576,19 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 					prisms.util.PrismsUtils.print(theInstance.initTime));
 			Runtime runtime = Runtime.getRuntime();
 			ret.append("            \nCPUs:").append(runtime.availableProcessors());
+			float cpu = getCPU();
+			if(!Float.isNaN(cpu))
+				ret.append("            \n").append(Math.round(cpu * 100)).append("% usage");
+			ret.append("            \nAvailableMem:")
+				.append(Math.round(runtime.maxMemory() / 1024 / 1024)).append("MB");
+			ret.append("            \nMemInUse:")
+				.append(Math.round(runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024)
+				.append("MB");
+			return ret.toString();
+		}
+
+		float getCPU()
+		{
 			if(useJMX)
 				try
 				{
@@ -593,11 +606,8 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 						{}
 						long endClock = System.currentTimeMillis();
 						long endCPU = sunMXB.getProcessCpuTime();
-						ret.append("            \n")
-							.append(
-								Math.round((endCPU - startCPU) * 100 / 1.0e6
-									/ (endClock - startClock) / osMX.getAvailableProcessors()))
-							.append("% usage");
+						return (endCPU - startCPU) / 1.0e6f / (endClock - startClock)
+							/ osMX.getAvailableProcessors();
 					}
 					else
 						useJMX = false;
@@ -605,12 +615,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 				{
 					useJMX = false;
 				}
-			ret.append("            \nAvailableMem:")
-				.append(Math.round(runtime.maxMemory() / 1024 / 1024)).append("MB");
-			ret.append("            \nMemInUse:")
-				.append(Math.round(runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024)
-				.append("MB");
-			return ret.toString();
+			return Float.NaN;
 		}
 
 		@Override
@@ -646,6 +651,69 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		{
 			super.unloaded();
 			unloadProperties();
+		}
+
+		@Override
+		public NodeAction [] getActions(TreeClient client)
+		{
+			NodeAction [] ret = super.getActions(client);
+			ret = ArrayUtils.add(ret, new NodeAction("Monitor CPU", false));
+			return ret;
+		}
+
+		@Override
+		public void doAction(final TreeClient client, String action)
+		{
+			if("Monitor CPU".equals(action))
+			{
+				prisms.ui.UI.ProgressInformer pi = new prisms.ui.UI.ProgressInformer()
+				{
+					private boolean isDone;
+
+					private float theCPU = Float.NaN;
+
+					public String getTaskText()
+					{
+						theCPU = getCPU();
+						if(Float.isNaN(theCPU))
+						{
+							String msg = "CPU monitoring is not available on this instance";
+							client.getUI().error(msg);
+							isDone = true;
+							return msg;
+						}
+						return "Current CPU usage on " + getText(client);
+					}
+
+					public int getTaskScale()
+					{
+						return Float.isNaN(theCPU) ? 0 : 100;
+					}
+
+					public int getTaskProgress()
+					{
+						return Math.round(theCPU * 100);
+					}
+
+					public boolean isTaskDone()
+					{
+						return isDone;
+					}
+
+					public boolean isCancelable()
+					{
+						return true;
+					}
+
+					public void cancel() throws IllegalStateException
+					{
+						isDone = true;
+					}
+				};
+				client.getUI().startTimedTask(pi);
+			}
+			else
+				super.doAction(client, action);
 		}
 
 		@Override
