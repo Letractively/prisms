@@ -78,6 +78,7 @@ __dojo.declare("prisms.widget.TreeModel", null, {
 	shutdown: function(){
 		this.theValue.children=[];
 		this.theValue.text="-----";
+		this.theValue.icon=null;
 		this.theValue.bgColor="#ffffff";
 		this.theValue.textColor="#000000";
 		this.theValue.actions=[];
