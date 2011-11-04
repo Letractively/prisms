@@ -88,7 +88,7 @@ public class LoggerEditor implements prisms.arch.AppPlugin
 			try
 			{
 				theSession.getApp().getEnvironment().getLogger()
-					.addLoggerConfig(theSelectedLogger.getName(), theSelectedLogger.getLevel());
+					.addLoggerConfig(theSelectedLogger.getName(), level);
 				theSelectedLogger.setLevel(level);
 			} catch(prisms.arch.PrismsException e)
 			{
