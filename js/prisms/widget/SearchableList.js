@@ -191,8 +191,11 @@ __dojo.declare("prisms.widget.SearchableList", [__dijit._Widget, __dijit._Templa
 				this.filterLock=false;
 			}
 		}
-		if(params.filter && (!this.theLastUpdate || new Date().getTime()-this.theLastUpdate>2000))
+		if(typeof params.filter != "undefined"
+			&& (!this.theLastUpdate || new Date().getTime()-this.theLastUpdate>2000))
 		{
+			if(!params.filter)
+				params.filter="";
 			this.filterLock=true;
 			try{
 				if(params.filter.length>0)

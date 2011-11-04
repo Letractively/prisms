@@ -53,6 +53,7 @@ __dojo.declare("prisms.widget.ListModel", null, {
 
 	shutdown: function(){
 		this.theValue.text="-----";
+		this.theValue.icon=null;
 		this.theValue.bgColor="#ffffff";
 		this.theValue.textColor="#000000";
 		this.theValue.children=[];
@@ -62,8 +63,8 @@ __dojo.declare("prisms.widget.ListModel", null, {
 		this.setListParams({
 			placeHolder: "",
 			filter: "",
-			icon: "",
 			title: "",
+			icon: null,
 			description: "",
 			actions: []
 		});
