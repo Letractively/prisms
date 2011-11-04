@@ -26,7 +26,8 @@ public abstract class SearchableListPlugin<T> extends SelectableList<T>
 	public void initPlugin(prisms.arch.PrismsSession session, prisms.arch.PrismsConfig config)
 	{
 		super.initPlugin(session, config);
-		setSelectionMode(SelectionMode.SINGLE);
+		if(getSelectionMode() == SelectionMode.NONE)
+			setSelectionMode(SelectionMode.SINGLE);
 		if(thePlaceholder == null)
 			thePlaceholder = "Type to filter...";
 	}

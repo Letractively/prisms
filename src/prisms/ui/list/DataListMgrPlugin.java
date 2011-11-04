@@ -225,11 +225,14 @@ public class DataListMgrPlugin extends DataListManager implements prisms.arch.Ap
 	public synchronized void setSelectionMode(SelectionMode mode)
 	{
 		theSelectionMode = mode;
-		JSONObject evt = new JSONObject();
-		evt.put("plugin", theName);
-		evt.put("method", "setSelectionMode");
-		evt.put("selectionMode", mode.toString().toLowerCase());
-		getSession().postOutgoingEvent(evt);
+		if(getSession() != null)
+		{
+			JSONObject evt = new JSONObject();
+			evt.put("plugin", theName);
+			evt.put("method", "setSelectionMode");
+			evt.put("selectionMode", mode.toString().toLowerCase());
+			getSession().postOutgoingEvent(evt);
+		}
 		switch(theSelectionMode)
 		{
 		case NONE:
