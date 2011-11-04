@@ -415,74 +415,91 @@ public interface UI extends prisms.arch.AppPlugin
 			else
 				throw new IllegalArgumentException("messageID expected");
 
+			prisms.arch.PrismsTransaction trans = theSession.getTransaction();
 			if("eventReturned".equals(evt.get("method")))
 			{
-				Object value = evt.get("value");
-				if(listener instanceof ConfirmListener)
+				prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(trans,
+					"eventReturned on " + prisms.util.PrismsUtils.taskToString(listener));
+				try
 				{
-					if(!Boolean.TRUE.equals(value))
-						value = Boolean.valueOf(false);
-					((ConfirmListener) listener).confirmed(((Boolean) value).booleanValue());
-				}
-				else if(listener instanceof InputListener)
-				{
-					if(value != null && !(value instanceof String))
+					Object value = evt.get("value");
+					if(listener instanceof ConfirmListener)
+					{
+						if(!Boolean.TRUE.equals(value))
+							value = Boolean.valueOf(false);
+						((ConfirmListener) listener).confirmed(((Boolean) value).booleanValue());
+					}
+					else if(listener instanceof InputListener)
+					{
+						if(value != null && !(value instanceof String))
+							throw new IllegalArgumentException(
+								"Input dialog requires string return value");
+						((InputListener) listener).inputed(value == null ? (String) value
+							: prisms.util.PrismsUtils.decodeUnicode((String) value));
+					}
+					else if(listener instanceof SelectListener)
+					{
+						if(value != null && !(value instanceof String))
+							throw new IllegalArgumentException(
+								"Select dialog requires string return value");
+						((SelectListener) listener).selected(value == null ? (String) value
+							: prisms.util.PrismsUtils.decodeUnicode((String) value));
+					}
+					else if(listener instanceof ProgressInformer)
 						throw new IllegalArgumentException(
-							"Input dialog requires string return value");
-					((InputListener) listener).inputed(value == null ? (String) value
-						: prisms.util.PrismsUtils.decodeUnicode((String) value));
-				}
-				else if(listener instanceof SelectListener)
+							"Cannot call eventReturned on a progress dialog");
+					else if(listener instanceof AcknowledgeListener)
+						((AcknowledgeListener) listener).acknowledged();
+					else if(listener == null)
+					{}
+					else
+						throw new IllegalStateException("Unrecognized listener type: "
+							+ listener.getClass().getName());
+				} finally
 				{
-					if(value != null && !(value instanceof String))
-						throw new IllegalArgumentException(
-							"Select dialog requires string return value");
-					((SelectListener) listener).selected(value == null ? (String) value
-						: prisms.util.PrismsUtils.decodeUnicode((String) value));
+					prisms.util.PrismsUtils.end(trans, track);
 				}
-				else if(listener instanceof ProgressInformer)
-					throw new IllegalArgumentException(
-						"Cannot call eventReturned on a progress dialog");
-				else if(listener instanceof AcknowledgeListener)
-					((AcknowledgeListener) listener).acknowledged();
-				else if(listener == null)
-				{}
-				else
-					throw new IllegalStateException("Unrecognized listener type: "
-						+ listener.getClass().getName());
 			}
 			else if("cancel".equals(evt.get("method")))
 			{
-				if(listener instanceof ProgressInformer)
+				prisms.util.ProgramTracker.TrackNode track = prisms.util.PrismsUtils.track(trans,
+					"cancel on " + prisms.util.PrismsUtils.taskToString(listener));
+				try
 				{
-					try
+					if(listener instanceof ProgressInformer)
 					{
-						((ProgressInformer) listener).cancel();
-					} catch(IllegalStateException e)
-					{
-						error(e.getMessage());
+						try
+						{
+							((ProgressInformer) listener).cancel();
+						} catch(IllegalStateException e)
+						{
+							error(e.getMessage());
+						}
 					}
-				}
-				else if(listener instanceof ConfirmListener)
+					else if(listener instanceof ConfirmListener)
+					{
+						removeEvent(messageID);
+						((ConfirmListener) listener).confirmed(false);
+					}
+					else if(listener instanceof InputListener)
+					{
+						removeEvent(messageID);
+						((InputListener) listener).inputed(null);
+					}
+					else if(listener instanceof SelectListener)
+					{
+						removeEvent(messageID);
+						((SelectListener) listener).selected(null);
+					}
+					else if(listener == null)
+					{}
+					else
+						throw new IllegalStateException("Unrecognized listener type for cancel: "
+							+ listener.getClass().getName());
+				} finally
 				{
-					removeEvent(messageID);
-					((ConfirmListener) listener).confirmed(false);
+					prisms.util.PrismsUtils.end(trans, track);
 				}
-				else if(listener instanceof InputListener)
-				{
-					removeEvent(messageID);
-					((InputListener) listener).inputed(null);
-				}
-				else if(listener instanceof SelectListener)
-				{
-					removeEvent(messageID);
-					((SelectListener) listener).selected(null);
-				}
-				else if(listener == null)
-				{}
-				else
-					throw new IllegalStateException("Unrecognized listener type for cancel: "
-						+ listener.getClass().getName());
 			}
 			else
 				throw new IllegalArgumentException("Unrecognized UI event: " + evt);

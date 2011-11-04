@@ -131,8 +131,10 @@ public abstract class ListPersister<T> implements Persister<T []>
 				{
 					if(currentLock != dataLock)
 						return null;
-					TrackNode track = prisms.util.PrismsUtils.track(trans, "PRISMS: Adding value "
-						+ o + " in persister " + prisms.util.PrismsUtils.taskToString(this));
+					TrackNode track = prisms.util.PrismsUtils.track(
+						trans,
+						"PRISMS: Adding value " + o + " in persister "
+							+ prisms.util.PrismsUtils.taskToString(ListPersister.this));
 					T dbItem;
 					try
 					{
@@ -159,8 +161,8 @@ public abstract class ListPersister<T> implements Persister<T []>
 					if(currentLock != dataLock)
 						return null;
 					TrackNode track = prisms.util.PrismsUtils.track(trans,
-						"PRISMS: Removing value " + o + " from persister "
-							+ prisms.util.PrismsUtils.taskToString(this));
+						"PRISMS: Removing value " + o.theDBValue + " from persister "
+							+ prisms.util.PrismsUtils.taskToString(ListPersister.this));
 					synchronized(o)
 					{
 						try
