@@ -499,7 +499,7 @@ public class PrismsSession
 			JSONObject getEvents = new JSONObject();
 			getEvents.put("method", "getEvents");
 			getEvents.put("taskID", taskID);
-			if(!finished[0] && !getUI().isProgressShowing())
+			if(!finished[0] && (!getUI().isProgressShowing() || "UI".equals(event.get("plugin"))))
 			{
 				theRunningTasks.put(taskID, finished);
 				JSONArray ret = getEvents();
@@ -564,74 +564,79 @@ public class PrismsSession
 	public void runTasks()
 	{
 		PrismsTransaction trans = getTransaction();
-		boolean hasTasks = false;
-		do
+		boolean hasTasks;
+		TrackNode outerTrack = prisms.util.PrismsUtils.track(trans, "Run Tasks");
+		try
 		{
-			hasTasks = false;
-			if(!theTaskList.isEmpty())
+			do
 			{
-				hasTasks = true;
-				Runnable [] tasks = new Runnable [theTaskList.size()];
-				java.util.Iterator<Runnable> iter = theTaskList.iterator();
-				for(int i = 0; i < tasks.length && iter.hasNext(); i++)
+				hasTasks = false;
+				if(!theTaskList.isEmpty())
 				{
-					tasks[i] = iter.next();
-					iter.remove();
+					Runnable [] tasks = new Runnable [theTaskList.size()];
+					java.util.Iterator<Runnable> iter = theTaskList.iterator();
+					for(int i = 0; i < tasks.length && iter.hasNext(); i++)
+					{
+						tasks[i] = iter.next();
+						iter.remove();
+					}
+					if(tasks.length > 0 && tasks[0] != null)
+					{
+						hasTasks = true;
+						TrackNode totalTrack = prisms.util.PrismsUtils
+							.track(trans, "Session Tasks");
+						try
+						{
+							for(Runnable task : tasks)
+							{
+								/* If a task was removed between the time when the tasks array was created and when
+								 * the item would have been reached in the iteration, the tasks array may not be
+								 * full. */
+								if(task == null)
+									break;
+								TrackNode track = prisms.util.PrismsUtils.track(trans, task);
+								try
+								{
+									task.run();
+								} catch(Throwable e)
+								{
+									log.error("Error Processing Task " + task, e);
+									postOutgoingEvent(wrapError("Error Processing Task " + task, e));
+								} finally
+								{
+									prisms.util.PrismsUtils.end(trans, track);
+								}
+							}
+						} finally
+						{
+							prisms.util.PrismsUtils.end(trans, totalTrack);
+						}
+					}
 				}
-				if(tasks.length > 0 && tasks[0] != null)
+				PropertySetActionQueue.PropertySetAction<Object> [] actions = thePSAQueue
+					.getActions();
+				if(actions.length > 0)
 				{
-					TrackNode totalTrack = prisms.util.PrismsUtils.track(trans, "Session Tasks");
+					hasTasks = true;
+					TrackNode totalTrack = prisms.util.PrismsUtils.track(trans,
+						"Queued Property Set Actions");
 					try
 					{
-						Exception outerE = new Exception();
-						for(Runnable task : tasks)
-						{
-							/* If a task was removed between the time when the tasks array was created and when
-							 * the item would have been reached in the iteration, the tasks array may not be
-							 * full. */
-							if(task == null)
-								break;
-							TrackNode track = prisms.util.PrismsUtils.track(trans, task);
-							try
-							{
-								task.run();
-							} catch(Throwable e)
-							{
-								e.setStackTrace(prisms.util.PrismsUtils.patchStackTraces(
-									e.getStackTrace(), outerE.getStackTrace(),
-									getClass().getName(), "_process"));
-								log.error("Error Processing Task " + task, e);
-								postOutgoingEvent(wrapError("Error Processing Task " + task, e));
-							} finally
-							{
-								prisms.util.PrismsUtils.end(trans, track);
-							}
-						}
+						for(PropertySetActionQueue.PropertySetAction<Object> action : actions)
+							_setProperty(trans, action.property, action.oldValue, action.value,
+								action.eventProps);
 					} finally
 					{
 						prisms.util.PrismsUtils.end(trans, totalTrack);
 					}
 				}
-			}
-			hasTasks |= theApp.runPropertySetActions();
-			hasTasks |= theApp.runScheduledTasks();
-			PropertySetActionQueue.PropertySetAction<Object> [] actions = thePSAQueue.getActions();
-			if(actions.length > 0)
-			{
-				TrackNode totalTrack = prisms.util.PrismsUtils.track(trans,
-					"Queued Property Set Actions");
-				try
-				{
-					for(PropertySetActionQueue.PropertySetAction<Object> action : actions)
-						_setProperty(trans, action.property, action.oldValue, action.value,
-							action.eventProps);
-				} finally
-				{
-					prisms.util.PrismsUtils.end(trans, totalTrack);
-				}
-			}
-			hasTasks |= actions.length > 0;
-		} while(hasTasks);
+				hasTasks |= theApp.runScheduledTasks();
+				hasTasks |= theApp.runPropertySetActions();
+			} while(hasTasks);
+		} finally
+		{
+			prisms.util.PrismsUtils.end(trans, outerTrack);
+		}
 	}
 
 	JSONObject wrapError(String title, Throwable e)
@@ -790,7 +795,11 @@ public class PrismsSession
 			return;
 		}
 		else if(theClient.isService())
-			return; /* Events must be tied to a synchronous transaction if this session is for a web service */
+		{
+			log.error(theClient.toString() + ": Events must be tied to a synchronous transaction"
+				+ " for a web service");
+			return;
+		}
 		theOutgoingQueue.add(evt);
 		if(theListener != null)
 			theListener.eventPosted(evt);

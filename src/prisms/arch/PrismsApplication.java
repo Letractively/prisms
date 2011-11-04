@@ -205,6 +205,8 @@ public class PrismsApplication
 
 	private SessionWatcher [] theWatchers;
 
+	private long theCpuTime;
+
 	/**
 	 * Creates a PluginApplication
 	 * 
@@ -401,6 +403,20 @@ public class PrismsApplication
 	public prisms.util.TrackerSet getTrackSet()
 	{
 		return theTrackSet;
+	}
+
+	void addCpuTime(long cpuTime)
+	{
+		theCpuTime += cpuTime;
+	}
+
+	/**
+	 * @return How much of the machine's processing resources have been used by this application, in
+	 *         microseconds
+	 */
+	public long getCpuTime()
+	{
+		return theCpuTime;
 	}
 
 	/**

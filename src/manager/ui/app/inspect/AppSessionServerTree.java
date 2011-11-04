@@ -331,7 +331,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			NodeAction [] ret = super.getActions(client);
 			if(theInstancesNode.isVisible(client))
 				ret = ArrayUtils.add(ret, new NodeAction("Hide Instances", false));
-			else
+			else if(client.getUser().getPermissions(getSession().getApp()).has("Inspect"))
 				ret = ArrayUtils.add(ret, new NodeAction("View Instances", false));
 			return ret;
 		}
@@ -341,6 +341,11 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 		{
 			if("View Instances".equals(action))
 			{
+				if(!client.getUser().getPermissions(getSession().getApp()).has("Inspect"))
+				{
+					client.getUI().error("You do not have permission to view instance information");
+					return;
+				}
 				theInstancesNode.addVisibleClient(client);
 				client.addEvent(new prisms.ui.tree.DataTreeEvent(
 					prisms.ui.tree.DataTreeEvent.Type.CHANGE, this));
@@ -529,7 +534,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 
 		private boolean propertiesSet;
 
-		private boolean useJMX;
+		boolean useJMX;
 
 		InstanceNode(InstancesNode parent)
 		{
@@ -578,7 +583,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			ret.append("            \nCPUs:").append(runtime.availableProcessors());
 			float cpu = getCPU();
 			if(!Float.isNaN(cpu))
-				ret.append("            \n").append(Math.round(cpu * 100)).append("% usage");
+				ret.append("            \n").append(Math.round(cpu * 100)).append("% server load");
 			ret.append("            \nAvailableMem:")
 				.append(Math.round(runtime.maxMemory() / 1024 / 1024)).append("MB");
 			ret.append("            \nMemInUse:")
@@ -668,31 +673,285 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 			{
 				prisms.ui.UI.ProgressInformer pi = new prisms.ui.UI.ProgressInformer()
 				{
+					private int theCallCount;
+
+					private long theClockOriginal;
+
+					private long theClockStart;
+
+					private long theClockEnd;
+
+					private int theCpuCount;
+
+					private long theCpuOriginal;
+
+					private long theCpu1;
+
+					private long theCpu2;
+
+					private java.util.Map<String, Long> theCpuByAppOriginal;
+
+					private java.util.Map<String, Long> theCpuByApp1;
+
+					private java.util.Map<String, Long> theCpuByApp2;
+
+					private java.util.Map<Long, Long> theCpuByUserOriginal;
+
+					private java.util.Map<Long, Long> theCpuByUser1;
+
+					private java.util.Map<Long, Long> theCpuByUser2;
+
+					private java.util.Map<String, Long> theUserIDs;
+
+					private java.util.HashMap<String, Long> theShownApps;
+
+					private java.util.HashMap<Long, Long> theShownUsers;
+
 					private boolean isDone;
 
-					private float theCPU = Float.NaN;
-
-					public String getTaskText()
 					{
-						theCPU = getCPU();
-						if(Float.isNaN(theCPU))
+						theCpuOriginal = theCpu1 = theCpu2 = -1;
+						theUserIDs = new java.util.TreeMap<String, Long>(
+							new java.util.Comparator<String>()
+							{
+								public int compare(String s1, String s2)
+								{
+									return s1.compareToIgnoreCase(s2);
+								}
+							});
+						theShownApps = new java.util.HashMap<String, Long>();
+						theShownUsers = new java.util.HashMap<Long, Long>();
+						theClockOriginal = theClockStart = theClockEnd = -1;
+					}
+
+					public synchronized String getTaskText()
+					{
+						getCpuTimes();
+						theCallCount = (theCallCount) % 75 + 1;
+						java.text.DecimalFormat cpuFormat = new java.text.DecimalFormat("0.0");
+						StringBuilder ret = new StringBuilder();
+						ret.append("CPU Time on ").append(getText(client)).append("\n\n");
+						ret.append("(averages over ");
+						prisms.util.PrismsUtils.printTimeLength(
+							(theClockEnd - theClockOriginal) / 1000, ret, false);
+						ret.append(")\n");
+						for(int i = 0; i < theCallCount; i++)
+							ret.append('*');
+						ret.append("\n\n");
+						boolean hasValues = false;
+						if(theCpuByApp1 != null && theCpuByApp2 != null)
+						{
+							hasValues = true;
+							ret.append("By application:\n");
+							for(PrismsApplication app : getSession().getProperty(
+								PrismsProperties.applications))
+							{
+								long diff = theCpuByApp2.get(app.getName()).longValue()
+									- theCpuByApp1.get(app.getName()).longValue();
+								// Don't know why I get <0 here sometimes
+								if(diff < 0)
+									diff = 0;
+								float cpuTime = diff * 100f / (theClockEnd - theClockStart)
+									/ theCpuCount;
+								long now = System.currentTimeMillis();
+								if(cpuTime < .1)
+								{
+									Long shownTime = theShownApps.get(app.getName());
+									if(shownTime == null || now - shownTime.longValue() > 15000)
+									{
+										theShownApps.remove(app.getName());
+										continue;
+									}
+								}
+								else
+									theShownApps.put(app.getName(), Long.valueOf(now));
+								ret.append('\t').append(app.getName()).append(": ");
+								ret.append(cpuFormat.format(cpuTime)).append('%');
+								diff = theCpuByApp2.get(app.getName()).longValue()
+									- theCpuByAppOriginal.get(app.getName()).longValue();
+								cpuTime = diff * 100f / (theClockEnd - theClockOriginal)
+									/ theCpuCount;
+								ret.append(" (").append(cpuFormat.format(cpuTime)).append("% avg)");
+								ret.append('\n');
+							}
+							ret.append('\n');
+						}
+						if(theCpuByUser1 != null && theCpuByUser2 != null)
+						{
+							hasValues = true;
+							ret.append("By user:\n");
+							for(java.util.Map.Entry<String, Long> entry : theUserIDs.entrySet())
+							{
+								if(!theCpuByUser2.containsKey(entry.getValue()))
+									continue;
+								long diff = theCpuByUser2.get(entry.getValue()).longValue();
+								if(theCpuByUser1.containsKey(entry.getValue()))
+									diff -= theCpuByUser1.get(entry.getValue()).longValue();
+								// Don't know why I get <0 here sometimes
+								if(diff < 0)
+									diff = 0;
+								float cpuTime = diff * 100f / (theClockEnd - theClockStart)
+									/ theCpuCount;
+								long now = System.currentTimeMillis();
+								if(cpuTime < .1)
+								{
+									Long shownTime = theShownUsers.get(entry.getValue());
+									if(shownTime == null || now - shownTime.longValue() > 15000)
+									{
+										theShownUsers.remove(entry.getValue());
+										continue;
+									}
+								}
+								else
+									theShownUsers.put(entry.getValue(), Long.valueOf(now));
+								ret.append('\t').append(entry.getKey()).append(": ");
+								ret.append(cpuFormat.format(cpuTime)).append('%');
+								diff = theCpuByUser2.get(entry.getValue()).longValue();
+								if(theCpuByUserOriginal.containsKey(entry.getValue()))
+									diff -= theCpuByUserOriginal.get(entry.getValue()).longValue();
+								cpuTime = diff * 100f / (theClockEnd - theClockOriginal)
+									/ theCpuCount;
+								ret.append(" (").append(cpuFormat.format(cpuTime)).append("% avg)");
+								ret.append('\n');
+							}
+							ret.append('\n');
+						}
+						if(theCpu1 >= 0 && theCpu2 >= 0)
+						{
+							hasValues = true;
+							float cpuTime = (theCpu2 - theCpu1) * 100f
+								/ (theClockEnd - theClockStart) / theCpuCount;
+							ret.append("Total Server Load: ").append(cpuFormat.format(cpuTime))
+								.append('%');
+							cpuTime = (theCpu2 - theCpuOriginal) * 100f
+								/ (theClockEnd - theClockOriginal) / theCpuCount;
+							ret.append(" (").append(cpuFormat.format(cpuTime)).append("% avg)");
+						}
+						if(!hasValues)
 						{
 							String msg = "CPU monitoring is not available on this instance";
 							client.getUI().error(msg);
 							isDone = true;
 							return msg;
 						}
-						return "Current CPU usage on " + getText(client);
+						ret.append("\n\t");
+						return ret.toString();
+					}
+
+					private void getCpuTimes()
+					{
+						if(!useJMX)
+						{
+							theCpu1 = theCpu2 = -1;
+							theCpuByApp1 = theCpuByApp2 = null;
+							theCpuByUser1 = theCpuByUser2 = null;
+							theClockStart = theClockEnd = -1;
+							return;
+						}
+						theCpuCount = Runtime.getRuntime().availableProcessors();
+						theCpu1 = theCpu2;
+						if(theCpuOriginal < 0)
+							theCpuOriginal = theCpu1;
+						theCpuByApp1 = theCpuByApp2;
+						if(theCpuByAppOriginal == null)
+							theCpuByAppOriginal = theCpuByApp1;
+						theCpuByUser1 = theCpuByUser2;
+						if(theCpuByUserOriginal == null)
+							theCpuByUserOriginal = theCpuByUser1;
+						theCpu2 = -1;
+						theCpuByApp2 = null;
+						theCpuByUser2 = null;
+						theClockStart = theClockEnd;
+						theClockEnd = System.currentTimeMillis() * 1000
+							+ (System.nanoTime() / 1000) % 1000;
+						if(theClockOriginal < 0)
+							theClockOriginal = theClockStart;
+						try
+						{
+							java.lang.management.OperatingSystemMXBean osMX = java.lang.management.ManagementFactory
+								.getOperatingSystemMXBean();
+							if(osMX instanceof com.sun.management.OperatingSystemMXBean)
+								theCpu2 = ((com.sun.management.OperatingSystemMXBean) osMX)
+									.getProcessCpuTime() / 1000;
+						} catch(Exception e)
+						{
+							useJMX = false;
+						}
+						java.util.TreeMap<String, Long> appCpu = new java.util.TreeMap<String, Long>(
+							new java.util.Comparator<String>()
+							{
+								public int compare(String s1, String s2)
+								{
+									return s1.compareToIgnoreCase(s2);
+								}
+							});
+						java.util.HashMap<Long, Long> userCpu = new java.util.HashMap<Long, Long>();
+						prisms.arch.PrismsEnv env = getSession().getApp().getEnvironment();
+						for(long userID : env.getCpuUsers())
+							userCpu.put(Long.valueOf(userID), Long.valueOf(env.getUserCPU(userID)));
+						for(PrismsApplication app : getSession().getProperty(
+							PrismsProperties.applications))
+							appCpu.put(app.getName(), Long.valueOf(app.getCpuTime()));
+						prisms.arch.PrismsTransaction[] transactions = env.getActiveTransactions();
+						for(prisms.arch.PrismsTransaction trans : transactions)
+						{
+							long time = trans.getCpuTime();
+							if(trans.isFinished()
+								|| time < (theClockEnd - theClockStart) / theCpuCount / 10)
+								continue;
+							Long userID = trans.getSession() != null ? Long.valueOf(trans
+								.getSession().getUser().getID()) : Long.valueOf(-1);
+							long pre = userCpu.containsKey(userID) ? userCpu.get(userID)
+								.longValue() : 0;
+							if(trans.isFinished())
+								continue;
+							userCpu.put(userID, Long.valueOf(pre + time));
+
+							String appName = trans.getApp() != null ? trans.getApp().getName()
+								: "Global";
+							pre = appCpu.containsKey(appName) ? appCpu.get(appName).longValue() : 0;
+							if(trans.isFinished())
+								continue;
+							appCpu.put(appName, Long.valueOf(pre + time));
+						}
+						User [] users = getSession().getProperty(PrismsProperties.users);
+						for(Long userID : userCpu.keySet())
+						{
+							for(User u : users)
+								if(u.getID() == userID.longValue())
+								{
+									theUserIDs.put(u.getName(), userID);
+									break;
+								}
+						}
+						theCpuByApp2 = appCpu;
+						theCpuByUser2 = userCpu;
+						if(theClockStart < 0)
+						{
+							try
+							{
+								Thread.sleep(500);
+							} catch(InterruptedException e)
+							{}
+							getCpuTimes();
+						}
 					}
 
 					public int getTaskScale()
 					{
-						return Float.isNaN(theCPU) ? 0 : 100;
+						if(theCpu1 < 0 || theCpu2 < 0)
+							return 0;
+						else
+							return 100;
 					}
 
 					public int getTaskProgress()
 					{
-						return Math.round(theCPU * 100);
+						if(theCpu1 < 0 || theCpu2 < 0)
+							return 0;
+						float cpuTime = (theCpu2 - theCpu1) * 100f / (theClockEnd - theClockStart)
+							/ theCpuCount;
+						return Math.round(cpuTime);
 					}
 
 					public boolean isTaskDone()
@@ -710,7 +969,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 						isDone = true;
 					}
 				};
-				client.getUI().startTimedTask(pi);
+				client.getUI().startTimedTask(pi).setAll("CPU Montoring", null, "Close");
 			}
 			else
 				super.doAction(client, action);

@@ -289,7 +289,7 @@ __dojo.declare("prisms.widget.UI", prisms.widget.PrismsDialog, {
 		else
 			this.setTitle("Processing--Please Wait");
 		if(event.cancelLabel)
-			this.okButton.setLabel(PrismsUtils.fixUnicodeString(event.cancelLabel));
+			this.cancelButton.setLabel(PrismsUtils.fixUnicodeString(event.cancelLabel));
 		else
 			this.cancelButton.setLabel("Cancel");
 		this.labelNode.innerHTML=message;

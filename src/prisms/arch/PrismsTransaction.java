@@ -49,6 +49,8 @@ public class PrismsTransaction
 
 	private final ProgramTracker theTracker;
 
+	private java.lang.management.ThreadMXBean theThreadBean;
+
 	private boolean isStarted;
 
 	private boolean isFinished;
@@ -60,6 +62,10 @@ public class PrismsTransaction
 	private Thread theThread;
 
 	private ProgramTracker.PrintConfig thePrintConfig;
+
+	private long theStartCpuTime;
+
+	private boolean useJMX;
 
 	private FinishListener [] theListeners;
 
@@ -73,6 +79,8 @@ public class PrismsTransaction
 		theTracker = new ProgramTracker("Not in use");
 		theListeners = new FinishListener [0];
 		theRoutines = new java.util.ArrayList<ProgramTracker.TrackNode>();
+		theThreadBean = java.lang.management.ManagementFactory.getThreadMXBean();
+		useJMX = true;
 	}
 
 	/** @return An ID unique to this transaction */
@@ -186,6 +194,14 @@ public class PrismsTransaction
 		return isFinished;
 	}
 
+	/** @return The amount of processing resources this transaction has used so far, in microseconds */
+	public long getCpuTime()
+	{
+		if(theThreadBean == null || !useJMX || !isStarted || isFinished)
+			return -1;
+		return (theThreadBean.getCurrentThreadCpuTime() - theStartCpuTime) / 1000;
+	}
+
 	/**
 	 * Called by the PRISMS architecture. Initializes a transaction with the correct settings.
 	 * 
@@ -203,6 +219,14 @@ public class PrismsTransaction
 	{
 		if(isStarted)
 			throw new IllegalStateException("This transaction is already in use");
+		if(theThreadBean != null && useJMX)
+			try
+			{
+				theStartCpuTime = theThreadBean.getCurrentThreadCpuTime();
+			} catch(Throwable e)
+			{
+				useJMX = false;
+			}
 		isFinished = false;
 		isStarted = true;
 		theID = prisms.util.PrismsUtils.getRandomString(16);
@@ -255,26 +279,21 @@ public class PrismsTransaction
 				}
 			}
 
-			if(theTracker.getCurrentTask().getParent() == null && theRoutines.size() > 1)
-			{
-				/* This is the remnants of a workaround for a bug dealing with the tracking. The
-				 * tracking would get into an inconsistent state. I believe I have fixed this bug,
-				 * but I am leaving the indication that it has recurred in case it does. */
-				log.error("Transaction tracking error");
-				// return theEvents;
-			}
-			try
-			{
-				while(theRoutines.size() > 0)
-					theTracker.end(theRoutines.remove(theRoutines.size() - 1));
-			} catch(IllegalStateException e)
-			{
-				return theEvents;
-			}
+			while(theRoutines.size() > 0)
+				theTracker.end(theRoutines.remove(theRoutines.size() - 1));
 			if(theSession != null)
 				theSession.getTrackSet().addTrackData(theTracker);
 			if(theApp != null)
 				theApp.getTrackSet().addTrackData(theTracker);
+
+			if(theThreadBean != null && useJMX && theApp != null)
+			{
+				long cpuTime = theThreadBean.getCurrentThreadCpuTime() - theStartCpuTime;
+				cpuTime /= 1000; // Nanos to micros
+				if(theSession != null)
+					theApp.getEnvironment().addUserCPU(theSession.getUser(), cpuTime);
+				theApp.addCpuTime(cpuTime);
+			}
 
 			long runTime = theTracker.getData()[0].getLength();
 			if(thePrintConfig != null && runTime >= thePrintConfig.getTaskDisplayThreshold())
@@ -317,6 +336,7 @@ public class PrismsTransaction
 		theApp = null;
 		theStage = null;
 		theID = null;
+		theStartCpuTime = 0;
 		if(theListeners.length > 0)
 			theListeners = new FinishListener [0];
 		theTracker.clear();
