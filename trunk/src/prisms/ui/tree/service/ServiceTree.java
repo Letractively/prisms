@@ -58,6 +58,12 @@ public class ServiceTree extends prisms.ui.tree.DataTreeManager implements prism
 				}
 				time = System.currentTimeMillis();
 			}
+
+			@Override
+			public String toString()
+			{
+				return event.toString();
+			}
 		}
 
 		/** The client's ID */

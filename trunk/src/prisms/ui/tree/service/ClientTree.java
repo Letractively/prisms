@@ -27,7 +27,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 {
 	static final Logger log = Logger.getLogger(ClientTree.class);
 
-	private static final prisms.impl.ThreadPoolWorker theWorker;
+	static final prisms.impl.ThreadPoolWorker theWorker;
 
 	static
 	{
@@ -449,7 +449,8 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		});
 	}
 
-	static prisms.impl.ThreadPoolWorker getWorker()
+	/** @return The worker that this tree uses to call the server asynchronously */
+	protected prisms.impl.ThreadPoolWorker getWorker()
 	{
 		return theWorker;
 	}
@@ -629,6 +630,8 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		{
 			private JSONObject theEvent;
 
+			String theMessageID;
+
 			private long theEventTime;
 
 			private boolean isUpdating;
@@ -794,7 +797,8 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		{
 			boolean found = false;
 			for(prisms.ui.UI.EventObject evtObj : getUI().getListeners())
-				if(evtObj.listener instanceof ForwardedProgress)
+				if(evtObj.listener instanceof ForwardedProgress
+					&& ((ForwardedProgress) evtObj.listener).theMessageID == messageID)
 				{
 					found = true;
 					((ForwardedProgress) evtObj.listener).setEvent(event);
@@ -1049,6 +1053,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		final int [] stage = new int [1];
 		final int [] progress = new int [1];
 		final boolean [] finished = new boolean [1];
+		final ClientTreeNode [] taskNode = new ClientTreeNode [1];
 		prisms.ui.UI.ProgressInformer pi = new prisms.ui.UI.ProgressInformer()
 		{
 			public int getTaskScale()
@@ -1073,12 +1078,17 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				switch(stage[0])
 				{
 				case 0:
+					return "Preparing to execute remote task";
 				case 1:
-					return "Retrieving content";
 				case 2:
-					return "Unloading content";
+					return "Retrieving content"
+						+ (taskNode[0] != null ? " of " + taskNode[0].getText() : "");
 				case 3:
-					return "Performing action \"" + action + "\"";
+					return "Unloading content"
+						+ (taskNode[0] != null ? " of " + taskNode[0].getText() : "");
+				case 4:
+					return "Performing action \"" + action + "\""
+						+ (taskNode[0] != null ? " on " + taskNode[0].getText() : "");
 				default:
 					return "Unknown stage";
 				}
@@ -1096,9 +1106,11 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		getUI().startTimedTask(pi);
 		try
 		{
+			stage[0]++;
 			if(loadNodes != null)
 				for(ClientTreeNode node : loadNodes)
 				{
+					taskNode[0] = node;
 					node.isLoaded = true;
 					JSONArray path = node.getPath();
 					for(RemoteSource src : node.getSources())
@@ -1106,12 +1118,14 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						src.sendSync("load", "path", path);
 						progress[0]++;
 					}
+					taskNode[0] = null;
 				}
 			stage[0]++;
 
 			if(loadAllNodes != null)
 				for(ClientTreeNode node : loadAllNodes)
 				{
+					taskNode[0] = node;
 					node.isLoaded = true;
 					node.isAllLoaded = true;
 					JSONArray path = node.getPath();
@@ -1120,12 +1134,14 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						src.sendSync("load", "path", path, "withDescendants", Boolean.TRUE);
 						progress[0]++;
 					}
+					taskNode[0] = null;
 				}
 			stage[0]++;
 
 			if(unloadNodes != null)
 				for(ClientTreeNode node : unloadNodes)
 				{
+					taskNode[0] = node;
 					node.isLoaded = false;
 					node.isAllLoaded = false;
 					JSONArray path = node.getPath();
@@ -1134,6 +1150,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 						src.sendSync("unload", "path", path);
 						progress[0]++;
 					}
+					taskNode[0] = null;
 				}
 			stage[0]++;
 
@@ -1157,9 +1174,12 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 					JSONArray paths = new JSONArray();
 					for(ClientTreeNode node : entry.getValue())
 						paths.add(node.getPath());
+					if(entry.getValue().length == 1)
+						taskNode[0] = entry.getValue()[0];
 					entry.getKey().sendSync("actionPerformed", "clientID", theClientID, "paths",
 						paths, "action", action);
 					progress[0] += entry.getValue().length;
+					taskNode[0] = null;
 				}
 				sourceNodes.clear();
 			}
@@ -1374,11 +1394,8 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				if(theLoadAllAction != null)
 					actions.add(new NodeAction(theLoadAllAction, true));
 			}
-			if(theUnloadAction != null)
-			{
-				isLoaded = true;
+			if(theUnloadAction != null && isLoaded)
 				actions.add(new NodeAction(theUnloadAction, true));
-			}
 			for(JSONObject jsonAction : (java.util.List<JSONObject>) content.get("actions"))
 				actions.add(new NodeAction((String) jsonAction.get("text"), Boolean.TRUE
 					.equals(jsonAction.get("multiple"))));
