@@ -326,6 +326,12 @@ public class ThreadPoolWorker implements Worker
 		}
 	}
 
+	@Override
+	protected void finalize()
+	{
+		close();
+	}
+
 	/** @return The total number of threads managed by this thread pool */
 	public int getThreadCount()
 	{
