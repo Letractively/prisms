@@ -88,6 +88,9 @@
 		<logger-constraints>
 			<logger name="prisms.users" level="INFO" />
 		</logger-constraints>
+		<logger-init>
+			<import>InitLogs.xml</import>
+		</logger-init>
 	</logger>
 
 	<!-- All custom (non-standard) applications to be loaded -->
