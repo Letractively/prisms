@@ -914,7 +914,20 @@ public class PrismsApplication
 	 * @param session The session where the event originated
 	 * @param toFire The event to fire
 	 */
-	public void fireGlobally(PrismsSession session, final PrismsEvent toFire)
+	public void fireGlobally(PrismsSession session, PrismsEvent toFire)
+	{
+		fireGlobally(session, toFire, false);
+	}
+
+	/**
+	 * Same as {@link #fireGlobally(PrismsSession, PrismsEvent)}, but allows the excluding of the
+	 * passed session from those in which the event is fired
+	 * 
+	 * @param session The session where the event originated
+	 * @param toFire The event to fire
+	 * @param excludeSession Whether to exclude the given session from the global event firing
+	 */
+	public void fireGlobally(PrismsSession session, final PrismsEvent toFire, boolean excludeSession)
 	{
 		toFire.setProperty(GLOBALIZED_EVENT_PROPERTY, Boolean.TRUE);
 		{
@@ -943,7 +956,7 @@ public class PrismsApplication
 			{
 				return "Firing event " + toFire.name + " globally";
 			}
-		}, false);
+		}, excludeSession);
 	}
 
 	/**

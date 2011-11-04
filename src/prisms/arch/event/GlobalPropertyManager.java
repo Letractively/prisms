@@ -278,7 +278,7 @@ public abstract class GlobalPropertyManager<T> extends prisms.arch.event.Propert
 		{
 			if(!Boolean.TRUE.equals(evt
 				.getProperty(prisms.arch.PrismsApplication.GLOBALIZED_EVENT_PROPERTY)))
-				session.getApp().fireGlobally(session, evt);
+				session.getApp().fireGlobally(session, evt, true);
 			if(evt.getProperty(CAUSE_USER) == null)
 				evt.setProperty(CAUSE_USER, session.getUser());
 			if(evt.getProperty(CAUSE_APP) == null)
