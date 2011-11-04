@@ -1,14 +1,10 @@
-/**
+/*
  * DataListEvent.java Created Oct 11, 2007 by Andrew Butler, PSL
  */
 package prisms.ui.list;
 
-import prisms.ui.DataEvent;
-
-/**
- * An event that may occur on a DataList
- */
-public class DataListEvent extends DataEvent
+/** An event that may occur on a list */
+public class DataListEvent extends prisms.ui.DataEvent
 {
 	private final DataListNode theNode;
 
@@ -39,19 +35,25 @@ public class DataListEvent extends DataEvent
 		theIndex = index;
 	}
 
-	/**
-	 * @return The node that this event occurred on
-	 */
+	/** @return The node that this event occurred on */
 	public DataListNode getNode()
 	{
 		return theNode;
 	}
 
-	/**
-	 * @return The index that this event's node was added to or removed from
-	 */
+	/** @return The index that this event's node was added to or removed from */
 	public int getIndex()
 	{
 		return theIndex;
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append(getType()).append(": ").append(theNode.getText());
+		if(theIndex >= 0)
+			ret.append(" at ").append(theIndex);
+		return ret.toString();
 	}
 }
