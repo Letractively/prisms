@@ -735,6 +735,9 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 		}
 		String method = (String) event.get("method");
 		String message = (String) event.get("message");
+		String title = (String) event.get("title");
+		String ok = (String) event.get("okLabel");
+		String cancel = (String) event.get("cancelLabel");
 		if("error".equals(method))
 			getUI().error(message, new prisms.ui.UI.AcknowledgeListener()
 			{
@@ -742,7 +745,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				{
 					source.sendSync("eventReturned", "messageID", messageID);
 				}
-			});
+			}).setAll(title, ok, cancel);
 		else if("warning".equals(method))
 			getUI().warn(message, new prisms.ui.UI.AcknowledgeListener()
 			{
@@ -750,7 +753,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				{
 					source.sendSync("eventReturned", "messageID", messageID);
 				}
-			});
+			}).setAll(title, ok, cancel);
 		else if("info".equals(method))
 			getUI().info(message, new prisms.ui.UI.AcknowledgeListener()
 			{
@@ -758,7 +761,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				{
 					source.sendSync("eventReturned", "messageID", messageID);
 				}
-			});
+			}).setAll(title, ok, cancel);
 		else if("confirm".equals(method))
 			getUI().confirm(message, new prisms.ui.UI.ConfirmListener()
 			{
@@ -767,7 +770,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 					source.sendSync("eventReturned", "messageID", messageID, "value",
 						Boolean.valueOf(confirm));
 				}
-			});
+			}).setAll(title, ok, cancel);
 		else if("input".equals(method))
 			getUI().input(message, (String) event.get("init"), new prisms.ui.UI.InputListener()
 			{
@@ -775,7 +778,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				{
 					source.sendSync("eventReturned", "messageID", messageID, "value", input);
 				}
-			});
+			}).setAll(title, ok, cancel);
 		else if("select".equals(method))
 		{
 			String [] options = ((java.util.List<String>) event.get("options"))
@@ -791,7 +794,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				{
 					source.sendSync("eventReturned", "messageID", messageID, "value", input);
 				}
-			});
+			}).setAll(title, ok, cancel);
 		}
 		else if("progress".equals(method))
 		{
@@ -801,9 +804,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 					&& ((ForwardedProgress) evtObj.listener).theMessageID.equals(messageID))
 				{
 					found = true;
-					evtObj.setTitle((String) event.get("title"));
-					evtObj.setOkLabel((String) event.get("okLabel"));
-					evtObj.setCancelLabel((String) event.get("cancelLabel"));
+					evtObj.setAll(title, ok, cancel);
 					((ForwardedProgress) evtObj.listener).setEvent(event);
 				}
 			if(!found)
@@ -813,9 +814,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 				pi.setEvent(event);
 				prisms.ui.UI.EventObject evtObj = getUI().startTimedTask(pi);
 				pi.start();
-				evtObj.setTitle((String) event.get("title"));
-				evtObj.setOkLabel((String) event.get("okLabel"));
-				evtObj.setCancelLabel((String) event.get("cancelLabel"));
+				evtObj.setAll(title, ok, cancel);
 			}
 		}
 		else if("close".equals(method))
