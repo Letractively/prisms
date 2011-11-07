@@ -914,6 +914,7 @@ public class AppSessionServerTree extends prisms.ui.tree.service.ServiceTree
 								continue;
 							appCpu.put(appName, Long.valueOf(pre + time));
 						}
+						theUserIDs.put("Global", Long.valueOf(-1));
 						User [] users = getSession().getProperty(PrismsProperties.users);
 						for(Long userID : userCpu.keySet())
 						{
