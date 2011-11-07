@@ -3686,9 +3686,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		String transID;
 
 		long lastLogged;
+
+		long lastChecked;
+
+		StackTraceElement [] theStack;
+
+		prisms.util.ProgramTracker.TrackNode[] theTracking;
 	}
 
-	private prisms.util.ResourcePool<RunawayCheck> theCheckPool;
+	prisms.util.ResourcePool<RunawayCheck> theCheckPool;
 
 	RunawayCheck [] theChecks;
 
@@ -3723,13 +3729,24 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			{
 				public boolean identity(RunawayCheck o1, PrismsTransaction o2)
 				{
-					return o1.transID.equals(o2.getID());
+					return o1 != null && o1.transID.equals(o2.getID());
 				}
 
 				public RunawayCheck added(PrismsTransaction o, int mIdx, int retIdx)
 				{
-					adjuster[0].nullElement();
-					return null;
+					RunawayCheck ret;
+					try
+					{
+						ret = theCheckPool.getResource(false);
+					} catch(prisms.util.ResourcePool.ResourceCreationException e)
+					{
+						ret = null;
+					}
+					if(ret == null)
+						adjuster[0].nullElement();
+					else
+						ret.transID = o.getID();
+					return ret;
 				}
 
 				public RunawayCheck removed(RunawayCheck o, int oIdx, int incMod, int retIdx)
@@ -3752,7 +3769,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				freq = 60000;
 			if(runawayCheckFreq != freq)
 				runawayCheckFreq = freq;
-			if(checks[t] != null && now - checks[t].lastLogged < freq)
+			if(checks[t] != null && now - checks[t].lastChecked < freq)
 				continue;
 			TrackNode ct = trans[t].getTracker().getCurrentTask();
 			if(ct == null)
@@ -3776,9 +3793,36 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					return;
 				checks[t].transID = trans[t].getID();
 			}
-			else if(now - checks[t].lastLogged < freq)
+			else if(now - checks[t].lastChecked < freq)
 				continue;
+			checks[t].lastChecked = now;
+			prisms.util.ProgramTracker.TrackNode[] tracking = trans[t].getTracker().getData();
+			for(int tn = 0; tn < tracking.length; tn++)
+				tracking[t] = tracking[tn].clone();
+			Exception stack = new Exception()
+			{
+				@Override
+				public String toString()
+				{
+					return "\tCurrent Stack Trace:";
+				}
+			};
+			stack.setStackTrace(trans[t].getThread().getStackTrace());
+
 			StringBuilder msg = new StringBuilder();
+			if(checks[t].lastLogged > 0 && ArrayUtils.equals(tracking, checks[t].theTracking)
+				&& ArrayUtils.equals(stack.getStackTrace(), checks[t].theStack))
+			{
+				msg.append("Transaction ID#").append(trans[t].getID()).append(", thread ID ")
+					.append(trans[t].getThread().getId()).append(" still running (logged at ")
+					.append(PrismsUtils.print(checks[t].lastLogged)).append("), now at ");
+				PrismsUtils.printTimeLength(now - ct.getLatestStart(), msg, false);
+				log.warn(msg.toString());
+				continue;
+			}
+			checks[t].theTracking = tracking;
+			checks[t].theStack = stack.getStackTrace();
+
 			msg.append("Possible runaway transaction ID#");
 			msg.append(trans[t].getID());
 			msg.append(':');
@@ -3786,8 +3830,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			PrismsUtils.printTimeLength(now - root.getFirstStart(), msg, false);
 			msg.append(", ");
 			PrismsUtils.printTimeLength(now - ct.getLatestStart(), msg, false);
-			msg.append("\n\tSession: ");
-			msg.append(trans[t].getSession() == null ? "none" : trans[t].getSession().toString());
+			msg.append("\n\tApplication: ").append(
+				trans[t].getApp() == null ? "Global" : trans[t].getApp().getName());
+			if(trans[t].getSession() != null)
+			{
+				msg.append(", Client: ").append(trans[t].getSession().getClient().getName());
+				msg.append(", User: ").append(trans[t].getSession().getUser().getName());
+				msg.append(", Session ID ").append(trans[t].getSession().getMetadata().getID());
+			}
 			msg.append("\n\tThread: ");
 			msg.append(trans[t].getThread().getName());
 			msg.append(" (").append(trans[t].getThread().getState().name().toLowerCase())
@@ -3803,9 +3853,19 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					.getThread().getId()}, true, true)[0];
 				java.lang.management.LockInfo lock = ti.getLockInfo();
 				if(lock != null)
-					msg.append("\n\tWaiting for ").append(lock.toString()).append(" owned by ")
-						.append(ti.getLockOwnerName()).append(" (ID ").append(ti.getLockOwnerId())
+				{
+					msg.append("\n\tWaiting for ").append(lock.toString());
+					java.lang.management.ThreadInfo ti2 = tmxb.getThreadInfo(
+						new long [] {ti.getLockOwnerId()}, true, true)[0];
+					if(ti2.getLockOwnerId() == trans[t].getThread().getId())
+						msg.append(" deadlocked with ");
+					else
+						msg.append(" owned by ");
+					msg.append(ti.getLockOwnerName()).append(" (ID ").append(ti.getLockOwnerId())
 						.append(')');
+					if(ti2.getLockOwnerId() == trans[t].getThread().getId())
+						msg.append(" over ").append(ti.getLockInfo().toString());
+				}
 				java.lang.management.MonitorInfo[] monitors = ti.getLockedMonitors();
 				java.lang.management.LockInfo[] locks = ti.getLockedSynchronizers();
 				if(monitors.length > 0 || locks.length > 0)
@@ -3863,18 +3923,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			config.setInitialIndent("\t   ");
 			config.setWithIntro(false);
 			trans[t].getTracker().printData(msg, config);
-			Exception ex = new Exception()
-			{
-				@Override
-				public String toString()
-				{
-					return "\tCurrent Stack Trace:";
-				}
-			};
-			ex.setStackTrace(trans[t].getThread().getStackTrace());
-			log.warn(msg.toString(), ex);
+			log.warn(msg.toString(), stack);
 			checks[t].lastLogged = now;
 		}
+		theChecks = checks;
 	}
 
 	@Override

@@ -425,6 +425,22 @@ public class ProgramTracker implements Cloneable
 		}
 
 		@Override
+		public boolean equals(Object o)
+		{
+			if(!(o instanceof TrackNode))
+				return false;
+			TrackNode tn = (TrackNode) o;
+			if(name != tn.name) // Uses internal()
+				return false;
+			if(startTime != tn.startTime || count != tn.count || length != tn.length
+				|| endTime != tn.endTime || latestStartTime != tn.latestStartTime)
+				return false;
+			if(children.equals(tn.children))
+				return false;
+			return true;
+		}
+
+		@Override
 		public TrackNode clone()
 		{
 			TrackNode ret;
