@@ -94,6 +94,8 @@ public class CenterInspector implements prisms.arch.event.DataInspector
 				ret.append(prisms.util.PrismsUtils.print(center.getLastImport()));
 			else
 				ret.append("never");
+			ret.append("            \n").append("ID: ")
+				.append(((PrismsCenter) node.getValue()).getID());
 			return ret.toString();
 		}
 		else
