@@ -77,9 +77,10 @@ public class PrismsParser
 			if(parseMatch != null)
 			{
 				nextIndex += parseMatch.text.length();
-				nextIndex += passWhiteSpace(str, nextIndex);
+				nextIndex = passWhiteSpace(str, nextIndex);
 			}
-			if(parseMatch == null || (nextIndex < str.length() && str.charAt(nextIndex) != ';'))
+			if(parseMatch == null
+				|| (nextIndex < str.length() && str.charAt(nextIndex) != ';' && !isLastSemi(parseMatch)))
 			{
 				parseMatch = parseItem(str, index, null, -1, cmd, false);
 				if(parseMatch == null)
@@ -87,10 +88,10 @@ public class PrismsParser
 			}
 			parseMatches = ArrayUtils.add(parseMatches, parseMatch);
 			nextIndex = index + parseMatch.text.length();
-			nextIndex += passWhiteSpace(str, nextIndex);
+			nextIndex = passWhiteSpace(str, nextIndex);
 			if(nextIndex < str.length())
 			{
-				if(str.charAt(nextIndex) == ';')
+				if(str.charAt(nextIndex) == ';' || isLastSemi(parseMatch))
 					index++;
 				else
 					throw new ParseException("Syntax error", cmd, index);
@@ -98,6 +99,13 @@ public class PrismsParser
 			index = nextIndex;
 		}
 		return parseMatches;
+	}
+
+	private static boolean isLastSemi(ParseMatch match)
+	{
+		while(match.getParsed() != null && match.getParsed().length > 0)
+			match = match.getParsed()[match.getParsed().length - 1];
+		return match.text.charAt(match.text.length() - 1) == ';';
 	}
 
 	/**
@@ -380,7 +388,7 @@ public class PrismsParser
 			{
 				if(priority >= 0)
 					for(int idx2 = itemIdx + 1; idx2 < opConfig.subConfigs().length; idx2++)
-						if(opConfig.subConfigs()[idx2].getName().equals("literal"))
+						if(hasLiteral(opConfig.subConfigs()[idx2]))
 						{
 							priority = -1;
 							break;
@@ -493,6 +501,22 @@ public class PrismsParser
 			if(sb.charAt(index + i) != seq.charAt(i))
 				return false;
 		return true;
+	}
+
+	private boolean hasLiteral(PrismsConfig config)
+	{
+		if(config.getName().equals("literal"))
+			return true;
+		else if(config.getName().equals("select"))
+		{
+			boolean ret = true;
+			for(PrismsConfig option : config.subConfigs("option"))
+				for(PrismsConfig c : option.subConfigs())
+					ret &= hasLiteral(c);
+			if(ret)
+				return true;
+		}
+		return false;
 	}
 
 	/**

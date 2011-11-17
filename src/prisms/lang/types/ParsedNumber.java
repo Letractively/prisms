@@ -124,7 +124,7 @@ public class ParsedNumber extends prisms.lang.ParseStruct
 			ParseMatch intPart = getStored("integer");
 			ParseMatch fractPart = getStored("fractional");
 			ParseMatch expPart = getStored("exp");
-			// boolean expNeg = getStored("expNeg") != null;
+			boolean expNeg = getStored("expNeg") != null;
 			if(intPart == null && expPart == null && !floatType)
 			{
 				String value = fractPart.text;
@@ -156,9 +156,42 @@ public class ParsedNumber extends prisms.lang.ParseStruct
 			}
 			else
 			{
-				throw new prisms.lang.ParseException(
-					"Parsing of floating-point numbers not implemented yet", getRoot()
-						.getFullCommand(), getStart());
+				double d = 0;
+				String value;
+				if(intPart != null)
+				{
+					value = intPart.text;
+					value = prisms.util.PrismsUtils.replaceAll(value, "_", "");
+					for(int c = 0; c < value.length(); c++)
+						d = d * 10 + value.charAt(c) - '0';
+				}
+				if(fractPart != null)
+				{
+					double frac = 0;
+					value = fractPart.text;
+					value = prisms.util.PrismsUtils.replaceAll(value, "_", "");
+					for(int c = value.length() - 1; c >= 0; c--)
+						frac = frac / 10 + value.charAt(c) - '0';
+					frac /= 10;
+					d += frac;
+				}
+				if(expPart != null)
+				{
+					int exp = 0;
+					value = expPart.text;
+					value = prisms.util.PrismsUtils.replaceAll(value, "_", "");
+					for(int c = 0; c < value.length(); c++)
+						exp = exp * 10 + value.charAt(c) - '0';
+					for(int i = 0; i < exp; i++)
+						if(expNeg)
+							d /= 10;
+						else
+							d *= 10;
+				}
+				if(floatType)
+					theValue = Float.valueOf(neg ? (float) -d : (float) d);
+				else
+					theValue = Double.valueOf(neg ? -d : d);
 			}
 		}
 	}
