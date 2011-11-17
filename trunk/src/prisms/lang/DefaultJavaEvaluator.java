@@ -98,6 +98,28 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			for(Package pkg : pkgs)
 				if(pkg.getName().equals(name) || pkg.getName().startsWith(name + "."))
 					return new EvalResult(id.getName());
+			Class<?> importType = env.getImportMethodType(name);
+			if(importType != null)
+			{
+				for(java.lang.reflect.Field f : importType.getDeclaredFields())
+				{
+					if(!name.equals(f.getName()))
+						continue;
+					if((f.getModifiers() & Modifier.STATIC) == 0)
+						continue;
+					if(isOnlyPublic && (f.getModifiers() & Modifier.PUBLIC) == 0)
+						continue;
+					try
+					{
+						return new EvalResult(f.getType(), withValues ? f.get(null) : null);
+					} catch(Exception e)
+					{
+						throw new EvaluationException("Could not access field " + name
+							+ " on type " + EvalResult.typeString(importType), e, struct,
+							id.getStored("name").index);
+					}
+				}
+			}
 			throw new EvaluationException(name + " cannot be resolved to a "
 				+ (asType ? "type" : "variable"), struct, id.getMatch().index);
 		}
@@ -944,6 +966,10 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			}
 			else
 				ctxType = evaluate(method.getContext(), env, false, withValues);
+			if(ctxType == null)
+				throw new EvaluationException("No value for context to "
+					+ (method.isMethod() ? "method " : "field ") + method.getName(), method, method
+					.getContext().getMatch().index);
 			boolean isStatic = ctxType.isType();
 			if(!method.isMethod())
 			{
@@ -1353,28 +1379,35 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			if(imp.isStatic())
 			{
 				if(!typeEval.isType())
-					throw new EvaluationException("The import " + imp.getType().getMatch().text
-						+ "." + imp.getMethodName() + " cannot be resolved", imp, imp.getType()
-						.getMatch().index);
+					throw new EvaluationException("The static import "
+						+ imp.getType().getMatch().text + "." + imp.getMethodName()
+						+ " cannot be resolved", imp, imp.getType().getMatch().index);
 				if(imp.isWildcard())
 				{
 					if(!typeEval.isType())
-						throw new EvaluationException("The import " + imp.getType().getMatch().text
-							+ ".* cannot be resolved", imp, imp.getType().getMatch().index);
+						throw new EvaluationException("The static import "
+							+ imp.getType().getMatch().text + ".* cannot be resolved", imp, imp
+							.getType().getMatch().index);
 					for(java.lang.reflect.Method m : typeEval.getType().getDeclaredMethods())
 					{
 						if((m.getModifiers() & Modifier.STATIC) != 0)
 							continue;
 						env.addImportMethod(typeEval.getType(), m.getName());
 					}
+					for(java.lang.reflect.Field f : typeEval.getType().getDeclaredFields())
+					{
+						if((f.getModifiers() & Modifier.STATIC) != 0)
+							continue;
+						env.addImportMethod(typeEval.getType(), f.getName());
+					}
 					return null;
 				}
 				else
 				{
 					if(!typeEval.isType())
-						throw new EvaluationException("The import " + imp.getType().getMatch().text
-							+ "." + imp.getMethodName() + " cannot be resolved", imp, imp.getType()
-							.getMatch().index);
+						throw new EvaluationException("The static import "
+							+ imp.getType().getMatch().text + "." + imp.getMethodName()
+							+ " cannot be resolved", imp, imp.getType().getMatch().index);
 					boolean found = false;
 					for(java.lang.reflect.Method m : typeEval.getType().getDeclaredMethods())
 					{
@@ -1383,11 +1416,24 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 						if(!m.getName().equals(imp.getMethodName()))
 							continue;
 						found = true;
+						break;
 					}
 					if(!found)
-						throw new EvaluationException("The import " + imp.getType().getMatch().text
-							+ "." + imp.getMethodName() + " cannot be resolved", imp, imp.getType()
-							.getMatch().index);
+					{
+						for(java.lang.reflect.Field f : typeEval.getType().getDeclaredFields())
+						{
+							if((f.getModifiers() & Modifier.STATIC) == 0)
+								continue;
+							if(!f.getName().equals(imp.getMethodName()))
+								continue;
+							found = true;
+							break;
+						}
+					}
+					if(!found)
+						throw new EvaluationException("The static import "
+							+ imp.getType().getMatch().text + "." + imp.getMethodName()
+							+ " cannot be resolved", imp, imp.getType().getMatch().index);
 					env.addImportMethod(typeEval.getType(), imp.getMethodName());
 					return null;
 				}
@@ -1395,16 +1441,18 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			else if(imp.isWildcard())
 			{
 				if(typeEval.getPackageName() == null)
-					throw new EvaluationException("The import " + imp.getType().getMatch().text
-						+ ".* cannot be resolved", imp, imp.getType().getMatch().index);
+					throw new EvaluationException("The type import "
+						+ imp.getType().getMatch().text + ".* cannot be resolved", imp, imp
+						.getType().getMatch().index);
 				env.addImportPackage(typeEval.getPackageName());
 				return null;
 			}
 			else
 			{
 				if(!typeEval.isType())
-					throw new EvaluationException("The import " + imp.getType().getMatch().text
-						+ " cannot be resolved", imp, imp.getType().getMatch().index);
+					throw new EvaluationException("The type import "
+						+ imp.getType().getMatch().text + " cannot be resolved", imp, imp.getType()
+						.getMatch().index);
 				env.addImportType(typeEval.getType());
 				return null;
 			}
@@ -1467,6 +1515,8 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 					{}
 					else if(content instanceof ParsedLoop)
 					{}
+					else if(content instanceof ParsedIfStatement)
+					{}
 					else
 						throw new EvaluationException("Content expressions in a loop must be"
 							+ " declarations, assignments or method calls", loop,
@@ -1494,6 +1544,85 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 				if(withValues)
 					condRes = evaluate(condition, env, false, true);
 			} while(withValues && ((Boolean) condRes.getValue()).booleanValue());
+			return null;
+		}
+		else if(struct instanceof ParsedIfStatement)
+		{
+			ParsedIfStatement ifStmt = (ParsedIfStatement) struct;
+			boolean hit = false;
+			for(int i = 0; i < ifStmt.getConditions().length && (!hit || !withValues); i++)
+			{
+				EvaluationEnvironment scoped = env.scope(false);
+				ParseStruct condition = ifStmt.getConditions()[i];
+				EvalResult condRes = evaluate(condition, scoped, false, withValues);
+				if(condRes.isType() || condRes.getPackageName() != null)
+					throw new EvaluationException(condRes.typeString()
+						+ " cannot be resolved to a variable", struct, condition.getMatch().index);
+				if(!Boolean.TYPE.equals(condRes.getType()))
+					throw new EvaluationException("Type mismatch: cannot convert from "
+						+ condRes.typeString() + " to boolean", struct, condition.getMatch().index);
+				hit = !withValues || ((Boolean) condRes.getValue()).booleanValue();
+				if(hit)
+				{
+					for(ParseStruct content : ifStmt.getContents(i))
+					{
+						if(content instanceof ParsedAssignmentOperator)
+						{}
+						else if(content instanceof ParsedDeclaration)
+						{}
+						else if(content instanceof ParsedMethod)
+						{
+							ParsedMethod method = (ParsedMethod) content;
+							if(!method.isMethod())
+								throw new EvaluationException(
+									"Content expressions in a block must be"
+										+ " declarations, assignments or method calls", ifStmt,
+									content.getMatch().index);
+						}
+						else if(content instanceof ParsedConstructor)
+						{}
+						else if(content instanceof ParsedLoop)
+						{}
+						else if(content instanceof ParsedIfStatement)
+						{}
+						else
+							throw new EvaluationException("Content expressions in a block must be"
+								+ " declarations, assignments or method calls", ifStmt,
+								content.getMatch().index);
+						evaluate(content, scoped, false, withValues);
+					}
+				}
+			}
+			if(ifStmt.hasTerminal() && (!withValues || !hit))
+			{
+				EvaluationEnvironment scoped = env.scope(false);
+				for(ParseStruct content : ifStmt.getContents(ifStmt.getConditions().length))
+				{
+					if(content instanceof ParsedAssignmentOperator)
+					{}
+					else if(content instanceof ParsedDeclaration)
+					{}
+					else if(content instanceof ParsedMethod)
+					{
+						ParsedMethod method = (ParsedMethod) content;
+						if(!method.isMethod())
+							throw new EvaluationException("Content expressions in a block must be"
+								+ " declarations, assignments or method calls", ifStmt,
+								content.getMatch().index);
+					}
+					else if(content instanceof ParsedConstructor)
+					{}
+					else if(content instanceof ParsedLoop)
+					{}
+					else if(content instanceof ParsedIfStatement)
+					{}
+					else
+						throw new EvaluationException("Content expressions in a loop must be"
+							+ " declarations, assignments or method calls", ifStmt,
+							content.getMatch().index);
+					evaluate(content, scoped, false, withValues);
+				}
+			}
 			return null;
 		}
 		else
@@ -1744,8 +1873,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			} catch(ParseException e)
 			{
 				complete = true;
-				e.printStackTrace();
-				System.err.flush();
+				e.printStackTrace(System.out);
 				continue;
 			}
 			for(ParseStruct s : structs)
@@ -1754,15 +1882,14 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 				{
 					eval.evaluate(s, env, false, false);
 					EvalResult type = eval.evaluate(s, env, false, true);
-					if(type != null)
+					if(type != null && !Void.TYPE.equals(type.getType()))
 					{
 						System.out.println("\t" + prisms.util.ArrayUtils.toString(type.getValue()));
 						env.addHistory(type.getType(), type.getValue());
 					}
 				} catch(EvaluationException e)
 				{
-					e.printStackTrace();
-					System.err.flush();
+					e.printStackTrace(System.out);
 				}
 			}
 		} while(true);

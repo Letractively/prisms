@@ -92,7 +92,7 @@
 		<literal>)</literal>
 		<op storeAs="value" />
 	</operator>
-	<operator name="import" priority="10" impl="prisms.lang.types.ParsedImport">
+	<operator name="import" priority="9" impl="prisms.lang.types.ParsedImport">
 		<literal>import</literal>
 		<whitespace />
 		<option>
@@ -203,7 +203,7 @@
 		<literal>:</literal>
 		<op storeAs="negative" />
 	</operator>
-	<operator name="for loop" priority="10" impl="prisms.lang.types.ParsedLoop">
+	<operator name="for loop" priority="11" impl="prisms.lang.types.ParsedLoop">
 		<literal>for</literal>
 		<literal>(</literal>
 		<option>
@@ -241,6 +241,109 @@
 				<literal>}</literal>
 			</option>
 		</select>
+	</operator>
+	<operator name="while loop" priority="11" impl="prisms.lang.types.ParsedLoop">
+		<literal>while</literal>
+		<literal>(</literal>
+		<op storeAs="condition" />
+		<literal>)</literal>
+		<select>
+			<option>
+				<op storeAs="content" />
+			</option>
+			<option>
+				<literal storeAs="contentStart">{</literal>
+				<option min="0">
+					<op storeAs="content" />
+					<option>
+						<literal>;</literal>
+					</option>
+				</option>
+				<literal>}</literal>
+			</option>
+		</select>
+	</operator>
+	<operator name="do while loop" priority="11" impl="prisms.lang.types.ParsedLoop">
+		<literal>do</literal>
+		<literal storeAs="contentStart">{</literal>
+		<option min="0">
+			<op storeAs="content" />
+			<option>
+				<literal>;</literal>
+			</option>
+		</option>
+		<literal>}</literal>
+		<literal>while</literal>
+		<literal>(</literal>
+		<op storeAs="condition" />
+		<literal>)</literal>
+	</operator>
+	<operator name="if" priority="11" impl="prisms.lang.types.ParsedIfStatement">
+		<literal>if</literal>
+		<literal>(</literal>
+		<op storeAs="condition" />
+		<literal>)</literal>
+		<select>
+			<option>
+				<literal>;</literal>
+			</option>
+			<option>
+				<op storeAs="content" />
+			</option>
+			<option>
+				<literal>{</literal>
+				<option min="0">
+					<op storeAs="content" />
+					<option>
+						<literal>;</literal>
+					</option>
+				</option>
+				<literal>}</literal>
+			</option>
+		</select>
+		<option min="0">
+			<literal>else</literal>
+			<literal>if</literal>
+			<literal>(</literal>
+			<op storeAs="condition" />
+			<literal>)</literal>
+			<select>
+				<option>
+					<literal>;</literal>
+				</option>
+				<option>
+					<op storeAs="content" />
+				</option>
+				<option>
+					<literal>{</literal>
+					<option min="0">
+						<op storeAs="content" />
+						<option>
+							<literal>;</literal>
+						</option>
+					</option>
+					<literal>}</literal>
+				</option>
+			</select>
+		</option>
+		<option>
+			<literal storeAs="terminal">else</literal>
+			<select>
+				<option>
+					<op storeAs="content" />
+				</option>
+				<option>
+					<literal>{</literal>
+					<option min="0">
+						<op storeAs="content" />
+						<option>
+							<literal>;</literal>
+						</option>
+					</option>
+					<literal>}</literal>
+				</option>
+			</select>
+		</option>
 	</operator>
 	<operator name="assign" priority="0" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<pre-op storeAs="variable" />
@@ -330,17 +433,17 @@
 		<literal storeAs="name">--</literal>
 	</operator>
 
-	<operator name="or" priority="5" impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="or" priority="4" impl="prisms.lang.types.ParsedBinaryOp">
 		<pre-op />
 		<literal storeAs="name">||</literal>
 		<op />
 	</operator>
-	<operator name="and" priority="5" impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="and" priority="4" impl="prisms.lang.types.ParsedBinaryOp">
 		<pre-op />
 		<literal storeAs="name">&amp;&amp;</literal>
 		<op />
 	</operator>
-	<operator name="not" priority="5" impl="prisms.lang.types.ParsedUnaryOp">
+	<operator name="not" priority="6" impl="prisms.lang.types.ParsedUnaryOp">
 		<literal storeAs="name">!</literal>
 		<op />
 	</operator>
