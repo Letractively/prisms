@@ -22,7 +22,7 @@ import prisms.util.preferences.Preference;
  */
 public abstract class HistoryViewer implements prisms.arch.AppPlugin
 {
-	private static final Logger log = Logger.getLogger(HistoryViewer.class);
+	static final Logger log = Logger.getLogger(HistoryViewer.class);
 
 	private static final int CHANGE_GROUP_TOLERANCE = 100;
 
@@ -403,6 +403,12 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 	protected DBRecordKeeper getRecordKeeper()
 	{
 		return theRecordKeeper;
+	}
+
+	/** @return The sorter that is currently determining the order of changes displayed to the user */
+	protected Sorter<ChangeField> getSorter()
+	{
+		return theSorter;
 	}
 
 	long [] getFilteredSnapshot()
@@ -982,7 +988,10 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 	void undoSelected()
 	{
 		if(theSelectedIndices.size() == 0)
+		{
+			theSession.getUI().error("No changes selected to undo");
 			return;
+		}
 		completeChangeGroups();
 		long [] ids = new long [theSelectedIndices.size()];
 		int i = 0;
@@ -1031,63 +1040,71 @@ public abstract class HistoryViewer implements prisms.arch.AppPlugin
 				m--;
 			}
 		}
-		if(error != null)
-			getSession().getUI().error(error);
-		if(mods.length == 0)
-			return;
 		final ChangeRecord [] fMods = mods;
-		prisms.ui.UI.ConfirmListener cl = new prisms.ui.UI.ConfirmListener()
+		prisms.ui.UI.AcknowledgeListener errList = new prisms.ui.UI.AcknowledgeListener()
 		{
-			public void confirmed(boolean confirm)
+			public void acknowledged()
 			{
-				if(!confirm)
+				if(fMods.length == 0)
 					return;
-				String error2 = null;
-				for(ChangeRecord mod : fMods)
+				prisms.ui.UI.ConfirmListener cl = new prisms.ui.UI.ConfirmListener()
 				{
-					String modError = undo(mod);
-					if(modError != null)
+					public void confirmed(boolean confirm)
 					{
-						if(error2 == null)
-							error2 = modError;
-						else
-							error2 += "\n" + modError;
+						if(!confirm)
+							return;
+						String error2 = null;
+						for(ChangeRecord mod : fMods)
+						{
+							String modError = undo(mod);
+							if(modError != null)
+							{
+								if(error2 == null)
+									error2 = modError;
+								else
+									error2 += "\n" + modError;
+							}
+							else
+								theSelectedIndices.removeValue(mod.id);
+						}
+						if(error2 != null)
+							getSession().getUI().error(error2);
+						refresh(false);
 					}
+				};
+				String uiStr;
+				if(fMods.length > 1)
+					uiStr = "these " + fMods.length + " modifications";
+				else
+				{
+					ChangeRecord [] succ;
+					try
+					{
+						long [] sIDs = getRecordKeeper().search(
+							getRecordKeeper().getSuccessorSearch(fMods[0]), getSorter());
+						if(sIDs.length > 1)
+							sIDs = new long [] {sIDs[0]};
+						succ = getRecordKeeper().getItems(sIDs);
+					} catch(PrismsRecordException e)
+					{
+						log.error("Could not get successors of " + fMods[0], e);
+						succ = new ChangeRecord [0];
+					}
+					Object preValue;
+					if(succ.length > 0)
+						preValue = succ[0].previousValue;
 					else
-						theSelectedIndices.removeValue(mod.id);
+						preValue = getFieldValue(fMods[0].majorSubject, fMods[0].minorSubject,
+							fMods[0].type);
+					uiStr = "modification " + fMods[0].toString(preValue);
 				}
-				if(error2 != null)
-					getSession().getUI().error(error2);
-				refresh(false);
+				getSession().getUI().confirm("Are you sure you want to undo " + uiStr + "?", cl);
 			}
 		};
-		String uiStr;
-		if(fMods.length > 1)
-			uiStr = "these " + fMods.length + " modifications";
+		if(error != null)
+			getSession().getUI().error(error, errList);
 		else
-		{
-			ChangeRecord [] succ;
-			try
-			{
-				long [] sIDs = theRecordKeeper.search(theRecordKeeper.getSuccessorSearch(fMods[0]),
-					theSorter);
-				if(sIDs.length > 1)
-					sIDs = new long [] {sIDs[0]};
-				succ = theRecordKeeper.getItems(sIDs);
-			} catch(PrismsRecordException e)
-			{
-				log.error("Could not get successors of " + fMods[0], e);
-				succ = new ChangeRecord [0];
-			}
-			Object preValue;
-			if(succ.length > 0)
-				preValue = succ[0].previousValue;
-			else
-				preValue = getFieldValue(fMods[0].majorSubject, fMods[0].minorSubject,
-					fMods[0].type);
-			uiStr = "modification " + fMods[0].toString(preValue);
-		}
-		getSession().getUI().confirm("Are you sure you want to undo " + uiStr + "?", cl);
+			errList.acknowledged();
 	}
 
 	void completeChangeGroups()
