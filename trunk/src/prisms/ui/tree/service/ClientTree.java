@@ -1397,7 +1397,7 @@ public class ClientTree extends prisms.ui.tree.DataTreeMgrPlugin
 			{
 				if(theLoadAction != null)
 					actions.add(new NodeAction(theLoadAction, true));
-				if(theLoadAllAction != null)
+				if(theLoadAllAction != null && !theLoadAllAction.equals(theLoadAction))
 					actions.add(new NodeAction(theLoadAllAction, true));
 			}
 			if(theUnloadAction != null && isLoaded)
