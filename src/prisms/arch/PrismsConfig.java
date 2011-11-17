@@ -20,7 +20,8 @@ public abstract class PrismsConfig
 {
 	private static final Logger log = Logger.getLogger(PrismsConfig.class);
 
-	private static class DefaultPrismsConfig extends PrismsConfig
+	/** The default config implementation */
+	public static class DefaultPrismsConfig extends PrismsConfig
 	{
 		private final String theName;
 
@@ -28,7 +29,14 @@ public abstract class PrismsConfig
 
 		private final PrismsConfig [] theElements;
 
-		DefaultPrismsConfig(String name, String value, PrismsConfig [] els)
+		/**
+		 * Creates a default PRISMS config
+		 * 
+		 * @param name The name for the config
+		 * @param value The value for the config
+		 * @param els The child configs
+		 */
+		public DefaultPrismsConfig(String name, String value, PrismsConfig [] els)
 		{
 			theName = name;
 			theValue = value;
