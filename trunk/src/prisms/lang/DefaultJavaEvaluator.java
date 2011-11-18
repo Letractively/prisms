@@ -19,7 +19,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 		isOnlyPublic = true;
 	}
 
-	public EvalResult evaluate(ParseStruct struct, EvaluationEnvironment env, boolean asType,
+	public EvalResult evaluate(ParsedItem struct, EvaluationEnvironment env, boolean asType,
 		final boolean withValues) throws EvaluationException
 	{
 		if(struct instanceof ParsedBoolean)
@@ -604,7 +604,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			EvalResult ctxType = null;
 			java.lang.reflect.Field field = null;
 			EvalResult arrType = null;
-			ParseStruct var = op.getVariable();
+			ParsedItem var = op.getVariable();
 			while(var instanceof ParsedParenthetic)
 				var = ((ParsedParenthetic) var).getContent();
 			if(var instanceof ParsedIdentifier)
@@ -1461,7 +1461,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 		{
 			ParsedLoop loop = (ParsedLoop) struct;
 			EvaluationEnvironment scoped = env.scope(false);
-			for(ParseStruct init : loop.getInits())
+			for(ParsedItem init : loop.getInits())
 			{
 				if(init instanceof ParsedAssignmentOperator)
 				{}
@@ -1482,7 +1482,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 						+ " declarations, assignments or method calls", loop, init.getMatch().index);
 				evaluate(init, scoped, false, withValues);
 			}
-			ParseStruct condition = loop.getCondition();
+			ParsedItem condition = loop.getCondition();
 			EvalResult condRes = evaluate(condition, scoped, false,
 				withValues && loop.isPreCondition());
 			if(condRes.isType() || condRes.getPackageName() != null)
@@ -1497,7 +1497,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 
 			do
 			{
-				for(ParseStruct content : loop.getContents())
+				for(ParsedItem content : loop.getContents())
 				{
 					if(content instanceof ParsedAssignmentOperator)
 					{}
@@ -1523,7 +1523,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 							content.getMatch().index);
 					evaluate(content, scoped, false, withValues);
 				}
-				for(ParseStruct inc : loop.getIncrements())
+				for(ParsedItem inc : loop.getIncrements())
 				{
 					if(inc instanceof ParsedAssignmentOperator)
 					{}
@@ -1553,7 +1553,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			for(int i = 0; i < ifStmt.getConditions().length && (!hit || !withValues); i++)
 			{
 				EvaluationEnvironment scoped = env.scope(false);
-				ParseStruct condition = ifStmt.getConditions()[i];
+				ParsedItem condition = ifStmt.getConditions()[i];
 				EvalResult condRes = evaluate(condition, scoped, false, withValues);
 				if(condRes.isType() || condRes.getPackageName() != null)
 					throw new EvaluationException(condRes.typeString()
@@ -1564,7 +1564,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 				hit = !withValues || ((Boolean) condRes.getValue()).booleanValue();
 				if(hit)
 				{
-					for(ParseStruct content : ifStmt.getContents(i))
+					for(ParsedItem content : ifStmt.getContents(i))
 					{
 						if(content instanceof ParsedAssignmentOperator)
 						{}
@@ -1596,7 +1596,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 			if(ifStmt.hasTerminal() && (!withValues || !hit))
 			{
 				EvaluationEnvironment scoped = env.scope(false);
-				for(ParseStruct content : ifStmt.getContents(ifStmt.getConditions().length))
+				for(ParsedItem content : ifStmt.getContents(ifStmt.getConditions().length))
 				{
 					if(content instanceof ParsedAssignmentOperator)
 					{}
@@ -1859,7 +1859,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 				line = newLine;
 			else
 				line += "\n" + newLine;
-			ParseStruct [] structs;
+			ParsedItem [] structs;
 			try
 			{
 				ParseMatch [] matches = parser.parseMatches(line);
@@ -1876,7 +1876,7 @@ public class DefaultJavaEvaluator implements PrismsEvaluator
 				e.printStackTrace(System.out);
 				continue;
 			}
-			for(ParseStruct s : structs)
+			for(ParsedItem s : structs)
 			{
 				try
 				{

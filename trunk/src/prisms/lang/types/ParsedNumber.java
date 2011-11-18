@@ -3,10 +3,11 @@
  */
 package prisms.lang.types;
 
+import prisms.lang.EvaluationResult;
 import prisms.lang.ParseMatch;
 
 /** Represents a number literal */
-public class ParsedNumber extends prisms.lang.ParseStruct
+public class ParsedNumber extends prisms.lang.ParsedItem
 {
 	private static String MAX_LONG = "" + Long.MAX_VALUE;
 
@@ -17,7 +18,7 @@ public class ParsedNumber extends prisms.lang.ParseStruct
 	private boolean isScientific;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
 		ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
@@ -212,5 +213,13 @@ public class ParsedNumber extends prisms.lang.ParseStruct
 	public String toString()
 	{
 		return theValue.toString();
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<Number> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	{
+		return new prisms.lang.EvaluationResult<Number>(
+			(Class<Number>) EvaluationResult.getPrimitiveType(theValue.getClass()), theValue);
 	}
 }

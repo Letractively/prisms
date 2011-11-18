@@ -27,6 +27,8 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	private boolean canOverride;
 
+	private boolean isPublic;
+
 	private java.util.HashMap<String, Variable> theVariables;
 
 	private java.util.ArrayList<Variable> theHistory;
@@ -53,6 +55,11 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		theParent = parent;
 		canOverride = override;
 		theVariables = new java.util.HashMap<String, DefaultEvaluationEnvironment.Variable>();
+	}
+
+	public boolean usePublicOnly()
+	{
+		return isPublic;
 	}
 
 	public Class<?> getVariableType(String name)
@@ -85,8 +92,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return vbl.theType;
 	}
 
-	public Object getVariable(String name, ParseStruct struct, int index)
-		throws EvaluationException
+	public Object getVariable(String name, ParsedItem struct, int index) throws EvaluationException
 	{
 		Variable vbl;
 		synchronized(theVariables)
@@ -105,7 +111,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return vbl.theValue;
 	}
 
-	public void declareVariable(String name, Class<?> type, boolean isFinal, ParseStruct struct,
+	public void declareVariable(String name, Class<?> type, boolean isFinal, ParsedItem struct,
 		int index) throws EvaluationException
 	{
 		if(theParent != null && !canOverride)
@@ -123,7 +129,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
-	public void setVariable(String name, Object value, ParseStruct struct, int index)
+	public void setVariable(String name, Object value, ParsedItem struct, int index)
 		throws EvaluationException
 	{
 		Variable vbl;

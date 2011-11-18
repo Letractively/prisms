@@ -4,7 +4,7 @@
 package prisms.lang;
 
 /** The root of a parsed structure */
-public class ParseStructRoot extends ParseStruct
+public class ParseStructRoot extends ParsedItem
 {
 	private String theFullCommand;
 
@@ -18,5 +18,12 @@ public class ParseStructRoot extends ParseStruct
 	public String getFullCommand()
 	{
 		return theFullCommand;
+	}
+
+	@Override
+	public EvaluationResult<Void> evaluate(EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws EvaluationException
+	{
+		return null;
 	}
 }

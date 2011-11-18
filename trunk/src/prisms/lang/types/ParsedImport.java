@@ -4,18 +4,18 @@
 package prisms.lang.types;
 
 /** Represents an import command */
-public class ParsedImport extends prisms.lang.ParseStruct
+public class ParsedImport extends prisms.lang.ParsedItem<Void>
 {
 	private boolean isStatic;
 
 	private boolean isWildcard;
 
-	private prisms.lang.ParseStruct theType;
+	private prisms.lang.ParsedItem<?> theType;
 
 	private String theMethodName;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem<?> parent,
 		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
@@ -52,7 +52,7 @@ public class ParsedImport extends prisms.lang.ParseStruct
 	 *         to which belong the method or methods that were imported with a static import, or the
 	 *         package to import for a non-static wildcard import.
 	 */
-	public prisms.lang.ParseStruct getType()
+	public prisms.lang.ParsedItem<?> getType()
 	{
 		return theType;
 	}
@@ -79,5 +79,12 @@ public class ParsedImport extends prisms.lang.ParseStruct
 	public boolean isWildcard()
 	{
 		return isWildcard;
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<Void> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	{
+		// TODO Auto-generated method stub
 	}
 }

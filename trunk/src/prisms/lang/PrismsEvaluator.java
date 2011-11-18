@@ -150,6 +150,6 @@ public interface PrismsEvaluator
 	 * @return The result of the expression
 	 * @throws EvaluationException If the expression cannot be validated or evaluated
 	 */
-	EvalResult evaluate(ParseStruct struct, EvaluationEnvironment env, boolean asType,
+	EvalResult evaluate(ParsedItem struct, EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws EvaluationException;
 }

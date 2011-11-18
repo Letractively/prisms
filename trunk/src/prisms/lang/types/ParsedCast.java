@@ -3,15 +3,17 @@
  */
 package prisms.lang.types;
 
-/** Represents a cast from one type to another */
-public class ParsedCast extends prisms.lang.ParseStruct
-{
-	private prisms.lang.ParseStruct theType;
+import prisms.lang.EvaluationException;
 
-	private prisms.lang.ParseStruct theValue;
+/** Represents a cast from one type to another */
+public class ParsedCast extends prisms.lang.ParsedItem
+{
+	private prisms.lang.ParsedItem theType;
+
+	private prisms.lang.ParsedItem theValue;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
 		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
@@ -20,13 +22,13 @@ public class ParsedCast extends prisms.lang.ParseStruct
 	}
 
 	/** @return The type that the value is being cast to */
-	public prisms.lang.ParseStruct getType()
+	public prisms.lang.ParsedItem getType()
 	{
 		return theType;
 	}
 
 	/** @return The value that is being type-cast */
-	public prisms.lang.ParseStruct getValue()
+	public prisms.lang.ParsedItem getValue()
 	{
 		return theValue;
 	}
@@ -35,5 +37,23 @@ public class ParsedCast extends prisms.lang.ParseStruct
 	public String toString()
 	{
 		return "(" + theType + ") " + theValue;
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<Object> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws EvaluationException
+	{
+		prisms.lang.EvaluationResult<?> typeEval = theType.evaluate(env, true, false);
+		if(!typeEval.isType())
+			throw new EvaluationException("Unrecognized type " + theType.getMatch().text, this,
+				theType.getMatch().index);
+		try
+		{
+			return new prisms.lang.EvaluationResult<Object>(typeEval.getType(), withValues
+				? typeEval.getType().cast(theValue.evaluate(env, false, withValues)) : null);
+		} catch(ClassCastException e)
+		{
+			throw new EvaluationException(e.getMessage(), e, this, getStored("type").index);
+		}
 	}
 }

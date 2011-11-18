@@ -5,7 +5,7 @@ package prisms.lang;
 
 /**
  * Thrown by {@link PrismsParser} or implementations of
- * {@link ParseStruct#setup(PrismsParser, ParseStruct, ParseMatch, int) ParseStruct.setup()} in
+ * {@link ParsedItem#setup(PrismsParser, ParsedItem, ParseMatch, int) ParseStruct.setup()} in
  * response to syntax errors in text to be parsed
  */
 public class ParseException extends Exception

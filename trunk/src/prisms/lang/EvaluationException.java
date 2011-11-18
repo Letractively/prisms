@@ -4,13 +4,12 @@
 package prisms.lang;
 
 /**
- * Thrown from
- * {@link PrismsEvaluator#evaluate(ParseStruct, EvaluationEnvironment, boolean, boolean)} if
- * evaluation of a parsed structure fails
+ * Thrown from {@link PrismsEvaluator#evaluate(ParsedItem, EvaluationEnvironment, boolean, boolean)}
+ * if evaluation of a parsed structure fails
  */
 public class EvaluationException extends Exception
 {
-	private ParseStruct theStruct;
+	private ParsedItem theStruct;
 
 	private int theIndex;
 
@@ -25,7 +24,7 @@ public class EvaluationException extends Exception
 	 * @param struct The parsed structure where the evaluation failed
 	 * @param index The index within the full command where the problem occurred
 	 */
-	public EvaluationException(String message, ParseStruct struct, int index)
+	public EvaluationException(String message, ParsedItem struct, int index)
 	{
 		super(message);
 		theStruct = struct;
@@ -51,7 +50,7 @@ public class EvaluationException extends Exception
 	 * @param struct The parsed structure where the evaluation failed
 	 * @param index The index within the full command where the problem occurred
 	 */
-	public EvaluationException(String message, Throwable cause, ParseStruct struct, int index)
+	public EvaluationException(String message, Throwable cause, ParsedItem struct, int index)
 	{
 		super(message, cause);
 		theStruct = struct;
@@ -70,7 +69,7 @@ public class EvaluationException extends Exception
 	}
 
 	/** @return The parsed structure where the evaluation failed */
-	public ParseStruct getStruct()
+	public ParsedItem getStruct()
 	{
 		return theStruct;
 	}
