@@ -3,10 +3,14 @@
  */
 package prisms.lang.types;
 
-/** Represents a typed, parsed declaration */
-public class ParsedDeclaration extends prisms.lang.ParseStruct
+/**
+ * Represents a typed, parsed declaration
+ * 
+ * @param <T> The type of the variable being declared
+ */
+public class ParsedDeclaration extends Assignable
 {
-	private prisms.lang.ParseStruct theType;
+	private prisms.lang.ParsedItem theType;
 
 	private String theName;
 
@@ -15,7 +19,7 @@ public class ParsedDeclaration extends prisms.lang.ParseStruct
 	private int theArrayDimension;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
 		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
@@ -40,7 +44,7 @@ public class ParsedDeclaration extends prisms.lang.ParseStruct
 	}
 
 	/** @return The type of this declaration */
-	public prisms.lang.ParseStruct getType()
+	public prisms.lang.ParsedItem getType()
 	{
 		return theType;
 	}
@@ -55,5 +59,12 @@ public class ParsedDeclaration extends prisms.lang.ParseStruct
 	public String toString()
 	{
 		return theType + " " + theName;
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<Void> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	{
+		// TODO Auto-generated method stub
 	}
 }

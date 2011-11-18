@@ -7,6 +7,12 @@ package prisms.lang;
 public interface EvaluationEnvironment
 {
 	/**
+	 * @return Whether evaluations should only allow access to publicly declared classes, methods,
+	 *         and fields
+	 */
+	boolean usePublicOnly();
+
+	/**
 	 * @param name The name of the variable to refer to
 	 * @return The type of the variable, or null if no variable with the given name has been
 	 *         declared
@@ -20,7 +26,7 @@ public interface EvaluationEnvironment
 	 * @return The value of the given variable
 	 * @throws EvaluationException If the given variable has not been defined or initialized
 	 */
-	Object getVariable(String name, ParseStruct struct, int index) throws EvaluationException;
+	Object getVariable(String name, ParsedItem struct, int index) throws EvaluationException;
 
 	/**
 	 * @param name The name of the variable to define
@@ -30,7 +36,7 @@ public interface EvaluationEnvironment
 	 * @param index The index to use if an error needs to be thrown
 	 * @throws EvaluationException If a variable already exists with the given name
 	 */
-	void declareVariable(String name, Class<?> type, boolean isFinal, ParseStruct struct, int index)
+	void declareVariable(String name, Class<?> type, boolean isFinal, ParsedItem struct, int index)
 		throws EvaluationException;
 
 	/**
@@ -41,7 +47,7 @@ public interface EvaluationEnvironment
 	 * @throws EvaluationException If the variable cannot be assigned to the given value for any
 	 *         reason
 	 */
-	void setVariable(String name, Object value, ParseStruct struct, int index)
+	void setVariable(String name, Object value, ParsedItem struct, int index)
 		throws EvaluationException;
 
 	/** @return The number of history items present in this environment */

@@ -116,20 +116,20 @@ public class PrismsParser
 	 * @return The syntax structures parsed from the matches
 	 * @throws ParseException If parsing fails
 	 */
-	public synchronized ParseStruct [] parseStructures(ParseStruct parent, ParseMatch... matches)
+	public synchronized ParsedItem [] parseStructures(ParsedItem parent, ParseMatch... matches)
 		throws ParseException
 	{
 		int index = 0;
-		ParseStruct [] ret = new ParseStruct [matches.length];
+		ParsedItem [] ret = new ParsedItem [matches.length];
 		for(int i = 0; i < ret.length; i++)
 		{
 			ParseMatch implMatch = matches[i];
-			Class<? extends ParseStruct> implClass = null;
+			Class<? extends ParsedItem> implClass = null;
 			while(implClass == null)
 			{
 				try
 				{
-					implClass = implMatch.config.getClass("impl", ParseStruct.class);
+					implClass = implMatch.config.getClass("impl", ParsedItem.class);
 				} catch(ClassNotFoundException e)
 				{
 					throw new ParseException("Implementation not found for " + implMatch.config, e,
@@ -548,7 +548,7 @@ public class PrismsParser
 			{
 				ParseMatch [] matches = parser.parseMatches(line);
 				ParseStructRoot root = new ParseStructRoot(line);
-				ParseStruct [] structs = parser.parseStructures(root, matches);
+				ParsedItem [] structs = parser.parseStructures(root, matches);
 				System.out.println(ArrayUtils.toString(structs));
 			} catch(ParseException e)
 			{

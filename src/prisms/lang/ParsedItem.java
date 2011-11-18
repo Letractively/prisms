@@ -3,12 +3,16 @@
  */
 package prisms.lang;
 
-/** A basic syntax structure representing the final output of the {@link PrismsParser} */
-public abstract class ParseStruct
+/**
+ * A basic syntax structure representing the final output of the {@link PrismsParser}
+ * 
+ * @param <T> The type, if known, of the results of expressions of this type
+ */
+public abstract class ParsedItem
 {
 	private PrismsParser theParser;
 
-	private ParseStruct theParent;
+	private ParsedItem theParent;
 
 	private ParseMatch theMatch;
 
@@ -23,7 +27,7 @@ public abstract class ParseStruct
 	 * @param start The index in the full command of the parse match
 	 * @throws ParseException If parsing or syntactical validation fails
 	 */
-	public void setup(PrismsParser parser, ParseStruct parent, ParseMatch match, int start)
+	public void setup(PrismsParser parser, ParsedItem parent, ParseMatch match, int start)
 		throws ParseException
 	{
 		theParser = parser;
@@ -39,7 +43,7 @@ public abstract class ParseStruct
 	}
 
 	/** @return This structure's parent */
-	public ParseStruct getParent()
+	public ParsedItem getParent()
 	{
 		return theParent;
 	}
@@ -47,7 +51,7 @@ public abstract class ParseStruct
 	/** @return The root of this structure */
 	public ParseStructRoot getRoot()
 	{
-		ParseStruct ret = this;
+		ParsedItem ret = this;
 		while(ret != null && !(ret instanceof ParseStructRoot))
 			ret = ret.theParent;
 		return (ParseStructRoot) ret;
@@ -78,4 +82,17 @@ public abstract class ParseStruct
 	{
 		return theStart;
 	}
+
+	/**
+	 * Validates or evaluates this expression
+	 * 
+	 * @param env The evaluation environment to execute in
+	 * @param asType Whether the result should be a type if possible
+	 * @param withValues Whether to evaluate the value of the expression, or simply validate it and
+	 *        return its type
+	 * @return The result of the expression
+	 * @throws EvaluationException If an error occurs evaluating the expression
+	 */
+	public abstract EvaluationResult<?> evaluate(EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws EvaluationException;
 }

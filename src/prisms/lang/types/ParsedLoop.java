@@ -5,32 +5,32 @@ package prisms.lang.types;
 
 import java.util.ArrayList;
 
-import prisms.lang.ParseStruct;
+import prisms.lang.ParsedItem;
 
 /** Represents a loop */
-public class ParsedLoop extends ParseStruct
+public class ParsedLoop extends ParsedItem<Object>
 {
-	private ParseStruct [] theInits;
+	private ParsedItem<?> [] theInits;
 
-	private ParseStruct theCondition;
+	private ParsedItem<Boolean> theCondition;
 
-	private ParseStruct [] theIncrements;
+	private ParsedItem<?> [] theIncrements;
 
-	private ParseStruct [] theContents;
+	private ParsedItem<?> [] theContents;
 
 	private boolean isPreCondition;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent,
 		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
 		prisms.lang.ParseMatch conditionMatch = getStored("condition");
 		if(conditionMatch != null)
 			theCondition = parser.parseStructures(this, conditionMatch)[0];
-		ArrayList<ParseStruct> inits = new ArrayList<ParseStruct>();
-		ArrayList<ParseStruct> incs = new ArrayList<ParseStruct>();
-		ArrayList<ParseStruct> cont = new ArrayList<ParseStruct>();
+		ArrayList<ParsedItem<?>> inits = new ArrayList<ParsedItem<?>>();
+		ArrayList<ParsedItem<?>> incs = new ArrayList<ParsedItem<?>>();
+		ArrayList<ParsedItem<?>> cont = new ArrayList<ParsedItem<?>>();
 
 		boolean hasContent = false;
 		for(prisms.lang.ParseMatch m : match.getParsed())
@@ -49,9 +49,9 @@ public class ParsedLoop extends ParseStruct
 			else if("contentStart".equals(m.config.get("storeAs")))
 				hasContent = true;
 		}
-		theInits = inits.toArray(new ParseStruct [inits.size()]);
-		theIncrements = incs.toArray(new ParseStruct [incs.size()]);
-		theContents = cont.toArray(new ParseStruct [cont.size()]);
+		theInits = inits.toArray(new ParsedItem [inits.size()]);
+		theIncrements = incs.toArray(new ParsedItem [incs.size()]);
+		theContents = cont.toArray(new ParsedItem [cont.size()]);
 	}
 
 	/**
@@ -64,26 +64,33 @@ public class ParsedLoop extends ParseStruct
 	}
 
 	/** @return The condition determining when the loop will stop executing */
-	public ParseStruct getCondition()
+	public ParsedItem<Boolean> getCondition()
 	{
 		return theCondition;
 	}
 
 	/** @return The set of statements to run before starting the loop */
-	public ParseStruct [] getInits()
+	public ParsedItem<?> [] getInits()
 	{
 		return theInits;
 	}
 
 	/** @return The set of statements to run in between execution of the loop's contents */
-	public ParseStruct [] getIncrements()
+	public ParsedItem<?> [] getIncrements()
 	{
 		return theIncrements;
 	}
 
 	/** @return The set of statements to run in the loop */
-	public ParseStruct [] getContents()
+	public ParsedItem<?> [] getContents()
 	{
 		return theContents;
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<Object> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	{
+		// TODO Auto-generated method stub
 	}
 }

@@ -3,13 +3,17 @@
  */
 package prisms.lang.types;
 
+import prisms.lang.EvaluationEnvironment;
+import prisms.lang.EvaluationException;
+import prisms.lang.EvaluationResult;
+
 /** Represents a parenthetic expression */
-public class ParsedParenthetic extends prisms.lang.ParseStruct
+public class ParsedParenthetic extends Assignable
 {
-	private prisms.lang.ParseStruct theContent;
+	private prisms.lang.ParsedItem theContent;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
 		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
@@ -17,7 +21,7 @@ public class ParsedParenthetic extends prisms.lang.ParseStruct
 	}
 
 	/** @return The content of this parenthetical */
-	public prisms.lang.ParseStruct getContent()
+	public prisms.lang.ParsedItem getContent()
 	{
 		return theContent;
 	}
@@ -26,5 +30,32 @@ public class ParsedParenthetic extends prisms.lang.ParseStruct
 	public String toString()
 	{
 		return "(" + theContent + ")";
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<?> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	{
+		return theContent.evaluate(env, asType, withValues);
+	}
+
+	@Override
+	public EvaluationResult<?> getValue(EvaluationEnvironment env, ParsedAssignmentOperator assign)
+		throws EvaluationException
+	{
+		if(!(theContent instanceof Assignable))
+			throw new EvaluationException("Invalid argument for assignment operator "
+				+ assign.getName(), this, theContent.getMatch().index);
+		return ((Assignable) theContent).getValue(env, assign);
+	}
+
+	@Override
+	public void assign(Object value, EvaluationEnvironment env, ParsedAssignmentOperator assign)
+		throws EvaluationException
+	{
+		if(!(theContent instanceof Assignable))
+			throw new EvaluationException("Invalid argument for assignment operator "
+				+ assign.getName(), this, theContent.getMatch().index);
+		((Assignable) theContent).assign(value, env, assign);
 	}
 }

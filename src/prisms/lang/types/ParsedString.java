@@ -4,12 +4,12 @@
 package prisms.lang.types;
 
 /** Represents a character string */
-public class ParsedString extends prisms.lang.ParseStruct
+public class ParsedString extends prisms.lang.ParsedItem
 {
 	private String theValue;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
 		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
@@ -46,5 +46,12 @@ public class ParsedString extends prisms.lang.ParseStruct
 	public String toString()
 	{
 		return "\"" + escape(theValue) + "\"";
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<String> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	{
+		return new prisms.lang.EvaluationResult<String>(String.class, theValue);
 	}
 }

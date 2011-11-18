@@ -113,7 +113,7 @@ public class EvaluationPlugin implements prisms.arch.AppPlugin
 			theSession.getUI().startTimedTask(pi);
 			try
 			{
-				ParseStruct [] structs;
+				ParsedItem [] structs;
 				try
 				{
 					ParseMatch [] matches = theParser.parseMatches(expr);

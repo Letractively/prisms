@@ -13,18 +13,18 @@ import prisms.lang.ParseMatch;
  * <li><b>A method:</b> An operation with a context, in the form of ctx.fn(arg1, arg2...)</li>
  * </ul>
  */
-public class ParsedMethod extends prisms.lang.ParseStruct
+public class ParsedMethod extends prisms.lang.ParsedItem<Object>
 {
 	private String theName;
 
 	private boolean isMethod;
 
-	private prisms.lang.ParseStruct theContext;
+	private prisms.lang.ParsedItem<?> theContext;
 
-	private prisms.lang.ParseStruct[] theArguments;
+	private prisms.lang.ParsedItem<?> [] theArguments;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParseStruct parent,
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem<?> parent,
 		ParseMatch match, int start) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match, start);
@@ -66,13 +66,13 @@ public class ParsedMethod extends prisms.lang.ParseStruct
 	}
 
 	/** @return The instance on which this field or method was invoked */
-	public prisms.lang.ParseStruct getContext()
+	public prisms.lang.ParsedItem<?> getContext()
 	{
 		return theContext;
 	}
 
 	/** @return The arguments to this method */
-	public prisms.lang.ParseStruct[] getArguments()
+	public prisms.lang.ParsedItem<?> [] getArguments()
 	{
 		return theArguments;
 	}
@@ -96,5 +96,12 @@ public class ParsedMethod extends prisms.lang.ParseStruct
 			ret.append(')');
 		}
 		return ret.toString();
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult<Object> evaluate(prisms.lang.EvaluationEnvironment env,
+		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	{
+		// TODO Auto-generated method stub
 	}
 }
