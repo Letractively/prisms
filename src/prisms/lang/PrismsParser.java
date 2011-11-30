@@ -235,16 +235,31 @@ public class PrismsParser
 			else if(item.getName().equals("pre-op"))
 			{
 				if(preOp == null)
+				{
+					if("option".equals(opConfig.getName()))
+					{
+						ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeOnly);
+						if(op == null)
+							return null;
+						ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(item, op.text, index,
+							new ParseMatch [] {op}));
+						index += op.text.length();
+					}
+					else
+						return null;
+				}
+				else if(item.get("type") != null && !item.get("type").equals(preOp.config.get("name")))
 					return null;
-				if(item.get("type") != null && !item.get("type").equals(preOp.config.get("name")))
-					return null;
-				if(hasPreOpConfig)
+				else if(hasPreOpConfig)
 				{
 					log.error("Double pre-op configuration for config " + opConfig.get("name"));
 					return null;
 				}
-				hasPreOpConfig = true;
-				ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, index, new ParseMatch [] {preOp}));
+				else
+				{
+					hasPreOpConfig = true;
+					ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, index, new ParseMatch [] {preOp}));
+				}
 				continue;
 			}
 			else if(preOp != null && !hasPreOpConfig)
@@ -386,22 +401,7 @@ public class PrismsParser
 			}
 			else if(item.getName().equals("op"))
 			{
-				if(!completeOnly && !optional && index == sb.length())
-					throw new IncompleteInputException("Incomplete input", command, index);
-				if(priority >= 0)
-					for(int idx2 = itemIdx + 1; idx2 < opConfig.subConfigs().length; idx2++)
-						if(opConfig.subConfigs()[idx2].getName().equals("literal"))
-						{
-							priority = -1;
-							break;
-						}
-
-				String type = item.get("type");
-				ParseMatch op;
-				if(type == null)
-					op = parseItem(sb, index, null, priority, command, completeOnly);
-				else
-					op = parseItem(sb, index, null, priority, command, completeOnly, type.split("\\|"));
+				ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeOnly);
 				if(op == null)
 					return null;
 				ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(item, op.text, index, new ParseMatch [] {op}));
@@ -540,6 +540,28 @@ public class PrismsParser
 				return true;
 		}
 		return false;
+	}
+
+	private ParseMatch parseOp(StringBuilder sb, int index, PrismsConfig opConfig, int itemIdx, int priority,
+		boolean optional, String command, boolean completeOnly) throws IncompleteInputException
+	{
+		if(!completeOnly && !optional && index == sb.length())
+			throw new IncompleteInputException("Incomplete input", command, index);
+		if(priority >= 0)
+			for(int idx2 = itemIdx + 1; idx2 < opConfig.subConfigs().length; idx2++)
+				if(opConfig.subConfigs()[idx2].getName().equals("literal"))
+				{
+					priority = -1;
+					break;
+				}
+
+		String type = opConfig.subConfigs()[itemIdx].get("type");
+		ParseMatch op;
+		if(type == null)
+			op = parseItem(sb, index, null, priority, command, completeOnly);
+		else
+			op = parseItem(sb, index, null, priority, command, completeOnly, type.split("\\|"));
+		return op;
 	}
 
 	/**

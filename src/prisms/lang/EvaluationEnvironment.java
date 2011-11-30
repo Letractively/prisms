@@ -6,9 +6,7 @@ package prisms.lang;
 /** An environment for parsing. Allows state to be kept between evaluations. */
 public interface EvaluationEnvironment
 {
-	/**
-	 * @return Whether evaluations should only allow access to publicly declared classes, methods, and fields
-	 */
+	/** @return Whether evaluations should only allow access to publicly declared classes, methods, and fields */
 	boolean usePublicOnly();
 
 	/**
@@ -45,6 +43,31 @@ public interface EvaluationEnvironment
 	 * @throws EvaluationException If the variable cannot be assigned to the given value for any reason
 	 */
 	void setVariable(String name, Object value, ParsedItem struct, int index) throws EvaluationException;
+
+	/**
+	 * Stores a function for later use
+	 * 
+	 * @param function The function to store
+	 */
+	void declareFunction(prisms.lang.types.ParsedFunctionDeclaration function);
+
+	/** @return All functions that have been declared in this environment */
+	prisms.lang.types.ParsedFunctionDeclaration[] getDeclaredFunctions();
+
+	/** @param type Sets the return type that is expected from this scoped enviroment */
+	void setReturnType(Type type);
+
+	/** @return The return type that is expected within this scoped environment */
+	Type getReturnType();
+
+	/** @param types The exception types that are handleable within this scoped environment */
+	void setHandledExceptionTypes(Type [] types);
+
+	/**
+	 * @param exType The exception type to check
+	 * @return Whether the given exception may be thrown from within this scoped environment
+	 */
+	boolean canHandle(Type exType);
 
 	/** @return The number of history items present in this environment */
 	int getHistoryCount();
