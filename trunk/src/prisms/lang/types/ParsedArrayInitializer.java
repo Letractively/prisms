@@ -6,7 +6,6 @@ package prisms.lang.types;
 import java.lang.reflect.Array;
 
 import prisms.lang.EvaluationException;
-import prisms.lang.PrismsEvaluator.EvalResult;
 
 /** Represents the creation of an array instance */
 public class ParsedArrayInitializer extends prisms.lang.ParsedItem
@@ -20,10 +19,10 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 	private prisms.lang.ParsedItem[] theElements;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		theType = parser.parseStructures(this, getStored("type"))[0];
 		boolean hasEmptyDimension = false;
 		boolean hasSize = false;
@@ -38,12 +37,11 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 			{
 				if(hasValues)
 					throw new prisms.lang.ParseException(
-						"Cannot define dimension expressions when an array initializer is provided",
-						getRoot().getFullCommand(), m.index);
-				if(hasEmptyDimension)
-					throw new prisms.lang.ParseException(
-						"Cannot specify an array dimension after an empty dimension", getRoot()
+						"Cannot define dimension expressions when an array initializer is provided", getRoot()
 							.getFullCommand(), m.index);
+				if(hasEmptyDimension)
+					throw new prisms.lang.ParseException("Cannot specify an array dimension after an empty dimension",
+						getRoot().getFullCommand(), m.index);
 				hasSize = true;
 				sizes.add(parser.parseStructures(this, m)[0]);
 			}
@@ -56,9 +54,8 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 				elements.add(parser.parseStructures(this, m)[0]);
 		}
 		if(!hasValues && sizes.size() == 0)
-			throw new prisms.lang.ParseException(
-				"Must provide either dimension expressions or an array initializer", getRoot()
-					.getFullCommand(), match.index);
+			throw new prisms.lang.ParseException("Must provide either dimension expressions or an array initializer",
+				getRoot().getFullCommand(), match.index);
 		theSizes = sizes.toArray(new prisms.lang.ParsedItem [sizes.size()]);
 		theElements = elements.toArray(new prisms.lang.ParsedItem [elements.size()]);
 	}
@@ -76,8 +73,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 	}
 
 	/**
-	 * @return The sizes that are specified for this array. There may be fewer sizes than
-	 *         {@link #getDimension()}.
+	 * @return The sizes that are specified for this array. There may be fewer sizes than {@link #getDimension()}.
 	 */
 	public prisms.lang.ParsedItem[] getSizes()
 	{
@@ -91,36 +87,37 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<Object> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws EvaluationException
 	{
-		prisms.lang.EvaluationResult<?> typeEval = theType.evaluate(env, true, false);
+		prisms.lang.EvaluationResult typeEval = theType.evaluate(env, true, false);
 		if(!typeEval.isType())
 			throw new EvaluationException("Unrecognized type " + theType.getMatch().text, this,
 				theType.getMatch().index);
-		Class<?> type = typeEval.getType();
+		prisms.lang.Type type = typeEval.getType();
+		if(type.getBaseType() == null)
+		{}
 		for(int i = theDimension - 1; i >= 0; i--)
-			type = Array.newInstance(type, 0).getClass();
+			type = type.getArrayType();
 		if(!withValues)
-			return new prisms.lang.EvaluationResult<Object>(type, null);
+			return new prisms.lang.EvaluationResult(type, null);
 		Object ret = null;
 		if(theSizes.length > 0)
 		{
 			final int [] sizes = new int [theSizes.length];
 			for(int i = 0; i < sizes.length; i++)
 			{
-				prisms.lang.EvaluationResult<?> sizeEval = theSizes[i].evaluate(env, false,
-					withValues);
+				prisms.lang.EvaluationResult sizeEval = theSizes[i].evaluate(env, false, withValues);
 				if(sizeEval.isType() || sizeEval.getPackageName() != null)
-					throw new EvaluationException(sizeEval.typeString()
-						+ " cannot be resolved to a variable", this, theSizes[i].getMatch().index);
-				if(!sizeEval.isIntType() || Long.TYPE.equals(sizeEval.getType()))
-					throw new EvaluationException("Type mismatch: " + sizeEval.typeString()
-						+ " cannot be cast to int", this, theSizes[i].getMatch().index);
+					throw new EvaluationException(sizeEval.typeString() + " cannot be resolved to a variable", this,
+						theSizes[i].getMatch().index);
+				if(!sizeEval.isIntType() || Long.TYPE.equals(sizeEval.getType().getBaseType()))
+					throw new EvaluationException("Type mismatch: " + sizeEval + " cannot be cast to int", this,
+						theSizes[i].getMatch().index);
 				sizes[i] = ((Number) sizeEval.getValue()).intValue();
 			}
 			type = type.getComponentType();
-			ret = Array.newInstance(type, sizes[0]);
+			ret = Array.newInstance(type.getBaseType(), sizes[0]);
 			class ArrayFiller
 			{
 				public void fillArray(Object array, Class<?> componentType, int dimIdx)
@@ -136,7 +133,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 					}
 				}
 			}
-			new ArrayFiller().fillArray(ret, type.getComponentType(), 1);
+			new ArrayFiller().fillArray(ret, type.getComponentType().getBaseType(), 1);
 		}
 		else
 		{
@@ -144,22 +141,20 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 			Object [] elements = new Object [theElements.length];
 			for(int i = 0; i < elements.length; i++)
 			{
-				prisms.lang.EvaluationResult<?> elEval = theElements[i].evaluate(env, false,
-					withValues);
+				prisms.lang.EvaluationResult elEval = theElements[i].evaluate(env, false, withValues);
 				if(elEval.isType() || elEval.getPackageName() != null)
-					throw new EvaluationException(elEval.typeString()
-						+ " cannot be resolved to a variable", this, theSizes[i].getMatch().index);
-				if(!prisms.lang.PrismsLangUtils.canAssign(type, elEval.getType()))
-					throw new EvaluationException("Type mismatch: cannot convert from "
-						+ elEval.typeString() + " to " + EvalResult.typeString(type), this,
-						theElements[i].getMatch().index);
+					throw new EvaluationException(elEval.typeString() + " cannot be resolved to a variable", this,
+						theSizes[i].getMatch().index);
+				if(!type.isAssignable(elEval.getType()))
+					throw new EvaluationException("Type mismatch: cannot convert from " + elEval.typeString() + " to "
+						+ type, this, theElements[i].getMatch().index);
 				elements[i] = elEval.getValue();
 			}
-			ret = Array.newInstance(type, elements.length);
+			ret = Array.newInstance(type.getBaseType(), elements.length);
 			for(int i = 0; i < elements.length; i++)
 				Array.set(ret, i, elements[i]);
 		}
 
-		return new prisms.lang.EvaluationResult<Object>(ret.getClass(), ret);
+		return new prisms.lang.EvaluationResult(typeEval.getType(), ret);
 	}
 }

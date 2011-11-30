@@ -5,32 +5,33 @@ package prisms.lang.types;
 
 import java.util.ArrayList;
 
+import prisms.lang.EvaluationException;
+import prisms.lang.EvaluationResult;
 import prisms.lang.ParsedItem;
 
 /** Represents a loop */
-public class ParsedLoop extends ParsedItem<Object>
+public class ParsedLoop extends ParsedItem
 {
-	private ParsedItem<?> [] theInits;
+	private ParsedItem [] theInits;
 
-	private ParsedItem<Boolean> theCondition;
+	private ParsedItem theCondition;
 
-	private ParsedItem<?> [] theIncrements;
+	private ParsedItem [] theIncrements;
 
-	private ParsedItem<?> [] theContents;
+	private ParsedStatementBlock theContents;
 
 	private boolean isPreCondition;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		prisms.lang.ParseMatch conditionMatch = getStored("condition");
 		if(conditionMatch != null)
 			theCondition = parser.parseStructures(this, conditionMatch)[0];
-		ArrayList<ParsedItem<?>> inits = new ArrayList<ParsedItem<?>>();
-		ArrayList<ParsedItem<?>> incs = new ArrayList<ParsedItem<?>>();
-		ArrayList<ParsedItem<?>> cont = new ArrayList<ParsedItem<?>>();
+		ArrayList<ParsedItem> inits = new ArrayList<ParsedItem>();
+		ArrayList<ParsedItem> incs = new ArrayList<ParsedItem>();
 
 		boolean hasContent = false;
 		for(prisms.lang.ParseMatch m : match.getParsed())
@@ -42,55 +43,120 @@ public class ParsedLoop extends ParsedItem<Object>
 			else if("increment".equals(m.config.get("storeAs")))
 				incs.add(parser.parseStructures(this, m)[0]);
 			else if("content".equals(m.config.get("storeAs")))
-			{
-				hasContent = true;
-				cont.add(parser.parseStructures(this, m)[0]);
-			}
-			else if("contentStart".equals(m.config.get("storeAs")))
 				hasContent = true;
 		}
 		theInits = inits.toArray(new ParsedItem [inits.size()]);
 		theIncrements = incs.toArray(new ParsedItem [incs.size()]);
-		theContents = cont.toArray(new ParsedItem [cont.size()]);
+		ParsedItem contentItem = parser.parseStructures(this, getStored("content"))[0];
+		if(contentItem instanceof ParsedStatementBlock)
+			theContents = (ParsedStatementBlock) contentItem;
+		else
+			theContents = new ParsedStatementBlock(parser, this, contentItem.getMatch(), contentItem);
 	}
 
-	/**
-	 * @return Whether this loop's condition should be checked before the first execution of the
-	 *         contents
-	 */
+	/** @return Whether this loop's condition should be checked before the first execution of the contents */
 	public boolean isPreCondition()
 	{
 		return isPreCondition;
 	}
 
 	/** @return The condition determining when the loop will stop executing */
-	public ParsedItem<Boolean> getCondition()
+	public ParsedItem getCondition()
 	{
 		return theCondition;
 	}
 
 	/** @return The set of statements to run before starting the loop */
-	public ParsedItem<?> [] getInits()
+	public ParsedItem [] getInits()
 	{
 		return theInits;
 	}
 
 	/** @return The set of statements to run in between execution of the loop's contents */
-	public ParsedItem<?> [] getIncrements()
+	public ParsedItem [] getIncrements()
 	{
 		return theIncrements;
 	}
 
 	/** @return The set of statements to run in the loop */
-	public ParsedItem<?> [] getContents()
+	public ParsedStatementBlock getContents()
 	{
 		return theContents;
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<Object> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
-		// TODO Auto-generated method stub
+		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
+		for(ParsedItem init : theInits)
+		{
+			if(init instanceof ParsedAssignmentOperator)
+			{}
+			else if(init instanceof ParsedDeclaration)
+			{}
+			else if(init instanceof ParsedMethod)
+			{
+				ParsedMethod method = (ParsedMethod) init;
+				if(!method.isMethod())
+					throw new EvaluationException("Initial expressions in a loop must be"
+						+ " declarations, assignments or method calls", this, init.getMatch().index);
+			}
+			else if(init instanceof ParsedConstructor)
+			{}
+			else
+				throw new EvaluationException("Initial expressions in a loop must be"
+					+ " declarations, assignments or method calls", this, init.getMatch().index);
+			init.evaluate(scoped, false, withValues);
+		}
+		ParsedItem condition = theCondition;
+		EvaluationResult condRes = condition.evaluate(scoped, false, withValues && isPreCondition);
+		if(condRes.isType() || condRes.getPackageName() != null)
+			throw new EvaluationException(condRes.typeString() + " cannot be resolved to a variable", this,
+				condition.getMatch().index);
+		if(!Boolean.TYPE.equals(condRes.getType().getBaseType()))
+			throw new EvaluationException("Type mismatch: cannot convert from " + condRes.typeString() + " to boolean",
+				this, condition.getMatch().index);
+		if(withValues && isPreCondition && !((Boolean) condRes.getValue()).booleanValue())
+			return null;
+
+		do
+		{
+			EvaluationResult res = theContents.evaluate(scoped, false, withValues);
+			if(res != null && withValues && res.getControl() == EvaluationResult.ControlType.RETURN)
+				return res;
+			for(ParsedItem inc : theIncrements)
+			{
+				if(inc instanceof ParsedAssignmentOperator)
+				{}
+				else if(inc instanceof ParsedMethod)
+				{
+					ParsedMethod method = (ParsedMethod) inc;
+					if(!method.isMethod())
+						throw new EvaluationException("Increment expressions in a loop must be"
+							+ " assignments or method calls", this, inc.getMatch().index);
+				}
+				else if(inc instanceof ParsedConstructor)
+				{}
+				else
+					throw new EvaluationException("Increment expressions in a loop must be"
+						+ " assignments or method calls", this, inc.getMatch().index);
+				inc.evaluate(scoped, false, withValues);
+			}
+			if(res != null && withValues && res.getControl() != null)
+			{
+				switch(res.getControl())
+				{
+				case RETURN: // Already checked this case above
+				case BREAK:
+					break;
+				case CONTINUE:
+					continue;
+				}
+			}
+			if(withValues)
+				condRes = condition.evaluate(scoped, false, true);
+		} while(withValues && ((Boolean) condRes.getValue()).booleanValue());
+		return null;
 	}
 }

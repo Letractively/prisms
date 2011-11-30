@@ -15,10 +15,10 @@ public class ParsedArrayIndex extends Assignable
 	private prisms.lang.ParsedItem theIndex;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		theArray = parser.parseStructures(this, getStored("array"))[0];
 		theIndex = parser.parseStructures(this, getStored("index"))[0];
 	}
@@ -36,42 +36,40 @@ public class ParsedArrayIndex extends Assignable
 	}
 
 	@Override
-	public EvaluationResult<?> evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws prisms.lang.EvaluationException
+	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws prisms.lang.EvaluationException
 	{
-		EvaluationResult<?> array = theArray.evaluate(env, false, withValues);
-		if(array.isType() || array.getPackageName() != null)
-			throw new EvaluationException(array.typeString() + " cannot be resolved to a variable",
-				this, theArray.getMatch().index);
+		EvaluationResult array = theArray.evaluate(env, false, withValues);
+		if(!array.isValue())
+			throw new EvaluationException(array.typeString() + " cannot be resolved to a variable", this,
+				theArray.getMatch().index);
 		if(!array.getType().isArray())
-			throw new EvaluationException(
-				"The type of the expression must resolve to an array but it resolved to "
-					+ array.typeString(), this, theArray.getMatch().index);
-		EvaluationResult<?> index = theIndex.evaluate(env, false, withValues);
-		if(index.isType() || index.getPackageName() != null)
-			throw new EvaluationException(index.typeString() + " cannot be resolved to a variable",
-				this, theIndex.getMatch().index);
-		if(!index.isIntType() || Long.TYPE.equals(index.getType()))
-			throw new EvaluationException("Type mismatch: cannot convert from "
-				+ index.typeString() + " to int", this, theIndex.getMatch().index);
-		return new EvaluationResult<Object>(array.getType().getComponentType(), withValues
-			? java.lang.reflect.Array.get(array.getValue(), ((Number) index.getValue()).intValue())
-			: null);
+			throw new EvaluationException("The type of the expression must resolve to an array but it resolved to "
+				+ array.typeString(), this, theArray.getMatch().index);
+		EvaluationResult index = theIndex.evaluate(env, false, withValues);
+		if(!index.isValue())
+			throw new EvaluationException(index.typeString() + " cannot be resolved to a variable", this,
+				theIndex.getMatch().index);
+		if(!index.isIntType() || Long.TYPE.equals(index.getType().getBaseType()))
+			throw new EvaluationException("Type mismatch: cannot convert from " + index + " to int", this,
+				theIndex.getMatch().index);
+		return new EvaluationResult(array.getType().getComponentType(), withValues ? java.lang.reflect.Array.get(
+			array.getValue(), ((Number) index.getValue()).intValue()) : null);
 	}
 
 	@Override
-	public EvaluationResult<?> getValue(EvaluationEnvironment env, ParsedAssignmentOperator assign)
+	public EvaluationResult getValue(EvaluationEnvironment env, ParsedAssignmentOperator assign)
 		throws EvaluationException
 	{
 		return evaluate(env, false, true);
 	}
 
 	@Override
-	public void assign(Object value, EvaluationEnvironment env, ParsedAssignmentOperator assign)
+	public void assign(EvaluationResult value, EvaluationEnvironment env, ParsedAssignmentOperator assign)
 		throws EvaluationException
 	{
 		int index = ((Number) theIndex.evaluate(env, false, true).getValue()).intValue();
-		Class<?> type = theArray.evaluate(env, false, false).getType();
-		java.lang.reflect.Array.set(type, index, value);
+		EvaluationResult res = theArray.evaluate(env, false, false);
+		java.lang.reflect.Array.set(res.getValue(), index, value.getValue());
 	}
 }

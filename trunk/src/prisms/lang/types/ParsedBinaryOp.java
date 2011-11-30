@@ -17,17 +17,17 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 	private prisms.lang.ParsedItem theOp2;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
+		throws ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		try
 		{
 			theName = getStored("name").text;
 		} catch(NullPointerException e)
 		{
-			throw new ParseException("No name for configured binary operation: "
-				+ getMatch().config, getRoot().getFullCommand(), getStart());
+			throw new ParseException("No name for configured binary operation: " + getMatch().config, getRoot()
+				.getFullCommand(), getMatch().index);
 		}
 		for(prisms.lang.ParseMatch m : match.getParsed())
 		{
@@ -40,11 +40,11 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 			}
 		}
 		if(theOp1 == null)
-			throw new ParseException("No pre-op for configured binary operation: "
-				+ getMatch().config, getRoot().getFullCommand(), getStart());
+			throw new ParseException("No pre-op for configured binary operation: " + getMatch().config, getRoot()
+				.getFullCommand(), getMatch().index);
 		if(theOp2 == null)
-			throw new ParseException("No op for configured binary operation: " + getMatch().config,
-				getRoot().getFullCommand(), getStart());
+			throw new ParseException("No op for configured binary operation: " + getMatch().config, getRoot()
+				.getFullCommand(), getMatch().index);
 	}
 
 	/** @return The name of the operation */
@@ -72,40 +72,42 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public EvaluationResult<?> evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws EvaluationException
+	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
-		EvaluationResult<?> res1 = theOp1.evaluate(env, false, withValues);
-		EvaluationResult<?> res2 = theOp2.evaluate(env, false, withValues);
+		EvaluationResult res1 = theOp1.evaluate(env, false, withValues);
+		EvaluationResult res2 = theOp2.evaluate(env, false, withValues);
 		if(res1.isType() || res1.getPackageName() != null)
-			throw new EvaluationException(res1.getFirstVar() + " cannot be resolved to a variable",
-				this, getOp1().getMatch().index);
+			throw new EvaluationException(res1.getFirstVar() + " cannot be resolved to a variable", this, getOp1()
+				.getMatch().index);
+		if(res1.getControl() != null)
+			throw new EvaluationException("Syntax error: misplaced construct", this, getStored("name").index);
 		if(res2.isType() || res2.getPackageName() != null)
-			throw new EvaluationException(res2.getFirstVar() + " cannot be resolved to a variable",
-				this, getOp2().getMatch().index);
+			throw new EvaluationException(res2.getFirstVar() + " cannot be resolved to a variable", this, getOp2()
+				.getMatch().index);
+		if(res2.getControl() != null)
+			throw new EvaluationException("Syntax error: misplaced construct", this, getStored("name").index);
 
 		if("+".equals(theName) || "-".equals(theName) || "*".equals(theName) || "/".equals(theName)
 			|| "%".equals(theName))
 		{
 			if("+".equals(theName)
-				&& (String.class.equals(res1.getType()) || String.class.equals(res2.getType())))
+				&& (String.class.equals(res1.getType().getBaseType()) || String.class.equals(res2.getType()
+					.getBaseType())))
 			{
 				StringBuilder value = null;
 				if(withValues)
 					value = new StringBuilder().append(res1.getValue()).append(res2.getValue());
-				return new EvaluationResult<String>(String.class, withValues ? value.toString()
-					: null);
+				return new EvaluationResult(new prisms.lang.Type(String.class), withValues ? value.toString() : null);
 			}
-			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType())
-				|| !res2.getType().isPrimitive() || Boolean.TYPE.equals(res2.getType()))
-				throw new EvaluationException("The operator " + theName
-					+ " is not defined for types " + res1.typeString() + ", " + res2.typeString(),
-					this, getStored("name").index);
-			Class<?> max = prisms.lang.PrismsLangUtils.getMaxType(res1.getType(), res2.getType());
+			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType().getBaseType())
+				|| !res2.getType().isPrimitive() || Boolean.TYPE.equals(res2.getType().getBaseType()))
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
+					+ res2, this, getStored("name").index);
+			prisms.lang.Type max = res1.getType().getCommonType(res2.getType());
 			Number op1, op2;
 			if(res1.getValue() instanceof Character)
-				op1 = withValues ? Integer.valueOf(((Character) res1.getValue()).charValue())
-					: null;
+				op1 = withValues ? Integer.valueOf(((Character) res1.getValue()).charValue()) : null;
 			else
 				op1 = (Number) res1.getValue();
 			if(res2.getValue() instanceof Character)
@@ -115,42 +117,38 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 			Object res;
 			if(withValues)
 			{
-				if(max.equals(Double.TYPE))
+				if(max.getBaseType().equals(Double.TYPE))
 					res = Double.valueOf(mathF(theName, op1, op2));
-				else if(max.equals(Float.TYPE))
+				else if(max.getBaseType().equals(Float.TYPE))
 					res = Float.valueOf((float) mathF(theName, op1, op2));
-				else if(max.equals(Long.TYPE))
-					res = Long.valueOf(mathI(max, theName, op1, op2));
-				else if(max.equals(Integer.TYPE))
-					res = Integer.valueOf((int) mathI(max, theName, op1, op2));
-				else if(max.equals(Character.TYPE))
-					res = Integer.valueOf((int) mathI(max, theName, op1, op2));
-				else if(max.equals(Short.TYPE))
-					res = Short.valueOf((short) mathI(max, theName, op1, op2));
-				else if(max.equals(Byte.TYPE))
-					res = Byte.valueOf((byte) mathI(max, theName, op1, op2));
+				else if(max.getBaseType().equals(Long.TYPE))
+					res = Long.valueOf(mathI(max.getBaseType(), theName, op1, op2));
+				else if(max.getBaseType().equals(Integer.TYPE))
+					res = Integer.valueOf((int) mathI(max.getBaseType(), theName, op1, op2));
+				else if(max.getBaseType().equals(Character.TYPE))
+					res = Integer.valueOf((int) mathI(max.getBaseType(), theName, op1, op2));
+				else if(max.getBaseType().equals(Short.TYPE))
+					res = Short.valueOf((short) mathI(max.getBaseType(), theName, op1, op2));
+				else if(max.getBaseType().equals(Byte.TYPE))
+					res = Byte.valueOf((byte) mathI(max.getBaseType(), theName, op1, op2));
 				else
-					throw new EvaluationException("The operator " + theName
-						+ " is not defined for type " + EvaluationResult.typeString(max), this,
+					throw new EvaluationException("The operator " + theName + " is not defined for type " + max, this,
 						getStored("name").index);
 			}
 			else
 				res = null;
-			return new EvaluationResult<Object>(max, res);
+			return new EvaluationResult(max, res);
 		}
-		else if("<".equals(theName) || "<=".equals(theName) || ">".equals(theName)
-			|| ">=".equals(theName))
+		else if("<".equals(theName) || "<=".equals(theName) || ">".equals(theName) || ">=".equals(theName))
 		{
-			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType())
-				|| !res2.getType().isPrimitive() || Boolean.TYPE.equals(res2.getType()))
-				throw new EvaluationException("The operator " + theName
-					+ " is not defined for types " + res1.typeString() + ", " + res2.typeString(),
-					this, getStored("name").index);
-			Class<?> max = prisms.lang.PrismsLangUtils.getMaxType(res1.getType(), res2.getType());
+			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType().getBaseType())
+				|| !res2.getType().isPrimitive() || Boolean.TYPE.equals(res2.getType().getBaseType()))
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
+					+ res2, this, getStored("name").index);
+			prisms.lang.Type max = res1.getType().getCommonType(res2.getType());
 			Number op1, op2;
 			if(res1.getValue() instanceof Character)
-				op1 = withValues ? Integer.valueOf(((Character) res1.getValue()).charValue())
-					: null;
+				op1 = withValues ? Integer.valueOf(((Character) res1.getValue()).charValue()) : null;
 			else
 				op1 = (Number) res1.getValue();
 			if(res2.getValue() instanceof Character)
@@ -158,154 +156,134 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 			else
 				op2 = (Number) res2.getValue();
 			if(!withValues)
-				return new EvaluationResult<Boolean>(Boolean.TYPE, null);
+				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), (Boolean) null);
 			else if(max.equals(Double.TYPE) || max.equals(Float.TYPE))
-				return new EvaluationResult<Boolean>(Boolean.TYPE, Boolean.valueOf(compareF(
-					theName, op1, op2)));
+				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), Boolean.valueOf(compareF(theName, op1,
+					op2)));
 			else
-				return new EvaluationResult<Boolean>(Boolean.TYPE, Boolean.valueOf(compareI(
-					theName, op1, op2)));
+				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), Boolean.valueOf(compareI(theName, op1,
+					op2)));
 		}
 		else if("==".equals(theName) || "!=".equals(theName))
 		{
 			boolean ret;
-			if(Boolean.TYPE.equals(res1.getType()) && Boolean.TYPE.equals(res2.getType()))
-				ret = withValues ? ((Boolean) res1.getValue()).booleanValue() == ((Boolean) res2
-					.getValue()).booleanValue() : false;
-			else if(Boolean.TYPE.equals(res1.getType()) || Boolean.TYPE.equals(res2.getType()))
-				throw new EvaluationException("The operator " + theName
-					+ " is not defined for types " + res1.typeString() + ", " + res2.typeString(),
-					this, getStored("name").index);
-			else if(Character.TYPE.equals(res1.getType()) && Character.TYPE.equals(res2.getType()))
-				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Character) res2
-					.getValue()).charValue() : false;
-			else if(Character.TYPE.equals(res1.getType()) && res2.getType().isPrimitive())
-				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Number) res2
-					.getValue()).doubleValue() : false;
-			else if(Character.TYPE.equals(res2.getType()) && res1.getType().isPrimitive())
-				ret = withValues ? ((Character) res2.getValue()).charValue() == ((Number) res1
-					.getValue()).doubleValue() : false;
+			if(Boolean.TYPE.equals(res1.getType().getBaseType()) && Boolean.TYPE.equals(res2.getType().getBaseType()))
+				ret = withValues ? ((Boolean) res1.getValue()).booleanValue() == ((Boolean) res2.getValue())
+					.booleanValue() : false;
+			else if(Boolean.TYPE.equals(res1.getType().getBaseType())
+				|| Boolean.TYPE.equals(res2.getType().getBaseType()))
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
+					+ res2, this, getStored("name").index);
+			else if(Character.TYPE.equals(res1.getType().getBaseType())
+				&& Character.TYPE.equals(res2.getType().getBaseType()))
+				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Character) res2.getValue())
+					.charValue() : false;
+			else if(Character.TYPE.equals(res1.getType().getBaseType()) && res2.getType().isPrimitive())
+				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Number) res2.getValue())
+					.doubleValue() : false;
+			else if(Character.TYPE.equals(res2.getType().getBaseType()) && res1.getType().isPrimitive())
+				ret = withValues ? ((Character) res2.getValue()).charValue() == ((Number) res1.getValue())
+					.doubleValue() : false;
 			else if(res1.getType().isPrimitive() && res2.getType().isPrimitive())
-				ret = withValues ? ((Number) res1.getValue()).doubleValue() == ((Number) res2
-					.getValue()).doubleValue() : false;
+				ret = withValues ? ((Number) res1.getValue()).doubleValue() == ((Number) res2.getValue()).doubleValue()
+					: false;
 			else if(res1.getType().isPrimitive() || res2.getType().isPrimitive())
-				throw new EvaluationException("The operator " + theName
-					+ " is not defined for types " + res1.typeString() + ", " + res2.typeString(),
-					this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for types "
+					+ res1.typeString() + ", " + res2.typeString(), this, getStored("name").index);
 			else
 				ret = withValues ? res1.getValue() == res2.getValue() : false;
 			if("!=".equals(theName))
 				ret = !ret;
-			return new EvaluationResult<Boolean>(Boolean.TYPE, withValues ? null
-				: Boolean.valueOf(ret));
+			return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), withValues ? null : Boolean.valueOf(ret));
 		}
 		else if("||".equals(theName))
 		{
-			if(Boolean.TYPE.equals(res1.getType()) && Boolean.TYPE.equals(res2.getType()))
-				return new EvaluationResult<Boolean>(Boolean.TYPE, withValues
-					? Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
-						|| ((Boolean) res2.getValue()).booleanValue()) : null);
-			throw new EvaluationException("The operator " + theName + " is not defined for types "
-				+ res1.typeString() + ", " + res2.typeString(), this, getStored("name").index);
+			if(Boolean.TYPE.equals(res1.getType().getBaseType()) && Boolean.TYPE.equals(res2.getType().getBaseType()))
+				return new EvaluationResult(res1.getType(), withValues ? Boolean.valueOf(((Boolean) res1.getValue())
+					.booleanValue() || ((Boolean) res2.getValue()).booleanValue()) : null);
+			throw new EvaluationException("The operator " + theName + " is not defined for types " + res1.typeString()
+				+ ", " + res2.typeString(), this, getStored("name").index);
 		}
 		else if("&&".equals(theName))
 		{
-			if(Boolean.TYPE.equals(res1.getType()) && Boolean.TYPE.equals(res2.getType()))
-				return new EvaluationResult<Boolean>(Boolean.TYPE, withValues
-					? Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
-						&& ((Boolean) res2.getValue()).booleanValue()) : null);
-			throw new EvaluationException("The operator " + theName + " is not defined for types "
-				+ res1.typeString() + ", " + res2.typeString(), this, getStored("name").index);
+			if(Boolean.TYPE.equals(res1.getType().getBaseType()) && Boolean.TYPE.equals(res2.getType().getBaseType()))
+				return new EvaluationResult(res1.getType(), withValues ? Boolean.valueOf(((Boolean) res1.getValue())
+					.booleanValue() && ((Boolean) res2.getValue()).booleanValue()) : null);
+			throw new EvaluationException(
+				"The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
+				getStored("name").index);
 		}
 		else if("|".equals(theName) || "&".equals(theName) || "^".equals(theName))
 		{
-			if(Boolean.TYPE.equals(res1.getType()) && Boolean.TYPE.equals(res2.getType()))
+			if(Boolean.TYPE.equals(res1.getType().getBaseType()) && Boolean.TYPE.equals(res2.getType()))
 			{
 				if(!withValues)
-					return new EvaluationResult<Boolean>(Boolean.TYPE, null);
+					return new EvaluationResult(res1.getType(), (Boolean) null);
 				else if("|".equals(theName))
-					return new EvaluationResult<Boolean>(Boolean.TYPE,
-						Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
-							| ((Boolean) res2.getValue()).booleanValue()));
+					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue())
+						.booleanValue() | ((Boolean) res2.getValue()).booleanValue()));
 				else if("&".equals(theName))
-					return new EvaluationResult<Boolean>(Boolean.TYPE,
-						Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
-							& ((Boolean) res2.getValue()).booleanValue()));
+					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue())
+						.booleanValue() & ((Boolean) res2.getValue()).booleanValue()));
 				else
-					return new EvaluationResult<Boolean>(Boolean.TYPE,
-						Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
-							^ ((Boolean) res2.getValue()).booleanValue()));
+					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue())
+						.booleanValue() ^ ((Boolean) res2.getValue()).booleanValue()));
 			}
 			else if(res1.isIntType() && res2.isIntType())
 			{
-				Class<?> max = prisms.lang.PrismsLangUtils.getMaxType(res1.getType(),
-					res2.getType());
+				prisms.lang.Type max = res1.getType().getCommonType(res2.getType());
 				if(!withValues)
-					return new EvaluationResult<Object>(max, null);
+					return new EvaluationResult(max, null);
 				long val;
 				if("|".equals(theName))
-					val = ((Number) res1.getValue()).longValue()
-						| ((Number) res2.getValue()).longValue();
+					val = ((Number) res1.getValue()).longValue() | ((Number) res2.getValue()).longValue();
 				else if("&".equals(theName))
-					val = ((Number) res1.getValue()).longValue()
-						& ((Number) res2.getValue()).longValue();
+					val = ((Number) res1.getValue()).longValue() & ((Number) res2.getValue()).longValue();
 				else
-					val = ((Number) res1.getValue()).longValue()
-						^ ((Number) res2.getValue()).longValue();
-				if(Long.TYPE.equals(max))
-					return new EvaluationResult<Long>((Class<Long>) max, Long.valueOf(val));
-				else if(Integer.TYPE.equals(max))
-					return new EvaluationResult<Integer>((Class<Integer>) max,
-						Integer.valueOf((int) val));
-				else if(Character.TYPE.equals(max))
-					return new EvaluationResult<Character>((Class<Character>) max,
-						Character.valueOf((char) val));
-				else if(Short.TYPE.equals(max))
-					return new EvaluationResult<Short>((Class<Short>) max,
-						Short.valueOf((short) val));
-				else if(Byte.TYPE.equals(max))
-					return new EvaluationResult<Byte>((Class<Byte>) max, Byte.valueOf((byte) val));
+					val = ((Number) res1.getValue()).longValue() ^ ((Number) res2.getValue()).longValue();
+				if(Long.TYPE.equals(max.getBaseType()))
+					return new EvaluationResult(max, Long.valueOf(val));
+				else if(Integer.TYPE.equals(max.getBaseType()))
+					return new EvaluationResult(max, Integer.valueOf((int) val));
+				else if(Character.TYPE.equals(max.getBaseType()))
+					return new EvaluationResult(max, Character.valueOf((char) val));
+				else if(Short.TYPE.equals(max.getBaseType()))
+					return new EvaluationResult(max, Short.valueOf((short) val));
+				else if(Byte.TYPE.equals(max.getBaseType()))
+					return new EvaluationResult(max, Byte.valueOf((byte) val));
 				else
-					throw new EvaluationException("The operator " + theName
-						+ " is not defined for types " + res1.typeString() + ", "
-						+ res2.typeString(), this, getStored("name").index);
+					throw new EvaluationException("The operator " + theName + " is not defined for types " + res1
+						+ ", " + res2, this, getStored("name").index);
 			}
 			else
-				throw new EvaluationException("The operator " + theName
-					+ " is not defined for types " + res1.typeString() + ", " + res2.typeString(),
-					this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for types "
+					+ res1.typeString() + ", " + res2.typeString(), this, getStored("name").index);
 		}
 		else if("<<".equals(theName) || ">>".equals(theName) || ">>>".equals(theName))
 		{
-			Class<?> max = prisms.lang.PrismsLangUtils.getMaxType(res1.getType(), res2.getType());
+			prisms.lang.Type max = res1.getType().getCommonType(res2.getType());
 			if(!withValues)
-				return new EvaluationResult<Object>(max, null);
+				return new EvaluationResult(max, null);
 			long val;
 			if("<<".equals(theName))
-				val = ((Number) res1.getValue()).longValue() << ((Number) res2.getValue())
-					.longValue();
+				val = ((Number) res1.getValue()).longValue() << ((Number) res2.getValue()).longValue();
 			else if(">>".equals(theName))
-				val = ((Number) res1.getValue()).longValue() >> ((Number) res2.getValue())
-					.longValue();
+				val = ((Number) res1.getValue()).longValue() >> ((Number) res2.getValue()).longValue();
 			else
-				val = ((Number) res1.getValue()).longValue() >>> ((Number) res2.getValue())
-					.longValue();
-			if(Long.TYPE.equals(max))
-				return new EvaluationResult<Long>((Class<Long>) max, Long.valueOf(val));
-			else if(Integer.TYPE.equals(max))
-				return new EvaluationResult<Integer>((Class<Integer>) max,
-					Integer.valueOf((int) val));
-			else if(Character.TYPE.equals(max))
-				return new EvaluationResult<Character>((Class<Character>) max,
-					Character.valueOf((char) val));
-			else if(Short.TYPE.equals(max))
-				return new EvaluationResult<Short>((Class<Short>) max, Short.valueOf((short) val));
-			else if(Byte.TYPE.equals(max))
-				return new EvaluationResult<Byte>((Class<Byte>) max, Byte.valueOf((byte) val));
+				val = ((Number) res1.getValue()).longValue() >>> ((Number) res2.getValue()).longValue();
+			if(Long.TYPE.equals(max.getBaseType()))
+				return new EvaluationResult(max, Long.valueOf(val));
+			else if(Integer.TYPE.equals(max.getBaseType()))
+				return new EvaluationResult(max, Integer.valueOf((int) val));
+			else if(Character.TYPE.equals(max.getBaseType()))
+				return new EvaluationResult(max, Character.valueOf((char) val));
+			else if(Short.TYPE.equals(max.getBaseType()))
+				return new EvaluationResult(max, Short.valueOf((short) val));
+			else if(Byte.TYPE.equals(max.getBaseType()))
+				return new EvaluationResult(max, Byte.valueOf((byte) val));
 			else
-				throw new EvaluationException("The operator " + theName
-					+ " is not defined for types " + res1.typeString() + ", " + res2.typeString(),
-					this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
+					+ res2, this, getStored("name").index);
 		}
 		else
 			throw new EvaluationException("Binary operator " + theName + " not recognized", this,

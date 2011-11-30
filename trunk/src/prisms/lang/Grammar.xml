@@ -78,13 +78,118 @@
 			</option>
 		</select>
 	</entity>
+	<entity name="null" priority="199" impl="prisms.lang.types.ParseNull">
+		<literal>null</literal>
+	</entity> 
+	<entity name="keyword" priority="1" impl="prisms.lang.types.ParsedKeyword">
+		<charset pattern="[_a-zA-Z][_a-zA-Z0-9]*" storeAs="name">
+			<match>package</match>
+			<match>import</match>
+			<match>class</match>
+			<match>interface</match>
+			<match>enum</match>
+			<match>abstract</match>
+			<match>extends</match>
+			<match>implements</match>
+			<match>public</match>
+			<match>protected</match>
+			<match>private</match>
+			<match>static</match>
+			<match>synchronized</match>
+			<match>transient</match>
+			<match>volatile</match>
+			<match>native</match>
+			<match>strictfp</match>
+			<match>final</match>
+			<match>throws</match>
+			<match>super</match>
+			<match>this</match>
+
+			<match>if</match>
+			<match>else</match>
+			<match>for</match>
+			<match>do</match>
+			<match>while</match>
+			<match>switch</match>
+			<match>case</match>
+			<match>default</match>
+			<match>break</match>
+			<match>continue</match>
+			<match>try</match>
+			<match>catch</match>
+			<match>finally</match>
+			<match>return</match>
+			<match>throw</match>
+
+			<match>void</match>
+			<match>null</match>
+			<match>boolean</match>
+			<match>true</match>
+			<match>false</match>
+			<match>char</match>
+			<match>byte</match>
+			<match>short</match>
+			<match>int</match>
+			<match>long</match>
+			<match>float</match>
+			<match>double</match>
+
+			<match>new</match>
+			<match>instanceof</match>
+			<match>assert</match>
+
+			<match>goto</match>
+			<match>const</match>
+		</charset>
+	</entity>
 	<entity name="identifier" priority="0" impl="prisms.lang.types.ParsedIdentifier">
 		<charset pattern="[_a-zA-Z][_a-zA-Z0-9]*" storeAs="name" />
+	</entity>
+	<entity name="basic type" priority="-1" impl="prisms.lang.types.ParsedType">
+		<op type="identifier|keyword" storeAs="name" />
+		<option min="0">
+			<literal>.</literal>
+			<op type="identifier|keyword" storeAs="name" />
+		</option>
+	</entity>
+	<entity name="type" priority="-1" impl="prisms.lang.types.ParsedType">
+		<op type="basic type" storeAs="base" />
+		<option>
+			<literal>&lt;</literal>
+			<op type="wildcard type" storeAs="paramType" />
+			<option min="0">
+				<literal>,</literal>
+				<op type="wildcard type" storeAs="paramType" />
+			</option>
+			<literal>&gt;</literal>
+		</option>
+	</entity>
+	<entity name="wildcard type" priority="-1" impl="prisms.lang.types.ParsedType">
+		<select>
+			<option>
+				<literal>?</literal>
+				<select>
+					<option>
+						<literal storeAs="superBound">super</literal>
+					</option>
+					<option>
+						<literal storeAs="extendsBound">extends</literal>
+					</option>
+				</select>
+				<op type="type" storeAs="bound" />
+			</option>
+			<option>
+				<literal storeAs="wildcard">?</literal>
+			</option>
+			<option>
+				<op type="type" storeAs="type" />
+			</option>
+		</select>
 	</entity>
 
 	<operator name="cast" priority="150" impl="prisms.lang.types.ParsedCast">
 		<literal>(</literal>
-		<op storeAs="type" />
+		<op storeAs="type" type="type" />
 		<option min="0">
 			<literal storeAs="array">[</literal>
 			<literal>]</literal>
@@ -99,7 +204,7 @@
 			<literal storeAs="static">static</literal>
 			<whitespace />
 		</option>
-		<op storeAs="type" />
+		<op storeAs="type" type="type" />
 		<option>
 			<literal storeAs="wildcard">.*</literal>
 		</option>
@@ -127,10 +232,10 @@
 		</option>
 		<literal>)</literal>
 	</operator>
-	<operator name="field/method" priority="10" impl="prisms.lang.types.ParsedMethod">
+	<operator name="field/method" priority="11" impl="prisms.lang.types.ParsedMethod">
 		<pre-op />
 		<literal storeAs="dot">.</literal>
-		<op storeAs="name" />
+		<op type="identifier|keyword" storeAs="name" />
 		<option>
 			<literal storeAs="method">(</literal>
 			<option>
@@ -145,6 +250,15 @@
 	</operator>
 	<operator name="declaration" priority="100" impl="prisms.lang.types.ParsedDeclaration">
 		<pre-op storeAs="type" />
+		<option>
+			<literal>&lt;</literal>
+			<op type="wildcard type" storeAs="paramType" />
+			<option min="0">
+				<literal>,</literal>
+				<op type="wildcard type" storeAs="paramType" />
+			</option>
+			<literal>&gt;</literal>
+		</option>
 		<option min="0">
 			<literal storeAs="array">[</literal>
 			<literal>]</literal>
@@ -156,13 +270,37 @@
 		<literal storeAs="final">final</literal>
 		<whitespace />
 		<op storeAs="type" />
+		<option>
+			<literal>&lt;</literal>
+			<op type="wildcard type" storeAs="paramType" />
+			<option min="0">
+				<literal>,</literal>
+				<op type="wildcard type" storeAs="paramType" />
+			</option>
+			<literal>&gt;</literal>
+		</option>
 		<whitespace />
 		<op type="identifier" storeAs="name" />
+	</operator>
+	<operator name="instanceof" priority="100" impl="prisms.lang.types.ParsedInstanceofOp">
+		<pre-op storeAs="variable" />
+		<literal>instanceof</literal>
+		<op type="type" storeAs="type" />
+	</operator>
+	<operator name="return" priority="100" impl="prisms.lang.types.ParsedReturn">
+		<literal>return</literal>
+		<option>
+			<op storeAs="value" />
+		</option>
+	</operator>
+	<operator name="throw" priority="100" impl="prisms.lang.types.ParsedThrow">
+		<literal>throw</literal>
+		<op storeAs="value" />
 	</operator>
 	<operator name="constructor" priority="101" impl="prisms.lang.types.ParsedConstructor">
 		<literal>new</literal>
 		<whitespace />
-		<op storeAs="type" />
+		<op storeAs="type" type="type" />
 		<literal>(</literal>
 		<option>
 			<op />
@@ -176,7 +314,7 @@
 	<operator name="array initializer" priority="101" impl="prisms.lang.types.ParsedArrayInitializer">
 		<literal>new</literal>
 		<whitespace />
-		<op storeAs="type" />
+		<op storeAs="type" type="type" />
 		<option min="1">
 			<literal storeAs="startDimension">[</literal>
 			<option>
@@ -203,6 +341,13 @@
 		<literal>:</literal>
 		<op storeAs="negative" />
 	</operator>
+	<operator name="block" priority="11" impl="prisms.lang.types.ParsedStatementBlock">
+		<literal>{</literal>
+		<option min="0">
+			<op storeAs="content" />
+		</option>
+		<literal>}</literal>
+	</operator>
 	<operator name="for loop" priority="11" impl="prisms.lang.types.ParsedLoop">
 		<literal>for</literal>
 		<literal>(</literal>
@@ -228,17 +373,10 @@
 		<literal>)</literal>
 		<select>
 			<option>
-				<op storeAs="content" />
+				<literal>;</literal>
 			</option>
 			<option>
-				<literal storeAs="contentStart">{</literal>
-				<option min="0">
-					<op storeAs="content" />
-					<option>
-						<literal>;</literal>
-					</option>
-				</option>
-				<literal>}</literal>
+				<op storeAs="content" />
 			</option>
 		</select>
 	</operator>
@@ -249,34 +387,36 @@
 		<literal>)</literal>
 		<select>
 			<option>
-				<op storeAs="content" />
+				<literal>;</literal>
 			</option>
 			<option>
-				<literal storeAs="contentStart">{</literal>
-				<option min="0">
-					<op storeAs="content" />
-					<option>
-						<literal>;</literal>
-					</option>
-				</option>
-				<literal>}</literal>
+				<op storeAs="content" />
 			</option>
 		</select>
 	</operator>
 	<operator name="do while loop" priority="11" impl="prisms.lang.types.ParsedLoop">
 		<literal>do</literal>
-		<literal storeAs="contentStart">{</literal>
-		<option min="0">
-			<op storeAs="content" />
-			<option>
-				<literal>;</literal>
-			</option>
-		</option>
-		<literal>}</literal>
+		<op storeAs="content" type="block" />
 		<literal>while</literal>
 		<literal>(</literal>
 		<op storeAs="condition" />
 		<literal>)</literal>
+	</operator>
+	<operator name="enhanced for loop" priority="11" impl="prisms.lang.types.ParsedEnhancedForLoop">
+		<literal>for</literal>
+		<literal>(</literal>
+		<op storeAs="variable" />
+		<literal>:</literal>
+		<op storeAs="iterable" />
+		<literal>)</literal>
+		<select>
+			<option>
+				<literal>;</literal>
+			</option>
+			<option>
+				<op storeAs="content" />
+			</option>
+		</select>
 	</operator>
 	<operator name="if" priority="11" impl="prisms.lang.types.ParsedIfStatement">
 		<literal>if</literal>
@@ -289,16 +429,6 @@
 			</option>
 			<option>
 				<op storeAs="content" />
-			</option>
-			<option>
-				<literal>{</literal>
-				<option min="0">
-					<op storeAs="content" />
-					<option>
-						<literal>;</literal>
-					</option>
-				</option>
-				<literal>}</literal>
 			</option>
 		</select>
 		<option min="0">
@@ -314,35 +444,40 @@
 				<option>
 					<op storeAs="content" />
 				</option>
-				<option>
-					<literal>{</literal>
-					<option min="0">
-						<op storeAs="content" />
-						<option>
-							<literal>;</literal>
-						</option>
-					</option>
-					<literal>}</literal>
-				</option>
 			</select>
 		</option>
 		<option>
 			<literal storeAs="terminal">else</literal>
+			<op storeAs="content" />
+		</option>
+	</operator>
+	<operator name="synchronized block" priority="11" impl="prisms.lang.types.ParsedSyncBlock">
+		<literal>synchronized</literal>
+		<literal>(</literal>
+		<op storeAs="syncItem" />
+		<literal>)</literal>
+		<op type="block" storeAs="content" />
+	</operator>
+	<operator name="try/catch/finally" priority="11" impl="prisms.lang.types.ParsedTryCatchFinally">
+		<literal>try</literal>
+		<op type="block" storeAs="try" />
+		<option min="0">
+			<literal>catch</literal>
+			<literal>(</literal>
 			<select>
 				<option>
-					<op storeAs="content" />
+					<op type="declaration" storeAs="catchDeclaration" />
 				</option>
 				<option>
-					<literal>{</literal>
-					<option min="0">
-						<op storeAs="content" />
-						<option>
-							<literal>;</literal>
-						</option>
-					</option>
-					<literal>}</literal>
+					<op type="final declaration" storeAs="catchDeclaration" />
 				</option>
 			</select>
+			<literal>)</literal>
+			<op type="block" storeAs="catch" />
+		</option>
+		<option>
+			<literal>finally</literal>
+			<op type="block" storeAs="finally" />
 		</option>
 	</operator>
 	<operator name="assign" priority="0" impl="prisms.lang.types.ParsedAssignmentOperator">

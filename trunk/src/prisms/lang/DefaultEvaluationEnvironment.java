@@ -8,7 +8,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 {
 	private static class Variable
 	{
-		final Class<?> theType;
+		final Type theType;
 
 		final boolean isFinal;
 
@@ -16,7 +16,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 		Object theValue;
 
-		Variable(Class<?> type, boolean _final)
+		Variable(Type type, boolean _final)
 		{
 			theType = type;
 			isFinal = _final;
@@ -62,20 +62,19 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return isPublic;
 	}
 
-	public Class<?> getVariableType(String name)
+	public Type getVariableType(String name)
 	{
 		return getVariableType(name, true);
 	}
 
 	/**
-	 * Checks for a variable within or beyond the current scope, which may still be larger than just
-	 * this instance
+	 * Checks for a variable within or beyond the current scope, which may still be larger than just this instance
 	 * 
 	 * @param name The name of the variable to get the type of
 	 * @param lookBack Whether to look beyond the current scope
 	 * @return The type of the variable, or null if none has been declared
 	 */
-	protected Class<?> getVariableType(String name, boolean lookBack)
+	protected Type getVariableType(String name, boolean lookBack)
 	{
 		Variable vbl;
 		synchronized(theVariables)
@@ -107,16 +106,16 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 				throw new EvaluationException(name + " has not been declared", struct, index);
 		}
 		if(!vbl.isInitialized)
-			throw new EvaluationException(name + " has not been intialized", struct, index);
+			throw new EvaluationException("Variable " + name + " has not been intialized", struct, index);
 		return vbl.theValue;
 	}
 
-	public void declareVariable(String name, Class<?> type, boolean isFinal, ParsedItem struct,
-		int index) throws EvaluationException
+	public void declareVariable(String name, Type type, boolean isFinal, ParsedItem struct, int index)
+		throws EvaluationException
 	{
 		if(theParent != null && !canOverride)
 		{
-			Class<?> parentType = theParent.getVariableType(name, false);
+			Type parentType = theParent.getVariableType(name, false);
 			if(parentType != null)
 				throw new EvaluationException("Duplicate local variable " + name, struct, index);
 		}
@@ -129,8 +128,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
-	public void setVariable(String name, Object value, ParsedItem struct, int index)
-		throws EvaluationException
+	public void setVariable(String name, Object value, ParsedItem struct, int index) throws EvaluationException
 	{
 		Variable vbl;
 		synchronized(theVariables)
@@ -145,33 +143,26 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 				return;
 			}
 			else
-				throw new EvaluationException(name + " cannot be resolved to a variable ", struct,
-					index);
+				throw new EvaluationException(name + " cannot be resolved to a variable ", struct, index);
 		}
 		if(vbl.theType.isPrimitive())
 		{
 			if(value == null)
-				throw new EvaluationException("Variable of type "
-					+ PrismsEvaluator.EvalResult.typeString(vbl.theType)
-					+ " cannot be assigned null", struct, index);
+				throw new EvaluationException(
+					"Variable of type " + vbl.theType.toString() + " cannot be assigned null", struct, index);
 			Class<?> prim = getPrimitiveType(value.getClass());
-			if(prim == null || !DefaultJavaEvaluator.canAssign(vbl.theType, prim))
-				throw new EvaluationException(PrismsEvaluator.EvalResult.typeString(value
-					.getClass())
-					+ " cannot be cast to "
-					+ PrismsEvaluator.EvalResult.typeString(vbl.theType), struct, index);
+			if(prim == null || !vbl.theType.isAssignableFrom(prim))
+				throw new EvaluationException(Type.typeString(value.getClass()) + " cannot be cast to " + vbl.theType,
+					struct, index);
 		}
 		else
 		{
-			if(value != null && !DefaultJavaEvaluator.canAssign(vbl.theType, value.getClass()))
-				throw new EvaluationException(PrismsEvaluator.EvalResult.typeString(value
-					.getClass())
-					+ " cannot be cast to "
-					+ PrismsEvaluator.EvalResult.typeString(vbl.theType), struct, index);
+			if(value != null && !vbl.theType.isAssignableFrom(value.getClass()))
+				throw new EvaluationException(Type.typeString(value.getClass()) + " cannot be cast to " + vbl.theType,
+					struct, index);
 		}
 		if(vbl.isInitialized && vbl.isFinal)
-			throw new EvaluationException("Final variable " + name + " has already been assigned",
-				struct, index);
+			throw new EvaluationException("Final variable " + name + " has already been assigned", struct, index);
 		vbl.isInitialized = true;
 		vbl.theValue = value;
 	}
@@ -208,7 +199,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
-	public Class<?> getHistoryType(int index)
+	public Type getHistoryType(int index)
 	{
 		if(theParent != null)
 			return theParent.getHistoryType(index);
@@ -232,11 +223,10 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return vbl.theValue;
 	}
 
-	public void addHistory(Class<?> type, Object result)
+	public void addHistory(Type type, Object result)
 	{
 		if(theParent != null)
-			throw new IllegalStateException(
-				"History can only be added to a root-level evaluation environment");
+			throw new IllegalStateException("History can only be added to a root-level evaluation environment");
 		Variable vbl = new Variable(type, false);
 		vbl.theValue = result;
 		synchronized(theHistory)

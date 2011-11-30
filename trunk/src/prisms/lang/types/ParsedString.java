@@ -9,10 +9,10 @@ public class ParsedString extends prisms.lang.ParsedItem
 	private String theValue;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		String val = getStored("value").text;
 		theValue = unescape(val);
 	}
@@ -49,9 +49,9 @@ public class ParsedString extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<String> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws prisms.lang.EvaluationException
 	{
-		return new prisms.lang.EvaluationResult<String>(String.class, theValue);
+		return new prisms.lang.EvaluationResult(new prisms.lang.Type(String.class), theValue);
 	}
 }

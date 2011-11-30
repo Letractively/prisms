@@ -4,9 +4,8 @@
 package prisms.lang;
 
 /**
- * Thrown by {@link PrismsParser} or implementations of
- * {@link ParsedItem#setup(PrismsParser, ParsedItem, ParseMatch, int) ParseStruct.setup()} in
- * response to syntax errors in text to be parsed
+ * Thrown by {@link PrismsParser} or implementations of {@link ParsedItem#setup(PrismsParser, ParsedItem, ParseMatch)
+ * ParseStruct.setup()} in response to syntax errors in text to be parsed
  */
 public class ParseException extends Exception
 {
@@ -98,8 +97,7 @@ public class ParseException extends Exception
 		ret.append(super.toString());
 		if(theIndex >= 0)
 		{
-			ret.append(" Line ").append(theLine + 1).append(", char ").append(theChar + 1)
-				.append("\n\t");
+			ret.append(" Line ").append(theLine + 1).append(", char ").append(theChar + 1).append("\n\t");
 			int line = 0;
 			int c;
 			for(c = 0; line < theLine; c++)
