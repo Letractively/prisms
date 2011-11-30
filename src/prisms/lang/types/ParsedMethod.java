@@ -104,13 +104,105 @@ public class ParsedMethod extends Assignable
 		boolean withValues) throws prisms.lang.EvaluationException
 	{
 		EvaluationResult ctxType;
+		EvaluationResult [] argRes = new prisms.lang.EvaluationResult [theArguments.length];
+		for(int i = 0; i < argRes.length; i++)
+		{
+			argRes[i] = theArguments[i].evaluate(env, false, withValues);
+			if(argRes[i].getPackageName() != null || argRes[i].isType())
+				throw new EvaluationException(argRes[i].getFirstVar() + " cannot be resolved to a variable", this,
+					theArguments[i].getMatch().index);
+		}
 		if(theContext == null)
 		{
 			Class<?> c = env.getImportMethodType(theName);
-			if(c == null)
-				throw new EvaluationException((isMethod ? "Method " : "Field ") + theName + " unrecognized", this,
-					getStored("name").index);
-			ctxType = new EvaluationResult(new Type(c));
+			if(c != null)
+				ctxType = new EvaluationResult(new Type(c));
+			else
+			{
+				ParsedFunctionDeclaration [] funcs = env.getDeclaredFunctions();
+				ParsedFunctionDeclaration goodTarget = null;
+				ParsedFunctionDeclaration badTarget = null;
+				for(ParsedFunctionDeclaration func : funcs)
+				{
+					if(!func.getName().equals(theName))
+						continue;
+
+					ParsedDeclaration [] _paramTypes = func.getParameters();
+					Type [] paramTypes = new Type [_paramTypes.length];
+					for(int p = 0; p < paramTypes.length; p++)
+						paramTypes[p] = _paramTypes[p].getType().evaluate(env, true, withValues).getType();
+					if(!func.isVarArgs() && paramTypes.length != argRes.length)
+						continue;
+					if(paramTypes.length > argRes.length + 1)
+						continue;
+					boolean bad = false;
+					int p;
+					for(p = 0; !bad && p < paramTypes.length - 1; p++)
+					{
+						if(!paramTypes[p].isAssignable(argRes[p].getType()))
+							bad = true;
+					}
+					if(bad)
+					{
+						if(badTarget == null)
+							badTarget = func;
+						continue;
+					}
+					ParsedFunctionDeclaration target = null;
+					if(paramTypes.length == argRes.length
+						&& (paramTypes.length == 0 || paramTypes[p].isAssignable(argRes[p].getType())))
+						target = func;
+					else if(func.isVarArgs())
+					{
+						Type varArgType = paramTypes[paramTypes.length - 1].getComponentType();
+						for(; !bad && p < argRes.length; p++)
+							if(!varArgType.isAssignable(argRes[p].getType()))
+								bad = true;
+						if(!bad)
+							target = func;
+					}
+					if(target == null)
+					{
+						if(badTarget == null)
+							badTarget = func;
+						continue;
+					}
+					goodTarget = target;
+					break;
+				}
+				if(goodTarget != null)
+					return goodTarget.execute(env, argRes, withValues);
+				else if(badTarget != null)
+				{
+					StringBuilder msg = new StringBuilder();
+					msg.append(theName).append('(');
+					ParsedDeclaration [] paramTypes = badTarget.getParameters();
+					int p;
+					for(p = 0; p < paramTypes.length - 1; p++)
+					{
+						msg.append(paramTypes[p].getType().evaluate(env, true, withValues).getType());
+						msg.append(", ");
+					}
+					if(badTarget.isVarArgs())
+						msg.append(paramTypes[p].getType().evaluate(env, true, withValues).getType().getComponentType())
+							.append("...");
+					else
+						msg.append(paramTypes[p].getType().evaluate(env, true, withValues).getType());
+					msg.append(')');
+					StringBuilder types = new StringBuilder();
+					for(p = 0; p < argRes.length; p++)
+					{
+						if(p > 0)
+							types.append(", ");
+						types.append(argRes[p].getType());
+					}
+					throw new EvaluationException("The function " + msg + " is undefined for parameter types " + types,
+						this, getStored("name").index);
+				}
+				else
+					throw new EvaluationException((isMethod ? "Method " : "Field ") + theName + " unrecognized", this,
+						getStored("name").index);
+			}
 		}
 		else
 			ctxType = theContext.evaluate(env, false, withValues);
@@ -185,14 +277,6 @@ public class ParsedMethod extends Assignable
 			if(ctxType.getPackageName() != null)
 				throw new EvaluationException(ctxType.getFirstVar() + " cannot be resolved to a variable", this,
 					theContext.getMatch().index);
-			EvaluationResult [] argRes = new prisms.lang.EvaluationResult [theArguments.length];
-			for(int i = 0; i < argRes.length; i++)
-			{
-				argRes[i] = theArguments[i].evaluate(env, false, withValues);
-				if(argRes[i].getPackageName() != null || argRes[i].isType())
-					throw new EvaluationException(argRes[i].getFirstVar() + " cannot be resolved to a variable", this,
-						theArguments[i].getMatch().index);
-			}
 			if(!ctxType.isType() && ctxType.getType().isPrimitive())
 			{
 				StringBuilder msg = new StringBuilder();
@@ -248,7 +332,11 @@ public class ParsedMethod extends Assignable
 						bad = true;
 				}
 				if(bad)
+				{
+					if(badTarget == null)
+						badTarget = m;
 					continue;
+				}
 				java.lang.reflect.Method target = null;
 				if(paramTypes.length == argRes.length
 					&& (paramTypes.length == 0 || paramTypes[p].isAssignable(argRes[p].getType())))
@@ -263,7 +351,11 @@ public class ParsedMethod extends Assignable
 						target = m;
 				}
 				if(target == null)
+				{
+					if(badTarget == null)
+						badTarget = m;
 					continue;
+				}
 				if(env.usePublicOnly() && (target.getModifiers() & Modifier.PUBLIC) == 0)
 					badTarget = target;
 				else if(isStatic && (target.getModifiers() & Modifier.STATIC) == 0)
@@ -276,6 +368,13 @@ public class ParsedMethod extends Assignable
 			}
 			if(goodTarget != null)
 			{
+				for(java.lang.reflect.Type c : goodTarget.getGenericExceptionTypes())
+				{
+					Type ct = new Type(c);
+					if(!env.canHandle(ct))
+						throw new prisms.lang.EvaluationException("Unhandled exception type " + ct, this,
+							getStored("name").index);
+				}
 				Class<?> [] paramTypes = goodTarget.getParameterTypes();
 				Object [] args = new Object [paramTypes.length];
 				for(int i = 0; i < args.length - 1; i++)
@@ -300,7 +399,7 @@ public class ParsedMethod extends Assignable
 						: null);
 				} catch(java.lang.reflect.InvocationTargetException e)
 				{
-					throw new ExecutionException(e.getMessage(), e, this, getStored("name").index);
+					throw new ExecutionException(new Type(e.getClass()), e, this, getStored("name").index);
 				} catch(Exception e)
 				{
 					throw new EvaluationException("Could not invoke method " + theName + " of class "
@@ -311,17 +410,17 @@ public class ParsedMethod extends Assignable
 			{
 				StringBuilder msg = new StringBuilder();
 				msg.append(theName).append('(');
-				Class<?> [] paramTypes = badTarget.getParameterTypes();
+				java.lang.reflect.Type[] paramTypes = badTarget.getGenericParameterTypes();
 				int p;
 				for(p = 0; p < paramTypes.length - 1; p++)
 				{
-					msg.append(Type.typeString(paramTypes[p]));
+					msg.append(new Type(paramTypes[p]));
 					msg.append(", ");
 				}
 				if(badTarget.isVarArgs())
-					msg.append(Type.typeString(paramTypes[p].getComponentType())).append("...");
+					msg.append(new Type(paramTypes[p]).getComponentType()).append("...");
 				else
-					msg.append(Type.typeString(paramTypes[p]));
+					msg.append(new Type(paramTypes[p]));
 				msg.append(')');
 				if(env.usePublicOnly() && (badTarget.getModifiers() & Modifier.PUBLIC) == 0)
 					throw new EvaluationException("The method " + msg + " from the type " + ctxType.typeString() + "."
@@ -329,8 +428,18 @@ public class ParsedMethod extends Assignable
 				if(isStatic && (badTarget.getModifiers() & Modifier.STATIC) == 0)
 					throw new EvaluationException("Cannot make a static reference to the non-static method " + msg
 						+ " from the type " + ctxType.typeString(), this, getStored("name").index);
-				throw new EvaluationException("The method " + msg + " is undefined for the type "
-					+ ctxType.typeString(), this, getStored("name").index);
+				else
+				{
+					StringBuilder types = new StringBuilder();
+					for(p = 0; p < argRes.length; p++)
+					{
+						if(p > 0)
+							types.append(", ");
+						types.append(argRes[p].getType());
+					}
+					throw new EvaluationException("The method " + ctxType.getType() + "." + msg
+						+ " is undefined for parameter types " + types, this, getStored("name").index);
+				}
 			}
 			else
 			{

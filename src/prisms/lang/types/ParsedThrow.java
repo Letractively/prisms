@@ -31,12 +31,15 @@ public class ParsedThrow extends prisms.lang.ParsedItem
 			throw new prisms.lang.EvaluationException("No exception of type " + ret.getType()
 				+ " may be thrown; an exception type must be a subclass of Throwable", theValue,
 				theValue.getMatch().index);
+		if(!env.canHandle(ret.getType()))
+			throw new prisms.lang.EvaluationException("Unhandled exception type " + ret.getType(), theValue,
+				theValue.getMatch().index);
 		if(!withValues)
 			return null;
 		Throwable toThrow = (Throwable) ret.getValue();
 		if(toThrow == null)
 			toThrow = new NullPointerException();
-		throw new prisms.lang.ExecutionException(toThrow.getMessage(), toThrow, this, this.getMatch().index);
+		throw new prisms.lang.ExecutionException(ret.getType(), toThrow, this, this.getMatch().index);
 	}
 
 	/** @return The Throwable that this throw statement will evaluate and throw */
