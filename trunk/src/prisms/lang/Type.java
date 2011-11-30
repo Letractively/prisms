@@ -491,6 +491,34 @@ public class Type
 	}
 
 	/**
+	 * @param wrapper The wrapper for a primtive type
+	 * @return The wrapped primitive type, or null if the given type is not primitive or a primitive wrapper
+	 */
+	public static Class<?> getPrimitiveType(Class<?> wrapper)
+	{
+		if(wrapper.isPrimitive())
+			return wrapper;
+		if(wrapper.equals(Double.class))
+			return Double.TYPE;
+		else if(wrapper.equals(Float.class))
+			return Float.TYPE;
+		else if(wrapper.equals(Long.class))
+			return Long.TYPE;
+		else if(wrapper.equals(Integer.class))
+			return Integer.TYPE;
+		else if(wrapper.equals(Character.class))
+			return Character.TYPE;
+		else if(wrapper.equals(Short.class))
+			return Short.TYPE;
+		else if(wrapper.equals(Byte.class))
+			return Byte.TYPE;
+		else if(wrapper.equals(Boolean.class))
+			return Boolean.TYPE;
+		else
+			return null;
+	}
+
+	/**
 	 * @param t The type to represent
 	 * @return A string representation of the type
 	 */

@@ -3,6 +3,8 @@
  */
 package prisms.lang;
 
+import prisms.lang.types.ParsedFunctionDeclaration;
+
 /** Default implementation of {@link EvaluationEnvironment} */
 public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 {
@@ -39,6 +41,12 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	private java.util.HashSet<String> theImportPackages;
 
+	private java.util.ArrayList<prisms.lang.types.ParsedFunctionDeclaration> theFunctions;
+
+	private Type theReturnType;
+
+	private Type [] theHandledExceptionTypes;
+
 	/** Creates the environment */
 	public DefaultEvaluationEnvironment()
 	{
@@ -48,6 +56,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		theImportTypes = new java.util.HashMap<String, Class<?>>();
 		theImportMethods = new java.util.HashMap<String, Class<?>>();
 		theImportPackages = new java.util.HashSet<String>();
+		theFunctions = new java.util.ArrayList<prisms.lang.types.ParsedFunctionDeclaration>();
 	}
 
 	DefaultEvaluationEnvironment(DefaultEvaluationEnvironment parent, boolean override)
@@ -150,7 +159,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			if(value == null)
 				throw new EvaluationException(
 					"Variable of type " + vbl.theType.toString() + " cannot be assigned null", struct, index);
-			Class<?> prim = getPrimitiveType(value.getClass());
+			Class<?> prim = Type.getPrimitiveType(value.getClass());
 			if(prim == null || !vbl.theType.isAssignableFrom(prim))
 				throw new EvaluationException(Type.typeString(value.getClass()) + " cannot be cast to " + vbl.theType,
 					struct, index);
@@ -167,26 +176,63 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		vbl.theValue = value;
 	}
 
-	static Class<?> getPrimitiveType(Class<?> wrapper)
+	public void declareFunction(ParsedFunctionDeclaration function)
 	{
-		if(wrapper.equals(Double.class))
-			return Double.TYPE;
-		else if(wrapper.equals(Float.class))
-			return Float.TYPE;
-		else if(wrapper.equals(Long.class))
-			return Long.TYPE;
-		else if(wrapper.equals(Integer.class))
-			return Integer.TYPE;
-		else if(wrapper.equals(Character.class))
-			return Character.TYPE;
-		else if(wrapper.equals(Short.class))
-			return Short.TYPE;
-		else if(wrapper.equals(Byte.class))
-			return Byte.TYPE;
-		else if(wrapper.equals(Boolean.class))
-			return Boolean.TYPE;
+		synchronized(theFunctions)
+		{
+			theFunctions.add(function);
+		}
+	}
+
+	public ParsedFunctionDeclaration [] getDeclaredFunctions()
+	{
+		ParsedFunctionDeclaration [] ret;
+		synchronized(theFunctions)
+		{
+			ret = theFunctions.toArray(new ParsedFunctionDeclaration [theFunctions.size()]);
+		}
+		if(theParent != null)
+			ret = prisms.util.ArrayUtils.addAll(ret, theParent.getDeclaredFunctions());
+		return ret;
+	}
+
+	public void setReturnType(Type type)
+	{
+		theReturnType = type;
+	}
+
+	public Type getReturnType()
+	{
+		if(theReturnType != null)
+			return theReturnType;
+		else if(theParent != null)
+			return theParent.getReturnType();
 		else
 			return null;
+	}
+
+	public void setHandledExceptionTypes(Type [] types)
+	{
+		theHandledExceptionTypes = types;
+	}
+
+	public boolean canHandle(Type exType)
+	{
+		if(exType.canAssignTo(Error.class))
+			return true;
+		if(exType.canAssignTo(RuntimeException.class))
+			return true;
+		if(theHandledExceptionTypes != null)
+		{
+			for(Type et : theHandledExceptionTypes)
+				if(et.isAssignable(exType))
+					return true;
+			return false;
+		}
+		else if(theParent != null)
+			return theParent.canHandle(exType);
+		else
+			return false;
 	}
 
 	public int getHistoryCount()
