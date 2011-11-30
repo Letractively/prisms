@@ -3,8 +3,9 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.*;
-import prisms.lang.PrismsEvaluator.EvalResult;
+import prisms.lang.EvaluationEnvironment;
+import prisms.lang.EvaluationException;
+import prisms.lang.EvaluationResult;
 
 /** A simple identifier */
 public class ParsedIdentifier extends Assignable
@@ -12,10 +13,10 @@ public class ParsedIdentifier extends Assignable
 	private String theName;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		theName = getStored("name").text;
 	}
 
@@ -32,32 +33,34 @@ public class ParsedIdentifier extends Assignable
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<?> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws prisms.lang.EvaluationException
 	{
+		if("null".equals(theName))
+			return new EvaluationResult(new prisms.lang.Type(prisms.lang.Type.NULL.getClass()), null);
 		if(!asType)
 		{
-			Class<Object> type = (Class<Object>) env.getVariableType(theName);
+			prisms.lang.Type type = env.getVariableType(theName);
 			if(type != null)
-				return new EvaluationResult<Object>(type, withValues ? env.getVariable(theName,
-					this, getStored("name").index) : null);
+				return new EvaluationResult(type, withValues ? env.getVariable(theName, this, getStored("name").index)
+					: null);
 		}
 		if("boolean".equals(theName))
-			return new EvaluationResult<Boolean>(Boolean.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE));
 		else if("char".equals(theName))
-			return new EvaluationResult<Character>(Character.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Character.TYPE));
 		else if("double".equals(theName))
-			return new EvaluationResult<Double>(Double.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Double.TYPE));
 		else if("float".equals(theName))
-			return new EvaluationResult<Float>(Float.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Float.TYPE));
 		else if("long".equals(theName))
-			return new EvaluationResult<Long>(Long.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Long.TYPE));
 		else if("int".equals(theName))
-			return new EvaluationResult<Integer>(Integer.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Integer.TYPE));
 		else if("short".equals(theName))
-			return new EvaluationResult<Short>(Short.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Short.TYPE));
 		else if("byte".equals(theName))
-			return new EvaluationResult<Byte>(Byte.TYPE);
+			return new EvaluationResult(new prisms.lang.Type(Byte.TYPE));
 		Class<?> clazz;
 		try
 		{
@@ -67,10 +70,10 @@ public class ParsedIdentifier extends Assignable
 			clazz = null;
 		}
 		if(clazz != null)
-			return new EvaluationResult<Object>((Class<Object>) clazz);
+			return new EvaluationResult(new prisms.lang.Type(clazz));
 		clazz = env.getImportType(theName);
 		if(clazz != null)
-			return new EvaluationResult<Object>((Class<Object>) clazz);
+			return new EvaluationResult(new prisms.lang.Type(clazz));
 		try
 		{
 			clazz = Class.forName("java.lang." + theName);
@@ -79,11 +82,11 @@ public class ParsedIdentifier extends Assignable
 			clazz = null;
 		}
 		if(clazz != null)
-			return new EvaluationResult<Object>((Class<Object>) clazz);
+			return new EvaluationResult(new prisms.lang.Type(clazz));
 		Package [] pkgs = Package.getPackages();
 		for(Package pkg : pkgs)
 			if(pkg.getName().equals(theName) || pkg.getName().startsWith(theName + "."))
-				return new EvaluationResult<Object>(theName);
+				return new EvaluationResult(theName);
 		Class<?> importType = env.getImportMethodType(theName);
 		if(importType != null)
 		{
@@ -93,35 +96,34 @@ public class ParsedIdentifier extends Assignable
 					continue;
 				if((f.getModifiers() & java.lang.reflect.Modifier.STATIC) == 0)
 					continue;
-				if(env.usePublicOnly()
-					&& (f.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0)
+				if(env.usePublicOnly() && (f.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0)
 					continue;
 				try
 				{
-					return new EvaluationResult<Object>(f.getType(), withValues ? f.get(null)
+					return new EvaluationResult(new prisms.lang.Type(f.getGenericType()), withValues ? f.get(null)
 						: null);
 				} catch(Exception e)
 				{
 					throw new EvaluationException("Could not access field " + theName + " on type "
-						+ EvalResult.typeString(importType), e, this, getStored("name").index);
+						+ prisms.lang.Type.typeString(importType), e, this, getStored("name").index);
 				}
 			}
 		}
-		throw new EvaluationException(theName + " cannot be resolved to a "
-			+ (asType ? "type" : "variable"), this, getMatch().index);
+		throw new EvaluationException(theName + " cannot be resolved to a " + (asType ? "type" : "variable"), this,
+			getMatch().index);
 	}
 
 	@Override
-	public EvaluationResult<?> getValue(EvaluationEnvironment env, ParsedAssignmentOperator assign)
+	public EvaluationResult getValue(EvaluationEnvironment env, ParsedAssignmentOperator assign)
 		throws EvaluationException
 	{
 		return evaluate(env, false, true);
 	}
 
 	@Override
-	public void assign(Object value, EvaluationEnvironment env, ParsedAssignmentOperator assign)
+	public void assign(EvaluationResult value, EvaluationEnvironment env, ParsedAssignmentOperator assign)
 		throws EvaluationException
 	{
-		env.setVariable(theName, value, assign, assign.getStored("name").index);
+		env.setVariable(theName, value.getValue(), assign, assign.getStored("name").index);
 	}
 }

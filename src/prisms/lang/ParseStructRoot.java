@@ -21,8 +21,8 @@ public class ParseStructRoot extends ParsedItem
 	}
 
 	@Override
-	public EvaluationResult<Void> evaluate(EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws EvaluationException
+	public EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
 		return null;
 	}

@@ -3,50 +3,56 @@
  */
 package prisms.lang.types;
 
+import prisms.lang.EvaluationException;
 import prisms.lang.ParsedItem;
 
 /** Represents an if/else if/.../else structure */
-public class ParsedIfStatement extends ParsedItem<Object>
+public class ParsedIfStatement extends ParsedItem
 {
-	private ParsedItem<Boolean> [] theConditions;
+	private ParsedItem [] theConditions;
 
-	private ParsedItem<?> [][] theContents;
+	private ParsedStatementBlock [] theContents;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem<?> parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
-		java.util.ArrayList<ParsedItem<Boolean>> conditions = new java.util.ArrayList<ParsedItem<Boolean>>();
-		java.util.ArrayList<ParsedItem<?>> contents = new java.util.ArrayList<ParsedItem<?>>();
+		super.setup(parser, parent, match);
+		theContents = new ParsedStatementBlock [0];
+		java.util.ArrayList<ParsedItem> conditions = new java.util.ArrayList<ParsedItem>();
+		ParsedItem content = null;
 		for(prisms.lang.ParseMatch m : match.getParsed())
 		{
 			if("condition".equals(m.config.get("storeAs")))
 			{
 				if(!conditions.isEmpty())
 				{
-					theContents = prisms.util.ArrayUtils.add(theContents,
-						contents.toArray(new ParsedItem [contents.size()]));
-					contents.clear();
+					if(content == null)
+						theContents = prisms.util.ArrayUtils
+							.add(theContents, new ParsedStatementBlock(parser, this, m));
+					content = null;
 				}
 				conditions.add(parser.parseStructures(this, m)[0]);
 			}
 			else if("terminal".equals(m.config.get("storeAs")))
 			{
-				theContents = prisms.util.ArrayUtils.add(theContents,
-					contents.toArray(new ParsedItem [contents.size()]));
-				contents.clear();
+				if(content == null)
+					theContents = prisms.util.ArrayUtils.add(theContents, new ParsedStatementBlock(parser, this, m));
+				content = null;
 			}
 			else if("content".equals(m.config.get("storeAs")))
-				contents.add(parser.parseStructures(this, m)[0]);
+			{
+				content = parser.parseStructures(this, m)[0];
+				if(!(content instanceof ParsedStatementBlock))
+					content = new ParsedStatementBlock(parser, this, content.getMatch(), content);
+				theContents = prisms.util.ArrayUtils.add(theContents, (ParsedStatementBlock) content);
+			}
 		}
 		theConditions = conditions.toArray(new ParsedItem [conditions.size()]);
-		theContents = prisms.util.ArrayUtils.add(theContents,
-			contents.toArray(new ParsedItem [contents.size()]));
 	}
 
 	/** @return The conditions in this if statement as if/else if/else if/... */
-	public ParsedItem<?> [] getConditions()
+	public ParsedItem [] getConditions()
 	{
 		return theConditions;
 	}
@@ -58,19 +64,77 @@ public class ParsedIfStatement extends ParsedItem<Object>
 	}
 
 	/**
-	 * @param condition The index of the condition to get the contents for, or the length of the
-	 *        conditions array to get the contents of the terminal block
+	 * @param condition The index of the condition to get the contents for, or the length of the conditions array to get
+	 *        the contents of the terminal block
 	 * @return The contents of the condition or terminal block specified
 	 */
-	public ParsedItem<?> [] getContents(int condition)
+	public ParsedStatementBlock getContents(int condition)
 	{
 		return theContents[condition];
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<Object> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws EvaluationException
 	{
-		// TODO Auto-generated method stub
+		boolean hit = false;
+		for(int i = 0; i < theConditions.length && (!hit || !withValues); i++)
+		{
+			prisms.lang.EvaluationEnvironment scoped = env.scope(false);
+			ParsedItem condition = theConditions[i];
+			prisms.lang.EvaluationResult condRes = condition.evaluate(scoped, false, withValues);
+			if(condRes.isType() || condRes.getPackageName() != null)
+				throw new EvaluationException(condRes.typeString() + " cannot be resolved to a variable", this,
+					condition.getMatch().index);
+			if(!Boolean.TYPE.equals(condRes.getType()))
+				throw new EvaluationException("Type mismatch: cannot convert from " + condRes.typeString()
+					+ " to boolean", this, condition.getMatch().index);
+			hit = !withValues || ((Boolean) condRes.getValue()).booleanValue();
+			if(hit)
+			{
+				prisms.lang.EvaluationResult res = theContents[i].evaluate(env, false, withValues);
+				if(res != null && res.getControl() != null)
+				{
+					switch(res.getControl())
+					{
+					case RETURN:
+						if(withValues)
+							return res;
+						break;
+					case CONTINUE:
+						throw new EvaluationException(res.getControlItem().getMatch().text
+							+ " cannot be used outside of a loop", res.getControlItem(), res.getControlItem()
+							.getMatch().index);
+					case BREAK:
+						throw new EvaluationException(res.getControlItem().getMatch().text
+							+ " cannot be used outside of a loop or a switch", res.getControlItem(), res
+							.getControlItem().getMatch().index);
+					}
+				}
+			}
+		}
+		if(hasTerminal() && (!withValues || !hit))
+		{
+			prisms.lang.EvaluationResult res = theContents[theConditions.length].evaluate(env, false, withValues);
+			if(res != null && res.getControl() != null)
+			{
+				switch(res.getControl())
+				{
+				case RETURN:
+					if(withValues)
+						return res;
+					break;
+				case CONTINUE:
+					throw new EvaluationException(res.getControlItem().getMatch().text
+						+ " cannot be used outside of a loop", res.getControlItem(),
+						res.getControlItem().getMatch().index);
+				case BREAK:
+					throw new EvaluationException(res.getControlItem().getMatch().text
+						+ " cannot be used outside of a loop or a switch", res.getControlItem(), res.getControlItem()
+						.getMatch().index);
+				}
+			}
+		}
+		return null;
 	}
 }

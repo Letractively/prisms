@@ -8,10 +8,7 @@ import org.apache.log4j.Logger;
 import prisms.arch.PrismsConfig;
 import prisms.util.ArrayUtils;
 
-/**
- * Parses syntactical structures from text without regard to semantics using an XML-encoded grammar
- * file
- */
+/** Parses syntactical structures from text without regard to semantics using an XML-encoded grammar file */
 public class PrismsParser
 {
 	private static final Logger log = Logger.getLogger(PrismsParser.class);
@@ -92,7 +89,7 @@ public class PrismsParser
 			if(nextIndex < str.length())
 			{
 				if(str.charAt(nextIndex) == ';' || isLastSemi(parseMatch))
-					index++;
+					nextIndex++;
 				else
 					throw new ParseException("Syntax error", cmd, index);
 			}
@@ -116,10 +113,8 @@ public class PrismsParser
 	 * @return The syntax structures parsed from the matches
 	 * @throws ParseException If parsing fails
 	 */
-	public synchronized ParsedItem [] parseStructures(ParsedItem parent, ParseMatch... matches)
-		throws ParseException
+	public synchronized ParsedItem [] parseStructures(ParsedItem parent, ParseMatch... matches) throws ParseException
 	{
-		int index = 0;
 		ParsedItem [] ret = new ParsedItem [matches.length];
 		for(int i = 0; i < ret.length; i++)
 		{
@@ -132,20 +127,20 @@ public class PrismsParser
 					implClass = implMatch.config.getClass("impl", ParsedItem.class);
 				} catch(ClassNotFoundException e)
 				{
-					throw new ParseException("Implementation not found for " + implMatch.config, e,
-						parent.getRoot().getFullCommand(), -1);
+					throw new ParseException("Implementation not found for " + implMatch.config, e, parent.getRoot()
+						.getFullCommand(), -1);
 				} catch(ClassCastException e)
 				{
-					throw new ParseException("Implementation not an instance of ParseStruct for "
-						+ implMatch.config, e, parent.getRoot().getFullCommand(), -1);
+					throw new ParseException("Implementation not an instance of ParseStruct for " + implMatch.config,
+						e, parent.getRoot().getFullCommand(), -1);
 				}
 				if(implClass == null)
 				{
 					if(implMatch.getParsed() != null && implMatch.getParsed().length == 1)
 						implMatch = implMatch.getParsed()[0];
 					else
-						throw new ParseException("No implementation configured for "
-							+ implMatch.config, parent.getRoot().getFullCommand(), -1);
+						throw new ParseException("No implementation configured for " + implMatch.config, parent
+							.getRoot().getFullCommand(), -1);
 				}
 			}
 			try
@@ -153,25 +148,25 @@ public class PrismsParser
 				ret[i] = implClass.newInstance();
 			} catch(InstantiationException e)
 			{
-				throw new ParseException("Could not instantiate implementation for "
-					+ matches[i].config, e, parent.getRoot().getFullCommand(), -1);
+				throw new ParseException("Could not instantiate implementation for " + matches[i].config, e, parent
+					.getRoot().getFullCommand(), -1);
 			} catch(IllegalAccessException e)
 			{
-				throw new ParseException("Could not instantiate implementation for "
-					+ matches[i].config, e, parent.getRoot().getFullCommand(), -1);
+				throw new ParseException("Could not instantiate implementation for " + matches[i].config, e, parent
+					.getRoot().getFullCommand(), -1);
 			}
-			ret[i].setup(this, parent, implMatch, index);
-			index += matches[i].text.length();
+			ret[i].setup(this, parent, implMatch);
 		}
 		return ret;
 	}
 
-	ParseMatch parseItem(StringBuilder sb, int index, ParseMatch preOp, int priority,
-		String command, boolean completeOnly) throws IncompleteInputException
+	ParseMatch parseItem(StringBuilder sb, int index, ParseMatch preOp, int priority, String command,
+		boolean completeOnly, String... types) throws IncompleteInputException
 	{
 		int start = index;
 		ParseMatch ret = null;
 		boolean foundOp = true;
+		boolean withTypesHadPreOp = false;
 		while(index < sb.length() && foundOp)
 		{
 			foundOp = false;
@@ -179,8 +174,17 @@ public class PrismsParser
 				preOp = ret;
 			for(PrismsConfig op : theOperators)
 			{
-				if(ret != null && op.getInt("priority", 0) <= priority)
-					break;
+				if(types.length == 0)
+				{
+					int opPri = op.getInt("priority", 0);
+					if(opPri < 0 || ret != null && opPri <= priority)
+						break;
+				}
+				else if(!ArrayUtils.contains(types, op.get("name")))
+				{
+					withTypesHadPreOp |= hasPreOp(op);
+					continue;
+				}
 				ParseMatch [] match = parseCheck(op, sb, index, preOp, command, completeOnly);
 				if(match != null)
 				{
@@ -194,28 +198,39 @@ public class PrismsParser
 				}
 			}
 		}
+		if(ret == null && withTypesHadPreOp)
+			return parseItem(sb, index, null, -1, command, completeOnly);
 		return ret;
 	}
 
-	ParseMatch [] parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp,
-		String command, boolean completeOnly) throws IncompleteInputException
+	private static boolean hasPreOp(PrismsConfig config)
 	{
-		return _parseCheck(opConfig, sb, index, preOp, opConfig.getInt("priority", 0), false,
-			command, completeOnly);
+		for(PrismsConfig subConfig : config.subConfigs())
+		{
+			if(subConfig.getName().equals("pre-op"))
+				return true;
+			else if((subConfig.getName().equals("option") || subConfig.equals("select")) && hasPreOp(subConfig))
+				return true;
+		}
+		return false;
 	}
 
-	ParseMatch [] _parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp,
-		int priority, boolean optional, String command, boolean completeOnly)
-		throws IncompleteInputException
+	ParseMatch [] parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp, String command,
+		boolean completeOnly) throws IncompleteInputException
+	{
+		return _parseCheck(opConfig, sb, index, preOp, opConfig.getInt("priority", 0), false, command, completeOnly);
+	}
+
+	ParseMatch [] _parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp, int priority,
+		boolean optional, String command, boolean completeOnly) throws IncompleteInputException
 	{
 		boolean hasPreOpConfig = false;
 		ParseMatch [] ret = null;
 		for(int itemIdx = 0; itemIdx < opConfig.subConfigs().length; itemIdx++)
 		{
 			PrismsConfig item = opConfig.subConfigs()[itemIdx];
-			if(item.getName().equals("name") || item.getName().equals("priority")
-				|| item.getName().equals("impl") || item.getName().equals("min")
-				|| item.getName().equals("max"))
+			if(item.getName().equals("name") || item.getName().equals("priority") || item.getName().equals("impl")
+				|| item.getName().equals("min") || item.getName().equals("max"))
 				continue;
 			else if(item.getName().equals("pre-op"))
 			{
@@ -229,8 +244,7 @@ public class PrismsParser
 					return null;
 				}
 				hasPreOpConfig = true;
-				ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, index,
-					new ParseMatch [] {preOp}));
+				ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, index, new ParseMatch [] {preOp}));
 				continue;
 			}
 			else if(preOp != null && !hasPreOpConfig)
@@ -242,9 +256,8 @@ public class PrismsParser
 				int wsIdx = passWhiteSpace(sb, index);
 				whiteSpace = wsIdx > index ? sb.substring(index, wsIdx) : null;
 				if(whiteSpace != null)
-					ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(
-						new PrismsConfig.DefaultPrismsConfig("whitespace", null, null), whiteSpace,
-						index, null));
+					ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(new PrismsConfig.DefaultPrismsConfig(
+						"whitespace", null, null), whiteSpace, index, null));
 				index = wsIdx;
 			}
 
@@ -278,9 +291,8 @@ public class PrismsParser
 					for(int i = 0; i < value.length(); i++)
 						if(index + i >= sb.length() || sb.charAt(index + i) != value.charAt(i))
 							return null;
-					ret = ArrayUtils.add(ret,
-						new ParseMatch(item, sb.substring(index, index + value.length()), index,
-							null));
+					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + value.length()), index,
+						null));
 					index += value.length();
 				}
 				else
@@ -294,19 +306,16 @@ public class PrismsParser
 					java.util.regex.Matcher match;
 					try
 					{
-						match = java.util.regex.Pattern.compile(pattern).matcher(
-							sb.substring(index));
+						match = java.util.regex.Pattern.compile(pattern).matcher(sb.substring(index));
 					} catch(java.util.regex.PatternSyntaxException e)
 					{
-						log.error("Pattern " + pattern + " in config " + opConfig
-							+ " has an error: " + e);
+						log.error("Pattern " + pattern + " in config " + opConfig + " has an error: " + e);
 						return null;
 					}
 					if(!match.find() || match.start() > 0)
 						return null;
-					ret = ArrayUtils
-						.add(ret, new ParseMatch(item, sb.substring(index, index + match.end()),
-							index, null));
+					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + match.end()), index,
+						null));
 					index += match.end();
 				}
 			}
@@ -326,8 +335,7 @@ public class PrismsParser
 					pat = java.util.regex.Pattern.compile(pattern);
 				} catch(java.util.regex.PatternSyntaxException e)
 				{
-					log.error("Pattern " + pattern + " in config " + opConfig + " has an error: "
-						+ e);
+					log.error("Pattern " + pattern + " in config " + opConfig + " has an error: " + e);
 					return null;
 				}
 				java.util.regex.Matcher match = pat.matcher(sb.substring(index));
@@ -358,9 +366,22 @@ public class PrismsParser
 						}
 					}
 				}
+				if(item.subConfigs("match").length > 0)
+				{
+					String text = sb.substring(index, end);
+					boolean found = false;
+					for(PrismsConfig m : item.subConfigs("match"))
+					{
+						if(text.equals(m.getValue()))
+							found = true;
+						if(found)
+							break;
+					}
+					if(!found)
+						return null;
+				}
 
-				ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index,
-					null));
+				ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index, null));
 				index = end;
 			}
 			else if(item.getName().equals("op"))
@@ -375,13 +396,15 @@ public class PrismsParser
 							break;
 						}
 
-				ParseMatch op = parseItem(sb, index, null, priority, command, completeOnly);
+				String type = item.get("type");
+				ParseMatch op;
+				if(type == null)
+					op = parseItem(sb, index, null, priority, command, completeOnly);
+				else
+					op = parseItem(sb, index, null, priority, command, completeOnly, type.split("\\|"));
 				if(op == null)
 					return null;
-				if(item.get("type") != null && !item.get("type").equals(op.config.get("name")))
-					return null;
-				ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(item, op.text, index,
-					new ParseMatch [] {op}));
+				ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(item, op.text, index, new ParseMatch [] {op}));
 				index += op.text.length();
 			}
 			else if(item.getName().equals("option"))
@@ -404,11 +427,11 @@ public class PrismsParser
 				int count = 0;
 				do
 				{
-					count++;
-					res = _parseCheck(item, sb, index, hasPreOpConfig ? null : preOp, priority,
-						true, command, completeOnly);
+					res = _parseCheck(item, sb, index, hasPreOpConfig ? null : preOp, priority, true, command,
+						completeOnly);
 					if(res == null)
 						break;
+					count++;
 					boolean newPreOpConfig = false;
 					for(ParseMatch m : res)
 						if(m.config.getName().equals("pre-op"))
@@ -425,7 +448,9 @@ public class PrismsParser
 					for(ParseMatch m : res)
 						index += m.text.length();
 				} while(count < limit);
-				if(total == null || count < item.getInt("min", 0))
+				if(count > limit || count < item.getInt("min", 0))
+					return null;
+				if(total == null)
 					continue;
 				ret = ArrayUtils.addAll(ret, total);
 			}
@@ -442,8 +467,7 @@ public class PrismsParser
 				ParseMatch [] res = null;
 				for(PrismsConfig option : item.subConfigs("option"))
 				{
-					res = _parseCheck(option, sb, index, preOp, priority, true, command,
-						completeOnly);
+					res = _parseCheck(option, sb, index, preOp, priority, true, command, completeOnly);
 					if(res != null)
 						break;
 				}
@@ -451,8 +475,7 @@ public class PrismsParser
 				{
 					for(PrismsConfig option : item.subConfigs("option"))
 					{
-						res = _parseCheck(option, sb, index, preOp, priority, false, command,
-							completeOnly);
+						res = _parseCheck(option, sb, index, preOp, priority, false, command, completeOnly);
 						if(res != null)
 							break;
 					}
@@ -520,8 +543,8 @@ public class PrismsParser
 	}
 
 	/**
-	 * Tests the parser by reading in from System.in and printing out the toString() representation
-	 * of the structures parsed
+	 * Tests the parser by reading in from System.in and printing out the toString() representation of the structures
+	 * parsed
 	 * 
 	 * @param args Command-line arguments, ignored
 	 */
@@ -531,10 +554,8 @@ public class PrismsParser
 		PrismsParser parser = new PrismsParser();
 		try
 		{
-			parser.configure(PrismsConfig.fromXml(
-				null,
-				PrismsConfig.getRootElement("Grammar.xml",
-					PrismsConfig.getLocation(PrismsParser.class))));
+			parser.configure(PrismsConfig.fromXml(null,
+				PrismsConfig.getRootElement("Grammar.xml", PrismsConfig.getLocation(PrismsParser.class))));
 		} catch(java.io.IOException e)
 		{
 			log.error("Could not load/parse grammar config", e);

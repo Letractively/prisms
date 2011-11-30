@@ -18,16 +18,15 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 	private boolean isScientific;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		boolean floatType = getStored("floatType") != null;
 		boolean longType = getStored("longType") != null;
 		if(floatType && longType)
-			throw new prisms.lang.ParseException(
-				"'f' and 'L' may not be specified in the same number", getRoot().getFullCommand(),
-				getStart());
+			throw new prisms.lang.ParseException("'f' and 'L' may not be specified in the same number", getRoot()
+				.getFullCommand(), getMatch().index);
 		boolean neg = getStored("neg") != null;
 		if(getStored("hex") != null)
 		{
@@ -37,7 +36,7 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 			{
 				if(value.length() > 16)
 					throw new prisms.lang.ParseException("The literal 0x" + getStored("value").text
-						+ " of type long is out of range", getRoot().getFullCommand(), getStart());
+						+ " of type long is out of range", getRoot().getFullCommand(), getMatch().index);
 				long val = 0;
 				for(int c = 0; c < value.length(); c++)
 				{
@@ -55,7 +54,7 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 			{
 				if(value.length() > 8)
 					throw new prisms.lang.ParseException("The literal 0x" + getStored("value").text
-						+ " of type int is out of range", getRoot().getFullCommand(), getStart());
+						+ " of type int is out of range", getRoot().getFullCommand(), getMatch().index);
 				int val = 0;
 				for(int c = 0; c < value.length(); c++)
 				{
@@ -78,7 +77,7 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 			{
 				if(value.length() > 22 || (value.length() == 22 && value.charAt(0) > 1))
 					throw new prisms.lang.ParseException("The literal 0" + getStored("value").text
-						+ " of type long is out of range", getRoot().getFullCommand(), getStart());
+						+ " of type long is out of range", getRoot().getFullCommand(), getMatch().index);
 				long val = 0;
 				for(int c = 0; c < value.length(); c++)
 					val = (val << 3) | (value.charAt(c) - '0');
@@ -88,7 +87,7 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 			{
 				if(value.length() > 11 || (value.length() == 11 && value.charAt(0) > 4))
 					throw new prisms.lang.ParseException("The literal 0" + getStored("value").text
-						+ " of type int is out of range", getRoot().getFullCommand(), getStart());
+						+ " of type int is out of range", getRoot().getFullCommand(), getMatch().index);
 				int val = 0;
 				for(int c = 0; c < value.length(); c++)
 					val = (val << 3) | (value.charAt(c) - '0');
@@ -103,7 +102,7 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 			{
 				if(value.length() > 64)
 					throw new prisms.lang.ParseException("The literal 0b" + getStored("value").text
-						+ " of type long is out of range", getRoot().getFullCommand(), getStart());
+						+ " of type long is out of range", getRoot().getFullCommand(), getMatch().index);
 				long val = 0;
 				for(int c = 0; c < value.length(); c++)
 					val = (val << 1) | (value.charAt(c) - '0');
@@ -113,7 +112,7 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 			{
 				if(value.length() > 32)
 					throw new prisms.lang.ParseException("The literal 0b" + getStored("value").text
-						+ " of type int is out of range", getRoot().getFullCommand(), getStart());
+						+ " of type int is out of range", getRoot().getFullCommand(), getMatch().index);
 				int val = 0;
 				for(int c = 0; c < value.length(); c++)
 					val = (val << 1) | (value.charAt(c) - '0');
@@ -134,9 +133,8 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 				{
 					if(value.length() > MAX_LONG.length()
 						|| (value.length() == MAX_LONG.length() && value.compareTo(MAX_LONG) > 0))
-						throw new prisms.lang.ParseException("The literal " + value
-							+ " of type long is out of range", getRoot().getFullCommand(),
-							getStart());
+						throw new prisms.lang.ParseException("The literal " + value + " of type long is out of range",
+							getRoot().getFullCommand(), getMatch().index);
 					long val = 0;
 					for(int c = 0; c < value.length(); c++)
 						val = val * 10 + (value.charAt(c) - '0');
@@ -146,9 +144,8 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 				{
 					if(value.length() > MAX_INT.length()
 						|| (value.length() == MAX_INT.length() && value.compareTo(MAX_INT) > 0))
-						throw new prisms.lang.ParseException("The literal " + value
-							+ " of type int is out of range", getRoot().getFullCommand(),
-							getStart());
+						throw new prisms.lang.ParseException("The literal " + value + " of type int is out of range",
+							getRoot().getFullCommand(), getMatch().index);
 					int val = 0;
 					for(int c = 0; c < value.length(); c++)
 						val = val * 10 + (value.charAt(c) - '0');
@@ -216,10 +213,10 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<Number> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws prisms.lang.EvaluationException
 	{
-		return new prisms.lang.EvaluationResult<Number>(
-			(Class<Number>) EvaluationResult.getPrimitiveType(theValue.getClass()), theValue);
+		return new prisms.lang.EvaluationResult(new prisms.lang.Type(EvaluationResult.getPrimitiveType(theValue
+			.getClass())), theValue);
 	}
 }

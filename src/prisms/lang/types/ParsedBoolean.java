@@ -9,10 +9,10 @@ public class ParsedBoolean extends prisms.lang.ParsedItem
 	private boolean theValue;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		theValue = getStored("value").text.equalsIgnoreCase("true");
 	}
 
@@ -29,9 +29,9 @@ public class ParsedBoolean extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<Boolean> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws prisms.lang.EvaluationException
 	{
-		return new prisms.lang.EvaluationResult<Boolean>(Boolean.TYPE, Boolean.valueOf(theValue));
+		return new prisms.lang.EvaluationResult(new prisms.lang.Type(Boolean.TYPE), Boolean.valueOf(theValue));
 	}
 }

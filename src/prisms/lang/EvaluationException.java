@@ -4,8 +4,8 @@
 package prisms.lang;
 
 /**
- * Thrown from {@link PrismsEvaluator#evaluate(ParsedItem, EvaluationEnvironment, boolean, boolean)}
- * if evaluation of a parsed structure fails
+ * Thrown from {@link ParsedItem#evaluate(EvaluationEnvironment, boolean, boolean)} if evaluation of a parsed structure
+ * fails
  */
 public class EvaluationException extends Exception
 {
@@ -99,8 +99,7 @@ public class EvaluationException extends Exception
 		ret.append(super.toString());
 		if(theIndex >= 0)
 		{
-			ret.append(" Line ").append(theLine + 1).append(", char ").append(theChar + 1)
-				.append("\n\t");
+			ret.append(" Line ").append(theLine + 1).append(", char ").append(theChar + 1).append("\n\t");
 			int line = 0;
 			int c;
 			String command = theStruct.getRoot().getFullCommand();

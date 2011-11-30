@@ -13,10 +13,10 @@ public class ParsedParenthetic extends Assignable
 	private prisms.lang.ParsedItem theContent;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent,
-		prisms.lang.ParseMatch match, int start) throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
+		throws prisms.lang.ParseException
 	{
-		super.setup(parser, parent, match, start);
+		super.setup(parser, parent, match);
 		theContent = parser.parseStructures(this, getStored("content"))[0];
 	}
 
@@ -33,29 +33,29 @@ public class ParsedParenthetic extends Assignable
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult<?> evaluate(prisms.lang.EvaluationEnvironment env,
-		boolean asType, boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
+		boolean withValues) throws prisms.lang.EvaluationException
 	{
 		return theContent.evaluate(env, asType, withValues);
 	}
 
 	@Override
-	public EvaluationResult<?> getValue(EvaluationEnvironment env, ParsedAssignmentOperator assign)
+	public EvaluationResult getValue(EvaluationEnvironment env, ParsedAssignmentOperator assign)
 		throws EvaluationException
 	{
 		if(!(theContent instanceof Assignable))
-			throw new EvaluationException("Invalid argument for assignment operator "
-				+ assign.getName(), this, theContent.getMatch().index);
+			throw new EvaluationException("Invalid argument for assignment operator " + assign.getName(), this,
+				theContent.getMatch().index);
 		return ((Assignable) theContent).getValue(env, assign);
 	}
 
 	@Override
-	public void assign(Object value, EvaluationEnvironment env, ParsedAssignmentOperator assign)
+	public void assign(EvaluationResult value, EvaluationEnvironment env, ParsedAssignmentOperator assign)
 		throws EvaluationException
 	{
 		if(!(theContent instanceof Assignable))
-			throw new EvaluationException("Invalid argument for assignment operator "
-				+ assign.getName(), this, theContent.getMatch().index);
+			throw new EvaluationException("Invalid argument for assignment operator " + assign.getName(), this,
+				theContent.getMatch().index);
 		((Assignable) theContent).assign(value, env, assign);
 	}
 }

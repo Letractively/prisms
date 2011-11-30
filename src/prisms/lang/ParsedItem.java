@@ -3,11 +3,7 @@
  */
 package prisms.lang;
 
-/**
- * A basic syntax structure representing the final output of the {@link PrismsParser}
- * 
- * @param <T> The type, if known, of the results of expressions of this type
- */
+/** A basic syntax structure representing the final output of the {@link PrismsParser} */
 public abstract class ParsedItem
 {
 	private PrismsParser theParser;
@@ -16,24 +12,19 @@ public abstract class ParsedItem
 
 	private ParseMatch theMatch;
 
-	private int theStart;
-
 	/**
 	 * Parses this structure type's data, including operands
 	 * 
 	 * @param parser The parser that is parsing this structure
 	 * @param parent The parent structure
 	 * @param match The parse match that this structure will represent
-	 * @param start The index in the full command of the parse match
 	 * @throws ParseException If parsing or syntactical validation fails
 	 */
-	public void setup(PrismsParser parser, ParsedItem parent, ParseMatch match, int start)
-		throws ParseException
+	public void setup(PrismsParser parser, ParsedItem parent, ParseMatch match) throws ParseException
 	{
 		theParser = parser;
 		theParent = parent;
 		theMatch = match;
-		theStart = start;
 	}
 
 	/** @return The parser that parsed this structure */
@@ -74,13 +65,12 @@ public abstract class ParsedItem
 		for(ParseMatch match : theMatch.getParsed())
 			if(name.equals(match.config.get("storeAs")))
 				return match;
+		for(ParseMatch match : theMatch.getParsed())
+			if(match.getParsed() != null)
+				for(ParseMatch subMatch : match.getParsed())
+					if(name.equals(subMatch.config.get("storeAs")))
+						return subMatch;
 		return null;
-	}
-
-	/** @return The start index within the full command of this structure's parsed text */
-	public int getStart()
-	{
-		return theStart;
 	}
 
 	/**
@@ -88,11 +78,10 @@ public abstract class ParsedItem
 	 * 
 	 * @param env The evaluation environment to execute in
 	 * @param asType Whether the result should be a type if possible
-	 * @param withValues Whether to evaluate the value of the expression, or simply validate it and
-	 *        return its type
+	 * @param withValues Whether to evaluate the value of the expression, or simply validate it and return its type
 	 * @return The result of the expression
 	 * @throws EvaluationException If an error occurs evaluating the expression
 	 */
-	public abstract EvaluationResult<?> evaluate(EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws EvaluationException;
+	public abstract EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException;
 }
