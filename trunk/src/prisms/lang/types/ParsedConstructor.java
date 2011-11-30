@@ -92,7 +92,11 @@ public class ParsedConstructor extends prisms.lang.ParsedItem
 					bad = true;
 			}
 			if(bad)
+			{
+				if(badTarget == null)
+					badTarget = c;
 				continue;
+			}
 			java.lang.reflect.Constructor target = null;
 			if(paramTypes.length == argRes.length
 				&& (paramTypes.length == 0 || paramTypes[p].isAssignable(argRes[p].getType())))
@@ -107,7 +111,11 @@ public class ParsedConstructor extends prisms.lang.ParsedItem
 					target = c;
 			}
 			if(target == null)
+			{
+				if(badTarget == null)
+					badTarget = c;
 				continue;
+			}
 			if(env.usePublicOnly() && (target.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0)
 				badTarget = target;
 			else
@@ -118,6 +126,12 @@ public class ParsedConstructor extends prisms.lang.ParsedItem
 		}
 		if(goodTarget != null)
 		{
+			for(java.lang.reflect.Type c : goodTarget.getGenericExceptionTypes())
+			{
+				Type ct = new Type(c);
+				if(!env.canHandle(ct))
+					throw new prisms.lang.EvaluationException("Unhandled exception type " + ct, this, getMatch().index);
+			}
 			Class<?> [] paramTypes = goodTarget.getParameterTypes();
 			Object [] args = new Object [paramTypes.length];
 			for(int i = 0; i < args.length - 1; i++)
@@ -141,7 +155,7 @@ public class ParsedConstructor extends prisms.lang.ParsedItem
 					: null);
 			} catch(java.lang.reflect.InvocationTargetException e)
 			{
-				throw new prisms.lang.ExecutionException(e.getMessage(), e, this, getStored("type").index);
+				throw new prisms.lang.ExecutionException(new Type(e.getClass()), e, this, getStored("type").index);
 			} catch(Exception e)
 			{
 				throw new EvaluationException("Could not invoke constructor of class "
@@ -167,7 +181,15 @@ public class ParsedConstructor extends prisms.lang.ParsedItem
 			if(env.usePublicOnly() && (badTarget.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0)
 				throw new EvaluationException("The constructor " + msg + " is not visible", this,
 					getStored("type").index);
-			throw new EvaluationException("The constructor " + msg + " is undefined", this, getStored("type").index);
+			StringBuilder types = new StringBuilder();
+			for(p = 0; p < argRes.length; p++)
+			{
+				if(p > 0)
+					types.append(", ");
+				types.append(argRes[p].getType());
+			}
+			throw new EvaluationException("The constructor " + msg + " is undefined for parameter types " + types,
+				this, getStored("type").index);
 		}
 		else
 		{

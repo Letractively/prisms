@@ -27,6 +27,14 @@ public class ParsedReturn extends prisms.lang.ParsedItem
 		if(ret.getPackageName() != null || ret.isType())
 			throw new prisms.lang.EvaluationException(ret.getFirstVar() + " cannot be resolved to a variable",
 				theValue, theValue.getMatch().index);
+		if(env.getReturnType() == null)
+			throw new prisms.lang.EvaluationException("Cannot return a value except from within a function or method",
+				this, getMatch().index);
+		if(Void.TYPE.equals(env.getReturnType().getBaseType()))
+			throw new prisms.lang.EvaluationException("Void methods cannot return a value", this, getMatch().index);
+		if(!env.getReturnType().isAssignable(ret.getType()))
+			throw new prisms.lang.EvaluationException("Type mismatch: cannot convert from " + ret.getType() + " to "
+				+ env.getReturnType(), theValue, theValue.getMatch().index);
 		return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.RETURN, ret.getValue(), this);
 	}
 

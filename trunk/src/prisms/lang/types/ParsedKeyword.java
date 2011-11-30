@@ -17,6 +17,9 @@ public class ParsedKeyword extends prisms.lang.ParsedItem
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws prisms.lang.EvaluationException
 	{
+		Class<?> type = ParsedType.getClassFromName(theName, env);
+		if(type != null)
+			return new prisms.lang.EvaluationResult(new prisms.lang.Type(type));
 		throw new prisms.lang.EvaluationException("Syntax error on " + theName + ": delete this token", this,
 			getMatch().index);
 	}
