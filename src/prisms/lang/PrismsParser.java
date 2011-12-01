@@ -181,10 +181,9 @@ public class PrismsParser
 						break;
 				}
 				else if(!ArrayUtils.contains(types, op.get("name")))
-				{
-					withTypesHadPreOp |= hasPreOp(op);
 					continue;
-				}
+				else
+					withTypesHadPreOp |= hasPreOp(op);
 				ParseMatch [] match = parseCheck(op, sb, index, preOp, command, completeOnly);
 				if(match != null)
 				{
@@ -258,7 +257,7 @@ public class PrismsParser
 				else
 				{
 					hasPreOpConfig = true;
-					ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, index, new ParseMatch [] {preOp}));
+					ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, preOp.index, new ParseMatch [] {preOp}));
 				}
 				continue;
 			}

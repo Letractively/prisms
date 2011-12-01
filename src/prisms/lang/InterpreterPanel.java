@@ -111,15 +111,15 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 	private PrismsParser theParser;
 
-	private EvaluationEnvironment theValidationEnv;
+	private EvaluationEnvironment theEnv;
 
-	private EvaluationEnvironment theRuntimeEnv;
-
-	private javax.swing.JTextArea theInput;
+	private javax.swing.JEditorPane theInput;
 
 	private javax.swing.JPanel theRow;
 
 	private java.awt.event.KeyListener theReturnListener;
+
+	private java.awt.event.MouseListener theGrabListener;
 
 	java.util.ArrayList<Object> toWrite;
 
@@ -127,26 +127,41 @@ public class InterpreterPanel extends javax.swing.JPanel
 	public InterpreterPanel()
 	{
 		setBackground(java.awt.Color.white);
+		theGrabListener = new java.awt.event.MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(java.awt.event.MouseEvent ev)
+			{
+				theInput.grabFocus();
+			}
+		};
+		addMouseListener(theGrabListener);
 
 		theReturnListener = new java.awt.event.KeyAdapter()
 		{
 			@Override
-			public void keyReleased(java.awt.event.KeyEvent e)
+			public void keyPressed(java.awt.event.KeyEvent evt)
 			{
-				if(e.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER)
+				if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_SPACE && evt.isControlDown())
+					showIntelliSense();
+			}
+
+			@Override
+			public void keyReleased(java.awt.event.KeyEvent evt)
+			{
+				if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER)
 					checkInput();
 			}
 		};
 
-		theInput = new javax.swing.JTextArea();
+		theInput = new javax.swing.JEditorPane();
 		theInput.setForeground(java.awt.Color.blue);
 		theInput.addKeyListener(theReturnListener);
 		newLine();
 
 		theParser = new prisms.lang.PrismsParser();
 		theParser.configure(prisms.arch.PrismsConfig.fromXml(null, getGrammar()));
-		theValidationEnv = new DefaultEvaluationEnvironment();
-		theRuntimeEnv = new DefaultEvaluationEnvironment();
+		theEnv = new DefaultEvaluationEnvironment();
 		addVariable("pane", EnvPane.class, new EnvPane());
 
 		toWrite = new java.util.ArrayList<Object>();
@@ -163,9 +178,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 	{
 		try
 		{
-			theValidationEnv.declareVariable(name, new Type(type), true, null, 0);
-			theRuntimeEnv.declareVariable(name, new Type(type), true, null, 0);
-			theRuntimeEnv.setVariable(name, value, null, 0);
+			theEnv.declareVariable(name, new Type(type), true, null, 0);
+			theEnv.setVariable(name, value, null, 0);
 		} catch(EvaluationException e1)
 		{
 			e1.printStackTrace();
@@ -183,6 +197,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 			jc.setBounds(0, top, getWidth(), jc.getPreferredSize().height);
 			top += jc.getHeight();
 		}
+		setPreferredSize(new java.awt.Dimension(getWidth(), top));
 	}
 
 	org.dom4j.Element getGrammar()
@@ -195,6 +210,11 @@ public class InterpreterPanel extends javax.swing.JPanel
 		{
 			throw new IllegalStateException("Could not get grammar for interpretation", e);
 		}
+	}
+
+	void showIntelliSense()
+	{
+		System.out.println("Intellisense!");
 	}
 
 	void checkInput()
@@ -212,14 +232,16 @@ public class InterpreterPanel extends javax.swing.JPanel
 			return;
 		} catch(ParseException e)
 		{
+			pareStackTrace(e);
 			e.printStackTrace();
 			theRow.remove(theInput);
 			String input = theInput.getText().trim();
 			if(input.indexOf('\n') < 0)
 			{
-				javax.swing.JLabel replace = new javax.swing.JLabel();
+				javax.swing.JEditorPane replace = new javax.swing.JEditorPane();
 				replace.setForeground(java.awt.Color.blue);
 				replace.setText(theInput.getText().trim());
+				replace.setEditable(false);
 				theRow.add(replace);
 			}
 			else
@@ -229,9 +251,10 @@ public class InterpreterPanel extends javax.swing.JPanel
 				replace.setLayout(new javax.swing.BoxLayout(replace, javax.swing.BoxLayout.Y_AXIS));
 				for(String in : inputs)
 				{
-					javax.swing.JLabel rep = new javax.swing.JLabel();
+					javax.swing.JEditorPane rep = new javax.swing.JEditorPane();
 					rep.setForeground(java.awt.Color.blue);
 					rep.setText(in);
+					rep.setEditable(false);
 					replace.add(rep);
 				}
 				theRow.add(replace);
@@ -245,21 +268,26 @@ public class InterpreterPanel extends javax.swing.JPanel
 		String input = theInput.getText().trim();
 		if(input.indexOf('\n') < 0)
 		{
-			javax.swing.JLabel replace = new javax.swing.JLabel();
+			javax.swing.JEditorPane replace = new javax.swing.JEditorPane();
+			replace.addMouseListener(theGrabListener);
 			replace.setForeground(java.awt.Color.blue);
 			replace.setText(theInput.getText().trim());
+			replace.setEditable(false);
 			theRow.add(replace);
 		}
 		else
 		{
 			String [] inputs = input.split("\n");
 			javax.swing.JPanel replace = new javax.swing.JPanel();
+			replace.addMouseListener(theGrabListener);
 			replace.setLayout(new javax.swing.BoxLayout(replace, javax.swing.BoxLayout.Y_AXIS));
 			for(String in : inputs)
 			{
-				javax.swing.JLabel rep = new javax.swing.JLabel();
+				javax.swing.JEditorPane rep = new javax.swing.JEditorPane();
+				rep.addMouseListener(theGrabListener);
 				rep.setForeground(java.awt.Color.blue);
 				rep.setText(in);
+				rep.setEditable(false);
 				replace.add(rep);
 			}
 			theRow.add(replace);
@@ -272,8 +300,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 			{
 				try
 				{
-					s.evaluate(theValidationEnv, false, false);
-					EvaluationResult type = s.evaluate(theRuntimeEnv, false, true);
+					s.evaluate(theEnv.transact(), false, false);
+					EvaluationResult type = s.evaluate(theEnv, false, true);
 					for(Object o : toWrite)
 						answer(prisms.util.ArrayUtils.toString(o), false);
 					toWrite.clear();
@@ -281,17 +309,16 @@ public class InterpreterPanel extends javax.swing.JPanel
 					{
 						answer(prisms.util.ArrayUtils.toString(type.getValue()), false);
 						if(!(s instanceof prisms.lang.types.ParsedPreviousAnswer))
-						{
-							theValidationEnv.addHistory(type.getType(), type.getValue());
-							theRuntimeEnv.addHistory(type.getType(), type.getValue());
-						}
+							theEnv.addHistory(type.getType(), type.getValue());
 					}
 				} catch(EvaluationException e)
 				{
+					pareStackTrace(e);
 					e.printStackTrace();
 					answer(e.getMessage(), true);
 				} catch(RuntimeException e)
 				{
+					pareStackTrace(e);
 					e.printStackTrace();
 					answer(e.toString(), true);
 				}
@@ -302,20 +329,36 @@ public class InterpreterPanel extends javax.swing.JPanel
 		}
 	}
 
+	private static void pareStackTrace(Throwable e)
+	{
+		int i = e.getStackTrace().length - 1;
+		while(i >= 0 && !e.getStackTrace()[i].getClassName().startsWith("prisms.lang"))
+			i--;
+		if(i >= 0)
+		{
+			StackTraceElement [] newST = new StackTraceElement [i + 1];
+			System.arraycopy(e.getStackTrace(), 0, newST, 0, newST.length);
+			e.setStackTrace(newST);
+		}
+	}
+
 	private void newLine()
 	{
 		theRow = new javax.swing.JPanel();
+		theRow.addMouseListener(theGrabListener);
 		theRow.setLayout(new javax.swing.BoxLayout(theRow, javax.swing.BoxLayout.X_AXIS));
 		add(theRow);
 		javax.swing.JLabel prompt = new javax.swing.JLabel("  > ");
 		prompt.setForeground(darkGreen);
 		prompt.setFont(prompt.getFont().deriveFont(java.awt.Font.BOLD));
+		prompt.setBackground(java.awt.Color.white);
 		theRow.add(prompt);
 		theRow.add(theInput);
 		theInput.setText("");
 		doLayout();
 		repaint();
 		theInput.grabFocus();
+		doLayout();
 	}
 
 	private void answer(String text, boolean error)
@@ -323,8 +366,10 @@ public class InterpreterPanel extends javax.swing.JPanel
 		text = text.trim();
 		if(text.length() == 0)
 			return;
-		javax.swing.JLabel answer = new javax.swing.JLabel();
+		javax.swing.JEditorPane answer = new javax.swing.JEditorPane();
+		answer.addMouseListener(theGrabListener);
 		answer.setText("        " + text);
+		answer.setEditable(false);
 		if(error)
 			answer.setForeground(java.awt.Color.red);
 		add(answer);
@@ -348,11 +393,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 	public static void main(String [] args)
 	{
 		javax.swing.JFrame frame = new javax.swing.JFrame();
-		frame.setTitle("Interpretation Test");
+		frame.setTitle("Interpreter");
 		frame.setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);
 		frame.setSize(480, 640);
 		InterpreterPanel interp = new InterpreterPanel();
 		frame.setContentPane(new javax.swing.JScrollPane(interp));
+		((javax.swing.JScrollPane) frame.getContentPane())
+			.setHorizontalScrollBarPolicy(javax.swing.JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		java.awt.Dimension dim = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
 		frame.setLocation((int) (dim.getWidth() - frame.getWidth()) / 2,
 			(int) (dim.getHeight() - frame.getHeight()) / 2);

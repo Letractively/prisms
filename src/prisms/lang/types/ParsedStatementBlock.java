@@ -55,7 +55,7 @@ public class ParsedStatementBlock extends ParsedItem
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws EvaluationException
 	{
-		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
+		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		for(ParsedItem content : theContents)
 		{
 			if(content instanceof ParsedAssignmentOperator)

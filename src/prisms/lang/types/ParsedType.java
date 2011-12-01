@@ -7,6 +7,8 @@ public class ParsedType extends prisms.lang.ParsedItem
 {
 	private String theName;
 
+	private int theArrayDimension;
+
 	private ParsedType [] theParamTypes;
 
 	private boolean isBounded;
@@ -55,10 +57,17 @@ public class ParsedType extends prisms.lang.ParsedItem
 			theName = ((ParsedType) parser.parseStructures(this, getStored("base"))[0]).getName();
 			isBounded = false;
 			for(prisms.lang.ParseMatch m : match.getParsed())
+			{
 				if("paramType".equals(m.config.get("name")))
 					theParamTypes = prisms.util.ArrayUtils.add(theParamTypes,
 						(ParsedType) parser.parseStructures(this, m)[0]);
+				else if("array".equals(m.config.get("name")))
+					theArrayDimension++;
+			}
 		}
+		for(prisms.lang.ParseMatch m : match.getParsed())
+			if("array".equals(m.config.get("storeAs")))
+				theArrayDimension++;
 	}
 
 	@Override
@@ -94,7 +103,10 @@ public class ParsedType extends prisms.lang.ParsedItem
 					throw new prisms.lang.EvaluationException("Incorrect number of arguments for type " + type
 						+ "; it cannot be parameterized with arguments <" + args + ">", this, index);
 				}
-				return new prisms.lang.EvaluationResult(new Type(ret, paramTypes));
+				Type t = new Type(ret, paramTypes);
+				for(int i = 0; i < theArrayDimension; i++)
+					t = t.getArrayType();
+				return new prisms.lang.EvaluationResult(t);
 			}
 			StringBuilder name = new StringBuilder(theName);
 			int idx = name.lastIndexOf(".");
@@ -106,11 +118,36 @@ public class ParsedType extends prisms.lang.ParsedItem
 				{
 					for(int p = 0; p < paramTypes.length; p++)
 						paramTypes[p] = theParamTypes[p].evaluate(env, true, withValues).getType();
-					return new prisms.lang.EvaluationResult(new Type(ret, paramTypes));
+					Type t = new Type(ret, paramTypes);
+					for(int i = 0; i < theArrayDimension; i++)
+						t = t.getArrayType();
+					return new prisms.lang.EvaluationResult(t);
 				}
 				idx = name.lastIndexOf(".");
 			}
-			if(paramTypes.length == 0)
+			name = new StringBuilder(theName);
+			idx = name.indexOf(".");
+			ret = env.getImportType(idx >= 0 ? name.substring(0, idx) : name.toString());
+			if(ret != null)
+			{
+				if(idx >= 0)
+				{
+					name.delete(0, idx + 1);
+					for(idx = name.indexOf("."); idx >= 0; idx = name.indexOf("."))
+						name.setCharAt(idx, '$');
+					ret = getClassFromName(ret.getName() + name, env);
+				}
+				if(ret != null)
+				{
+					for(int p = 0; p < paramTypes.length; p++)
+						paramTypes[p] = theParamTypes[p].evaluate(env, true, withValues).getType();
+					Type t = new Type(ret, paramTypes);
+					for(int i = 0; i < theArrayDimension; i++)
+						t = t.getArrayType();
+					return new prisms.lang.EvaluationResult(t);
+				}
+			}
+			if(paramTypes.length == 0 && theArrayDimension == 0)
 			{
 				Package [] pkgs = Package.getPackages();
 				for(Package pkg : pkgs)
@@ -136,6 +173,12 @@ public class ParsedType extends prisms.lang.ParsedItem
 	public String getName()
 	{
 		return theName;
+	}
+
+	/** @return The dimension of this type if it is an array */
+	public int getArrayDimension()
+	{
+		return theArrayDimension;
 	}
 
 	/** @return The parameter types of this generic type */
@@ -185,6 +228,10 @@ public class ParsedType extends prisms.lang.ParsedItem
 			return Short.TYPE;
 		else if("byte".equals(name))
 			return Byte.TYPE;
+		else if("null".equals(name))
+			return Type.NULL.getClass();
+		else if("void".equals(name))
+			return Void.TYPE;
 		Class<?> clazz;
 		try
 		{
@@ -208,5 +255,42 @@ public class ParsedType extends prisms.lang.ParsedItem
 		if(clazz != null)
 			return clazz;
 		return null;
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		if(theName != null)
+		{
+			ret.append(theName);
+			if(theParamTypes.length > 0)
+			{
+				ret.append('<');
+				for(int i = 0; i < theParamTypes.length; i++)
+				{
+					if(i > 0)
+						ret.append(", ");
+					ret.append(theParamTypes[i]);
+				}
+				ret.append('>');
+			}
+		}
+		else
+		{
+			ret.append('?');
+			if(theBound != null)
+			{
+				ret.append(isUpperBound ? "extends " : "super ");
+				ret.append(theBound);
+			}
+		}
+		for(int i = 0; i < theArrayDimension; i++)
+		{
+			if(i == 0)
+				ret.append(' ');
+			ret.append("[]");
+		}
+		return ret.toString();
 	}
 }

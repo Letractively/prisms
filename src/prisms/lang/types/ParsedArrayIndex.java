@@ -69,7 +69,7 @@ public class ParsedArrayIndex extends Assignable
 		throws EvaluationException
 	{
 		int index = ((Number) theIndex.evaluate(env, false, true).getValue()).intValue();
-		EvaluationResult res = theArray.evaluate(env, false, false);
+		EvaluationResult res = theArray.evaluate(env, false, true);
 		java.lang.reflect.Array.set(res.getValue(), index, value.getValue());
 	}
 }

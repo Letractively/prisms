@@ -10,7 +10,7 @@ import prisms.lang.EvaluationException;
 /** Represents the creation of an array instance */
 public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 {
-	private prisms.lang.ParsedItem theType;
+	private ParsedType theType;
 
 	private int theDimension;
 
@@ -23,7 +23,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 		throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
-		theType = parser.parseStructures(this, getStored("type"))[0];
+		theType = (ParsedType) parser.parseStructures(this, getStored("type"))[0];
 		boolean hasEmptyDimension = false;
 		boolean hasSize = false;
 		boolean hasValues = getStored("valueSet") != null;
@@ -56,12 +56,15 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 		if(!hasValues && sizes.size() == 0)
 			throw new prisms.lang.ParseException("Must provide either dimension expressions or an array initializer",
 				getRoot().getFullCommand(), match.index);
+		if(elements.size() > 0 && theType.getArrayDimension() == 0)
+			throw new prisms.lang.ParseException("Syntax error: array initializer or constructor expected", getRoot()
+				.getFullCommand(), getStored("valueSet").index);
 		theSizes = sizes.toArray(new prisms.lang.ParsedItem [sizes.size()]);
 		theElements = elements.toArray(new prisms.lang.ParsedItem [elements.size()]);
 	}
 
 	/** @return The base type of the array */
-	public prisms.lang.ParsedItem getType()
+	public ParsedType getType()
 	{
 		return theType;
 	}
@@ -101,6 +104,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 			type = type.getArrayType();
 		if(!withValues)
 			return new prisms.lang.EvaluationResult(type, null);
+		prisms.lang.Type retType = type;
 		Object ret = null;
 		if(theSizes.length > 0)
 		{
@@ -155,6 +159,6 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 				Array.set(ret, i, elements[i]);
 		}
 
-		return new prisms.lang.EvaluationResult(typeEval.getType(), ret);
+		return new prisms.lang.EvaluationResult(retType, ret);
 	}
 }

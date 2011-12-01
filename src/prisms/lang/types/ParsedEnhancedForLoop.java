@@ -31,7 +31,7 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws prisms.lang.EvaluationException
 	{
-		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
+		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		theVariable.evaluate(scoped, false, withValues);
 		prisms.lang.EvaluationResult iterRes = theIterable.evaluate(scoped, false, withValues);
 		if(withValues)

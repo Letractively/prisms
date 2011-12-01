@@ -23,9 +23,17 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			theType = type;
 			isFinal = _final;
 		}
+
+		@Override
+		public String toString()
+		{
+			return theType.toString();
+		}
 	}
 
 	private final DefaultEvaluationEnvironment theParent;
+
+	private final boolean isTransaction;
 
 	private boolean canOverride;
 
@@ -51,6 +59,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	public DefaultEvaluationEnvironment()
 	{
 		theParent = null;
+		isTransaction = false;
 		theVariables = new java.util.HashMap<String, DefaultEvaluationEnvironment.Variable>();
 		theHistory = new java.util.ArrayList<Variable>();
 		theImportTypes = new java.util.HashMap<String, Class<?>>();
@@ -59,9 +68,10 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		theFunctions = new java.util.ArrayList<prisms.lang.types.ParsedFunctionDeclaration>();
 	}
 
-	DefaultEvaluationEnvironment(DefaultEvaluationEnvironment parent, boolean override)
+	DefaultEvaluationEnvironment(DefaultEvaluationEnvironment parent, boolean override, boolean transaction)
 	{
 		theParent = parent;
+		isTransaction = transaction;
 		canOverride = override;
 		theVariables = new java.util.HashMap<String, DefaultEvaluationEnvironment.Variable>();
 	}
@@ -73,7 +83,8 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	public Type getVariableType(String name)
 	{
-		return getVariableType(name, true);
+		Variable vbl = getVariable(name, true);
+		return vbl == null ? null : vbl.theType;
 	}
 
 	/**
@@ -83,7 +94,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	 * @param lookBack Whether to look beyond the current scope
 	 * @return The type of the variable, or null if none has been declared
 	 */
-	protected Type getVariableType(String name, boolean lookBack)
+	protected Variable getVariable(String name, boolean lookBack)
 	{
 		Variable vbl;
 		synchronized(theVariables)
@@ -93,11 +104,11 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		if(vbl == null)
 		{
 			if(theParent != null && (lookBack || !canOverride))
-				return theParent.getVariableType(name, lookBack);
+				return theParent.getVariable(name, lookBack);
 			else
 				return null;
 		}
-		return vbl.theType;
+		return vbl;
 	}
 
 	public Object getVariable(String name, ParsedItem struct, int index) throws EvaluationException
@@ -124,8 +135,8 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	{
 		if(theParent != null && !canOverride)
 		{
-			Type parentType = theParent.getVariableType(name, false);
-			if(parentType != null)
+			Variable parentVar = theParent.getVariable(name, false);
+			if(parentVar != null)
 				throw new EvaluationException("Duplicate local variable " + name, struct, index);
 		}
 		synchronized(theVariables)
@@ -144,16 +155,14 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		{
 			vbl = theVariables.get(name);
 		}
-		if(vbl == null)
+		if(vbl == null && theParent != null)
 		{
-			if(theParent != null)
-			{
-				theParent.setVariable(name, value, struct, index);
-				return;
-			}
-			else
-				throw new EvaluationException(name + " cannot be resolved to a variable ", struct, index);
+			vbl = theParent.getVariable(name, true);
+			if(vbl != null && isTransaction)
+				vbl = new Variable(vbl.theType, vbl.isFinal);
 		}
+		if(vbl == null)
+			throw new EvaluationException(name + " cannot be resolved to a variable ", struct, index);
 		if(vbl.theType.isPrimitive())
 		{
 			if(value == null)
@@ -176,6 +185,34 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		vbl.theValue = value;
 	}
 
+	public void dropVariable(String name, ParsedItem struct, int index) throws EvaluationException
+	{
+		Variable vbl;
+		synchronized(theVariables)
+		{
+			vbl = theVariables.get(name);
+		}
+		if(vbl == null)
+		{
+			if(getVariable(name, true) != null)
+			{
+				if(isTransaction)
+					theParent.dropVariable(name, struct, index);
+				else
+					throw new EvaluationException("Variable " + name
+						+ " can only be dropped from the scope in which it was declared", struct, index);
+			}
+			else
+				throw new EvaluationException("No such variable named " + name, struct, index);
+		}
+		if(vbl.isFinal)
+			throw new EvaluationException("The final variable " + name + " cannot be dropped", struct, index);
+		synchronized(theVariables)
+		{
+			theVariables.remove(name);
+		}
+	}
+
 	public void declareFunction(ParsedFunctionDeclaration function)
 	{
 		synchronized(theFunctions)
@@ -194,6 +231,29 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		if(theParent != null)
 			ret = prisms.util.ArrayUtils.addAll(ret, theParent.getDeclaredFunctions());
 		return ret;
+	}
+
+	public void dropFunction(ParsedFunctionDeclaration function, ParsedItem struct, int index)
+		throws EvaluationException
+	{
+		synchronized(theFunctions)
+		{
+			int fIdx = theFunctions.indexOf(function);
+			if(fIdx < 0)
+			{
+				if(theParent != null && prisms.util.ArrayUtils.indexOf(theParent.getDeclaredFunctions(), function) >= 0)
+				{
+					if(isTransaction)
+						theParent.dropFunction(function, struct, index);
+					else
+						throw new EvaluationException("Function " + function.getShortSig()
+							+ " can only be dropped from the scope in which it was declared", struct, index);
+				}
+				else
+					throw new EvaluationException("No such function " + function.getShortSig(), struct, index);
+			}
+			theFunctions.remove(fIdx);
+		}
 	}
 
 	public void setReturnType(Type type)
@@ -272,7 +332,12 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	public void addHistory(Type type, Object result)
 	{
 		if(theParent != null)
-			throw new IllegalStateException("History can only be added to a root-level evaluation environment");
+		{
+			if(isTransaction)
+				theParent.addHistory(type, result);
+			else
+				throw new IllegalStateException("History can only be added to a root-level evaluation environment");
+		}
 		Variable vbl = new Variable(type, false);
 		vbl.theValue = result;
 		synchronized(theHistory)
@@ -349,8 +414,37 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
-	public EvaluationEnvironment scope(boolean override)
+	public EvaluationEnvironment scope(boolean dependent)
 	{
-		return new DefaultEvaluationEnvironment(this, override);
+		if(dependent)
+			return new DefaultEvaluationEnvironment(this, false, false);
+		DefaultEvaluationEnvironment root = this;
+		while(root.theParent != null)
+			root = root.theParent;
+		DefaultEvaluationEnvironment ret = new DefaultEvaluationEnvironment(null, true, false);
+		for(String pkg : root.theImportPackages)
+			ret.theImportPackages.add(pkg);
+		for(java.util.Map.Entry<String, Class<?>> entry : root.theImportTypes.entrySet())
+			ret.theImportTypes.put(entry.getKey(), entry.getValue());
+		for(java.util.Map.Entry<String, Class<?>> entry : root.theImportMethods.entrySet())
+			ret.theImportMethods.put(entry.getKey(), entry.getValue());
+		for(Variable var : root.theHistory)
+			ret.theHistory.add(var);
+		for(ParsedFunctionDeclaration func : getDeclaredFunctions())
+			ret.theFunctions.add(func);
+		root = this;
+		while(root != null)
+		{
+			for(java.util.Map.Entry<String, Variable> var : root.theVariables.entrySet())
+				if(var.getValue().isFinal && var.getValue().isInitialized)
+					ret.theVariables.put(var.getKey(), var.getValue());
+			root = root.theParent;
+		}
+		return new DefaultEvaluationEnvironment(ret, true, false);
+	}
+
+	public EvaluationEnvironment transact()
+	{
+		return new DefaultEvaluationEnvironment(this, false, true);
 	}
 }
