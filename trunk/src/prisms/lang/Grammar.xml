@@ -78,7 +78,7 @@
 			</option>
 		</select>
 	</entity>
-	<entity name="null" priority="199" impl="prisms.lang.types.ParseNull">
+	<entity name="null" priority="199" impl="prisms.lang.types.ParsedNull">
 		<literal>null</literal>
 	</entity> 
 	<entity name="keyword" priority="1" impl="prisms.lang.types.ParsedKeyword">
@@ -140,6 +140,8 @@
 
 			<match>goto</match>
 			<match>const</match>
+
+			<match>drop</match>
 		</charset>
 	</entity>
 	<entity name="identifier" priority="0" impl="prisms.lang.types.ParsedIdentifier">
@@ -162,6 +164,10 @@
 				<op type="wildcard type" storeAs="paramType" />
 			</option>
 			<literal>&gt;</literal>
+		</option>
+		<option min="0">
+			<literal storeAs="array">[</literal>
+			<literal>]</literal>
 		</option>
 	</entity>
 	<entity name="wildcard type" priority="-1" impl="prisms.lang.types.ParsedType">
@@ -220,7 +226,7 @@
 		<op storeAs="index" />
 		<literal>]</literal>
 	</operator>
-	<operator name="function" priority="9" impl="prisms.lang.types.ParsedMethod">
+	<operator name="function" priority="11" impl="prisms.lang.types.ParsedMethod">
 		<pre-op type="identifier" storeAs="name" />
 		<literal>(</literal>
 		<option>
@@ -232,7 +238,7 @@
 		</option>
 		<literal>)</literal>
 	</operator>
-	<operator name="field/method" priority="11" impl="prisms.lang.types.ParsedMethod">
+	<operator name="field/method" priority="12" impl="prisms.lang.types.ParsedMethod">
 		<pre-op />
 		<literal storeAs="dot">.</literal>
 		<op type="identifier|keyword" storeAs="name" />
@@ -279,6 +285,10 @@
 			<literal>&gt;</literal>
 		</option>
 		<whitespace />
+		<op type="identifier" storeAs="name" />
+	</operator>
+	<operator name="drop" priority="5" impl="prisms.lang.types.ParsedDrop">
+		<literal>drop</literal>
 		<op type="identifier" storeAs="name" />
 	</operator>
 	<operator name="function declaration" priority="101" impl="prisms.lang.types.ParsedFunctionDeclaration">
@@ -330,6 +340,19 @@
 		</option>
 		<op type="block" storeAs="body" />
 	</operator>
+	<operator name="drop function" priority="5" impl="prisms.lang.types.ParsedDrop">
+		<literal>drop</literal>
+		<op type="identifier" storeAs="name" />
+		<literal storeAs="function">(</literal>
+		<option>
+			<op type="type" storeAs="parameter" />
+			<option min="0">
+				<literal>,</literal>
+				<op type="type" storeAs="parameter" />
+			</option>
+		</option>
+		<literal>)</literal>
+	</operator>
 	<operator name="instanceof" priority="100" impl="prisms.lang.types.ParsedInstanceofOp">
 		<pre-op storeAs="variable" />
 		<literal>instanceof</literal>
@@ -363,24 +386,28 @@
 		<literal>new</literal>
 		<whitespace />
 		<op storeAs="type" type="type" />
-		<option min="1">
-			<literal storeAs="startDimension">[</literal>
+		<select>
 			<option>
-				<op storeAs="size" />
-			</option>
-			<literal storeAs="endDimension">]</literal>
-		</option>
-		<option>
-			<literal storeAs="valueSet">{</literal>
-			<option>
-				<op storeAs="element" />
-				<option min="0">
-					<literal>,</literal>
-					<op storeAs="element" />
+				<option min="1">
+					<literal storeAs="startDimension">[</literal>
+					<option>
+						<op storeAs="size" />
+					</option>
+					<literal storeAs="endDimension">]</literal>
 				</option>
 			</option>
-			<literal>}</literal>
-		</option>
+			<option>
+				<literal storeAs="valueSet">{</literal>
+				<option>
+					<op storeAs="element" />
+					<option min="0">
+						<literal>,</literal>
+						<op storeAs="element" />
+					</option>
+				</option>
+				<literal>}</literal>
+			</option>
+		</select>
 	</operator>
 	<operator name="conditional" priority="50" impl="prisms.lang.types.ParsedConditional">
 		<pre-op storeAs="condition" />

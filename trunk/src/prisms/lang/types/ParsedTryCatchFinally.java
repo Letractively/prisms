@@ -46,7 +46,7 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 			theTryBlock.evaluate(env, false, withValues);
 			for(int i = 0; i < theCatchDeclarations.length; i++)
 			{
-				scoped = env.scope(false);
+				scoped = env.scope(true);
 				theCatchDeclarations[i].evaluate(scoped, true, withValues);
 				theCatchBlocks[i].evaluate(scoped, false, withValues);
 			}
@@ -65,7 +65,7 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 			{
 				for(int i = 0; i < theCatchDeclarations.length; i++)
 				{
-					scoped = env.scope(false);
+					scoped = env.scope(true);
 					prisms.lang.EvaluationResult catchType = theCatchDeclarations[i].getType()
 						.evaluate(env, true, true);
 					if(catchType.getType().isAssignableFrom(e.getCause().getClass()))
@@ -81,7 +81,7 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 			{
 				if(theFinallyBlock != null)
 				{
-					scoped = env.scope(false);
+					scoped = env.scope(true);
 					prisms.lang.EvaluationResult finallyRes = theFinallyBlock.evaluate(env, false, withValues);
 					if(finallyRes != null)
 						return finallyRes;

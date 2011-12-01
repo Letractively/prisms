@@ -80,7 +80,7 @@ public class ParsedIfStatement extends ParsedItem
 		boolean hit = false;
 		for(int i = 0; i < theConditions.length && (!hit || !withValues); i++)
 		{
-			prisms.lang.EvaluationEnvironment scoped = env.scope(false);
+			prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 			ParsedItem condition = theConditions[i];
 			prisms.lang.EvaluationResult condRes = condition.evaluate(scoped, false, withValues);
 			if(condRes.isType() || condRes.getPackageName() != null)

@@ -25,8 +25,7 @@ public class Test
 			e.printStackTrace();
 			return;
 		}
-		EvaluationEnvironment valEnv = new DefaultEvaluationEnvironment();
-		EvaluationEnvironment rtEnv = new DefaultEvaluationEnvironment();
+		EvaluationEnvironment env = new DefaultEvaluationEnvironment();
 		java.util.Scanner scanner = new java.util.Scanner(System.in);
 		String line = null;
 		boolean complete = true;
@@ -64,16 +63,13 @@ public class Test
 			{
 				try
 				{
-					s.evaluate(valEnv, false, false);
-					EvaluationResult type = s.evaluate(rtEnv, false, true);
+					s.evaluate(env.transact(), false, false);
+					EvaluationResult type = s.evaluate(env, false, true);
 					if(type != null && !Void.TYPE.equals(type.getType()))
 					{
 						System.out.println("\t" + prisms.util.ArrayUtils.toString(type.getValue()));
 						if(!(s instanceof prisms.lang.types.ParsedPreviousAnswer))
-						{
-							valEnv.addHistory(type.getType(), type.getValue());
-							rtEnv.addHistory(type.getType(), type.getValue());
-						}
+							env.addHistory(type.getType(), type.getValue());
 					}
 				} catch(EvaluationException e)
 				{

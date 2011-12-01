@@ -38,7 +38,7 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws prisms.lang.EvaluationException
 	{
-		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
+		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
 		prisms.lang.EvaluationResult ret = theReturnType.evaluate(scoped, true, withValues);
 		if(!ret.isType())
 			throw new prisms.lang.EvaluationException(ret + " cannot be resolved to a type", theReturnType,
@@ -68,7 +68,7 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	public prisms.lang.EvaluationResult execute(prisms.lang.EvaluationEnvironment env,
 		prisms.lang.EvaluationResult[] params, boolean withValues) throws prisms.lang.EvaluationException
 	{
-		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
+		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
 		if(theParameters.length != params.length)
 			throw new IllegalStateException("Illegal parameters");
 		for(int i = 0; i < theParameters.length; i++)
@@ -168,5 +168,21 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	public ParsedStatementBlock getBody()
 	{
 		return theBody;
+	}
+
+	/** @return A short representation of this function's signature */
+	public String getShortSig()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append(theName);
+		ret.append('(');
+		for(int p = 0; p < theParameters.length; p++)
+		{
+			if(p > 0)
+				ret.append(", ");
+			ret.append(theParameters[p].getType());
+		}
+		ret.append(')');
+		return ret.toString();
 	}
 }

@@ -88,7 +88,7 @@ public class ParsedLoop extends ParsedItem
 	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws EvaluationException
 	{
-		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
+		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		for(ParsedItem init : theInits)
 		{
 			if(init instanceof ParsedAssignmentOperator)

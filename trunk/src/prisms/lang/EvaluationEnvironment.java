@@ -40,9 +40,17 @@ public interface EvaluationEnvironment
 	 * @param value The value of the variable to set
 	 * @param struct The parsed structure to use if an error needs to be thrown
 	 * @param index The index to use if an error needs to be thrown
-	 * @throws EvaluationException If the variable cannot be assigned to the given value for any reason
+	 * @throws EvaluationException If the variable cannot be droppeds for any reason
 	 */
 	void setVariable(String name, Object value, ParsedItem struct, int index) throws EvaluationException;
+
+	/**
+	 * @param name The name of the variable to drop
+	 * @param struct The parsed structure to use if an error needs to be thrown
+	 * @param index The index to use if an error needs to be thrown
+	 * @throws EvaluationException If the variable cannot be assigned to the given value for any reason
+	 */
+	void dropVariable(String name, ParsedItem struct, int index) throws EvaluationException;
 
 	/**
 	 * Stores a function for later use
@@ -53,6 +61,15 @@ public interface EvaluationEnvironment
 
 	/** @return All functions that have been declared in this environment */
 	prisms.lang.types.ParsedFunctionDeclaration[] getDeclaredFunctions();
+
+	/**
+	 * @param function The function to drop
+	 * @param struct The parsed structure to use if an error needs to be thrown
+	 * @param index The index to use if an error needs to be thrown
+	 * @throws EvaluationException If the function cannot be dropped for any reason
+	 */
+	void dropFunction(prisms.lang.types.ParsedFunctionDeclaration function, ParsedItem struct, int index)
+		throws EvaluationException;
 
 	/** @param type Sets the return type that is expected from this scoped enviroment */
 	void setReturnType(Type type);
@@ -127,9 +144,18 @@ public interface EvaluationEnvironment
 	/**
 	 * Creates a new scope or subscope with this environment as a parent
 	 * 
-	 * @param canOverride Whether the new scope can create new local variables with the same names as those in this
-	 *        scope
+	 * @param dependent Whether the new scope can use variables from this scope dynamically. If this is false, only
+	 *        those variables that are declared as final and have been initialized will be copied into the new
+	 *        environment.
 	 * @return The new evaluation environment
 	 */
-	EvaluationEnvironment scope(boolean canOverride);
+	EvaluationEnvironment scope(boolean dependent);
+
+	/**
+	 * Creates a new evaluation environment that is a copy of this one, where modifications can be done without
+	 * affecting this environment.
+	 * 
+	 * @return The transaction environment
+	 */
+	EvaluationEnvironment transact();
 }

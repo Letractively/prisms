@@ -150,6 +150,8 @@ public class Type
 	 */
 	public boolean isAssignable(Type t)
 	{
+		if(t != null && t.theBaseType == NULL.getClass())
+			return !isPrimitive();
 		if(isBounded)
 		{
 			if(t == null)
@@ -488,6 +490,27 @@ public class Type
 				ret.append("[]");
 		}
 		return ret.toString();
+	}
+
+	@Override
+	public boolean equals(Object o)
+	{
+		if(!(o instanceof Type))
+			return false;
+		Type t = (Type) o;
+		if(isBounded != t.isBounded)
+			return false;
+		if(theBaseType == null ? t.theBaseType != null : !theBaseType.equals(t.theBaseType))
+			return false;
+		if(theBoundType == null ? t.theBoundType != null : !theBoundType.equals(t.theBoundType))
+			return false;
+		if(isUpperBound != t.isUpperBound)
+			return false;
+		if(theName == null ? t.theName != null : !theName.equals(t.theName))
+			return false;
+		if(!prisms.util.ArrayUtils.equals(theParamTypes, t.theParamTypes))
+			return false;
+		return true;
 	}
 
 	/**
