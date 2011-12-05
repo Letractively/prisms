@@ -19,18 +19,31 @@ public class ParseMatch
 
 	private final ParseMatch [] parsed;
 
-	ParseMatch(PrismsConfig cnfg, String txt, int idx, ParseMatch [] _parsed)
+	private boolean isComplete;
+
+	ParseMatch(PrismsConfig cnfg, String txt, int idx, ParseMatch [] _parsed, boolean complete)
 	{
 		config = cnfg;
 		text = txt;
 		index = idx;
 		parsed = _parsed;
+		isComplete = complete;
 	}
 
 	/** @return Details on the match */
 	public ParseMatch [] getParsed()
 	{
 		return parsed;
+	}
+
+	/** @return Whether this match parsed completely. Matches may be returned incompletely parsed. */
+	public boolean isComplete()
+	{
+		if(!isComplete)
+			return false;
+		if(parsed == null || parsed.length == 0)
+			return true;
+		return parsed[parsed.length - 1].isComplete();
 	}
 
 	@Override

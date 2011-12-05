@@ -26,8 +26,7 @@ public class ParsedMethod extends Assignable
 	private prisms.lang.ParsedItem[] theArguments;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(PrismsParser parser, ParsedItem parent, ParseMatch match) throws ParseException
 	{
 		super.setup(parser, parent, match);
 		theName = getStored("name").text;
@@ -67,15 +66,24 @@ public class ParsedMethod extends Assignable
 	}
 
 	/** @return The instance on which this field or method was invoked */
-	public prisms.lang.ParsedItem getContext()
+	public ParsedItem getContext()
 	{
 		return theContext;
 	}
 
 	/** @return The arguments to this method */
-	public prisms.lang.ParsedItem[] getArguments()
+	public ParsedItem [] getArguments()
 	{
 		return theArguments;
+	}
+
+	@Override
+	public ParsedItem [] getDependents()
+	{
+		ParsedItem [] ret = theArguments;
+		if(theContext != null)
+			ret = prisms.util.ArrayUtils.add(theArguments, theContext, 0);
+		return ret;
 	}
 
 	@Override
@@ -100,11 +108,11 @@ public class ParsedMethod extends Assignable
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws prisms.lang.EvaluationException
+	public EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
 		EvaluationResult ctxType;
-		EvaluationResult [] argRes = new prisms.lang.EvaluationResult [theArguments.length];
+		EvaluationResult [] argRes = new EvaluationResult [theArguments.length];
 		for(int i = 0; i < argRes.length; i++)
 		{
 			argRes[i] = theArguments[i].evaluate(env, false, withValues);
@@ -212,7 +220,7 @@ public class ParsedMethod extends Assignable
 		boolean isStatic = ctxType.isType();
 		if(!isMethod)
 		{
-			if(ctxType.getPackageName() != null)
+			if(ctxType.getPackageName() != null || ctxType.isType())
 			{
 				// Could be a class name or a more specific package name
 				String name = ctxType.getPackageName() + "." + theName;
@@ -226,22 +234,21 @@ public class ParsedMethod extends Assignable
 				}
 				if(clazz != null)
 					return new EvaluationResult(new Type(clazz));
-				Package [] pkgs = Package.getPackages();
-				for(Package pkg : pkgs)
-					if(pkg.getName().equals(name) || pkg.getName().startsWith(name + "."))
-						return new EvaluationResult(name);
-				throw new EvaluationException(ctxType.getFirstVar() + " cannot be resolved to a variable", this,
-					theContext.getMatch().index);
+				if(env.getClassGetter().isPackage(name))
+					return new EvaluationResult(name);
+				if(!ctxType.isType())
+					throw new EvaluationException(ctxType.getFirstVar() + " cannot be resolved to a variable", this,
+						theContext.getMatch().index);
 			}
 			if(!ctxType.isType() && ctxType.getType().isPrimitive())
 				throw new EvaluationException("The primitive type " + ctxType.getType().getBaseType().getName()
 					+ " does not have a field " + theName, this, theContext.getMatch().index
 					+ theContext.getMatch().text.length());
 			if(theName.equals("length") && ctxType.getType().isArray())
-				return new EvaluationResult(new Type(Integer.class), withValues
+				return new EvaluationResult(new Type(Integer.TYPE), withValues
 					? Integer.valueOf(java.lang.reflect.Array.getLength(ctxType.getValue())) : null);
 			else if(theName.equals("class") && ctxType.isType())
-				return new EvaluationResult(new Type(Class.class, ctxType.getType()), ctxType.getType());
+				return new EvaluationResult(new Type(Class.class, ctxType.getType()), ctxType.getType().getBaseType());
 			java.lang.reflect.Field field;
 			try
 			{

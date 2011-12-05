@@ -284,7 +284,10 @@ public class Type
 			java.lang.reflect.GenericArrayType at = (java.lang.reflect.GenericArrayType) type;
 			Type ret = resolve(at.getGenericComponentType(), declaringClass);
 			if(ret.theBaseType != null)
-				ret.theBaseType = java.lang.reflect.Array.newInstance(ret.theBaseType, 0).getClass();
+			{
+				if(Void.TYPE != ret.theBaseType)
+					ret.theBaseType = java.lang.reflect.Array.newInstance(ret.theBaseType, 0).getClass();
+			}
 			else if(ret.theBoundType != null)
 				ret.theBoundType = ret.theBoundType.getArrayType();
 			else
@@ -379,7 +382,12 @@ public class Type
 	{
 		Type ret;
 		if(theBaseType != null)
-			ret = new Type(java.lang.reflect.Array.newInstance(theBaseType, 0).getClass(), theParamTypes);
+		{
+			if(Void.TYPE == theBaseType)
+				ret = this;
+			else
+				ret = new Type(java.lang.reflect.Array.newInstance(theBaseType, 0).getClass(), theParamTypes);
+		}
 		else if(theBoundType != null)
 			ret = new Type(theBoundType.getArrayType(), isUpperBound);
 		else
@@ -452,6 +460,18 @@ public class Type
 	@Override
 	public String toString()
 	{
+		return toString(null);
+	}
+
+	/**
+	 * Like {@link #toString()}, but shortens this type's string representation wherever possible by cutting off package
+	 * names where they can be made implicit.
+	 * 
+	 * @param env The evaluation environment to check type imports of. May be null.
+	 * @return A string representing this type
+	 */
+	public String toString(EvaluationEnvironment env)
+	{
 		StringBuilder ret = new StringBuilder();
 		if(isBounded)
 		{
@@ -459,7 +479,7 @@ public class Type
 			if(theBoundType != null)
 			{
 				ret.append(isUpperBound ? "extends " : "super ");
-				ret.append(theBoundType);
+				ret.append(theBoundType.toString(env));
 			}
 		}
 		else
@@ -471,7 +491,8 @@ public class Type
 				arrayDim++;
 				base = base.getComponentType();
 			}
-			ret.append(base.getName());
+			String imp = isImported(base, env);
+			ret.append(imp != null ? imp : base.getName());
 			if(theParamTypes.length > 0)
 			{
 				ret.append('<');
@@ -482,7 +503,7 @@ public class Type
 						first = false;
 					else
 						ret.append(", ");
-					ret.append(p.toString());
+					ret.append(p.toString(env));
 				}
 				ret.append('>');
 			}
@@ -490,6 +511,29 @@ public class Type
 				ret.append("[]");
 		}
 		return ret.toString();
+	}
+
+	/**
+	 * Checks to see whether a class may be represented without its package name
+	 * 
+	 * @param t The class to check
+	 * @param env The evaluation environment to check the class in. May be null.
+	 * @return True if the class belongs to the default package or java.lang, or if the class's name or its package have
+	 *         been imported into <code>env</code>
+	 */
+	public static String isImported(Class<?> t, EvaluationEnvironment env)
+	{
+		String name = t.getName();
+		int idx = name.indexOf('.');
+		if(idx < 0)
+			return name;
+		String pkg = name.substring(0, idx);
+		name = name.substring(idx + 1);
+		if(pkg.equals("java.lang"))
+			return name;
+		if(env == null)
+			return null;
+		return env.getImportType(name) != null ? name : null;
 	}
 
 	@Override

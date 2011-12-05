@@ -40,7 +40,7 @@ public class ParsedUnaryOp extends prisms.lang.ParsedItem
 				theOperand = parser.parseStructures(this, m)[0];
 			}
 		}
-		if(theOperand == null)
+		if(getMatch().isComplete() && theOperand == null)
 			throw new ParseException("No operand for configured unary operation: " + getMatch().config, getRoot()
 				.getFullCommand(), getMatch().index);
 	}
@@ -61,6 +61,12 @@ public class ParsedUnaryOp extends prisms.lang.ParsedItem
 	public boolean isPrefix()
 	{
 		return isPrefix;
+	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theOperand};
 	}
 
 	@Override

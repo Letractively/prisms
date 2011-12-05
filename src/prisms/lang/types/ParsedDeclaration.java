@@ -64,9 +64,32 @@ public class ParsedDeclaration extends Assignable
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		prisms.lang.ParsedItem[] ret = new prisms.lang.ParsedItem [theParamTypes.length + 1];
+		ret[0] = theType;
+		System.arraycopy(theParamTypes, 0, ret, 1, theParamTypes.length);
+		return ret;
+	}
+
+	@Override
 	public String toString()
 	{
-		return theType + " " + theName;
+		StringBuilder ret = new StringBuilder();
+		ret.append(theType);
+		if(theParamTypes.length > 0)
+		{
+			ret.append('<');
+			for(int p = 0; p < theParamTypes.length; p++)
+			{
+				if(p > 0)
+					ret.append(", ");
+				ret.append(theParamTypes[p]);
+			}
+			ret.append('>');
+		}
+		ret.append(' ').append(theName);
+		return ret.toString();
 	}
 
 	@Override

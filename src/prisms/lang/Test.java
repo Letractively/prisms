@@ -46,13 +46,14 @@ public class Test
 			try
 			{
 				ParseMatch [] matches = parser.parseMatches(line);
+				if(matches.length == 0 || !matches[matches.length - 1].isComplete())
+				{
+					complete = false;
+					continue;
+				}
 				ParseStructRoot root = new ParseStructRoot(line);
 				structs = parser.parseStructures(root, matches);
 				complete = true;
-			} catch(IncompleteInputException e)
-			{
-				complete = false;
-				continue;
 			} catch(ParseException e)
 			{
 				complete = true;

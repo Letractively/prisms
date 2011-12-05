@@ -27,6 +27,12 @@ public class ParsedIdentifier extends Assignable
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
 	public String toString()
 	{
 		return theName;
@@ -83,10 +89,8 @@ public class ParsedIdentifier extends Assignable
 		}
 		if(clazz != null)
 			return new EvaluationResult(new prisms.lang.Type(clazz));
-		Package [] pkgs = Package.getPackages();
-		for(Package pkg : pkgs)
-			if(pkg.getName().equals(theName) || pkg.getName().startsWith(theName + "."))
-				return new EvaluationResult(theName);
+		if(env.getClassGetter().isPackage(theName))
+			return new EvaluationResult(theName);
 		Class<?> importType = env.getImportMethodType(theName);
 		if(importType != null)
 		{

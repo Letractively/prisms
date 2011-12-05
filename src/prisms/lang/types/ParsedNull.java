@@ -16,4 +16,16 @@ public class ParsedNull extends prisms.lang.ParsedItem
 	{
 		return new prisms.lang.EvaluationResult(new prisms.lang.Type(prisms.lang.Type.NULL.getClass()), null);
 	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
+	public String toString()
+	{
+		return "null";
+	}
 }

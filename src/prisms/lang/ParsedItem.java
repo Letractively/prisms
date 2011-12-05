@@ -13,7 +13,10 @@ public abstract class ParsedItem
 	private ParseMatch theMatch;
 
 	/**
-	 * Parses this structure type's data, including operands
+	 * Parses this structure type's data, including operands. Extensions must be aware that this method may be called
+	 * with an incomplete match structure. Exceptions should NOT be thrown from this method for incomplete data.
+	 * Instead, as much of the structure of this item should be parsed and stored as is present in the match and the
+	 * rests should be left null.
 	 * 
 	 * @param parser The parser that is parsing this structure
 	 * @param parent The parent structure
@@ -74,7 +77,14 @@ public abstract class ParsedItem
 	}
 
 	/**
-	 * Validates or evaluates this expression
+	 * @return All parsed items that this item is dependent on, in order of their appearance in the text. If this item's
+	 *         match is incomplete, the returned array may end with one or more nulls in place of dependents that this
+	 *         item requires to evaluate properly, but were not present in the text.
+	 */
+	public abstract ParsedItem [] getDependents();
+
+	/**
+	 * Validates or evaluates this expression. This method should never be called if this item's match is incomplete.
 	 * 
 	 * @param env The evaluation environment to execute in
 	 * @param asType Whether the result should be a type if possible

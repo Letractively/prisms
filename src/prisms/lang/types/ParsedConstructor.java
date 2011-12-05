@@ -39,6 +39,12 @@ public class ParsedConstructor extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return prisms.util.ArrayUtils.add(theArguments, theType, 0);
+	}
+
+	@Override
 	public String toString()
 	{
 		StringBuilder ret = new StringBuilder();

@@ -29,4 +29,16 @@ public class ParsedKeyword extends prisms.lang.ParsedItem
 	{
 		return theName;
 	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
+	public String toString()
+	{
+		return theName;
+	}
 }

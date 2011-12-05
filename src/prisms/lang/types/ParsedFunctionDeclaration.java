@@ -170,6 +170,19 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 		return theBody;
 	}
 
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		java.util.ArrayList<prisms.lang.ParsedItem> ret = new java.util.ArrayList<prisms.lang.ParsedItem>();
+		ret.add(theReturnType);
+		for(int p = 0; p < theParameters.length; p++)
+			ret.add(theParameters[p]);
+		for(int e = 0; e < theExceptionTypes.length; e++)
+			ret.add(theExceptionTypes[e]);
+		ret.add(theBody);
+		return ret.toArray(new prisms.lang.ParsedItem [ret.size()]);
+	}
+
 	/** @return A short representation of this function's signature */
 	public String getShortSig()
 	{
@@ -183,6 +196,24 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 			ret.append(theParameters[p].getType());
 		}
 		ret.append(')');
+		return ret.toString();
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append(theReturnType).append(' ');
+		ret.append(theName);
+		ret.append('(');
+		for(int p = 0; p < theParameters.length; p++)
+		{
+			if(p > 0)
+				ret.append(", ");
+			ret.append(theParameters[p]);
+		}
+		ret.append(")\n");
+		ret.append(theBody);
 		return ret.toString();
 	}
 }

@@ -39,6 +39,8 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	private boolean isPublic;
 
+	private ClassGetter theClassGetter;
+
 	private java.util.HashMap<String, Variable> theVariables;
 
 	private java.util.ArrayList<Variable> theHistory;
@@ -60,7 +62,9 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	{
 		theParent = null;
 		isTransaction = false;
-		theVariables = new java.util.HashMap<String, DefaultEvaluationEnvironment.Variable>();
+		isPublic = true;
+		theClassGetter = new ClassGetter();
+		theVariables = new java.util.LinkedHashMap<String, DefaultEvaluationEnvironment.Variable>();
 		theHistory = new java.util.ArrayList<Variable>();
 		theImportTypes = new java.util.HashMap<String, Class<?>>();
 		theImportMethods = new java.util.HashMap<String, Class<?>>();
@@ -72,13 +76,30 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	{
 		theParent = parent;
 		isTransaction = transaction;
+		isPublic = parent == null ? true : parent.isPublic;
 		canOverride = override;
 		theVariables = new java.util.HashMap<String, DefaultEvaluationEnvironment.Variable>();
+		theFunctions = new java.util.ArrayList<prisms.lang.types.ParsedFunctionDeclaration>();
+		if(canOverride)
+		{
+			theHistory = new java.util.ArrayList<Variable>();
+			theImportTypes = new java.util.HashMap<String, Class<?>>();
+			theImportMethods = new java.util.HashMap<String, Class<?>>();
+			theImportPackages = new java.util.HashSet<String>();
+		}
 	}
 
 	public boolean usePublicOnly()
 	{
 		return isPublic;
+	}
+
+	public ClassGetter getClassGetter()
+	{
+		if(theParent != null)
+			return theParent.getClassGetter();
+		else
+			return theClassGetter;
 	}
 
 	public Type getVariableType(String name)
@@ -211,6 +232,25 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		{
 			theVariables.remove(name);
 		}
+	}
+
+	public String [] getDeclaredVariableNames()
+	{
+		java.util.ArrayList<String> ret = new java.util.ArrayList<String>();
+		DefaultEvaluationEnvironment env = this;
+		while(env != null)
+		{
+			synchronized(env.theVariables)
+			{
+				for(String name : env.theVariables.keySet())
+				{
+					if(!ret.contains(name))
+						ret.add(name);
+				}
+			}
+			env = env.theParent;
+		}
+		return ret.toArray(new String [ret.size()]);
 	}
 
 	public void declareFunction(ParsedFunctionDeclaration function)
@@ -440,7 +480,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 					ret.theVariables.put(var.getKey(), var.getValue());
 			root = root.theParent;
 		}
-		return new DefaultEvaluationEnvironment(ret, true, false);
+		return ret;
 	}
 
 	public EvaluationEnvironment transact()

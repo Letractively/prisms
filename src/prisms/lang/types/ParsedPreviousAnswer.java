@@ -25,6 +25,12 @@ public class ParsedPreviousAnswer extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws prisms.lang.EvaluationException
 	{
@@ -39,5 +45,14 @@ public class ParsedPreviousAnswer extends prisms.lang.ParsedItem
 			return new prisms.lang.EvaluationResult(env.getHistoryType(index), withValues ? env.getHistory(index)
 				: null);
 		}
+	}
+
+	@Override
+	public String toString()
+	{
+		if(theIndex > 0)
+			return "%" + theIndex;
+		else
+			return "%";
 	}
 }

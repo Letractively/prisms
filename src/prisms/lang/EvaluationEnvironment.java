@@ -9,6 +9,9 @@ public interface EvaluationEnvironment
 	/** @return Whether evaluations should only allow access to publicly declared classes, methods, and fields */
 	boolean usePublicOnly();
 
+	/** @return The class getter to use with this environment */
+	ClassGetter getClassGetter();
+
 	/**
 	 * @param name The name of the variable to refer to
 	 * @return The type of the variable, or null if no variable with the given name has been declared
@@ -51,6 +54,9 @@ public interface EvaluationEnvironment
 	 * @throws EvaluationException If the variable cannot be assigned to the given value for any reason
 	 */
 	void dropVariable(String name, ParsedItem struct, int index) throws EvaluationException;
+
+	/** @return The names of all variables that have been declared in this environment */
+	String [] getDeclaredVariableNames();
 
 	/**
 	 * Stores a function for later use

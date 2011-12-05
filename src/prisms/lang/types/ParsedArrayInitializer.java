@@ -12,8 +12,6 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 {
 	private ParsedType theType;
 
-	private int theDimension;
-
 	private prisms.lang.ParsedItem[] theSizes;
 
 	private prisms.lang.ParsedItem[] theElements;
@@ -32,7 +30,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 		for(prisms.lang.ParseMatch m : match.getParsed())
 		{
 			if("startDimension".equals(m.config.get("storeAs")))
-				theDimension++;
+				theType.addArrayDimension();
 			else if("size".equals(m.config.get("storeAs")))
 			{
 				if(hasValues)
@@ -53,7 +51,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 			else if("element".equals(m.config.get("storeAs")))
 				elements.add(parser.parseStructures(this, m)[0]);
 		}
-		if(!hasValues && sizes.size() == 0)
+		if(getMatch().isComplete() && !hasValues && sizes.size() == 0)
 			throw new prisms.lang.ParseException("Must provide either dimension expressions or an array initializer",
 				getRoot().getFullCommand(), match.index);
 		if(elements.size() > 0 && theType.getArrayDimension() == 0)
@@ -69,15 +67,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 		return theType;
 	}
 
-	/** @return The dimension of the array */
-	public int getDimension()
-	{
-		return theDimension;
-	}
-
-	/**
-	 * @return The sizes that are specified for this array. There may be fewer sizes than {@link #getDimension()}.
-	 */
+	/** @return The sizes that are specified for this array */
 	public prisms.lang.ParsedItem[] getSizes()
 	{
 		return theSizes;
@@ -87,6 +77,25 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 	public prisms.lang.ParsedItem[] getElements()
 	{
 		return theElements;
+	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		prisms.lang.ParsedItem[] ret;
+		if(theSizes.length > 0)
+		{
+			ret = new prisms.lang.ParsedItem [theSizes.length + 1];
+			ret[0] = theType;
+			System.arraycopy(theSizes, 0, ret, 1, theSizes.length);
+		}
+		else
+		{
+			ret = new prisms.lang.ParsedItem [theElements.length + 1];
+			ret[0] = theType;
+			System.arraycopy(theElements, 0, ret, 1, theElements.length);
+		}
+		return ret;
 	}
 
 	@Override
@@ -100,8 +109,6 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 		prisms.lang.Type type = typeEval.getType();
 		if(type.getBaseType() == null)
 		{}
-		for(int i = theDimension - 1; i >= 0; i--)
-			type = type.getArrayType();
 		if(!withValues)
 			return new prisms.lang.EvaluationResult(type, null);
 		prisms.lang.Type retType = type;
@@ -116,8 +123,8 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 					throw new EvaluationException(sizeEval.typeString() + " cannot be resolved to a variable", this,
 						theSizes[i].getMatch().index);
 				if(!sizeEval.isIntType() || Long.TYPE.equals(sizeEval.getType().getBaseType()))
-					throw new EvaluationException("Type mismatch: " + sizeEval + " cannot be cast to int", this,
-						theSizes[i].getMatch().index);
+					throw new EvaluationException("Type mismatch: " + sizeEval.typeString() + " cannot be cast to int",
+						this, theSizes[i].getMatch().index);
 				sizes[i] = ((Number) sizeEval.getValue()).intValue();
 			}
 			type = type.getComponentType();
@@ -160,5 +167,26 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 		}
 
 		return new prisms.lang.EvaluationResult(retType, ret);
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append("new ").append(theType);
+		for(prisms.lang.ParsedItem size : theSizes)
+			ret.append('[').append(size).append(']');
+		if(theElements.length > 0)
+		{
+			ret.append('{');
+			for(int i = 0; i < theElements.length; i++)
+			{
+				if(i > 0)
+					ret.append(", ");
+				ret.append(theElements[i]);
+			}
+			ret.append('}');
+		}
+		return ret.toString();
 	}
 }

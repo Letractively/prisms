@@ -33,7 +33,7 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 	{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		theVariable.evaluate(scoped, false, withValues);
-		prisms.lang.EvaluationResult iterRes = theIterable.evaluate(scoped, false, withValues);
+		final prisms.lang.EvaluationResult iterRes = theIterable.evaluate(scoped, false, withValues);
 		if(withValues)
 		{
 			if(!iterRes.isValue())
@@ -54,7 +54,34 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 				throw new prisms.lang.EvaluationException("Type mismatch: cannot convert from " + instanceType + " to "
 					+ type.typeString(), theIterable, theIterable.getMatch().index);
 
-			java.util.Iterator<?> iterator = ((Iterable<?>) iterRes.getValue()).iterator();
+			java.util.Iterator<?> iterator;
+			if(iterRes.getValue() instanceof Iterable)
+				iterator = ((Iterable<?>) iterRes.getValue()).iterator();
+			else
+			{
+				class ArrayIterator implements java.util.Iterator<Object>
+				{
+					private int theIndex;
+
+					private int theLength = java.lang.reflect.Array.getLength(iterRes.getValue());
+
+					public boolean hasNext()
+					{
+						return theIndex < theLength;
+					}
+
+					public Object next()
+					{
+						return java.lang.reflect.Array.get(iterRes.getValue(), theIndex++);
+					}
+
+					public void remove()
+					{
+						throw new UnsupportedOperationException();
+					}
+				}
+				iterator = new ArrayIterator();
+			}
 			iterLoop: while(iterator.hasNext())
 			{
 				Object value = iterator.next();
@@ -95,5 +122,18 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 	public ParsedStatementBlock getContents()
 	{
 		return theContents;
+	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theVariable, theIterable, theContents};
+	}
+
+	@Override
+	public String toString()
+	{
+		return new StringBuilder("for(").append(theVariable).append(" : ").append(theIterable).append('\n')
+			.append(theContents).toString();
 	}
 }

@@ -13,6 +13,12 @@ public class PrismsParser
 {
 	private static final Logger log = Logger.getLogger(PrismsParser.class);
 
+	static final int COMPLETE_ONLY = 2;
+
+	static final int COMPLETE_OPTIONAL = 1;
+
+	static final int ANY = 0;
+
 	private java.util.List<PrismsConfig> theOperators;
 
 	/** Creates a parser */
@@ -69,7 +75,7 @@ public class PrismsParser
 		ParseMatch [] parseMatches = null;
 		while(index < str.length())
 		{
-			ParseMatch parseMatch = parseItem(str, index, null, -1, cmd, true);
+			ParseMatch parseMatch = parseItem(str, index, -1, cmd, COMPLETE_ONLY);
 			int nextIndex = index;
 			if(parseMatch != null)
 			{
@@ -79,9 +85,19 @@ public class PrismsParser
 			if(parseMatch == null
 				|| (nextIndex < str.length() && str.charAt(nextIndex) != ';' && !isLastSemi(parseMatch)))
 			{
-				parseMatch = parseItem(str, index, null, -1, cmd, false);
-				if(parseMatch == null)
-					throw new ParseException("Syntax error", cmd, 0);
+				parseMatch = parseItem(str, index, -1, cmd, COMPLETE_OPTIONAL);
+				if(parseMatch != null)
+				{
+					nextIndex = index + parseMatch.text.length();
+					nextIndex = passWhiteSpace(str, nextIndex);
+				}
+				if(parseMatch == null || nextIndex < str.length() && str.charAt(nextIndex) != ';'
+					&& !isLastSemi(parseMatch))
+				{
+					parseMatch = parseItem(str, index, -1, cmd, ANY);
+					if(parseMatch == null)
+						throw new ParseException("Syntax error", cmd, 0);
+				}
 			}
 			parseMatches = ArrayUtils.add(parseMatches, parseMatch);
 			nextIndex = index + parseMatch.text.length();
@@ -119,6 +135,8 @@ public class PrismsParser
 		for(int i = 0; i < ret.length; i++)
 		{
 			ParseMatch implMatch = matches[i];
+			if(implMatch == null)
+				continue;
 			Class<? extends ParsedItem> implClass = null;
 			while(implClass == null)
 			{
@@ -138,35 +156,40 @@ public class PrismsParser
 				{
 					if(implMatch.getParsed() != null && implMatch.getParsed().length == 1)
 						implMatch = implMatch.getParsed()[0];
-					else
+					else if("entity".equals(implMatch.config.getName())
+						|| "operator".equals(implMatch.config.getName()))
 						throw new ParseException("No implementation configured for " + implMatch.config, parent
 							.getRoot().getFullCommand(), -1);
+					else
+						break;
 				}
 			}
-			try
+			if(implClass != null)
 			{
-				ret[i] = implClass.newInstance();
-			} catch(InstantiationException e)
-			{
-				throw new ParseException("Could not instantiate implementation for " + matches[i].config, e, parent
-					.getRoot().getFullCommand(), -1);
-			} catch(IllegalAccessException e)
-			{
-				throw new ParseException("Could not instantiate implementation for " + matches[i].config, e, parent
-					.getRoot().getFullCommand(), -1);
+				try
+				{
+					ret[i] = implClass.newInstance();
+				} catch(InstantiationException e)
+				{
+					throw new ParseException("Could not instantiate implementation for " + matches[i].config, e, parent
+						.getRoot().getFullCommand(), -1);
+				} catch(IllegalAccessException e)
+				{
+					throw new ParseException("Could not instantiate implementation for " + matches[i].config, e, parent
+						.getRoot().getFullCommand(), -1);
+				}
+				ret[i].setup(this, parent, implMatch);
 			}
-			ret[i].setup(this, parent, implMatch);
 		}
 		return ret;
 	}
 
-	ParseMatch parseItem(StringBuilder sb, int index, ParseMatch preOp, int priority, String command,
-		boolean completeOnly, String... types) throws IncompleteInputException
+	ParseMatch parseItem(StringBuilder sb, int index, int priority, String command, int completeness, String... types)
 	{
-		int start = index;
 		ParseMatch ret = null;
 		boolean foundOp = true;
 		boolean withTypesHadPreOp = false;
+		ParseMatch preOp = null;
 		while(index < sb.length() && foundOp)
 		{
 			foundOp = false;
@@ -177,29 +200,77 @@ public class PrismsParser
 				if(types.length == 0)
 				{
 					int opPri = op.getInt("priority", 0);
-					if(opPri < 0 || ret != null && opPri <= priority)
+					if(opPri < 0 || (preOp != null && opPri <= priority))
 						break;
 				}
 				else if(!ArrayUtils.contains(types, op.get("name")))
 					continue;
 				else
 					withTypesHadPreOp |= hasPreOp(op);
-				ParseMatch [] match = parseCheck(op, sb, index, preOp, command, completeOnly);
-				if(match != null)
+				ret = parseNextMatch(op, sb, index, preOp, command, completeness, types);
+				if(ret != null)
 				{
 					foundOp = true;
-					int len = 0;
-					for(ParseMatch m : match)
-						len += m.text.length();
-					ret = new ParseMatch(op, sb.substring(start, start + len), start, match);
-					index = start + len;
-					break;
+					index = ret.index + ret.text.length();
+					if(types.length > 0)
+						return ret;
+					else
+						break;
 				}
 			}
 		}
+		if(ret == null)
+			ret = preOp;
 		if(ret == null && withTypesHadPreOp)
-			return parseItem(sb, index, null, -1, command, completeOnly);
+		{
+			do
+			{
+				for(PrismsConfig op : theOperators)
+				{
+					ret = parseNextMatch(op, sb, index, preOp, command, completeness, types);
+					if(op.getInt("priority", 0) < 0)
+						continue;
+					if(ret != null)
+					{
+						index = ret.index + ret.text.length();
+						break;
+					}
+				}
+				if(ret != null)
+				{
+					preOp = ret;
+					ret = null;
+					for(PrismsConfig op : theOperators)
+					{
+						if(!ArrayUtils.contains(types, op.get("name")))
+							continue;
+						ret = parseNextMatch(op, sb, index, preOp, command, completeness, types);
+						if(ret != null)
+						{
+							index = ret.index + ret.text.length();
+							return ret;
+						}
+					}
+				}
+			} while(ret != null && index < sb.length() && !ArrayUtils.contains(types, ret.config.get("name")));
+		}
 		return ret;
+	}
+
+	private ParseMatch parseNextMatch(PrismsConfig op, StringBuilder sb, int index, ParseMatch preOp, String command,
+		int completeness, String... types)
+	{
+		ParseMatch [] match = parseCheck(op, sb, index, preOp, command, completeness);
+		if(match != null)
+		{
+			int len = 0;
+			for(ParseMatch m : match)
+				len += m.text.length();
+			index = match[0].index;
+			return new ParseMatch(op, sb.substring(index, index + len), index, match, true);
+		}
+		else
+			return null;
 	}
 
 	private static boolean hasPreOp(PrismsConfig config)
@@ -215,13 +286,13 @@ public class PrismsParser
 	}
 
 	ParseMatch [] parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp, String command,
-		boolean completeOnly) throws IncompleteInputException
+		int completeness)
 	{
-		return _parseCheck(opConfig, sb, index, preOp, opConfig.getInt("priority", 0), false, command, completeOnly);
+		return _parseCheck(opConfig, sb, index, preOp, opConfig.getInt("priority", 0), false, command, completeness);
 	}
 
 	ParseMatch [] _parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp, int priority,
-		boolean optional, String command, boolean completeOnly) throws IncompleteInputException
+		boolean optional, String command, int completeness)
 	{
 		boolean hasPreOpConfig = false;
 		ParseMatch [] ret = null;
@@ -237,19 +308,22 @@ public class PrismsParser
 				{
 					if("option".equals(opConfig.getName()))
 					{
-						ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeOnly);
+						ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeness);
 						if(op == null)
 							return null;
 						ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(item, op.text, index,
-							new ParseMatch [] {op}));
+							new ParseMatch [] {op}, true));
 						index += op.text.length();
 					}
 					else
 						return null;
 				}
-				else if(item.get("type") != null && !item.get("type").equals(preOp.config.get("name")))
-					return null;
-				else if(hasPreOpConfig)
+				else if(item.get("type") != null)
+				{
+					if(!ArrayUtils.contains(item.get("type").split("\\|"), preOp.config.get("name")))
+						return null;
+				}
+				if(hasPreOpConfig)
 				{
 					log.error("Double pre-op configuration for config " + opConfig.get("name"));
 					return null;
@@ -257,7 +331,8 @@ public class PrismsParser
 				else
 				{
 					hasPreOpConfig = true;
-					ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, preOp.index, new ParseMatch [] {preOp}));
+					ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, preOp.index, new ParseMatch [] {preOp},
+						true));
 				}
 				continue;
 			}
@@ -271,7 +346,7 @@ public class PrismsParser
 				whiteSpace = wsIdx > index ? sb.substring(index, wsIdx) : null;
 				if(whiteSpace != null)
 					ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(new PrismsConfig.DefaultPrismsConfig(
-						"whitespace", null, null), whiteSpace, index, null));
+						"whitespace", null, null), whiteSpace, index, null, true));
 				index = wsIdx;
 			}
 
@@ -284,21 +359,29 @@ public class PrismsParser
 				}
 				else if(whiteSpace == null)
 				{
-					if(!optional && index == sb.length())
-						throw new IncompleteInputException("Incomplete input", command, index);
-					return null;
+					if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
+						&& index == sb.length())
+					{
+						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+						break;
+					}
+					else
+						return null;
 				}
 				else
 				{
 					ParseMatch wsMatch = ret[ret.length - 1];
-					ret[ret.length - 1] = new ParseMatch(item, whiteSpace, wsMatch.index, null);
+					ret[ret.length - 1] = new ParseMatch(item, whiteSpace, wsMatch.index, null, true);
 				}
 				continue;
 			}
 			else if(item.getName().equals("literal"))
 			{
-				if(!completeOnly && !optional && index == sb.length())
-					throw new IncompleteInputException("Incomplete input", command, index);
+				if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional)) && index == sb.length())
+				{
+					ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+					break;
+				}
 				String value = item.getValue();
 				if(value != null && value.length() > 0)
 				{
@@ -306,7 +389,7 @@ public class PrismsParser
 						if(index + i >= sb.length() || sb.charAt(index + i) != value.charAt(i))
 							return null;
 					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + value.length()), index,
-						null));
+						null, true));
 					index += value.length();
 				}
 				else
@@ -329,14 +412,17 @@ public class PrismsParser
 					if(!match.find() || match.start() > 0)
 						return null;
 					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + match.end()), index,
-						null));
+						null, true));
 					index += match.end();
 				}
 			}
 			else if(item.getName().equals("charset"))
 			{
-				if(!completeOnly && !optional && index == sb.length())
-					throw new IncompleteInputException("Incomplete input", command, index);
+				if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional)) && index == sb.length())
+				{
+					ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+					break;
+				}
 				String pattern = item.get("pattern");
 				if(pattern == null)
 				{
@@ -395,15 +481,16 @@ public class PrismsParser
 						return null;
 				}
 
-				ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index, null));
+				ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index, null, true));
 				index = end;
 			}
 			else if(item.getName().equals("op"))
 			{
-				ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeOnly);
+				ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeness);
 				if(op == null)
 					return null;
-				ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(item, op.text, index, new ParseMatch [] {op}));
+				ret = prisms.util.ArrayUtils.add(ret,
+					new ParseMatch(item, op.text, index, new ParseMatch [] {op}, true));
 				index += op.text.length();
 			}
 			else if(item.getName().equals("option"))
@@ -427,7 +514,7 @@ public class PrismsParser
 				do
 				{
 					res = _parseCheck(item, sb, index, hasPreOpConfig ? null : preOp, priority, true, command,
-						completeOnly);
+						completeness);
 					if(res == null)
 						break;
 					count++;
@@ -443,9 +530,13 @@ public class PrismsParser
 						log.error("Double pre-op configuration for config " + opConfig.get("name"));
 						return null;
 					}
-					total = prisms.util.ArrayUtils.addAll(total, res);
+					int len = 0;
 					for(ParseMatch m : res)
-						index += m.text.length();
+						len += m.text.length();
+					if(len == 0)
+						break;
+					total = prisms.util.ArrayUtils.addAll(total, res);
+					index += len;
 				} while(count < limit);
 				if(count > limit || count < item.getInt("min", 0))
 					return null;
@@ -466,7 +557,7 @@ public class PrismsParser
 				ParseMatch [] res = null;
 				for(PrismsConfig option : item.subConfigs("option"))
 				{
-					res = _parseCheck(option, sb, index, preOp, priority, true, command, completeOnly);
+					res = _parseCheck(option, sb, index, preOp, priority, true, command, completeness);
 					if(res != null)
 						break;
 				}
@@ -474,16 +565,21 @@ public class PrismsParser
 				{
 					for(PrismsConfig option : item.subConfigs("option"))
 					{
-						res = _parseCheck(option, sb, index, preOp, priority, false, command, completeOnly);
+						res = _parseCheck(option, sb, index, preOp, priority, false, command, completeness);
 						if(res != null)
 							break;
 					}
 				}
 				if(res == null)
 				{
-					if(!completeOnly && !optional && index == sb.length())
-						throw new IncompleteInputException("Incomplete input", command, index);
-					return null;
+					if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
+						&& index == sb.length())
+					{
+						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+						break;
+					}
+					else
+						return null;
 				}
 				boolean newPreOpConfig = false;
 				for(ParseMatch m : res)
@@ -542,10 +638,10 @@ public class PrismsParser
 	}
 
 	private ParseMatch parseOp(StringBuilder sb, int index, PrismsConfig opConfig, int itemIdx, int priority,
-		boolean optional, String command, boolean completeOnly) throws IncompleteInputException
+		boolean optional, String command, int completeness)
 	{
-		if(!completeOnly && !optional && index == sb.length())
-			throw new IncompleteInputException("Incomplete input", command, index);
+		if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional)) && index == sb.length())
+			return new ParseMatch(opConfig.subConfigs()[itemIdx], "", index, null, false);
 		if(priority >= 0)
 			for(int idx2 = itemIdx + 1; idx2 < opConfig.subConfigs().length; idx2++)
 				if(opConfig.subConfigs()[idx2].getName().equals("literal"))
@@ -557,9 +653,9 @@ public class PrismsParser
 		String type = opConfig.subConfigs()[itemIdx].get("type");
 		ParseMatch op;
 		if(type == null)
-			op = parseItem(sb, index, null, priority, command, completeOnly);
+			op = parseItem(sb, index, priority, command, completeness);
 		else
-			op = parseItem(sb, index, null, priority, command, completeOnly, type.split("\\|"));
+			op = parseItem(sb, index, priority, command, completeness, type.split("\\|"));
 		return op;
 	}
 

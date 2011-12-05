@@ -43,4 +43,19 @@ public class ParsedReturn extends prisms.lang.ParsedItem
 	{
 		return theValue;
 	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theValue};
+	}
+
+	@Override
+	public String toString()
+	{
+		if(theValue != null)
+			return "return " + theValue;
+		else
+			return "return";
+	}
 }

@@ -1,5 +1,11 @@
 package prisms.lang;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
+import prisms.lang.types.*;
+
 /** A panel that takes user-entered text, interprets it, and prints the results */
 public class InterpreterPanel extends javax.swing.JPanel
 {
@@ -18,7 +24,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(Object o)
 		{
-			toWrite.add(o);
+			answer(prisms.util.ArrayUtils.toString(o), false);
 		}
 
 		/**
@@ -28,7 +34,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(byte b)
 		{
-			toWrite.add(Byte.valueOf(b));
+			answer(String.valueOf(b), false);
 		}
 
 		/**
@@ -38,7 +44,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(short s)
 		{
-			toWrite.add(Short.valueOf(s));
+			answer(String.valueOf(s), false);
 		}
 
 		/**
@@ -48,7 +54,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(int i)
 		{
-			toWrite.add(Integer.valueOf(i));
+			answer(String.valueOf(i), false);
 		}
 
 		/**
@@ -59,7 +65,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 		public void write(long L)
 		{
-			toWrite.add(Long.valueOf(L));
+			answer(String.valueOf(L), false);
 		}
 
 		/**
@@ -69,7 +75,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(float f)
 		{
-			toWrite.add(Float.valueOf(f));
+			answer(String.valueOf(f), false);
 		}
 
 		/**
@@ -79,7 +85,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(double d)
 		{
-			toWrite.add(Double.valueOf(d));
+			answer(String.valueOf(d), false);
 		}
 
 		/**
@@ -89,7 +95,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(boolean b)
 		{
-			toWrite.add(Boolean.valueOf(b));
+			answer(String.valueOf(b), false);
 		}
 
 		/**
@@ -99,7 +105,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		 */
 		public void write(char c)
 		{
-			toWrite.add(Character.valueOf(c));
+			answer(String.valueOf(c), false);
 		}
 
 		/** Clears the screen of all but the current input */
@@ -109,19 +115,39 @@ public class InterpreterPanel extends javax.swing.JPanel
 		}
 	}
 
+	static class NamedItem implements Comparable<NamedItem>
+	{
+		final String name;
+
+		final Object item;
+
+		NamedItem(String aName, Object anItem)
+		{
+			name = aName;
+			item = anItem;
+		}
+
+		public int compareTo(NamedItem o)
+		{
+			return name.compareToIgnoreCase(o.name);
+		}
+	}
+
 	private PrismsParser theParser;
 
 	private EvaluationEnvironment theEnv;
 
-	private javax.swing.JEditorPane theInput;
+	javax.swing.JEditorPane theInput;
 
 	private javax.swing.JPanel theRow;
+
+	IntellisenseMenu theIntellisenseMenu;
 
 	private java.awt.event.KeyListener theReturnListener;
 
 	private java.awt.event.MouseListener theGrabListener;
 
-	java.util.ArrayList<Object> toWrite;
+	int toChop;
 
 	/** Creates an intepreter panel */
 	public InterpreterPanel()
@@ -132,25 +158,52 @@ public class InterpreterPanel extends javax.swing.JPanel
 			@Override
 			public void mouseClicked(java.awt.event.MouseEvent ev)
 			{
-				theInput.grabFocus();
+				if(ev.getComponent() != theInput)
+				{
+					theInput.grabFocus();
+					if(theIntellisenseMenu.isVisible())
+						theIntellisenseMenu.clear(true);
+				}
 			}
 		};
 		addMouseListener(theGrabListener);
 
-		theReturnListener = new java.awt.event.KeyAdapter()
+		theReturnListener = new java.awt.event.KeyListener()
 		{
-			@Override
 			public void keyPressed(java.awt.event.KeyEvent evt)
 			{
 				if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_SPACE && evt.isControlDown())
-					showIntelliSense();
+					intellisenseTriggered();
+				else if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER)
+				{
+					if(theIntellisenseMenu.isVisible())
+						evt.consume();
+					else
+						checkInput();
+				}
 			}
 
-			@Override
 			public void keyReleased(java.awt.event.KeyEvent evt)
 			{
-				if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER)
-					checkInput();
+			}
+
+			public void keyTyped(java.awt.event.KeyEvent evt)
+			{
+				if(evt.getKeyChar() == ' ' && evt.isControlDown())
+				{}
+				else if(theIntellisenseMenu.isVisible())
+				{
+					if(evt.getKeyChar() == ' ')
+						theIntellisenseMenu.clear(true);
+					else
+						java.awt.EventQueue.invokeLater(new Runnable()
+						{
+							public void run()
+							{
+								intellisenseTriggered();
+							}
+						});
+				}
 			}
 		};
 
@@ -164,7 +217,16 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theEnv = new DefaultEvaluationEnvironment();
 		addVariable("pane", EnvPane.class, new EnvPane());
 
-		toWrite = new java.util.ArrayList<Object>();
+		theIntellisenseMenu = new IntellisenseMenu();
+		theIntellisenseMenu.addListener(new IntellisenseMenu.IntellisenseListener()
+		{
+			public void itemSelected(Object item, String text)
+			{
+				String curText = theInput.getText();
+				theInput.setText(curText.substring(0, theInput.getCaretPosition()) + text
+					+ curText.substring(theInput.getCaretPosition() + toChop));
+			}
+		});
 	}
 
 	/**
@@ -212,24 +274,375 @@ public class InterpreterPanel extends javax.swing.JPanel
 		}
 	}
 
-	void showIntelliSense()
+	synchronized void intellisenseTriggered()
 	{
-		System.out.println("Intellisense!");
+		theIntellisenseMenu.clear(false);
+		String text = theInput.getText();
+		ParsedItem [] structs;
+		if(text.trim().length() == 0)
+			structs = new ParsedItem [0];
+		else
+			try
+			{
+				ParseMatch [] matches = theParser.parseMatches(text);
+				ParseStructRoot root = new ParseStructRoot(text);
+				structs = theParser.parseStructures(root, matches);
+			} catch(ParseException e)
+			{
+				theIntellisenseMenu.show(theInput);
+				return;
+			}
+
+		int caret = theInput.getCaretPosition();
+		ParsedItem target = getTarget(structs, caret);
+		ParsedItem parent = target == null ? null : target.getParent();
+		String toMatch;
+		if(target != null)
+		{
+			if(target instanceof ParsedIdentifier || target instanceof ParsedKeyword || target instanceof ParsedBoolean
+				|| target instanceof ParsedReturn || target instanceof ParsedType)
+				toMatch = target.toString();
+			else if(target instanceof ParsedChar || target instanceof ParsedNumber
+				|| target instanceof ParsedPreviousAnswer || target instanceof ParsedString)
+				return;
+			else if(target instanceof ParsedMethod)
+			{
+				ParsedMethod m = (ParsedMethod) target;
+				ParseMatch paren = target.getStored("method");
+				if(paren == null || caret <= paren.index)
+				{
+					parent = target;
+					toMatch = m.getName().substring(0, caret - target.getStored("name").index);
+				}
+				else
+					toMatch = "";
+			}
+			else
+				toMatch = "";
+		}
+		else
+			toMatch = "";
+
+		toChop = toMatch.length();
+		if(target instanceof ParsedType)
+		{
+			// Type only with context
+			String context;
+			if(toMatch.indexOf('.') >= 0)
+			{
+				context = toMatch.substring(0, toMatch.lastIndexOf('.'));
+				toMatch = toMatch.substring(toMatch.lastIndexOf('.') + 1);
+			}
+			else
+				context = null;
+			System.out.println("Type intellisense for \"" + toMatch + "\" (context " + context + ")");
+
+			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
+			for(String cn : theEnv.getClassGetter().getClasses(context))
+				if(getMatchStrength(cn, toMatch) > 0)
+					items.add(new NamedItem(cn, cn));
+			for(String pn : theEnv.getClassGetter().getSubPackages(context))
+				if(getMatchStrength(pn, toMatch) > 0)
+					items.add(new NamedItem(pn, pn));
+			java.util.Collections.sort(items);
+			sortByMatch(items, toMatch);
+
+			for(NamedItem item : items)
+				if(item.item instanceof String)
+					theIntellisenseMenu.addMenuItem("class", item.name, item.name, item.name);
+			theIntellisenseMenu.show(theInput);
+		}
+		else if(target instanceof ParsedConstructor || parent instanceof ParsedConstructor
+			|| target instanceof ParsedArrayInitializer || parent instanceof ParsedArrayInitializer
+			|| target instanceof ParsedImport || parent instanceof ParsedImport)
+		{
+			// Type only
+			System.out.println("Type intellisense for \"" + toMatch + "\"");
+
+			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
+			for(String cn : theEnv.getClassGetter().getClasses(null))
+				if(getMatchStrength(cn, toMatch) > 0)
+					items.add(new NamedItem(cn, cn));
+			for(String pn : theEnv.getClassGetter().getSubPackages(null))
+				if(getMatchStrength(pn, toMatch) > 0)
+					items.add(new NamedItem(pn, pn));
+			java.util.Collections.sort(items);
+			sortByMatch(items, toMatch);
+
+			for(NamedItem item : items)
+				if(item.item instanceof String)
+					theIntellisenseMenu.addMenuItem("class", item.name, item.name, item.name);
+			theIntellisenseMenu.show(theInput);
+		}
+		else if(target instanceof ParsedDrop || parent instanceof ParsedDrop)
+		{
+			// Variable only
+			System.out.println("Variable intellisense on \"" + toMatch + "\"");
+
+			if(toMatch.indexOf('.') >= 0)
+			{
+				theIntellisenseMenu.show(theInput);
+				return;
+			}
+			EvaluationEnvironment trans = theEnv.transact();
+			for(int i = 0; i < structs.length; i++)
+				evalDeclares(structs[i], trans);
+			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
+			for(String var : trans.getDeclaredVariableNames())
+				if(getMatchStrength(var, toMatch) > 0)
+					items.add(new NamedItem(var, var));
+			for(ParsedFunctionDeclaration func : trans.getDeclaredFunctions())
+				if(getMatchStrength(func.getName(), toMatch) > 0)
+					items.add(new NamedItem(func.getName(), func));
+			java.util.Collections.sort(items);
+			sortByMatch(items, toMatch);
+
+			for(NamedItem item : items)
+			{
+				if(item.item instanceof String)
+					theIntellisenseMenu.addMenuItem("variable", item.name, item.name, item.name);
+				else
+					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig(),
+						item.item, item.name + "(");
+			}
+			theIntellisenseMenu.show(theInput);
+		}
+		else if(parent instanceof ParsedMethod && ((ParsedMethod) parent).getContext() != null)
+		{
+			// Member
+			EvaluationEnvironment trans = theEnv.transact();
+			for(int i = 0; i < structs.length; i++)
+				evalDeclares(structs[i], trans);
+			EvaluationResult ctxRes;
+			try
+			{
+				ctxRes = ((ParsedMethod) parent).getContext().evaluate(trans, false, false);
+			} catch(EvaluationException e)
+			{
+				theIntellisenseMenu.show(theInput);
+				return;
+			}
+
+			String msg = "Member intellisense on \"" + toMatch + "\" for context ";
+			if(ctxRes.getPackageName() != null)
+			{
+				msg += "package ";
+				msg += ctxRes.getPackageName();
+			}
+			else if(ctxRes.isType())
+			{
+				msg += "type ";
+				msg += ctxRes.getType().toString();
+			}
+			else
+				msg += ctxRes.getType().toString();
+
+			System.out.println(msg);
+
+			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
+			if(ctxRes.getPackageName() != null)
+			{
+				for(String cn : theEnv.getClassGetter().getClasses(ctxRes.getPackageName()))
+					if(getMatchStrength(cn, toMatch) > 0)
+						items.add(new NamedItem(cn, cn));
+				for(String pn : theEnv.getClassGetter().getSubPackages(ctxRes.getPackageName()))
+					if(getMatchStrength(pn, toMatch) > 0)
+						items.add(new NamedItem(pn, pn));
+			}
+			else if(ctxRes.isType())
+			{ // Static fields/methods
+				Method [] methods = ctxRes.getType().getBaseType().getDeclaredMethods();
+				for(Method m : methods)
+				{
+					if(m.isSynthetic() || (m.getModifiers() & Modifier.STATIC) == 0)
+						continue;
+					else if(theEnv.usePublicOnly() && (m.getModifiers() & Modifier.PUBLIC) == 0)
+						continue;
+					else if(getMatchStrength(m.getName(), toMatch) > 0)
+						items.add(new NamedItem(m.getName(), m));
+				}
+				Field [] fields = ctxRes.getType().getBaseType().getDeclaredFields();
+				for(Field f : fields)
+				{
+					if(f.isSynthetic() || (f.getModifiers() & Modifier.STATIC) == 0)
+						continue;
+					else if(theEnv.usePublicOnly() && (f.getModifiers() & Modifier.PUBLIC) == 0)
+						continue;
+					else if(getMatchStrength(f.getName(), toMatch) > 0)
+						items.add(new NamedItem(f.getName(), f));
+				}
+				for(String cn : theEnv.getClassGetter().getClasses(ctxRes.getType().toString()))
+					if(getMatchStrength(cn, toMatch) > 0)
+						items.add(new NamedItem(cn, cn));
+			}
+			else
+			{
+				Method [] methods = ctxRes.getType().getBaseType().getDeclaredMethods();
+				for(Method m : methods)
+				{
+					if(m.isSynthetic() || (m.getModifiers() & Modifier.STATIC) != 0)
+						continue;
+					else if(theEnv.usePublicOnly() && (m.getModifiers() & Modifier.PUBLIC) == 0)
+						continue;
+					else if(getMatchStrength(m.getName(), toMatch) > 0)
+						items.add(new NamedItem(m.getName(), m));
+				}
+				Field [] fields = ctxRes.getType().getBaseType().getDeclaredFields();
+				for(Field f : fields)
+				{
+					if(f.isSynthetic() || (f.getModifiers() & Modifier.STATIC) != 0)
+						continue;
+					else if(theEnv.usePublicOnly() && (f.getModifiers() & Modifier.PUBLIC) == 0)
+						continue;
+					else if(getMatchStrength(f.getName(), toMatch) > 0)
+						items.add(new NamedItem(f.getName(), f));
+				}
+			}
+			java.util.Collections.sort(items);
+			sortByMatch(items, toMatch);
+
+			for(NamedItem item : items)
+			{
+				if(item.item instanceof Field)
+					theIntellisenseMenu.addMenuItem("field", item.name, item.item, item.name);
+				else if(item.item instanceof Method) // Better method string
+					theIntellisenseMenu
+						.addMenuItem("method", "" + name((Method) item.item), item.item, item.name + "(");
+				else if(item.item instanceof String)
+					theIntellisenseMenu.addMenuItem("class", item.name, item.item, item.name);
+			}
+			theIntellisenseMenu.show(theInput);
+		}
+		else
+		{
+			// Possibly either
+			System.out.println("General intellisense on \"" + toMatch + "\"");
+
+			EvaluationEnvironment trans = theEnv.transact();
+			for(int i = 0; i < structs.length; i++)
+				evalDeclares(structs[i], trans);
+			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
+			for(String var : trans.getDeclaredVariableNames())
+				if(getMatchStrength(var, toMatch) > 0)
+					items.add(new NamedItem(var, var));
+			for(ParsedFunctionDeclaration func : trans.getDeclaredFunctions())
+				if(getMatchStrength(func.getName(), toMatch) > 0)
+					items.add(new NamedItem(func.getName(), func));
+			java.util.Collections.sort(items);
+			sortByMatch(items, toMatch);
+
+			for(NamedItem item : items)
+			{
+				if(item.item instanceof String)
+					theIntellisenseMenu.addMenuItem("variable", item.name, item.name, item.name);
+				else
+					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig(),
+						item.item, item.name + "(");
+			}
+			theIntellisenseMenu.show(theInput);
+		}
+	}
+
+	private ParsedItem getTarget(ParsedItem [] items, int position)
+	{
+		for(int i = 0; i < items.length; i++)
+		{
+			if(position <= items[i].getMatch().index)
+				return null;
+			else if(items[i].getMatch().index + items[i].getMatch().text.length() >= position)
+			{
+				ParsedItem [] deps = items[i].getDependents();
+				if(deps.length == 0)
+					return items[i];
+				else
+				{
+					ParsedItem ret = getTarget(deps, position);
+					return ret == null ? items[i] : ret;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Causes declarations to be evaluated so that all variables available to the scope at the point of incompleteness
+	 * are known
+	 */
+	private static void evalDeclares(ParsedItem item, EvaluationEnvironment env)
+	{
+		if(item instanceof ParsedDeclaration)
+		{
+			if(item.getMatch().isComplete())
+				try
+				{
+					item.evaluate(env, false, false);
+				} catch(EvaluationException e)
+				{}
+		}
+		else
+			for(ParsedItem dep : item.getDependents())
+				evalDeclares(dep, env);
+	}
+
+	private String name(java.lang.reflect.Method m)
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append(m.getName()).append('(');
+		for(int i = 0; i < m.getParameterTypes().length; i++)
+		{
+			if(i > 0)
+				ret.append(", ");
+			ret.append(new Type(m.getGenericParameterTypes()[i]).toString(theEnv));
+		}
+		ret.append(") ");
+		ret.append(new Type(m.getGenericReturnType()).toString(theEnv));
+		return ret.toString();
+	}
+
+	private static void sortByMatch(final java.util.List<NamedItem> items, String toMatch)
+	{
+		Integer [] strengths = new Integer [items.size()];
+		for(int i = 0; i < strengths.length; i++)
+			strengths[i] = Integer.valueOf(getMatchStrength(items.get(i).name, toMatch));
+		prisms.util.ArrayUtils.sort(strengths, new prisms.util.ArrayUtils.SortListener<Integer>()
+		{
+			public int compare(Integer o1, Integer o2)
+			{
+				return o1.compareTo(o2);
+			}
+
+			public void swapped(Integer o1, int idx1, Integer o2, int idx2)
+			{
+				NamedItem temp = items.get(idx1);
+				items.set(idx1, items.get(idx2));
+				items.set(idx2, temp);
+			}
+		});
+	}
+
+	private static int getMatchStrength(String test, String toMatch)
+	{
+		if(toMatch.length() == 0)
+			return 1;
+		int todo;// TODOs
+		if(test.toLowerCase().startsWith(toMatch.toLowerCase()))
+			return 1;
+		else
+			return 0;
 	}
 
 	void checkInput()
 	{
-		String text = theInput.getText();
+		String text = theInput.getText().trim();
 
 		ParsedItem [] structs;
 		try
 		{
 			ParseMatch [] matches = theParser.parseMatches(text);
+			if(matches.length == 0 || !matches[matches.length - 1].isComplete())
+				return;
 			ParseStructRoot root = new ParseStructRoot(text);
 			structs = theParser.parseStructures(root, matches);
-		} catch(IncompleteInputException e)
-		{
-			return;
 		} catch(ParseException e)
 		{
 			pareStackTrace(e);
@@ -302,10 +715,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 				{
 					s.evaluate(theEnv.transact(), false, false);
 					EvaluationResult type = s.evaluate(theEnv, false, true);
-					for(Object o : toWrite)
-						answer(prisms.util.ArrayUtils.toString(o), false);
-					toWrite.clear();
-					if(type != null && !Void.TYPE.equals(type.getType()))
+					if(type != null && !Void.TYPE.equals(type.getType().getBaseType()))
 					{
 						answer(prisms.util.ArrayUtils.toString(type.getValue()), false);
 						if(!(s instanceof prisms.lang.types.ParsedPreviousAnswer))
@@ -358,10 +768,22 @@ public class InterpreterPanel extends javax.swing.JPanel
 		doLayout();
 		repaint();
 		theInput.grabFocus();
-		doLayout();
+		if(getParent() instanceof javax.swing.JViewport)
+		{
+			int y = getHeight() - getParent().getHeight();
+			if(y > 0)
+				((javax.swing.JViewport) getParent()).setViewPosition(new java.awt.Point(0, y));
+		}
+		java.awt.EventQueue.invokeLater(new Runnable()
+		{
+			public void run()
+			{
+				theInput.setText("");
+			}
+		});
 	}
 
-	private void answer(String text, boolean error)
+	synchronized void answer(String text, boolean error)
 	{
 		text = text.trim();
 		if(text.length() == 0)

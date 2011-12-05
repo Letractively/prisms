@@ -200,6 +200,12 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 		return theValue;
 	}
 
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
 	/** @return Whether this value was reported in scientific notation */
 	public boolean isScientific()
 	{

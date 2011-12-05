@@ -21,6 +21,12 @@ public class ParseStructRoot extends ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
 	public EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws EvaluationException
 	{

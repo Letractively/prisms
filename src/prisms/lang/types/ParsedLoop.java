@@ -50,7 +50,7 @@ public class ParsedLoop extends ParsedItem
 		ParsedItem contentItem = parser.parseStructures(this, getStored("content"))[0];
 		if(contentItem instanceof ParsedStatementBlock)
 			theContents = (ParsedStatementBlock) contentItem;
-		else
+		else if(getMatch().isComplete())
 			theContents = new ParsedStatementBlock(parser, this, contentItem.getMatch(), contentItem);
 	}
 
@@ -82,6 +82,25 @@ public class ParsedLoop extends ParsedItem
 	public ParsedStatementBlock getContents()
 	{
 		return theContents;
+	}
+
+	@Override
+	public ParsedItem [] getDependents()
+	{
+		String name = getStored("name").text;
+		ArrayList<ParsedItem> ret = new ArrayList<ParsedItem>();
+		if(!"do".equals(name))
+		{
+			for(int i = 0; i < theInits.length; i++)
+				ret.add(theInits[i]);
+			ret.add(theCondition);
+			for(int i = 0; i < theIncrements.length; i++)
+				ret.add(theIncrements[i]);
+		}
+		ret.add(theContents);
+		if("do".equals(name))
+			ret.add(theCondition);
+		return ret.toArray(new prisms.lang.ParsedItem [ret.size()]);
 	}
 
 	@Override
@@ -158,5 +177,40 @@ public class ParsedLoop extends ParsedItem
 				condRes = condition.evaluate(scoped, false, true);
 		} while(withValues && ((Boolean) condRes.getValue()).booleanValue());
 		return null;
+	}
+
+	@Override
+	public String toString()
+	{
+		String name = getStored("name").text;
+		StringBuilder ret = new StringBuilder();
+		ret.append(name);
+		if("for".equals(name))
+		{
+			ret.append('(');
+			for(int i = 0; i < theInits.length; i++)
+			{
+				if(i > 0)
+					ret.append(", ");
+				ret.append(theInits[i]);
+			}
+			ret.append(';');
+			ret.append(theCondition);
+			ret.append(';');
+			for(int i = 0; i < theIncrements.length; i++)
+			{
+				if(i > 0)
+					ret.append(", ");
+				ret.append(theIncrements[i]);
+			}
+			ret.append(')');
+		}
+		else if("while".equals(name))
+			ret.append('(').append(theCondition).append(')');
+		ret.append('\n');
+		ret.append(theContents);
+		if("do".equals(name))
+			ret.append("while)").append(theCondition).append(");");
+		return ret.toString();
 	}
 }
