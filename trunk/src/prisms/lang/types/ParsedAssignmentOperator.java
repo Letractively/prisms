@@ -62,6 +62,15 @@ public class ParsedAssignmentOperator extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		if(theOperand == null)
+			return new prisms.lang.ParsedItem [] {theVariable};
+		else
+			return new prisms.lang.ParsedItem [] {theVariable, theOperand};
+	}
+
+	@Override
 	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws EvaluationException
 	{
@@ -307,5 +316,19 @@ public class ParsedAssignmentOperator extends prisms.lang.ParsedItem
 			preRes = opType;
 		a.assign(new EvaluationResult(preRes.getType(), toSet), env, this);
 		return new EvaluationResult(preRes.getType(), ret);
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		if(theOperand == null && isPrefix)
+			ret.append(theName);
+		ret.append(theVariable);
+		if(theOperand != null || !isPrefix)
+			ret.append(theName);
+		if(theOperand != null)
+			ret.append(theOperand);
+		return ret.toString();
 	}
 }

@@ -3,20 +3,17 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.EvaluationEnvironment;
-import prisms.lang.EvaluationException;
-import prisms.lang.EvaluationResult;
+import prisms.lang.*;
 
 /** Represents an array index operation */
 public class ParsedArrayIndex extends Assignable
 {
-	private prisms.lang.ParsedItem theArray;
+	private ParsedItem theArray;
 
-	private prisms.lang.ParsedItem theIndex;
+	private ParsedItem theIndex;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(PrismsParser parser, ParsedItem parent, ParseMatch match) throws ParseException
 	{
 		super.setup(parser, parent, match);
 		theArray = parser.parseStructures(this, getStored("array"))[0];
@@ -36,8 +33,14 @@ public class ParsedArrayIndex extends Assignable
 	}
 
 	@Override
-	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
-		throws prisms.lang.EvaluationException
+	public ParsedItem [] getDependents()
+	{
+		return new ParsedItem [] {theArray, theIndex};
+	}
+
+	@Override
+	public EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
 		EvaluationResult array = theArray.evaluate(env, false, withValues);
 		if(!array.isValue())
@@ -71,5 +74,11 @@ public class ParsedArrayIndex extends Assignable
 		int index = ((Number) theIndex.evaluate(env, false, true).getValue()).intValue();
 		EvaluationResult res = theArray.evaluate(env, false, true);
 		java.lang.reflect.Array.set(res.getValue(), index, value.getValue());
+	}
+
+	@Override
+	public String toString()
+	{
+		return theArray + "[" + theIndex + "]";
 	}
 }

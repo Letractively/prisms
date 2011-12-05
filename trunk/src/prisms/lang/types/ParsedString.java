@@ -43,6 +43,12 @@ public class ParsedString extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
 	public String toString()
 	{
 		return "\"" + escape(theValue) + "\"";

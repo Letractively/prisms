@@ -6,7 +6,7 @@ import prisms.lang.ParsedItem;
 /** Represents a block of statements */
 public class ParsedStatementBlock extends ParsedItem
 {
-	private prisms.lang.ParsedItem[] theContents;
+	private ParsedItem [] theContents;
 
 	/**
 	 * Default constructor. Used when {@link #setup(prisms.lang.PrismsParser, ParsedItem, prisms.lang.ParseMatch)} will
@@ -101,8 +101,25 @@ public class ParsedStatementBlock extends ParsedItem
 	}
 
 	/** @return The contents of this statement block */
-	public prisms.lang.ParsedItem[] getContents()
+	public ParsedItem [] getContents()
 	{
 		return theContents;
+	}
+
+	@Override
+	public ParsedItem [] getDependents()
+	{
+		return theContents;
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append("{\n");
+		for(ParsedItem content : theContents)
+			ret.append(content).append('\n');
+		ret.append("}\n");
+		return ret.toString();
 	}
 }

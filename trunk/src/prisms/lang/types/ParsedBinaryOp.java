@@ -3,9 +3,7 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.EvaluationException;
-import prisms.lang.EvaluationResult;
-import prisms.lang.ParseException;
+import prisms.lang.*;
 
 /** Represents an operation on two operands */
 public class ParsedBinaryOp extends prisms.lang.ParsedItem
@@ -42,7 +40,7 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 		if(theOp1 == null)
 			throw new ParseException("No pre-op for configured binary operation: " + getMatch().config, getRoot()
 				.getFullCommand(), getMatch().index);
-		if(theOp2 == null)
+		if(getMatch().isComplete() && theOp2 == null)
 			throw new ParseException("No op for configured binary operation: " + getMatch().config, getRoot()
 				.getFullCommand(), getMatch().index);
 	}
@@ -63,6 +61,12 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 	public prisms.lang.ParsedItem getOp2()
 	{
 		return theOp2;
+	}
+
+	@Override
+	public ParsedItem [] getDependents()
+	{
+		return new ParsedItem [] {theOp1, theOp2};
 	}
 
 	@Override

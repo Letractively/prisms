@@ -58,4 +58,16 @@ public class ParsedInstanceofOp extends prisms.lang.ParsedItem
 	{
 		return theType;
 	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theVariable, theType};
+	}
+
+	@Override
+	public String toString()
+	{
+		return theVariable + " instanceof " + theType;
+	}
 }

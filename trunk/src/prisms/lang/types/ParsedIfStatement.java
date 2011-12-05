@@ -63,6 +63,20 @@ public class ParsedIfStatement extends ParsedItem
 		return theContents.length > theConditions.length;
 	}
 
+	@Override
+	public ParsedItem [] getDependents()
+	{
+		ParsedItem [] ret = new ParsedItem [theConditions.length + theContents.length];
+		for(int i = 0; i < theConditions.length; i++)
+		{
+			ret[i * 2] = theConditions[i];
+			ret[i * 2 + 1] = theContents[i];
+		}
+		if(theContents.length > theConditions.length)
+			ret[theConditions.length * 2] = theContents[theConditions.length];
+		return ret;
+	}
+
 	/**
 	 * @param condition The index of the condition to get the contents for, or the length of the conditions array to get
 	 *        the contents of the terminal block
@@ -136,5 +150,19 @@ public class ParsedIfStatement extends ParsedItem
 			}
 		}
 		return null;
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		for(int i = 0; i < theConditions.length; i++)
+		{
+			ret.append("if(").append(theConditions[i]).append(")\n");
+			ret.append(theContents[i]);
+		}
+		if(theContents.length > theConditions.length)
+			ret.append("else\n").append(theContents[theConditions.length]);
+		return ret.toString();
 	}
 }

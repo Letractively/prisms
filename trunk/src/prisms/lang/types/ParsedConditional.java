@@ -45,6 +45,12 @@ public class ParsedConditional extends ParsedItem
 	}
 
 	@Override
+	public ParsedItem [] getDependents()
+	{
+		return new ParsedItem [] {theCondition, theAffirmative, theNegative};
+	}
+
+	@Override
 	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws prisms.lang.EvaluationException
 	{
@@ -74,5 +80,11 @@ public class ParsedConditional extends ParsedItem
 			return new EvaluationResult(max, affirm.getValue());
 		else
 			return new EvaluationResult(max, negate.getValue());
+	}
+
+	@Override
+	public String toString()
+	{
+		return theCondition + " ? " + theAffirmative + " : " + theNegative;
 	}
 }

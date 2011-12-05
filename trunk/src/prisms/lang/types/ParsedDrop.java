@@ -64,10 +64,18 @@ public class ParsedDrop extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		if(theParamTypes == null)
+			return new prisms.lang.ParsedItem [0];
+		return theParamTypes;
+	}
+
+	@Override
 	public String toString()
 	{
 		StringBuilder ret = new StringBuilder();
-		ret.append(theName);
+		ret.append("drop ").append(theName);
 		if(theParamTypes != null)
 		{
 			ret.append('(');

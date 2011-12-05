@@ -47,7 +47,7 @@ public class ParsedType extends prisms.lang.ParsedItem
 			else if(getStored("bound") != null)
 			{
 				theBound = (ParsedType) parser.parseStructures(this, getStored("bound"))[0];
-				isUpperBound = getStored("superBound") != null;
+				isUpperBound = getStored("extendsBound") != null;
 			}
 			else
 				setup(parser, parent, getStored("type"));
@@ -148,12 +148,8 @@ public class ParsedType extends prisms.lang.ParsedItem
 				}
 			}
 			if(paramTypes.length == 0 && theArrayDimension == 0)
-			{
-				Package [] pkgs = Package.getPackages();
-				for(Package pkg : pkgs)
-					if(pkg.getName().equals(theName) || pkg.getName().startsWith(theName + "."))
-						return new prisms.lang.EvaluationResult(theName);
-			}
+				if(env.getClassGetter().isPackage(theName))
+					return new prisms.lang.EvaluationResult(theName);
 		}
 		else
 			return new prisms.lang.EvaluationResult(new Type(theBound.evaluate(env, true, withValues).getType(),
@@ -181,6 +177,12 @@ public class ParsedType extends prisms.lang.ParsedItem
 		return theArrayDimension;
 	}
 
+	/** Increases the array dimension of this type by 1 */
+	public void addArrayDimension()
+	{
+		theArrayDimension++;
+	}
+
 	/** @return The parameter types of this generic type */
 	public ParsedType [] getParameterTypes()
 	{
@@ -203,6 +205,15 @@ public class ParsedType extends prisms.lang.ParsedItem
 	public boolean isUpperBound()
 	{
 		return isUpperBound;
+	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		if(theBound != null)
+			return new prisms.lang.ParsedItem [] {theBound};
+		else
+			return theParamTypes;
 	}
 
 	/**

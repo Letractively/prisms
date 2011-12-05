@@ -28,6 +28,12 @@ public class ParsedChar extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
 	public String toString()
 	{
 		StringBuilder ret = new StringBuilder('\'').append(theValue).append('\'');

@@ -1,0 +1,8 @@
+Manifest-Version: 1.0
+Main-Class: prisms.lang.InterpreterPanel
+Specification-Title: PRISMS Interpreter
+Specification-Version: 1.0
+Specification-Vendor: PSL/NMSU
+Implementation-Title: PRISMS Interpreter
+Implementation-Vendor: PSL/NMSU
+Implementation-Version: 1.0 December 01 2011

@@ -46,4 +46,16 @@ public class ParsedSyncBlock extends prisms.lang.ParsedItem
 	{
 		return theContents;
 	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theSyncItem, theContents};
+	}
+
+	@Override
+	public String toString()
+	{
+		return new StringBuilder("synchronized(").append(theSyncItem).append(")\n").append(theContents).toString();
+	}
 }

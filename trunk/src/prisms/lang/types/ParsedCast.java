@@ -32,6 +32,12 @@ public class ParsedCast extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theType, theValue};
+	}
+
+	@Override
 	public String toString()
 	{
 		return "(" + theType + ") " + theValue;

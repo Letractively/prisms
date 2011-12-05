@@ -27,6 +27,12 @@ public class ParsedParenthetic extends Assignable
 	}
 
 	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theContent};
+	}
+
+	@Override
 	public String toString()
 	{
 		return "(" + theContent + ")";

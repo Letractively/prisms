@@ -31,7 +31,7 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 		prisms.lang.ParseMatch finallyMatch = getStored("finally");
 		if(finallyMatch != null)
 			theFinallyBlock = (ParsedStatementBlock) parser.parseStructures(this, finallyMatch)[0];
-		if(theFinallyBlock == null && theCatchDeclarations.length == 0)
+		if(getMatch().isComplete() && theFinallyBlock == null && theCatchDeclarations.length == 0)
 			throw new prisms.lang.ParseException("try statements must use catch or finally",
 				getRoot().getFullCommand(), theTryBlock.getMatch().index + theTryBlock.getMatch().text.length());
 	}
@@ -41,9 +41,20 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 		boolean withValues) throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped;
+		prisms.lang.Type[] exTypes = new prisms.lang.Type [theCatchDeclarations.length];
+		for(int i = 0; i < exTypes.length; i++)
+		{
+			prisms.lang.EvaluationResult exRes = theCatchDeclarations[i].getType().evaluate(env, true, false);
+			if(!exRes.isType())
+				throw new prisms.lang.EvaluationException(theCatchDeclarations[i].getType().getMatch().text
+					+ " cannot be resolved to a type", this, theCatchDeclarations[i].getType().getMatch().index);
+			exTypes[i] = exRes.getType();
+		}
 		if(!withValues)
 		{
-			theTryBlock.evaluate(env, false, withValues);
+			scoped = env.scope(true);
+			scoped.setHandledExceptionTypes(exTypes);
+			theTryBlock.evaluate(scoped, false, withValues);
 			for(int i = 0; i < theCatchDeclarations.length; i++)
 			{
 				scoped = env.scope(true);
@@ -52,7 +63,8 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 			}
 			if(theFinallyBlock != null)
 			{
-				theFinallyBlock.evaluate(env, false, withValues);
+				scoped = env.scope(true);
+				theFinallyBlock.evaluate(scoped, false, withValues);
 			}
 			return null;
 		}
@@ -60,7 +72,9 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 		{
 			try
 			{
-				return theTryBlock.evaluate(env, false, withValues);
+				scoped = env.scope(true);
+				scoped.setHandledExceptionTypes(exTypes);
+				return theTryBlock.evaluate(scoped, false, withValues);
 			} catch(prisms.lang.ExecutionException e)
 			{
 				for(int i = 0; i < theCatchDeclarations.length; i++)
@@ -112,5 +126,32 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 	public ParsedStatementBlock getFinallyBlock()
 	{
 		return theFinallyBlock;
+	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		java.util.ArrayList<prisms.lang.ParsedItem> ret = new java.util.ArrayList<prisms.lang.ParsedItem>();
+		ret.add(theTryBlock);
+		for(int i = 0; i < theCatchDeclarations.length; i++)
+		{
+			ret.add(theCatchDeclarations[i]);
+			ret.add(theCatchBlocks[i]);
+		}
+		if(theFinallyBlock != null)
+			ret.add(theFinallyBlock);
+		return ret.toArray(new prisms.lang.ParsedItem [ret.size()]);
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append("try\n").append(theTryBlock);
+		for(int i = 0; i < theCatchDeclarations.length; i++)
+			ret.append("catch(").append(theCatchDeclarations[i]).append(")\n").append(theCatchBlocks[i]);
+		if(theFinallyBlock != null)
+			ret.append("finally\n").append(theFinallyBlock);
+		return ret.toString();
 	}
 }

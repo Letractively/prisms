@@ -228,7 +228,7 @@
 	</operator>
 	<operator name="function" priority="11" impl="prisms.lang.types.ParsedMethod">
 		<pre-op type="identifier" storeAs="name" />
-		<literal>(</literal>
+		<literal storeAs="method">(</literal>
 		<option>
 			<op />
 			<option min="0">
@@ -255,7 +255,7 @@
 		</option>
 	</operator>
 	<operator name="declaration" priority="5" impl="prisms.lang.types.ParsedDeclaration">
-		<pre-op storeAs="type" />
+		<pre-op type="identifier|keyword|field/method" storeAs="type" />
 		<option>
 			<literal>&lt;</literal>
 			<op type="wildcard type" storeAs="paramType" />
@@ -274,7 +274,7 @@
 	<operator name="final declaration" priority="5" impl="prisms.lang.types.ParsedDeclaration">
 		<literal storeAs="final">final</literal>
 		<whitespace />
-		<op storeAs="type" />
+		<op type="identifier|keyword|field/method" storeAs="type" />
 		<option>
 			<literal>&lt;</literal>
 			<op type="wildcard type" storeAs="paramType" />
@@ -368,7 +368,7 @@
 		<literal>throw</literal>
 		<op storeAs="value" />
 	</operator>
-	<operator name="constructor" priority="101" impl="prisms.lang.types.ParsedConstructor">
+	<operator name="constructor" priority="102" impl="prisms.lang.types.ParsedConstructor">
 		<literal>new</literal>
 		<whitespace />
 		<op storeAs="type" type="type" />
@@ -424,7 +424,7 @@
 		<literal>}</literal>
 	</operator>
 	<operator name="for loop" priority="11" impl="prisms.lang.types.ParsedLoop">
-		<literal>for</literal>
+		<literal storeAs="name">for</literal>
 		<literal>(</literal>
 		<option>
 			<op storeAs="init" />
@@ -456,7 +456,7 @@
 		</select>
 	</operator>
 	<operator name="while loop" priority="11" impl="prisms.lang.types.ParsedLoop">
-		<literal>while</literal>
+		<literal storeAs="name">while</literal>
 		<literal>(</literal>
 		<op storeAs="condition" />
 		<literal>)</literal>
@@ -470,7 +470,7 @@
 		</select>
 	</operator>
 	<operator name="do while loop" priority="11" impl="prisms.lang.types.ParsedLoop">
-		<literal>do</literal>
+		<literal storeAs="name">do</literal>
 		<op storeAs="content" type="block" />
 		<literal>while</literal>
 		<literal>(</literal>

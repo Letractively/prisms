@@ -39,6 +39,8 @@ public class ParsedImport extends prisms.lang.ParsedItem
 					theType = method.getContext();
 					theMethodName = method.getName();
 				}
+				else if(!getMatch().isComplete())
+				{}
 				else if(theType instanceof ParsedIdentifier)
 					throw new prisms.lang.ParseException("The import " + theType.getMatch().text
 						+ " cannot be resolved", getRoot().getFullCommand(), theType.getMatch().index);
@@ -59,9 +61,7 @@ public class ParsedImport extends prisms.lang.ParsedItem
 		return theType;
 	}
 
-	/**
-	 * @return The name of the method being imported. Will be null unless this is a static, non-wildcard import
-	 */
+	/** @return The name of the method being imported. Will be null unless this is a static, non-wildcard import */
 	public String getMethodName()
 	{
 		return theMethodName;
@@ -73,12 +73,16 @@ public class ParsedImport extends prisms.lang.ParsedItem
 		return isStatic;
 	}
 
-	/**
-	 * @return Whether this is a wildcard import, meaning it could potentially import more than one type or method
-	 */
+	/** @return Whether this is a wildcard import, meaning it could potentially import more than one type or method */
 	public boolean isWildcard()
 	{
 		return isWildcard;
+	}
+
+	@Override
+	public prisms.lang.ParsedItem[] getDependents()
+	{
+		return new prisms.lang.ParsedItem [] {theType};
 	}
 
 	@Override
@@ -160,5 +164,20 @@ public class ParsedImport extends prisms.lang.ParsedItem
 			env.addImportType(typeEval.getType().getBaseType());
 			return null;
 		}
+	}
+
+	@Override
+	public String toString()
+	{
+		StringBuilder ret = new StringBuilder();
+		ret.append("import ");
+		if(isStatic)
+			ret.append("static ");
+		ret.append(theType);
+		if(isWildcard)
+			ret.append(".*");
+		else if(theMethodName != null)
+			ret.append(theMethodName);
+		return ret.toString();
 	}
 }
