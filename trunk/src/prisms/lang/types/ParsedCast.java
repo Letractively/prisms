@@ -51,13 +51,20 @@ public class ParsedCast extends prisms.lang.ParsedItem
 		if(!typeEval.isType())
 			throw new prisms.lang.EvaluationException("Unrecognized type " + theType.getMatch().text, this,
 				theType.getMatch().index);
-		try
+		prisms.lang.EvaluationResult toCast = theValue.evaluate(env, false, withValues);
+		if(toCast.getPackageName() != null || toCast.isType())
+			throw new prisms.lang.EvaluationException(toCast.getFirstVar() + " cannot be resolved to a variable",
+				theValue, theValue.getMatch().index);
+		if(typeEval.getType().getCommonType(toCast.getType()) == null)
+			throw new prisms.lang.EvaluationException("Cannot cast from " + toCast.getType() + " to "
+				+ typeEval.getType(), this, theType.getMatch().index);
+		if(withValues && toCast.getValue() != null)
 		{
-			return new prisms.lang.EvaluationResult(typeEval.getType(), withValues ? typeEval.getType().getBaseType()
-				.cast(theValue.evaluate(env, false, withValues)) : null);
-		} catch(ClassCastException e)
-		{
-			throw new prisms.lang.EvaluationException(e.getMessage(), e, this, getStored("type").index);
+			if(!typeEval.getType().isAssignableFrom(toCast.getValue().getClass()))
+				throw new prisms.lang.ExecutionException(new prisms.lang.Type(ClassCastException.class),
+					new ClassCastException(prisms.lang.Type.typeString(toCast.getValue().getClass())
+						+ " cannot be cast to " + typeEval.getType()), this, getStored("type").index);
 		}
+		return new prisms.lang.EvaluationResult(typeEval.getType(), toCast.getValue());
 	}
 }

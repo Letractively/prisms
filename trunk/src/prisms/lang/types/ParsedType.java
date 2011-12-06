@@ -58,11 +58,9 @@ public class ParsedType extends prisms.lang.ParsedItem
 			isBounded = false;
 			for(prisms.lang.ParseMatch m : match.getParsed())
 			{
-				if("paramType".equals(m.config.get("name")))
+				if("paramType".equals(m.config.get("storeAs")))
 					theParamTypes = prisms.util.ArrayUtils.add(theParamTypes,
 						(ParsedType) parser.parseStructures(this, m)[0]);
-				else if("array".equals(m.config.get("name")))
-					theArrayDimension++;
 			}
 		}
 		for(prisms.lang.ParseMatch m : match.getParsed())
