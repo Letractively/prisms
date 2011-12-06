@@ -24,6 +24,7 @@
     * A serial parser. SAX-like capability for JSON allows extremely large JSON data streams to be parsed piece-wise, giving the application a more scalable memory model. This utility also allows slight but useful departures from the JSON data format standard, e.g. hexadecimal numbers and comments.
     * A serial writer. The opposite of the serial parser, this allows JSON data to be written to a stream piece-wise, eliminating the necessity for large objects to be compiled into memory for the sole purpose of writing them to a stream.
     * Formatting. A compact, no-white-space JSON stream can be formatted to be more easily read by a person.
+ * *JITR:* Java InTerpretation at Runtime. PRISMS features a runtime java parser and interpreter.  The prisms.lang.InterpreterPanel class allows the user to type java commands at runtime to be parsed and executed. See the [http://code.google.com/p/prisms/wiki/JITR JITR Wiki].
  * *Concurrency utilities:* Programming in a multi-threaded environment has many challenges.  Since PRISMS was designed for serving multiple users at once, it uses many customized utilities to help manage resources in a multi-threaded environment:
     * ThreadPoolWorker: Allows an environment to execute tasks distributed over several processors
     * ResourcePool: Maintains a set of objects that can be retrieved only once until they are released back into the pool. This can be used, for example, to pool a set of non-thread-safe objects for use in a multi-threaded environment.
