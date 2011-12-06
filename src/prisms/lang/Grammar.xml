@@ -448,7 +448,7 @@
 		<literal>)</literal>
 		<select>
 			<option>
-				<literal>;</literal>
+				<literal storeAs="terminal">;</literal>
 			</option>
 			<option>
 				<op storeAs="content" />

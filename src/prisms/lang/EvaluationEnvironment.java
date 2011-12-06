@@ -6,6 +6,88 @@ package prisms.lang;
 /** An environment for parsing. Allows state to be kept between evaluations. */
 public interface EvaluationEnvironment
 {
+	/** Represents a variable declared within an evaluation environment */
+	public static class Variable
+	{
+		final Type theType;
+
+		final String theName;
+
+		final boolean isFinal;
+
+		boolean isInitialized;
+
+		Object theValue;
+
+		/**
+		 * @param type The type of the variable
+		 * @param name The name for the variable
+		 * @param _final Whether the variable is declared as final
+		 */
+		public Variable(Type type, String name, boolean _final)
+		{
+			theType = type;
+			theName = name;
+			isFinal = _final;
+		}
+
+		/** @return The name of the variable */
+		public String getName()
+		{
+			return theName;
+		}
+
+		/** @return The type of the variable */
+		public Type getType()
+		{
+			return theType;
+		}
+
+		/** @return Whether this variable is final or not */
+		public boolean isFinal()
+		{
+			return isFinal;
+		}
+
+		/** @return Whether this variable has been initialized with a value or not */
+		public boolean isInitialized()
+		{
+			return isInitialized;
+		}
+
+		/** @return The value currently assigned to the variable */
+		public Object getValue()
+		{
+			return theValue;
+		}
+
+		@Override
+		public String toString()
+		{
+			return theType.toString() + " " + theName;
+		}
+	}
+
+	/** Used for {@link EvaluationEnvironment#getImportMethods()} */
+	public static class ImportMethod
+	{
+		/** The type that the method is for */
+		public final Class<?> type;
+
+		/** The name of the method imported */
+		public final String method;
+
+		/**
+		 * @param c The type that the method is for
+		 * @param m The name of the method imported
+		 */
+		public ImportMethod(Class<?> c, String m)
+		{
+			type = c;
+			method = m;
+		}
+	}
+
 	/** @return Whether evaluations should only allow access to publicly declared classes, methods, and fields */
 	boolean usePublicOnly();
 
@@ -55,8 +137,8 @@ public interface EvaluationEnvironment
 	 */
 	void dropVariable(String name, ParsedItem struct, int index) throws EvaluationException;
 
-	/** @return The names of all variables that have been declared in this environment */
-	String [] getDeclaredVariableNames();
+	/** @return All variables that have been declared in this environment */
+	Variable [] getDeclaredVariables();
 
 	/**
 	 * Stores a function for later use
@@ -127,11 +209,17 @@ public interface EvaluationEnvironment
 	 */
 	void addImportPackage(String packageName);
 
+	/** @return All packages that have been imported into this environment */
+	String [] getImportPackages();
+
 	/**
 	 * @param name The name of the class to get
 	 * @return The class whose name matches the given name and whose type or package has been imported
 	 */
 	Class<?> getImportType(String name);
+
+	/** @return All types that have been imported into this environment */
+	Class<?> [] getImportTypes();
 
 	/**
 	 * Allows a static method to be imported so it can be referred to by name without a class name qualifier
@@ -140,6 +228,9 @@ public interface EvaluationEnvironment
 	 * @param method The name of the method to import
 	 */
 	void addImportMethod(Class<?> type, String method);
+
+	/** @return All methods that have been statically imported into this environment */
+	ImportMethod [] getImportMethods();
 
 	/**
 	 * @param methodName The name of the method to get
@@ -164,4 +255,13 @@ public interface EvaluationEnvironment
 	 * @return The transaction environment
 	 */
 	EvaluationEnvironment transact();
+
+	/** May be called by a user interaction to cancel a currently executing loop */
+	void cancel();
+
+	/** @return Whether the user has called {@link #cancel()} on this environment */
+	boolean isCanceled();
+
+	/** Called prior to evaluation so the environment is not marked to cancel execution */
+	void uncancel();
 }

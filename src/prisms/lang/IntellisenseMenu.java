@@ -293,7 +293,7 @@ public class IntellisenseMenu extends javax.swing.JDialog
 	{
 		theNavIndex--;
 		if(theNavIndex < 0)
-			theNavIndex = 0;
+			theNavIndex = theMenuHolder.getComponentCount() - 1;
 		for(int i = 0; i < theMenuHolder.getComponentCount(); i++)
 			((IntellisenseMenuItem) theMenuHolder.getComponent(i)).setSelected(i == theNavIndex);
 	}
@@ -302,7 +302,7 @@ public class IntellisenseMenu extends javax.swing.JDialog
 	{
 		theNavIndex++;
 		if(theNavIndex >= theMenuHolder.getComponentCount())
-			theNavIndex = theMenuHolder.getComponentCount() - 1;
+			theNavIndex = 0;
 		for(int i = 0; i < theMenuHolder.getComponentCount(); i++)
 			((IntellisenseMenuItem) theMenuHolder.getComponent(i)).setSelected(i == theNavIndex);
 	}
