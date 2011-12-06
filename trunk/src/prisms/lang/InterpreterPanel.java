@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
+import prisms.lang.EvaluationEnvironment.Variable;
 import prisms.lang.types.*;
 
 /** A panel that takes user-entered text, interprets it, and prints the results */
@@ -135,7 +136,9 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 	private PrismsParser theParser;
 
-	private EvaluationEnvironment theEnv;
+	EvaluationEnvironment theEnv;
+
+	prisms.impl.ThreadPoolWorker theWorker;
 
 	javax.swing.JEditorPane theInput;
 
@@ -144,6 +147,10 @@ public class InterpreterPanel extends javax.swing.JPanel
 	IntellisenseMenu theIntellisenseMenu;
 
 	private java.awt.event.KeyListener theReturnListener;
+
+	private java.awt.event.KeyListener theCancelListener;
+
+	private javax.swing.JEditorPane theReplaced;
 
 	private java.awt.event.MouseListener theGrabListener;
 
@@ -168,8 +175,9 @@ public class InterpreterPanel extends javax.swing.JPanel
 		};
 		addMouseListener(theGrabListener);
 
-		theReturnListener = new java.awt.event.KeyListener()
+		theReturnListener = new java.awt.event.KeyAdapter()
 		{
+			@Override
 			public void keyPressed(java.awt.event.KeyEvent evt)
 			{
 				if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_SPACE && evt.isControlDown())
@@ -179,14 +187,38 @@ public class InterpreterPanel extends javax.swing.JPanel
 					if(theIntellisenseMenu.isVisible())
 						evt.consume();
 					else
-						checkInput();
+					{
+						setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.WAIT_CURSOR));
+						theWorker.run(new Runnable()
+						{
+							public void run()
+							{
+								checkInput();
+								java.awt.EventQueue.invokeLater(new Runnable()
+								{
+									public void run()
+									{
+										setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.DEFAULT_CURSOR));
+									}
+								});
+							}
+						}, new prisms.arch.Worker.ErrorListener()
+						{
+							public void error(Error error)
+							{
+								error.printStackTrace();
+							}
+
+							public void runtime(RuntimeException ex)
+							{
+								ex.printStackTrace();
+							}
+						});
+					}
 				}
 			}
 
-			public void keyReleased(java.awt.event.KeyEvent evt)
-			{
-			}
-
+			@Override
 			public void keyTyped(java.awt.event.KeyEvent evt)
 			{
 				if(evt.getKeyChar() == ' ' && evt.isControlDown())
@@ -206,6 +238,15 @@ public class InterpreterPanel extends javax.swing.JPanel
 				}
 			}
 		};
+		theCancelListener = new java.awt.event.KeyAdapter()
+		{
+			@Override
+			public void keyPressed(java.awt.event.KeyEvent evt)
+			{
+				if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_C && evt.isControlDown())
+					theEnv.cancel();
+			}
+		};
 
 		theInput = new javax.swing.JEditorPane();
 		theInput.setForeground(java.awt.Color.blue);
@@ -216,6 +257,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theParser.configure(prisms.arch.PrismsConfig.fromXml(null, getGrammar()));
 		theEnv = new DefaultEvaluationEnvironment();
 		addVariable("pane", EnvPane.class, new EnvPane());
+		theWorker = new prisms.impl.ThreadPoolWorker("Execution Worker", 1);
+		theWorker.setPriority(Thread.MIN_PRIORITY);
 
 		theIntellisenseMenu = new IntellisenseMenu();
 		theIntellisenseMenu.addListener(new IntellisenseMenu.IntellisenseListener()
@@ -223,8 +266,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 			public void itemSelected(Object item, String text)
 			{
 				String curText = theInput.getText();
-				theInput.setText(curText.substring(0, theInput.getCaretPosition()) + text
-					+ curText.substring(theInput.getCaretPosition() + toChop));
+				theInput.setText(curText.substring(0, theInput.getCaretPosition() - toChop) + text
+					+ curText.substring(theInput.getCaretPosition()));
 			}
 		});
 	}
@@ -274,7 +317,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		}
 	}
 
-	synchronized void intellisenseTriggered()
+	void intellisenseTriggered()
 	{
 		theIntellisenseMenu.clear(false);
 		String text = theInput.getText();
@@ -338,18 +381,43 @@ public class InterpreterPanel extends javax.swing.JPanel
 			System.out.println("Type intellisense for \"" + toMatch + "\" (context " + context + ")");
 
 			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
-			for(String cn : theEnv.getClassGetter().getClasses(context))
-				if(getMatchStrength(cn, toMatch) > 0)
-					items.add(new NamedItem(cn, cn));
-			for(String pn : theEnv.getClassGetter().getSubPackages(context))
-				if(getMatchStrength(pn, toMatch) > 0)
-					items.add(new NamedItem(pn, pn));
+			if(context == null)
+			{
+				for(Class<?> type : theEnv.getImportTypes())
+				{
+					String imp = Type.isImported(type, theEnv);
+					if(getMatchStrength(imp, toMatch) > 0)
+						items.add(new NamedItem(imp, imp));
+				}
+				for(String pkg : theEnv.getImportPackages())
+					for(String cn : theEnv.getClassGetter().getClasses(pkg))
+						if(getMatchStrength(cn, toMatch) > 0)
+							items.add(new NamedItem(cn, cn));
+				for(String cn : theEnv.getClassGetter().getClasses(null))
+					if(getMatchStrength(cn, toMatch) > 0)
+						items.add(new NamedItem(cn, cn));
+				for(String cn : theEnv.getClassGetter().getClasses("java.lang"))
+					if(getMatchStrength(cn, toMatch) > 0)
+						items.add(new NamedItem(cn, cn));
+				for(String pn : theEnv.getClassGetter().getSubPackages(null))
+					if(getMatchStrength(pn, toMatch) > 0)
+						items.add(new NamedItem(pn, pn));
+			}
+			else
+			{
+				for(String cn : theEnv.getClassGetter().getClasses(context))
+					if(getMatchStrength(cn, toMatch) > 0)
+						items.add(new NamedItem(cn, cn));
+				for(String pn : theEnv.getClassGetter().getSubPackages(context))
+					if(getMatchStrength(pn, toMatch) > 0)
+						items.add(new NamedItem(pn, pn));
+			}
 			java.util.Collections.sort(items);
 			sortByMatch(items, toMatch);
 
 			for(NamedItem item : items)
 				if(item.item instanceof String)
-					theIntellisenseMenu.addMenuItem("class", item.name, item.name, item.name);
+					theIntellisenseMenu.addMenuItem("class", item.name, item.name, className(item.name));
 			theIntellisenseMenu.show(theInput);
 		}
 		else if(target instanceof ParsedConstructor || parent instanceof ParsedConstructor
@@ -360,7 +428,20 @@ public class InterpreterPanel extends javax.swing.JPanel
 			System.out.println("Type intellisense for \"" + toMatch + "\"");
 
 			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
+			for(Class<?> type : theEnv.getImportTypes())
+			{
+				String imp = Type.isImported(type, theEnv);
+				if(getMatchStrength(imp, toMatch) > 0)
+					items.add(new NamedItem(imp, imp));
+			}
+			for(String pkg : theEnv.getImportPackages())
+				for(String cn : theEnv.getClassGetter().getClasses(pkg))
+					if(getMatchStrength(cn, toMatch) > 0)
+						items.add(new NamedItem(cn, cn));
 			for(String cn : theEnv.getClassGetter().getClasses(null))
+				if(getMatchStrength(cn, toMatch) > 0)
+					items.add(new NamedItem(cn, cn));
+			for(String cn : theEnv.getClassGetter().getClasses("java.lang"))
 				if(getMatchStrength(cn, toMatch) > 0)
 					items.add(new NamedItem(cn, cn));
 			for(String pn : theEnv.getClassGetter().getSubPackages(null))
@@ -371,7 +452,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 			for(NamedItem item : items)
 				if(item.item instanceof String)
-					theIntellisenseMenu.addMenuItem("class", item.name, item.name, item.name);
+					theIntellisenseMenu.addMenuItem("class", item.name, item.name, className(item.name));
 			theIntellisenseMenu.show(theInput);
 		}
 		else if(target instanceof ParsedDrop || parent instanceof ParsedDrop)
@@ -388,9 +469,9 @@ public class InterpreterPanel extends javax.swing.JPanel
 			for(int i = 0; i < structs.length; i++)
 				evalDeclares(structs[i], trans);
 			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
-			for(String var : trans.getDeclaredVariableNames())
-				if(getMatchStrength(var, toMatch) > 0)
-					items.add(new NamedItem(var, var));
+			for(Variable var : trans.getDeclaredVariables())
+				if(getMatchStrength(var.getName(), toMatch) > 0)
+					items.add(new NamedItem(var.getName(), var));
 			for(ParsedFunctionDeclaration func : trans.getDeclaredFunctions())
 				if(getMatchStrength(func.getName(), toMatch) > 0)
 					items.add(new NamedItem(func.getName(), func));
@@ -399,11 +480,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 			for(NamedItem item : items)
 			{
-				if(item.item instanceof String)
-					theIntellisenseMenu.addMenuItem("variable", item.name, item.name, item.name);
+				if(item.item instanceof Variable)
+					theIntellisenseMenu.addMenuItem("variable", item.name + ": " + ((Variable) item.item).getType(),
+						item.item, item.name);
 				else
-					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig(),
-						item.item, item.name + "(");
+					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig()
+						+ ": " + ((ParsedFunctionDeclaration) item.item).getReturnType(), item.item,
+						((ParsedFunctionDeclaration) item.item).getShortSig());
 			}
 			theIntellisenseMenu.show(theInput);
 		}
@@ -504,12 +587,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 			for(NamedItem item : items)
 			{
 				if(item.item instanceof Field)
-					theIntellisenseMenu.addMenuItem("field", item.name, item.item, item.name);
+					theIntellisenseMenu.addMenuItem("field",
+						item.name + ": " + new Type(((Field) item.item).getGenericType()), item.item, item.name);
 				else if(item.item instanceof Method) // Better method string
-					theIntellisenseMenu
-						.addMenuItem("method", "" + name((Method) item.item), item.item, item.name + "(");
+					theIntellisenseMenu.addMenuItem("method", "" + name((Method) item.item), item.item, item.name
+						+ (((Method) item.item).getParameterTypes().length > 0 ? "(" : "()"));
 				else if(item.item instanceof String)
-					theIntellisenseMenu.addMenuItem("class", item.name, item.item, item.name);
+					theIntellisenseMenu.addMenuItem("class", item.name, item.item, className(item.name));
 			}
 			theIntellisenseMenu.show(theInput);
 		}
@@ -522,9 +606,9 @@ public class InterpreterPanel extends javax.swing.JPanel
 			for(int i = 0; i < structs.length; i++)
 				evalDeclares(structs[i], trans);
 			java.util.ArrayList<NamedItem> items = new java.util.ArrayList<NamedItem>();
-			for(String var : trans.getDeclaredVariableNames())
-				if(getMatchStrength(var, toMatch) > 0)
-					items.add(new NamedItem(var, var));
+			for(Variable var : trans.getDeclaredVariables())
+				if(getMatchStrength(var.getName(), toMatch) > 0)
+					items.add(new NamedItem(var.getName(), var));
 			for(ParsedFunctionDeclaration func : trans.getDeclaredFunctions())
 				if(getMatchStrength(func.getName(), toMatch) > 0)
 					items.add(new NamedItem(func.getName(), func));
@@ -533,11 +617,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 			for(NamedItem item : items)
 			{
-				if(item.item instanceof String)
-					theIntellisenseMenu.addMenuItem("variable", item.name, item.name, item.name);
+				if(item.item instanceof Variable)
+					theIntellisenseMenu.addMenuItem("variable", item.name + ": " + ((Variable) item.item).getType(),
+						item.item, item.name);
 				else
-					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig(),
-						item.item, item.name + "(");
+					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig()
+						+ ": " + ((ParsedFunctionDeclaration) item.item).getReturnType(), item.item, item.name
+						+ (((ParsedFunctionDeclaration) item.item).getParameters().length > 0 ? "(" : "()"));
 			}
 			theIntellisenseMenu.show(theInput);
 		}
@@ -594,9 +680,18 @@ public class InterpreterPanel extends javax.swing.JPanel
 				ret.append(", ");
 			ret.append(new Type(m.getGenericParameterTypes()[i]).toString(theEnv));
 		}
-		ret.append(") ");
+		ret.append("): ");
 		ret.append(new Type(m.getGenericReturnType()).toString(theEnv));
 		return ret.toString();
+	}
+
+	private String className(String name)
+	{
+		int idx = name.lastIndexOf('.');
+		if(idx >= 0)
+			return name.substring(idx + 1);
+		else
+			return name;
 	}
 
 	private static void sortByMatch(final java.util.List<NamedItem> items, String toMatch)
@@ -624,15 +719,57 @@ public class InterpreterPanel extends javax.swing.JPanel
 	{
 		if(toMatch.length() == 0)
 			return 1;
-		int todo;// TODOs
+		if(test.equals(toMatch))
+			return 1000;
+		if(test.equalsIgnoreCase(toMatch))
+			return 900;
+		int cc = matchCamelCase(test, toMatch);
+		if(cc > 0)
+			return cc;
 		if(test.toLowerCase().startsWith(toMatch.toLowerCase()))
-			return 1;
+			return 100;
 		else
 			return 0;
 	}
 
+	private static int matchCamelCase(String test, String toMatch)
+	{
+		int i, j;
+		for(i = 0, j = 0; i < toMatch.length() && j < test.length();)
+		{
+			if(toMatch.charAt(i) == test.charAt(j))
+			{
+				i++;
+				j++;
+			}
+			else if(i > 0 && toMatch.charAt(i) >= 'A' && toMatch.charAt(i) <= 'Z')
+			{
+				while(j < test.length() && (test.charAt(j) < 'A' || test.charAt(j) > 'Z'))
+					j++;
+				if(toMatch.charAt(i) == test.charAt(j))
+				{
+					i++;
+					j++;
+				}
+				else
+					break;
+			}
+			else
+				break;
+		}
+		if(i < toMatch.length())
+			return 0;
+		if(j == test.length())
+			return 800;
+		for(; j < test.length(); j++)
+			if(test.charAt(j) >= 'A' && test.charAt(j) <= 'Z')
+				return 300;
+		return 500;
+	}
+
 	void checkInput()
 	{
+		theEnv.uncancel();
 		String text = theInput.getText().trim();
 
 		ParsedItem [] structs;
@@ -647,65 +784,12 @@ public class InterpreterPanel extends javax.swing.JPanel
 		{
 			pareStackTrace(e);
 			e.printStackTrace();
-			theRow.remove(theInput);
-			String input = theInput.getText().trim();
-			if(input.indexOf('\n') < 0)
-			{
-				javax.swing.JEditorPane replace = new javax.swing.JEditorPane();
-				replace.setForeground(java.awt.Color.blue);
-				replace.setText(theInput.getText().trim());
-				replace.setEditable(false);
-				theRow.add(replace);
-			}
-			else
-			{
-				String [] inputs = input.split("\n");
-				javax.swing.JPanel replace = new javax.swing.JPanel();
-				replace.setLayout(new javax.swing.BoxLayout(replace, javax.swing.BoxLayout.Y_AXIS));
-				for(String in : inputs)
-				{
-					javax.swing.JEditorPane rep = new javax.swing.JEditorPane();
-					rep.setForeground(java.awt.Color.blue);
-					rep.setText(in);
-					rep.setEditable(false);
-					replace.add(rep);
-				}
-				theRow.add(replace);
-			}
-			theRow = null;
+			replaceInput();
 			answer(e.getMessage(), true);
 			newLine();
 			return;
 		}
-		theRow.remove(theInput);
-		String input = theInput.getText().trim();
-		if(input.indexOf('\n') < 0)
-		{
-			javax.swing.JEditorPane replace = new javax.swing.JEditorPane();
-			replace.addMouseListener(theGrabListener);
-			replace.setForeground(java.awt.Color.blue);
-			replace.setText(theInput.getText().trim());
-			replace.setEditable(false);
-			theRow.add(replace);
-		}
-		else
-		{
-			String [] inputs = input.split("\n");
-			javax.swing.JPanel replace = new javax.swing.JPanel();
-			replace.addMouseListener(theGrabListener);
-			replace.setLayout(new javax.swing.BoxLayout(replace, javax.swing.BoxLayout.Y_AXIS));
-			for(String in : inputs)
-			{
-				javax.swing.JEditorPane rep = new javax.swing.JEditorPane();
-				rep.addMouseListener(theGrabListener);
-				rep.setForeground(java.awt.Color.blue);
-				rep.setText(in);
-				rep.setEditable(false);
-				replace.add(rep);
-			}
-			theRow.add(replace);
-		}
-		theRow = null;
+		replaceInput();
 
 		try
 		{
@@ -752,49 +836,98 @@ public class InterpreterPanel extends javax.swing.JPanel
 		}
 	}
 
-	private void newLine()
+	void replaceInput()
 	{
-		theRow = new javax.swing.JPanel();
-		theRow.addMouseListener(theGrabListener);
-		theRow.setLayout(new javax.swing.BoxLayout(theRow, javax.swing.BoxLayout.X_AXIS));
-		add(theRow);
-		javax.swing.JLabel prompt = new javax.swing.JLabel("  > ");
-		prompt.setForeground(darkGreen);
-		prompt.setFont(prompt.getFont().deriveFont(java.awt.Font.BOLD));
-		prompt.setBackground(java.awt.Color.white);
-		theRow.add(prompt);
-		theRow.add(theInput);
-		theInput.setText("");
-		doLayout();
-		repaint();
-		theInput.grabFocus();
-		if(getParent() instanceof javax.swing.JViewport)
+		if(java.awt.EventQueue.isDispatchThread())
 		{
-			int y = getHeight() - getParent().getHeight();
-			if(y > 0)
-				((javax.swing.JViewport) getParent()).setViewPosition(new java.awt.Point(0, y));
+			if(theReplaced != null)
+				theReplaced.removeKeyListener(theCancelListener);
+			theInput.setText(theInput.getText().trim());
+			theRow.remove(theInput);
+			theReplaced = new javax.swing.JEditorPane();
+			theReplaced.addKeyListener(theCancelListener);
+			theReplaced.setForeground(java.awt.Color.blue);
+			theReplaced.setText(theInput.getText().trim());
+			theReplaced.setEditable(false);
+			theRow.add(theReplaced);
+			theRow = null;
+			theReplaced.grabFocus();
 		}
-		java.awt.EventQueue.invokeLater(new Runnable()
-		{
-			public void run()
+		else
+			java.awt.EventQueue.invokeLater(new Runnable()
 			{
-				theInput.setText("");
-			}
-		});
+				public void run()
+				{
+					replaceInput();
+				}
+			});
 	}
 
-	synchronized void answer(String text, boolean error)
+	void newLine()
 	{
-		text = text.trim();
-		if(text.length() == 0)
-			return;
-		javax.swing.JEditorPane answer = new javax.swing.JEditorPane();
-		answer.addMouseListener(theGrabListener);
-		answer.setText("        " + text);
-		answer.setEditable(false);
-		if(error)
-			answer.setForeground(java.awt.Color.red);
-		add(answer);
+		if(java.awt.EventQueue.isDispatchThread())
+		{
+			theRow = new javax.swing.JPanel();
+			theRow.addMouseListener(theGrabListener);
+			theRow.setLayout(new javax.swing.BoxLayout(theRow, javax.swing.BoxLayout.X_AXIS));
+			add(theRow);
+			javax.swing.JLabel prompt = new javax.swing.JLabel("  > ");
+			prompt.setForeground(darkGreen);
+			prompt.setFont(prompt.getFont().deriveFont(java.awt.Font.BOLD));
+			prompt.setBackground(java.awt.Color.white);
+			theRow.add(prompt);
+			theRow.add(theInput);
+			theInput.setText("");
+			doLayout();
+			repaint();
+			theInput.grabFocus();
+			if(getParent() instanceof javax.swing.JViewport)
+			{
+				int y = getHeight() - getParent().getHeight();
+				if(y > 0)
+					((javax.swing.JViewport) getParent()).setViewPosition(new java.awt.Point(0, y));
+			}
+			java.awt.EventQueue.invokeLater(new Runnable()
+			{
+				public void run()
+				{
+					theInput.setText("");
+				}
+			});
+		}
+		else
+			java.awt.EventQueue.invokeLater(new Runnable()
+			{
+				public void run()
+				{
+					newLine();
+				}
+			});
+	}
+
+	void answer(final String text, final boolean error)
+	{
+		if(java.awt.EventQueue.isDispatchThread())
+		{
+			String textTrim = text.trim();
+			if(textTrim.length() == 0)
+				return;
+			javax.swing.JEditorPane answer = new javax.swing.JEditorPane();
+			answer.addMouseListener(theGrabListener);
+			answer.setText("        " + textTrim);
+			answer.setEditable(false);
+			if(error)
+				answer.setForeground(java.awt.Color.red);
+			add(answer);
+		}
+		else
+			java.awt.EventQueue.invokeLater(new Runnable()
+			{
+				public void run()
+				{
+					answer(text, error);
+				}
+			});
 	}
 
 	void clearScreen()
@@ -815,11 +948,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 	public static void main(String [] args)
 	{
 		javax.swing.JFrame frame = new javax.swing.JFrame();
-		frame.setTitle("Interpreter");
+		frame.setTitle("JITR");
 		frame.setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);
 		frame.setSize(480, 640);
 		InterpreterPanel interp = new InterpreterPanel();
-		frame.setContentPane(new javax.swing.JScrollPane(interp));
+		javax.swing.JScrollPane contentPane = new javax.swing.JScrollPane(interp);
+		contentPane.getVerticalScrollBar().setUnitIncrement(10);
+		frame.setContentPane(contentPane);
 		((javax.swing.JScrollPane) frame.getContentPane())
 			.setHorizontalScrollBarPolicy(javax.swing.JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		java.awt.Dimension dim = java.awt.Toolkit.getDefaultToolkit().getScreenSize();

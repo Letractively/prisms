@@ -8,29 +8,6 @@ import prisms.lang.types.ParsedFunctionDeclaration;
 /** Default implementation of {@link EvaluationEnvironment} */
 public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 {
-	private static class Variable
-	{
-		final Type theType;
-
-		final boolean isFinal;
-
-		boolean isInitialized;
-
-		Object theValue;
-
-		Variable(Type type, boolean _final)
-		{
-			theType = type;
-			isFinal = _final;
-		}
-
-		@Override
-		public String toString()
-		{
-			return theType.toString();
-		}
-	}
-
 	private final DefaultEvaluationEnvironment theParent;
 
 	private final boolean isTransaction;
@@ -56,6 +33,8 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	private Type theReturnType;
 
 	private Type [] theHandledExceptionTypes;
+
+	private volatile boolean isCanceled;
 
 	/** Creates the environment */
 	public DefaultEvaluationEnvironment()
@@ -165,7 +144,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			Variable vbl = theVariables.get(name);
 			if(vbl != null)
 				throw new EvaluationException("Duplicate local variable " + name, struct, index);
-			theVariables.put(name, new Variable(type, isFinal));
+			theVariables.put(name, new Variable(type, name, isFinal));
 		}
 	}
 
@@ -180,7 +159,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		{
 			vbl = theParent.getVariable(name, true);
 			if(vbl != null && isTransaction)
-				vbl = new Variable(vbl.theType, vbl.isFinal);
+				vbl = new Variable(vbl.theType, vbl.theName, vbl.isFinal);
 		}
 		if(vbl == null)
 			throw new EvaluationException(name + " cannot be resolved to a variable ", struct, index);
@@ -234,23 +213,23 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
-	public String [] getDeclaredVariableNames()
+	public Variable [] getDeclaredVariables()
 	{
-		java.util.ArrayList<String> ret = new java.util.ArrayList<String>();
+		java.util.ArrayList<Variable> ret = new java.util.ArrayList<Variable>();
 		DefaultEvaluationEnvironment env = this;
 		while(env != null)
 		{
 			synchronized(env.theVariables)
 			{
-				for(String name : env.theVariables.keySet())
+				for(Variable vbl : env.theVariables.values())
 				{
-					if(!ret.contains(name))
-						ret.add(name);
+					if(!ret.contains(vbl))
+						ret.add(vbl);
 				}
 			}
 			env = env.theParent;
 		}
-		return ret.toArray(new String [ret.size()]);
+		return ret.toArray(new Variable [ret.size()]);
 	}
 
 	public void declareFunction(ParsedFunctionDeclaration function)
@@ -378,7 +357,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			else
 				throw new IllegalStateException("History can only be added to a root-level evaluation environment");
 		}
-		Variable vbl = new Variable(type, false);
+		Variable vbl = new Variable(type, "%", false);
 		vbl.theValue = result;
 		synchronized(theHistory)
 		{
@@ -454,6 +433,34 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	public String [] getImportPackages()
+	{
+		synchronized(theImportPackages)
+		{
+			return theImportPackages.toArray(new String [theImportPackages.size()]);
+		}
+	}
+
+	public Class<?> [] getImportTypes()
+	{
+		synchronized(theImportTypes)
+		{
+			return theImportTypes.values().toArray(new Class [theImportTypes.size()]);
+		}
+	}
+
+	public ImportMethod [] getImportMethods()
+	{
+		synchronized(theImportMethods)
+		{
+			ImportMethod [] ret = new ImportMethod [theImportMethods.size()];
+			int i = 0;
+			for(java.util.Map.Entry<String, Class<?>> entry : theImportMethods.entrySet())
+				ret[i++] = new ImportMethod(entry.getValue(), entry.getKey());
+			return ret;
+		}
+	}
+
 	public EvaluationEnvironment scope(boolean dependent)
 	{
 		if(dependent)
@@ -486,5 +493,20 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	public EvaluationEnvironment transact()
 	{
 		return new DefaultEvaluationEnvironment(this, false, true);
+	}
+
+	public void cancel()
+	{
+		isCanceled = true;
+	}
+
+	public boolean isCanceled()
+	{
+		return isCanceled || (theParent != null && theParent.isCanceled());
+	}
+
+	public void uncancel()
+	{
+		isCanceled = false;
 	}
 }

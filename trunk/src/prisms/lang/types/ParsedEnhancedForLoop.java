@@ -84,6 +84,8 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 			}
 			iterLoop: while(iterator.hasNext())
 			{
+				if(env.isCanceled())
+					throw new prisms.lang.EvaluationException("User canceled execution", this, getMatch().index);
 				Object value = iterator.next();
 				scoped.setVariable(theVariable.getName(), value, theVariable, theVariable.getStored("name").index);
 				prisms.lang.EvaluationResult res = theContents.evaluate(scoped, false, withValues);

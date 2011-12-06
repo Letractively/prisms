@@ -146,6 +146,25 @@ public class ClassGetter
 
 	private void scan(java.util.jar.JarFile jar)
 	{
+		java.util.Enumeration<java.util.jar.JarEntry> entries = jar.entries();
+		while(entries.hasMoreElements())
+		{
+			java.util.jar.JarEntry entry = entries.nextElement();
+			String name = entry.getName();
+			String fileName;
+			int idx = name.lastIndexOf('/');
+			if(idx >= 0)
+				fileName = name.substring(idx + 1);
+			else
+				fileName = name;
+			if(fileNamePattern.matcher(fileName).matches())
+			{
+				String className = fileName.substring(0, fileName.lastIndexOf('.'));
+				className = prisms.util.PrismsUtils.replaceAll(className, "$", ".");
+				className = prisms.util.PrismsUtils.replaceAll(name.substring(0, idx), "/", ".") + "." + className;
+				addClassName(className);
+			}
+		}
 	}
 
 	/** @param className The name of the class to add to this getter */

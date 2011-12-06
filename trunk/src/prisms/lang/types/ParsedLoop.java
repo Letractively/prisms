@@ -50,8 +50,10 @@ public class ParsedLoop extends ParsedItem
 		ParsedItem contentItem = parser.parseStructures(this, getStored("content"))[0];
 		if(contentItem instanceof ParsedStatementBlock)
 			theContents = (ParsedStatementBlock) contentItem;
-		else if(getMatch().isComplete())
+		else if(contentItem != null)
 			theContents = new ParsedStatementBlock(parser, this, contentItem.getMatch(), contentItem);
+		else if(getMatch().isComplete())
+			theContents = new ParsedStatementBlock(parser, this, getStored("terminal"));
 	}
 
 	/** @return Whether this loop's condition should be checked before the first execution of the contents */
@@ -141,6 +143,8 @@ public class ParsedLoop extends ParsedItem
 
 		do
 		{
+			if(env.isCanceled())
+				throw new prisms.lang.EvaluationException("User canceled execution", this, getMatch().index);
 			EvaluationResult res = theContents.evaluate(scoped, false, withValues);
 			if(res != null && withValues && res.getControl() == EvaluationResult.ControlType.RETURN)
 				return res;
