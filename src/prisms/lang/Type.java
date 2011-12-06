@@ -272,6 +272,7 @@ public class Type
 					}
 			}
 			Type ret = new Type(null);
+			ret.theBaseType = null;
 			ret.theName = tv.getName();
 			ret.isBounded = true;
 			ret.isUpperBound = true;
