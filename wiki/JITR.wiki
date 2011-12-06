@@ -7,18 +7,21 @@ The main class of the JITR framework is prisms.lang.InterpreterPanel, though the
 
  * *All types* Including primitives, arrays, and classes.
  * *Some generics* These haven't been thoroughly tested, but they're somewhat useful.
- * *import* Imports can be classes, packages (import package.name.*), static methods or fields by name (import static), or all static methods and fields of a class (import static className.*).  This just makes it quicker to refer to types, just like in java.
+ * *import* Imports can be classes, packages (import package.name.`*`), static methods or fields by name (import static), or all static methods and fields of a class (import static className.`*`).  This just makes it quicker to refer to types, just like in java.
  * *Variables* Declare a variable just like in a method in java, e.g. int a.
  * *Fields/methods*  The fields and methods of any java class or instance available to the environment can be accessed.
  * *Operations* Addition, subtraction, multiplication, division, modulo, logical/bitwise and/or/xor, comparisons, bitwise shifts
  * *Control statements* if/else, for, enhanced for, while, do/while, try/catch/finally
  * *Previous answer*  Useful for if you forget to or would rather not assign the value of an expression to a variable. For example, if "Math.pow(3, 5)" is entered, then the expression "%" may be used on the next line to refer to the value of that answer.  The expression %index may be used to refer to answers further back.  For example, "%1" refers to the answer before last.
- * *Function definition.*  Functions may be defined similarly to a method within a java class. E.g.
+ * *Function definition*  Functions may be defined similarly to a method within a java class. E.g.
     * int plus(int a, int b)
     * {
     *       return a+b
     * }
  * *drop*  Non-final variables and functions may be dropped so that the variable name can be used again with a different type.
+ * *Anonymous classes* Anonymous classes of the form `new package.name.InterfaceName(){...}` may be declared in the same way as in java, but with a few extra constraints:
+    * Only interfaces may be subclassed, no abstract classes or other classes
+    * Within the body of the class, object methods may not be overridden
 
 The interpreter does *NOT* support class definition, including anonymous inner classes.  Unlike java, it is unnecessary to specify a semicolon at the end of statements.
 
