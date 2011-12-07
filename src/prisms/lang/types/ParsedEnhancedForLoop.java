@@ -41,7 +41,7 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 					this, theIterable.getMatch().index);
 			prisms.lang.Type instanceType;
 			if(Iterable.class.isAssignableFrom(iterRes.getType().getBaseType()))
-				instanceType = iterRes.getType().resolve(Iterable.class.getTypeParameters()[0], Iterable.class);
+				instanceType = iterRes.getType().resolve(Iterable.class.getTypeParameters()[0], Iterable.class, null);
 			else if(iterRes.getType().isArray())
 				instanceType = iterRes.getType().getComponentType();
 			else
