@@ -202,7 +202,7 @@ public class Type
 				if(!theBaseType.isAssignableFrom(t.theBaseType))
 					return false;
 				for(int p = 0; p < theParamTypes.length; p++)
-					if(!theParamTypes[p].isAssignable(t.resolve(theBaseType.getTypeParameters()[p], theBaseType)))
+					if(!theParamTypes[p].isAssignable(t.resolve(theBaseType.getTypeParameters()[p], theBaseType, null)))
 						return false;
 				return true;
 			}
@@ -214,9 +214,11 @@ public class Type
 	 * 
 	 * @param type The type to resolve
 	 * @param declaringClass The class that declared the given type
+	 * @param methodTypes A map of type variable name/type of the inferred types of an invocation for a method's
+	 *        declared type variables. May be null if this resolution is not for a type-parameter-declaring method.
 	 * @return The resolved type
 	 */
-	public Type resolve(java.lang.reflect.Type type, Class<?> declaringClass)
+	public Type resolve(java.lang.reflect.Type type, Class<?> declaringClass, java.util.Map<String, Type> methodTypes)
 	{
 		if(type == null)
 			return new Type(type);
@@ -228,7 +230,7 @@ public class Type
 			Type ret = new Type(pt.getRawType());
 			ret.theParamTypes = new Type [pt.getActualTypeArguments().length];
 			for(int p = 0; p < ret.theParamTypes.length; p++)
-				ret.theParamTypes[p] = resolve(pt.getActualTypeArguments()[p], declaringClass);
+				ret.theParamTypes[p] = resolve(pt.getActualTypeArguments()[p], declaringClass, methodTypes);
 			return ret;
 		}
 		else if(type instanceof java.lang.reflect.WildcardType)
@@ -238,9 +240,9 @@ public class Type
 			java.lang.reflect.WildcardType wt = (java.lang.reflect.WildcardType) type;
 			ret.isUpperBound = wt.getLowerBounds().length == 0;
 			if(wt.getLowerBounds().length > 0)
-				ret.theBoundType = resolve(wt.getLowerBounds()[0], declaringClass);
+				ret.theBoundType = resolve(wt.getLowerBounds()[0], declaringClass, methodTypes);
 			else if(wt.getUpperBounds().length > 0)
-				ret.theBoundType = resolve(wt.getUpperBounds()[0], declaringClass);
+				ret.theBoundType = resolve(wt.getUpperBounds()[0], declaringClass, methodTypes);
 			return ret;
 		}
 		else if(type instanceof java.lang.reflect.TypeVariable)
@@ -248,6 +250,8 @@ public class Type
 			java.lang.reflect.TypeVariable<?> tv = (java.lang.reflect.TypeVariable<?>) type;
 			if(tv.getName().equals(theName))
 				return this;
+			if(methodTypes != null && methodTypes.get(tv.getName()) != null)
+				return methodTypes.get(tv.getName());
 			if(theBaseType != null)
 			{
 				int decIndex = prisms.util.ArrayUtils.indexOf(declaringClass.getTypeParameters(), tv);
@@ -261,7 +265,7 @@ public class Type
 						java.lang.reflect.ParameterizedType superPath = (java.lang.reflect.ParameterizedType) path[0];
 						java.lang.reflect.Type paramType = superPath.getActualTypeArguments()[decIndex];
 						return resolve(paramType, (Class<?>) (path[1] instanceof Class ? path[1]
-							: ((java.lang.reflect.ParameterizedType) path[1]).getRawType()));
+							: ((java.lang.reflect.ParameterizedType) path[1]).getRawType()), methodTypes);
 					}
 				}
 				for(int p = 0; p < theBaseType.getTypeParameters().length; p++)
@@ -277,13 +281,13 @@ public class Type
 			ret.isBounded = true;
 			ret.isUpperBound = true;
 			if(tv.getBounds().length > 0)
-				ret.theBoundType = resolve(tv.getBounds()[0], declaringClass);
+				ret.theBoundType = resolve(tv.getBounds()[0], declaringClass, methodTypes);
 			return ret;
 		}
 		else if(type instanceof java.lang.reflect.GenericArrayType)
 		{
 			java.lang.reflect.GenericArrayType at = (java.lang.reflect.GenericArrayType) type;
-			Type ret = resolve(at.getGenericComponentType(), declaringClass);
+			Type ret = resolve(at.getGenericComponentType(), declaringClass, methodTypes);
 			if(ret.theBaseType != null)
 			{
 				if(Void.TYPE != ret.theBaseType)
@@ -344,12 +348,6 @@ public class Type
 			return false;
 	}
 
-	/** @return The name of this type variable, or null if this type is not variable */
-	public String getName()
-	{
-		return theName;
-	}
-
 	/** @return This type's base type. Will be null if this is a wildcard type. */
 	public Class<?> getBaseType()
 	{
@@ -363,6 +361,24 @@ public class Type
 	public Type [] getParamTypes()
 	{
 		return theParamTypes;
+	}
+
+	/** @return The name of this type variable, or null if this type is not variable */
+	public String getName()
+	{
+		return theName;
+	}
+
+	/** @return The bound of this type */
+	public Type getBoundType()
+	{
+		return theBoundType;
+	}
+
+	/** @return Whether this type is upper- or lower-bound */
+	public boolean isUpperBound()
+	{
+		return isUpperBound;
 	}
 
 	/** @return This array-type's component type */
@@ -422,7 +438,7 @@ public class Type
 					{
 						Type [] paramTypes = new Type [intf.getTypeParameters().length];
 						for(int p = 0; p < paramTypes.length; p++)
-							paramTypes[p] = resolve(intf.getTypeParameters()[p], intf);
+							paramTypes[p] = resolve(intf.getTypeParameters()[p], intf, null);
 						return new Type(intf, paramTypes);
 					}
 				return new Type(Object.class);

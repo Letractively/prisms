@@ -270,9 +270,8 @@ public class ParsedMethod extends Assignable
 					getStored("name").index);
 			try
 			{
-				return new EvaluationResult(ctxType.getType()
-					.resolve(field.getGenericType(), field.getDeclaringClass()), withValues ? field.get(ctxType
-					.getValue()) : null);
+				return new EvaluationResult(ctxType.getType().resolve(field.getGenericType(),
+					field.getDeclaringClass(), null), withValues ? field.get(ctxType.getValue()) : null);
 			} catch(Exception e)
 			{
 				throw new EvaluationException("Retrieval of field " + field.getName() + " of type "
@@ -320,6 +319,10 @@ public class ParsedMethod extends Assignable
 					.getType().getBaseType().getDeclaredMethods());
 			java.lang.reflect.Method goodTarget = null;
 			java.lang.reflect.Method badTarget = null;
+			java.util.Map<String, Type> inferred = new java.util.HashMap<String, Type>();
+			Type [] argTypes = new Type [argRes.length];
+			for(int i = 0; i < argTypes.length; i++)
+				argTypes[i] = argRes[i].getType();
 			for(java.lang.reflect.Method m : methods)
 			{
 				if(!m.getName().equals(theName))
@@ -328,9 +331,11 @@ public class ParsedMethod extends Assignable
 				java.lang.reflect.Type[] _paramTypes = m.getGenericParameterTypes();
 				Type [] paramTypes = new Type [_paramTypes.length];
 				for(int p = 0; p < paramTypes.length; p++)
-					paramTypes[p] = ctxType.getType().resolve(_paramTypes[p], m.getDeclaringClass());
+					paramTypes[p] = ctxType.getType().resolve(_paramTypes[p], m.getDeclaringClass(), null);
 				if(paramTypes.length > argRes.length + 1)
 					continue;
+				inferred.clear();
+				inferMethodTypes(inferred, m, argTypes);
 				boolean bad = false;
 				int p;
 				for(p = 0; !bad && p < paramTypes.length - 1; p++)
@@ -377,7 +382,7 @@ public class ParsedMethod extends Assignable
 			{
 				for(java.lang.reflect.Type c : goodTarget.getGenericExceptionTypes())
 				{
-					Type ct = new Type(c);
+					Type ct = ctxType.getType().resolve(c, goodTarget.getDeclaringClass(), inferred);
 					if(!env.canHandle(ct))
 						throw new prisms.lang.EvaluationException("Unhandled exception type " + ct, this,
 							getStored("name").index);
@@ -401,8 +406,9 @@ public class ParsedMethod extends Assignable
 				}
 				try
 				{
-					return new EvaluationResult(ctxType.getType().resolve(goodTarget.getGenericReturnType(),
-						goodTarget.getDeclaringClass()), withValues ? goodTarget.invoke(ctxType.getValue(), args)
+					Type retType = ctxType.getType().resolve(goodTarget.getGenericReturnType(),
+						goodTarget.getDeclaringClass(), inferred);
+					return new EvaluationResult(retType, withValues ? goodTarget.invoke(ctxType.getValue(), args)
 						: null);
 				} catch(java.lang.reflect.InvocationTargetException e)
 				{
@@ -464,6 +470,76 @@ public class ParsedMethod extends Assignable
 					+ ctxType.typeString(), this, getStored("name").index);
 			}
 		}
+	}
+
+	/**
+	 * Infers, where possible, the types used in an invocation for a method's type parameters
+	 * 
+	 * @param inferred The map to fill in--entries are type variable name/type
+	 * @param method The method to infer the types for
+	 * @param argTypes The types of the arguments to the method for the invocation
+	 */
+	public static void inferMethodTypes(java.util.Map<String, Type> inferred, java.lang.reflect.Method method,
+		Type [] argTypes)
+	{
+		java.lang.reflect.TypeVariable<?> [] typeParams = method.getTypeParameters();
+		java.lang.reflect.Type[] paramTypes = method.getGenericParameterTypes();
+		for(int t = 0; t < typeParams.length; t++)
+		{
+			Type type = null;
+			for(int p = 0; p < paramTypes.length; p++)
+			{
+				Type check = inferMethodType(typeParams[t].getName(), paramTypes[p], argTypes[p]);
+				if(check != null)
+				{
+					if(type != null)
+						type = type.getCommonType(check);
+					else
+						type = check;
+				}
+			}
+			if(type != null)
+				inferred.put(typeParams[t].getName(), type);
+		}
+	}
+
+	private static Type inferMethodType(String tvName, java.lang.reflect.Type paramType, Type argType)
+	{
+		if(paramType instanceof java.lang.reflect.TypeVariable)
+		{
+			java.lang.reflect.TypeVariable<?> tv = (java.lang.reflect.TypeVariable<?>) paramType;
+			if(tv.getName().equals(tvName))
+				return argType;
+		}
+		else if(paramType instanceof java.lang.reflect.GenericArrayType)
+		{
+			Type ct = inferMethodType(tvName,
+				((java.lang.reflect.GenericArrayType) paramType).getGenericComponentType(), argType);
+			if(ct != null)
+				return ct.getComponentType();
+		}
+		else if(paramType instanceof java.lang.reflect.WildcardType)
+		{
+			java.lang.reflect.WildcardType wt = (java.lang.reflect.WildcardType) paramType;
+			if(wt.getUpperBounds().length == 1)
+			{
+				Type bound = inferMethodType(tvName, wt.getUpperBounds()[0], argType);
+				if(bound != null)
+					return new Type(bound, true);
+			}
+		}
+		else if(paramType instanceof java.lang.reflect.ParameterizedType)
+		{
+			java.lang.reflect.ParameterizedType pt = (java.lang.reflect.ParameterizedType) paramType;
+			if(argType.getParamTypes() != null)
+				for(int p = 0; p < pt.getActualTypeArguments().length && p < argType.getParamTypes().length; p++)
+				{
+					Type ret = inferMethodType(tvName, pt.getActualTypeArguments()[p], argType.getParamTypes()[p]);
+					if(ret != null)
+						return ret;
+				}
+		}
+		return null;
 	}
 
 	@Override

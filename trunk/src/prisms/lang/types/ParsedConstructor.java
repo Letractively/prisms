@@ -179,7 +179,7 @@ public class ParsedConstructor extends ParsedItem
 			java.lang.reflect.Type[] _paramTypes = c.getGenericParameterTypes();
 			Type [] paramTypes = new Type [_paramTypes.length];
 			for(int p = 0; p < paramTypes.length; p++)
-				paramTypes[p] = type.resolve(_paramTypes[p], c.getDeclaringClass());
+				paramTypes[p] = type.resolve(_paramTypes[p], c.getDeclaringClass(), null);
 			if(paramTypes.length > argRes.length + 1)
 				continue;
 			boolean bad = false;
@@ -351,13 +351,13 @@ public class ParsedConstructor extends ParsedItem
 				int p;
 				for(p = 0; p < f.getParameters().length; p++)
 					if(!f.getParameters()[p].getType().evaluate(env, true, false).getType()
-						.isAssignable(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass())))
+						.isAssignable(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null)))
 						break;
 				if(p == f.getParameters().length)
 					found = true;
 				else
 					continue;
-				Type rt = type.resolve(m.getReturnType(), m.getDeclaringClass());
+				Type rt = type.resolve(m.getReturnType(), m.getDeclaringClass(), null);
 				if(!rt.isAssignable(f.getReturnType().evaluate(env, true, false).getType()))
 				{
 					StringBuilder msg = new StringBuilder();
@@ -368,7 +368,7 @@ public class ParsedConstructor extends ParsedItem
 					{
 						if(p2 > 0)
 							msg.append(", ");
-						msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass()));
+						msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass(), null));
 					}
 					msg.append(')');
 					throw new EvaluationException(msg.toString(), this, f.getMatch().index);
@@ -380,7 +380,7 @@ public class ParsedConstructor extends ParsedItem
 						continue;
 					boolean exOk = false;
 					for(java.lang.reflect.Type met : m.getGenericExceptionTypes())
-						if(type.resolve(met, m.getDeclaringClass()).isAssignable(t))
+						if(type.resolve(met, m.getDeclaringClass(), null).isAssignable(t))
 						{
 							exOk = true;
 							break;
@@ -395,7 +395,7 @@ public class ParsedConstructor extends ParsedItem
 						{
 							if(p2 > 0)
 								msg.append(", ");
-							msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass()));
+							msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass(), null));
 						}
 						msg.append(')');
 						throw new EvaluationException(msg.toString(), this, f.getMatch().index);
@@ -412,7 +412,7 @@ public class ParsedConstructor extends ParsedItem
 				{
 					if(p > 0)
 						msg.append(", ");
-					msg.append(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass()));
+					msg.append(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null));
 				}
 				msg.append(')');
 				throw new EvaluationException(msg.toString(), this, theType.getMatch().index);
@@ -491,8 +491,8 @@ public class ParsedConstructor extends ParsedItem
 				int p;
 				for(p = 0; p < m.getParameters().length; p++)
 				{
-					Type argType = theImplType
-						.resolve(method.getGenericParameterTypes()[p], method.getDeclaringClass());
+					Type argType = theImplType.resolve(method.getGenericParameterTypes()[p],
+						method.getDeclaringClass(), null);
 					if(!m.getParameters()[p].getType().evaluate(theEnv, true, false).getType().isAssignable(argType))
 						break;
 					argRes[p] = new prisms.lang.EvaluationResult(argType, args[p]);
@@ -500,6 +500,15 @@ public class ParsedConstructor extends ParsedItem
 				if(p < m.getParameters().length)
 					continue;
 				return m.execute(theEnv, argRes, true).getValue();
+			}
+			if(method.getDeclaringClass().equals(Object.class))
+			{
+				if("toString".equals(method.getName()))
+					return theImplType.getName() + "$JITRAnon@" + Integer.toHexString(System.identityHashCode(proxy));
+				else if("equals".equals(method.getName()))
+					return Boolean.valueOf(proxy == args[0]);
+				else if("hashCode".equals(method.getName()))
+					return Integer.valueOf(System.identityHashCode(proxy));
 			}
 			throw new IllegalStateException("Unsupported method! " + method);
 		}
