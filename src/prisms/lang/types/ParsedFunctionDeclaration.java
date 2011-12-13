@@ -32,6 +32,11 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 				theExceptionTypes = prisms.util.ArrayUtils.add(theExceptionTypes,
 					(ParsedType) parser.parseStructures(this, m)[0]);
 		}
+		for(int i = 0; i < theParameters.length - 1; i++)
+			if(theParameters[i].isVarArg())
+				throw new prisms.lang.ParseException(
+					"Vararg declarations may only exist on the last parameter of a function/method declaration",
+					getRoot().getFullCommand(), theParameters[i].getStored("vararg").index);
 	}
 
 	@Override
@@ -59,26 +64,25 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	 * Executes this function against a set of user-supplied parameters
 	 * 
 	 * @param env The evaluation environment to execute the function within
-	 * @param params The parameters to evaluate the function against
+	 * @param args The arguments to evaluate the function against
 	 * @param withValues Whether to validate or evaluate this function
 	 * @return The return value of the function
 	 * @throws prisms.lang.EvaluationException If an error occurs evaluating the function or if the evaluation throws an
 	 *         exception
 	 */
 	public prisms.lang.EvaluationResult execute(prisms.lang.EvaluationEnvironment env,
-		prisms.lang.EvaluationResult[] params, boolean withValues) throws prisms.lang.EvaluationException
+		prisms.lang.EvaluationResult[] args, boolean withValues) throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
-		if(theParameters.length != params.length)
+		if(theParameters.length != args.length)
 			throw new IllegalStateException("Illegal parameters");
 		for(int i = 0; i < theParameters.length; i++)
 		{
-			if(!theParameters[i].getType().evaluate(scoped, true, withValues).getType()
-				.isAssignable(params[i].getType()))
+			if(!theParameters[i].evaluateType(scoped).isAssignable(args[i].getType()))
 				throw new IllegalStateException("Illegal parameters");
 			theParameters[i].evaluate(scoped, false, withValues);
 			if(withValues)
-				scoped.setVariable(theParameters[i].getName(), params[i].getValue(), theParameters[i],
+				scoped.setVariable(theParameters[i].getName(), args[i].getValue(), theParameters[i],
 					theParameters[i].getMatch().index);
 		}
 		for(ParsedType et : theExceptionTypes)
@@ -149,7 +153,7 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	 */
 	public boolean isVarArgs()
 	{
-		return false;
+		return theParameters.length > 0 && theParameters[theParameters.length - 1].isVarArg();
 	}
 
 	/** @return The type of this function's return value */
@@ -194,6 +198,25 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 			if(p > 0)
 				ret.append(", ");
 			ret.append(theParameters[p].getType());
+			if(theParameters[p].getTypeParams().length > 0)
+			{
+				ret.append('<');
+				boolean first = true;
+				for(ParsedType p2 : theParameters[p].getTypeParams())
+				{
+					if(!first)
+						ret.append(", ");
+					else
+						first = false;
+					ret.append(p2);
+				}
+			}
+			for(int i = 0; i < theParameters[p].getArrayDimension() - 1; i++)
+				ret.append("[]");
+			if(theParameters[p].isVarArg())
+				ret.append("...");
+			else if(theParameters[p].getArrayDimension() > 0)
+				ret.append("[]");
 		}
 		ret.append(')');
 		return ret.toString();

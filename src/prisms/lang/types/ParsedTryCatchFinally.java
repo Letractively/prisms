@@ -43,13 +43,7 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 		prisms.lang.EvaluationEnvironment scoped;
 		prisms.lang.Type[] exTypes = new prisms.lang.Type [theCatchDeclarations.length];
 		for(int i = 0; i < exTypes.length; i++)
-		{
-			prisms.lang.EvaluationResult exRes = theCatchDeclarations[i].getType().evaluate(env, true, false);
-			if(!exRes.isType())
-				throw new prisms.lang.EvaluationException(theCatchDeclarations[i].getType().getMatch().text
-					+ " cannot be resolved to a type", this, theCatchDeclarations[i].getType().getMatch().index);
-			exTypes[i] = exRes.getType();
-		}
+			exTypes[i] = theCatchDeclarations[i].evaluateType(env);
 		if(!withValues)
 		{
 			scoped = env.scope(true);

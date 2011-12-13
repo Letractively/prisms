@@ -58,45 +58,66 @@ public class ParsedStatementBlock extends ParsedItem
 		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		for(ParsedItem content : theContents)
 		{
-			if(content instanceof ParsedAssignmentOperator)
-			{}
-			else if(content instanceof ParsedDeclaration)
-			{}
-			else if(content instanceof ParsedMethod)
-			{
-				ParsedMethod method = (ParsedMethod) content;
-				if(!method.isMethod())
-					throw new EvaluationException("Content expressions in a loop must be"
-						+ " declarations, assignments or method calls", this, content.getMatch().index);
-			}
-			else if(content instanceof ParsedConstructor)
-			{}
-			else if(content instanceof ParsedLoop)
-			{}
-			else if(content instanceof ParsedIfStatement)
-			{}
-			else if(content instanceof ParsedKeyword)
-			{
-				String word = ((ParsedKeyword) content).getName();
-				if(word.equals("continue"))
-					return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.CONTINUE, null,
-						content);
-				if(word.equals("break"))
-					return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.BREAK, null,
-						content);
-			}
-			else if(content instanceof ParsedReturn)
-			{
-				if(withValues)
-					return content.evaluate(scoped, false, withValues);
-			}
-			else if(content instanceof ParsedThrow)
-			{}
-			else
-				throw new EvaluationException("Content expressions in a loop must be"
-					+ " declarations, assignments or method calls", this, content.getMatch().index);
-			content.evaluate(scoped, false, withValues);
+			prisms.lang.EvaluationResult res = executeJavaStatement(content, scoped, withValues);
+			if(res != null)
+				return res;
 		}
+		return null;
+	}
+
+	/**
+	 * Executes a statement in a java context. Only statements that would be permitted as java statements are accepted.
+	 * Others will throw an exception
+	 * 
+	 * @param content The statement to execute
+	 * @param env The environment to execute the statement in
+	 * @param withValues Whether to evaluate values or just validate the statement
+	 * @return A result if the statement was a control statement, null otherwise
+	 * @throws EvaluationException If the statement is not a valid java statement, or if the execution of the statement
+	 *         throws an exception
+	 */
+	public static prisms.lang.EvaluationResult executeJavaStatement(ParsedItem content,
+		prisms.lang.EvaluationEnvironment env, boolean withValues) throws EvaluationException
+	{
+		if(content instanceof ParsedAssignmentOperator)
+		{}
+		else if(content instanceof ParsedDeclaration)
+		{}
+		else if(content instanceof ParsedMethod)
+		{
+			ParsedMethod method = (ParsedMethod) content;
+			if(!method.isMethod())
+				throw new EvaluationException("Content expressions must be declarations, assignments or method calls",
+					content.getParent(), content.getMatch().index);
+		}
+		else if(content instanceof ParsedConstructor)
+		{}
+		else if(content instanceof ParsedLoop)
+		{}
+		else if(content instanceof ParsedEnhancedForLoop)
+		{}
+		else if(content instanceof ParsedIfStatement)
+		{}
+		else if(content instanceof ParsedKeyword)
+		{
+			String word = ((ParsedKeyword) content).getName();
+			if(word.equals("continue"))
+				return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.CONTINUE, null,
+					content);
+			if(word.equals("break"))
+				return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.BREAK, null, content);
+		}
+		else if(content instanceof ParsedReturn)
+		{
+			if(withValues)
+				return content.evaluate(env, false, withValues);
+		}
+		else if(content instanceof ParsedThrow)
+		{}
+		else
+			throw new EvaluationException("Content expressions must be declarations, assignments or method calls",
+				content.getParent(), content.getMatch().index);
+		content.evaluate(env, false, withValues);
 		return null;
 	}
 

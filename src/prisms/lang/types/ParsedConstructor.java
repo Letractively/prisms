@@ -313,23 +313,6 @@ public class ParsedConstructor extends ParsedItem
 		if(!type.getBaseType().isInterface())
 			throw new EvaluationException("Only interfaces can be implemented by anonymous"
 				+ " classes in this interpreter", this, theType.getMatch().index);
-		for(ParsedFunctionDeclaration func : theMethods)
-		{
-			if((func.getName().equals("clone") && func.getParameters().length == 0)
-				|| (func.getName().equals("toString") && func.getParameters().length == 0)
-				|| (func.getName().equals("hashCode") && func.getParameters().length == 0))
-				throw new EvaluationException("Anonymous classes may not override Object methods in this interpreter",
-					this, func.getMatch().index);
-			if(func.getName().equals("equals") && func.getParameters().length == 1)
-			{
-				prisms.lang.EvaluationResult fType = func.getParameters()[0].getType().evaluate(env, withValues,
-					withValues);
-				if(fType.isType() && fType.getType().isAssignableFrom(Object.class))
-					throw new EvaluationException(
-						"Anonymous classes may not override Object methods in this interpreter", this,
-						func.getMatch().index);
-			}
-		}
 		prisms.lang.EvaluationEnvironment instanceScope = env.scope(false);
 		for(ParsedItem field : theFields.getContents())
 		{
@@ -493,7 +476,7 @@ public class ParsedConstructor extends ParsedItem
 				{
 					Type argType = theImplType.resolve(method.getGenericParameterTypes()[p],
 						method.getDeclaringClass(), null);
-					if(!m.getParameters()[p].getType().evaluate(theEnv, true, false).getType().isAssignable(argType))
+					if(!m.getParameters()[p].evaluateType(theEnv).isAssignable(argType))
 						break;
 					argRes[p] = new prisms.lang.EvaluationResult(argType, args[p]);
 				}

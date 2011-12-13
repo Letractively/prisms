@@ -13,11 +13,20 @@ public class PrismsParser
 {
 	private static final Logger log = Logger.getLogger(PrismsParser.class);
 
+	/** Specifies that the parser is looking only for completely parsed statements */
 	static final int COMPLETE_ONLY = 2;
 
+	/** Specifies that incomplete statements may be returned unless the missing piece is optional */
 	static final int COMPLETE_OPTIONAL = 1;
 
-	static final int ANY = 0;
+	/** Specifies that the parser will accept incomplete statements */
+	static final int COMPLETE_ANY = 0;
+
+	/**
+	 * Specifies that an error may the thrown from parsing code if the parsing state knows what is wrong with the parsed
+	 * text
+	 */
+	static final int COMPLETE_ERROR = -1;
 
 	private java.util.List<PrismsConfig> theOperators;
 
@@ -40,7 +49,7 @@ public class PrismsParser
 
 	void insertOperator(PrismsConfig op)
 	{
-		int pri = op.getInt("priority", 0);
+		int pri = op.getInt("order", 0);
 		int min = 0, max = theOperators.size();
 		while(max > min)
 		{
@@ -50,8 +59,8 @@ public class PrismsParser
 				min = mid;
 				break;
 			}
-			int testPri = theOperators.get(mid).getInt("priority", 0);
-			if(pri < testPri)
+			int testPri = theOperators.get(mid).getInt("order", 0);
+			if(pri > testPri)
 				min = mid + 1;
 			else
 				max = mid;
@@ -94,9 +103,12 @@ public class PrismsParser
 				if(parseMatch == null || nextIndex < str.length() && str.charAt(nextIndex) != ';'
 					&& !isLastSemi(parseMatch))
 				{
-					parseMatch = parseItem(str, index, -1, cmd, ANY);
+					parseMatch = parseItem(str, index, -1, cmd, COMPLETE_ANY);
 					if(parseMatch == null)
+					{
+						parseItem(str, index, -1, cmd, COMPLETE_ERROR);
 						throw new ParseException("Syntax error", cmd, 0);
+					}
 				}
 			}
 			parseMatches = ArrayUtils.add(parseMatches, parseMatch);
@@ -107,7 +119,10 @@ public class PrismsParser
 				if(str.charAt(nextIndex) == ';' || isLastSemi(parseMatch))
 					nextIndex++;
 				else
-					throw new ParseException("Syntax error", cmd, index);
+				{
+					parseItem(str, index, -1, cmd, COMPLETE_ERROR);
+					throw new ParseException("Syntax error", cmd, nextIndex);
+				}
 			}
 			index = nextIndex;
 		}
@@ -185,7 +200,12 @@ public class PrismsParser
 	}
 
 	ParseMatch parseItem(StringBuilder sb, int index, int priority, String command, int completeness, String... types)
+		throws ParseException
 	{
+		boolean withError = completeness == COMPLETE_ERROR;
+		int origIndex = index;
+		if(withError)
+			completeness = COMPLETE_ANY;
 		ParseMatch ret = null;
 		boolean foundOp = true;
 		boolean withTypesHadPreOp = false;
@@ -194,29 +214,56 @@ public class PrismsParser
 		{
 			foundOp = false;
 			if(ret != null)
+			{
 				preOp = ret;
+				ret = null;
+			}
 			for(PrismsConfig op : theOperators)
 			{
 				if(types.length == 0)
 				{
-					int opPri = op.getInt("priority", 0);
-					if(opPri < 0 || (preOp != null && opPri <= priority))
-						break;
+					if(op.get("priority") != null
+						&& (op.getInt("priority", 0) < 0 || op.getInt("priority", 0) < priority))
+						continue;
 				}
 				else if(!ArrayUtils.contains(types, op.get("name")))
 					continue;
 				else
 					withTypesHadPreOp |= hasPreOp(op);
-				ret = parseNextMatch(op, sb, index, preOp, command, completeness, types);
-				if(ret != null)
-				{
-					foundOp = true;
-					index = ret.index + ret.text.length();
-					if(types.length > 0)
-						return ret;
-					else
-						break;
-				}
+				ParseMatch temp = parseNextMatch(op, sb, index, preOp, command, completeness);
+				if(temp != null && (ret == null || temp.text.length() > ret.text.length()))
+					ret = temp;
+			}
+			if(ret != null)
+			{
+				foundOp = true;
+				index = ret.index + ret.text.length();
+				if(types.length > 0)
+					return ret;
+			}
+		}
+		if(withError && ret != null)
+		{ // For a better error message
+			index = origIndex;
+			java.util.ArrayList<PrismsConfig> ops = new java.util.ArrayList<PrismsConfig>();
+			while(ret != null)
+			{
+				ops.add(ret.config);
+				boolean found = false;
+				for(int p = 0; p < ret.getParsed().length; p++)
+					if(ret.getParsed()[p].config.getName().equals("pre-op"))
+					{
+						ret = ret.getParsed()[p];
+						found = true;
+					}
+				if(!found)
+					ret = null;
+			}
+			java.util.Collections.reverse(ops);
+			for(PrismsConfig op : ops)
+			{
+				ret = parseNextMatch(op, sb, origIndex, ret, command, COMPLETE_ERROR);
+				index = ret.index + ret.text.length();
 			}
 		}
 		if(ret == null)
@@ -227,8 +274,8 @@ public class PrismsParser
 			{
 				for(PrismsConfig op : theOperators)
 				{
-					ret = parseNextMatch(op, sb, index, preOp, command, completeness, types);
-					if(op.getInt("priority", 0) < 0)
+					ret = parseNextMatch(op, sb, index, preOp, command, completeness);
+					if(op.get("priority") != null && op.getInt("priority", 0) < 0)
 						continue;
 					if(ret != null)
 					{
@@ -244,7 +291,7 @@ public class PrismsParser
 					{
 						if(!ArrayUtils.contains(types, op.get("name")))
 							continue;
-						ret = parseNextMatch(op, sb, index, preOp, command, completeness, types);
+						ret = parseNextMatch(op, sb, index, preOp, command, completeness);
 						if(ret != null)
 						{
 							index = ret.index + ret.text.length();
@@ -258,7 +305,7 @@ public class PrismsParser
 	}
 
 	private ParseMatch parseNextMatch(PrismsConfig op, StringBuilder sb, int index, ParseMatch preOp, String command,
-		int completeness, String... types)
+		int completeness) throws ParseException
 	{
 		ParseMatch [] match = parseCheck(op, sb, index, preOp, command, completeness);
 		if(match != null)
@@ -286,21 +333,21 @@ public class PrismsParser
 	}
 
 	ParseMatch [] parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp, String command,
-		int completeness)
+		int completeness) throws ParseException
 	{
 		return _parseCheck(opConfig, sb, index, preOp, opConfig.getInt("priority", 0), false, command, completeness);
 	}
 
 	ParseMatch [] _parseCheck(PrismsConfig opConfig, StringBuilder sb, int index, ParseMatch preOp, int priority,
-		boolean optional, String command, int completeness)
+		boolean optional, String command, int completeness) throws ParseException
 	{
 		boolean hasPreOpConfig = false;
 		ParseMatch [] ret = null;
 		for(int itemIdx = 0; itemIdx < opConfig.subConfigs().length; itemIdx++)
 		{
 			PrismsConfig item = opConfig.subConfigs()[itemIdx];
-			if(item.getName().equals("name") || item.getName().equals("priority") || item.getName().equals("impl")
-				|| item.getName().equals("min") || item.getName().equals("max"))
+			if(item.getName().equals("name") || item.getName().equals("priority") || item.getName().equals("order")
+				|| item.getName().equals("impl") || item.getName().equals("min") || item.getName().equals("max"))
 				continue;
 			else if(item.getName().equals("pre-op"))
 			{
@@ -308,7 +355,8 @@ public class PrismsParser
 				{
 					if("option".equals(opConfig.getName()))
 					{
-						ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeness);
+						ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command,
+							completeness, ret);
 						if(op == null)
 							return null;
 						ret = prisms.util.ArrayUtils.add(ret, new ParseMatch(item, op.text, index,
@@ -333,6 +381,7 @@ public class PrismsParser
 					hasPreOpConfig = true;
 					ret = ArrayUtils.add(ret, new ParseMatch(item, preOp.text, preOp.index, new ParseMatch [] {preOp},
 						true));
+					preOp = null;
 				}
 				continue;
 			}
@@ -340,7 +389,7 @@ public class PrismsParser
 				return null; // No pre-op registered. Can't be this one.
 
 			String whiteSpace = null;
-			if(!"option".equals(item.getName()) && !"select".equals(item.getName()))
+			if(!"option".equals(item.getName()) && !"select".equals(item.getName()) && !"forbid".equals(item.getName()))
 			{
 				int wsIdx = passWhiteSpace(sb, index);
 				whiteSpace = wsIdx > index ? sb.substring(index, wsIdx) : null;
@@ -357,10 +406,41 @@ public class PrismsParser
 					if(whiteSpace != null)
 						return null;
 				}
-				else if(whiteSpace == null)
+				else if(whiteSpace != null)
 				{
-					if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
-						&& index == sb.length())
+					ParseMatch wsMatch = ret[ret.length - 1];
+					ret[ret.length - 1] = new ParseMatch(item, whiteSpace, wsMatch.index, null, true);
+				}
+				else if(index == sb.length())
+				{ // If this is the end of the input, we can treat that as white space
+					ParseMatch wsMatch = ret[ret.length - 1];
+					ret[ret.length - 1] = new ParseMatch(item, "", wsMatch.index, null, true);
+				}
+				else
+				{
+					if(completeness <= COMPLETE_ERROR)
+						throw new ParseException("White space expected", command, index);
+					else
+						return null;
+				}
+				continue;
+			}
+			else if(item.getName().equals("literal"))
+			{
+				String value = item.getValue();
+				if(index == sb.length())
+				{
+					if(ret == null || ret.length == 0)
+						return null;
+					else if(completeness <= COMPLETE_ERROR)
+					{
+						if(value != null && value.length() > 0)
+							throw new ParseException(item.getValue() + " expected", command, index);
+						else
+							throw new ParseException("Pattern matching " + item.get("pattern") + " expected", command,
+								index);
+					}
+					else if(completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
 					{
 						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
 						break;
@@ -368,21 +448,6 @@ public class PrismsParser
 					else
 						return null;
 				}
-				else
-				{
-					ParseMatch wsMatch = ret[ret.length - 1];
-					ret[ret.length - 1] = new ParseMatch(item, whiteSpace, wsMatch.index, null, true);
-				}
-				continue;
-			}
-			else if(item.getName().equals("literal"))
-			{
-				if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional)) && index == sb.length())
-				{
-					ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
-					break;
-				}
-				String value = item.getValue();
 				if(value != null && value.length() > 0)
 				{
 					for(int i = 0; i < value.length(); i++)
@@ -418,10 +483,22 @@ public class PrismsParser
 			}
 			else if(item.getName().equals("charset"))
 			{
-				if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional)) && index == sb.length())
+				if(index == sb.length())
 				{
-					ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
-					break;
+					if(ret == null || ret.length == 0)
+						return null;
+					else if(completeness <= COMPLETE_ERROR)
+					{
+						throw new ParseException("Sequence matching " + item.get("pattern") + " expected", command,
+							index);
+					}
+					else if(completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
+					{
+						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+						break;
+					}
+					else
+						return null;
 				}
 				String pattern = item.get("pattern");
 				if(pattern == null)
@@ -486,12 +563,17 @@ public class PrismsParser
 			}
 			else if(item.getName().equals("op"))
 			{
-				ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeness);
+				ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeness, ret);
 				if(op == null)
 					return null;
 				ret = prisms.util.ArrayUtils.add(ret,
 					new ParseMatch(item, op.text, index, new ParseMatch [] {op}, true));
 				index += op.text.length();
+			}
+			else if(item.getName().equals("forbid"))
+			{
+				if(_parseCheck(item, sb, index, preOp, priority, true, command, completeness) != null)
+					return null;
 			}
 			else if(item.getName().equals("option"))
 			{
@@ -513,8 +595,7 @@ public class PrismsParser
 				int count = 0;
 				do
 				{
-					res = _parseCheck(item, sb, index, hasPreOpConfig ? null : preOp, priority, true, command,
-						completeness);
+					res = _parseCheck(item, sb, index, preOp, priority, true, command, completeness);
 					if(res == null)
 						break;
 					count++;
@@ -572,7 +653,7 @@ public class PrismsParser
 				}
 				if(res == null)
 				{
-					if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
+					if((completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
 						&& index == sb.length())
 					{
 						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
@@ -638,10 +719,36 @@ public class PrismsParser
 	}
 
 	private ParseMatch parseOp(StringBuilder sb, int index, PrismsConfig opConfig, int itemIdx, int priority,
-		boolean optional, String command, int completeness)
+		boolean optional, String command, int completeness, ParseMatch [] ret) throws ParseException
 	{
-		if((completeness <= ANY || (completeness <= COMPLETE_OPTIONAL && !optional)) && index == sb.length())
-			return new ParseMatch(opConfig.subConfigs()[itemIdx], "", index, null, false);
+		String type = opConfig.subConfigs()[itemIdx].get("type");
+		if(index == sb.length())
+		{
+			if(ret == null || ret.length == 0)
+				return null;
+			else if(completeness <= COMPLETE_ERROR)
+			{
+				if(type != null)
+				{
+					String [] types = type.split("\\|");
+					StringBuilder msg = new StringBuilder();
+					for(int i = 0; i < types.length; i++)
+					{
+						if(i == types.length - 1)
+							msg.append(" or ");
+						else if(i > 0)
+							msg.append(", ");
+						msg.append(types[i]);
+					}
+					msg.append(" expected");
+					throw new ParseException(msg.toString(), command, index);
+				}
+				else
+					throw new ParseException("operand expected", command, index);
+			}
+			else if(completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
+				return new ParseMatch(opConfig.subConfigs()[itemIdx], "", index, null, false);
+		}
 		if(priority >= 0)
 			for(int idx2 = itemIdx + 1; idx2 < opConfig.subConfigs().length; idx2++)
 				if(opConfig.subConfigs()[idx2].getName().equals("literal"))
@@ -650,7 +757,6 @@ public class PrismsParser
 					break;
 				}
 
-		String type = opConfig.subConfigs()[itemIdx].get("type");
 		ParseMatch op;
 		if(type == null)
 			op = parseItem(sb, index, priority, command, completeness);
