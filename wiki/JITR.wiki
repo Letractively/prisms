@@ -11,7 +11,7 @@ The main class of the JITR framework is prisms.lang.InterpreterPanel, though the
  * *Variables* Declare a variable just like in a method in java, e.g. int a.
  * *Fields/methods*  The fields and methods of any java class or instance available to the environment can be accessed.
  * *Operations* Addition, subtraction, multiplication, division, modulo, logical/bitwise and/or/xor, comparisons, bitwise shifts
- * *Control statements* if/else, for, enhanced for, while, do/while, try/catch/finally
+ * *Control statements* if/else, for, enhanced for, while, do/while, try/catch/finally. Statement labels are *NOT* supported at this time.
  * *Previous answer*  Useful for if you forget to or would rather not assign the value of an expression to a variable. For example, if "Math.pow(3, 5)" is entered, then the expression "%" may be used on the next line to refer to the value of that answer.  The expression %index may be used to refer to answers further back.  For example, "%1" refers to the answer before last.
  * *Function definition*  Functions may be defined similarly to a method within a java class. E.g.
     * int plus(int a, int b)
@@ -23,7 +23,7 @@ The main class of the JITR framework is prisms.lang.InterpreterPanel, though the
 
 The interpreter does *NOT* support class definition, except anonymous classes as described above.  Unlike java, it is unnecessary to specify a semicolon at the end of statements.
 
-In the interpreter, if a statement entered returns a value, the value is printed as the answer.  Some statements (e.g. declarations) don't have values, so in those cases no answer will be printed.  If a statement is within a block, like a function or a loop body, the statement has to do something.  Similarly to java, where an expression like "3+5" is illegal because it doesn't affect anything in the program, statements in blocks must be assignments, method calls, control statements, or some other effective statement.
+In the interpreter, if a statement entered returns a value, the value is printed as the answer.  Some statements (e.g. declarations) don't have values, so in those cases no answer will be printed.  If a statement is within a block or control, like a function, a loop body or a switch case, the statement has to do something.  Similarly to java, where an expression like "3+5" is illegal because it doesn't affect anything in the program, statements in blocks or controls must be assignments, method calls, control statements, or some other effective statement.
 
 In the InterpreterPanel, a variable named "pane" has been set in the environment.  "pane" is an instance of prisms.lang.InterpreterPanel.EnvPane.  This class has a clearScreen() method and several write() methods that can write any primitive or object to the display (since System.out.println won't print to the display).  This allows items to be printed to the display directly within evaluated code, e.g. within a loop.
 
