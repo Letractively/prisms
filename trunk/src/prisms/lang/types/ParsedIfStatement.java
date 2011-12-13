@@ -100,7 +100,7 @@ public class ParsedIfStatement extends ParsedItem
 			if(condRes.isType() || condRes.getPackageName() != null)
 				throw new EvaluationException(condRes.typeString() + " cannot be resolved to a variable", this,
 					condition.getMatch().index);
-			if(!Boolean.TYPE.equals(condRes.getType()))
+			if(!condRes.getType().canAssignTo(Boolean.TYPE))
 				throw new EvaluationException("Type mismatch: cannot convert from " + condRes.typeString()
 					+ " to boolean", this, condition.getMatch().index);
 			hit = !withValues || ((Boolean) condRes.getValue()).booleanValue();

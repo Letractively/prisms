@@ -41,8 +41,8 @@ public class ParsedDrop extends prisms.lang.ParsedItem
 				if(func.getParameters().length != theParamTypes.length)
 					continue;
 				for(int i = 0; i < theParamTypes.length; i++)
-					if(!func.getParameters()[i].getType().evaluate(env, true, withValues)
-						.equals(theParamTypes[i].evaluate(env, true, withValues)))
+					if(!func.getParameters()[i].evaluateType(env).equals(
+						theParamTypes[i].evaluate(env, true, withValues).getType()))
 						continue;
 				env.dropFunction(func, this, getStored("name").index);
 				return null;

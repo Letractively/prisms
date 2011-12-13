@@ -138,7 +138,7 @@ public class ParsedMethod extends Assignable
 					ParsedDeclaration [] _paramTypes = func.getParameters();
 					Type [] paramTypes = new Type [_paramTypes.length];
 					for(int p = 0; p < paramTypes.length; p++)
-						paramTypes[p] = _paramTypes[p].getType().evaluate(env, true, withValues).getType();
+						paramTypes[p] = _paramTypes[p].evaluateType(env);
 					if(!func.isVarArgs() && paramTypes.length != argRes.length)
 						continue;
 					if(paramTypes.length > argRes.length + 1)
@@ -162,12 +162,31 @@ public class ParsedMethod extends Assignable
 						target = func;
 					else if(func.isVarArgs())
 					{
-						Type varArgType = paramTypes[paramTypes.length - 1].getComponentType();
+						Type varArgType = paramTypes[p].getComponentType();
 						for(; !bad && p < argRes.length; p++)
 							if(!varArgType.isAssignable(argRes[p].getType()))
 								bad = true;
 						if(!bad)
+						{
 							target = func;
+							Type arrType;
+							if(argRes.length < paramTypes.length)
+								arrType = varArgType;
+							else
+							{
+								arrType = argRes[paramTypes.length - 1].getType();
+								for(int i = paramTypes.length; i < argRes.length; i++)
+									arrType = arrType.getCommonType(argRes[i].getType());
+							}
+							Object newArg = java.lang.reflect.Array.newInstance(arrType.toClass(), argRes.length
+								- paramTypes.length + 1);
+							for(int i = paramTypes.length - 1; i < argRes.length; i++)
+								java.lang.reflect.Array.set(newArg, i - paramTypes.length + 1, argRes[i].getValue());
+							EvaluationResult [] newArgRes = new prisms.lang.EvaluationResult [paramTypes.length];
+							System.arraycopy(argRes, 0, newArgRes, 0, newArgRes.length - 1);
+							newArgRes[newArgRes.length - 1] = new EvaluationResult(arrType.getArrayType(), newArg);
+							argRes = newArgRes;
+						}
 					}
 					if(target == null)
 					{
@@ -313,7 +332,11 @@ public class ParsedMethod extends Assignable
 					throw new EvaluationException("Argument to getClass() is null", e, this, getStored("dot").index);
 				}
 			}
-			java.lang.reflect.Method[] methods = ctxType.getType().getBaseType().getMethods();
+			java.lang.reflect.Method[] methods;
+			if(ctxType.getType().getBaseType() == Type.NULL.getClass())
+				methods = Object.class.getMethods();
+			else
+				methods = ctxType.getType().getBaseType().getMethods();
 			if(!env.usePublicOnly())
 				methods = prisms.util.ArrayUtils.mergeInclusive(java.lang.reflect.Method.class, methods, ctxType
 					.getType().getBaseType().getDeclaredMethods());
@@ -355,12 +378,31 @@ public class ParsedMethod extends Assignable
 					target = m;
 				else if(m.isVarArgs())
 				{
-					Type varArgType = paramTypes[paramTypes.length - 1].getComponentType();
+					Type varArgType = paramTypes[p].getComponentType();
 					for(; !bad && p < argRes.length; p++)
 						if(!varArgType.isAssignable(argRes[p].getType()))
 							bad = true;
 					if(!bad)
+					{
 						target = m;
+						Type arrType;
+						if(argRes.length < paramTypes.length)
+							arrType = varArgType;
+						else
+						{
+							arrType = argRes[paramTypes.length - 1].getType();
+							for(int i = paramTypes.length; i < argRes.length; i++)
+								arrType = arrType.getCommonType(argRes[i].getType());
+						}
+						Object newArg = java.lang.reflect.Array.newInstance(arrType.toClass(), argRes.length
+							- paramTypes.length + 1);
+						for(int i = paramTypes.length - 1; i < argRes.length; i++)
+							java.lang.reflect.Array.set(newArg, i - paramTypes.length + 1, argRes[i].getValue());
+						EvaluationResult [] newArgRes = new prisms.lang.EvaluationResult [paramTypes.length];
+						System.arraycopy(argRes, 0, newArgRes, 0, newArgRes.length - 1);
+						newArgRes[newArgRes.length - 1] = new EvaluationResult(arrType.getArrayType(), newArg);
+						argRes = newArgRes;
+					}
 				}
 				if(target == null)
 				{
@@ -404,6 +446,9 @@ public class ParsedMethod extends Assignable
 					for(int i = paramTypes.length - 1; i < theArguments.length; i++)
 						java.lang.reflect.Array.set(varArgs, i - paramTypes.length + 1, argRes[i].getValue());
 				}
+				if(withValues && !isStatic && ctxType.getValue() == null)
+					throw new ExecutionException(new Type(NullPointerException.class), new NullPointerException(),
+						theContext, theContext.getMatch().index);
 				try
 				{
 					Type retType = ctxType.getType().resolve(goodTarget.getGenericReturnType(),

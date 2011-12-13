@@ -51,7 +51,8 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		theFunctions = new java.util.ArrayList<prisms.lang.types.ParsedFunctionDeclaration>();
 	}
 
-	DefaultEvaluationEnvironment(DefaultEvaluationEnvironment parent, boolean override, boolean transaction)
+	DefaultEvaluationEnvironment(DefaultEvaluationEnvironment parent, ClassGetter cg, boolean override,
+		boolean transaction)
 	{
 		theParent = parent;
 		isTransaction = transaction;
@@ -59,9 +60,12 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		canOverride = override;
 		theVariables = new java.util.HashMap<String, DefaultEvaluationEnvironment.Variable>();
 		theFunctions = new java.util.ArrayList<prisms.lang.types.ParsedFunctionDeclaration>();
+		if(theParent == null)
+			theClassGetter = cg;
 		if(canOverride)
-		{
 			theHistory = new java.util.ArrayList<Variable>();
+		if(canOverride || transaction)
+		{
 			theImportTypes = new java.util.HashMap<String, Class<?>>();
 			theImportMethods = new java.util.HashMap<String, Class<?>>();
 			theImportPackages = new java.util.HashSet<String>();
@@ -381,7 +385,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	public void addImportPackage(String packageName)
 	{
-		if(theParent != null)
+		if(theParent != null && !isTransaction)
 			throw new IllegalStateException("Imports may only be used at the top level");
 		synchronized(theImportPackages)
 		{
@@ -464,11 +468,11 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	public EvaluationEnvironment scope(boolean dependent)
 	{
 		if(dependent)
-			return new DefaultEvaluationEnvironment(this, false, false);
+			return new DefaultEvaluationEnvironment(this, null, false, false);
 		DefaultEvaluationEnvironment root = this;
 		while(root.theParent != null)
 			root = root.theParent;
-		DefaultEvaluationEnvironment ret = new DefaultEvaluationEnvironment(null, true, false);
+		DefaultEvaluationEnvironment ret = new DefaultEvaluationEnvironment(null, getClassGetter(), true, false);
 		for(String pkg : root.theImportPackages)
 			ret.theImportPackages.add(pkg);
 		for(java.util.Map.Entry<String, Class<?>> entry : root.theImportTypes.entrySet())
@@ -492,7 +496,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	public EvaluationEnvironment transact()
 	{
-		return new DefaultEvaluationEnvironment(this, false, true);
+		return new DefaultEvaluationEnvironment(this, null, false, true);
 	}
 
 	public void cancel()

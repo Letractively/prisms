@@ -63,16 +63,40 @@ public abstract class ParsedItem
 	 */
 	public ParseMatch getStored(String name)
 	{
-		if(theMatch.getParsed() == null)
+		int depth = getMaxDepth(theMatch);
+		ParseMatch ret = null;
+		for(int i = 0; i < depth && ret == null; i++)
+			ret = getStored(theMatch, i, name);
+		return ret;
+	}
+
+	private int getMaxDepth(ParseMatch match)
+	{
+		if(match.getParsed() == null)
+			return 1;
+		int ret = 0;
+		for(ParseMatch ch : match.getParsed())
+		{
+			int temp = getMaxDepth(ch);
+			if(temp > ret)
+				ret = temp;
+		}
+		return ret + 1;
+	}
+
+	private ParseMatch getStored(ParseMatch match, int depth, String name)
+	{
+		if(name.equals(match.config.get("storeAs")))
+			return match;
+		if(depth == 0 || match.getParsed() == null)
 			return null;
-		for(ParseMatch match : theMatch.getParsed())
-			if(name.equals(match.config.get("storeAs")))
-				return match;
-		for(ParseMatch match : theMatch.getParsed())
-			if(match.getParsed() != null)
-				for(ParseMatch subMatch : match.getParsed())
-					if(name.equals(subMatch.config.get("storeAs")))
-						return subMatch;
+		depth--;
+		for(ParseMatch ch : match.getParsed())
+		{
+			ParseMatch ret = getStored(ch, depth, name);
+			if(ret != null)
+				return ret;
+		}
 		return null;
 	}
 

@@ -257,6 +257,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theParser.configure(prisms.arch.PrismsConfig.fromXml(null, getGrammar()));
 		theEnv = new DefaultEvaluationEnvironment();
 		addVariable("pane", EnvPane.class, new EnvPane());
+		theEnv.setHandledExceptionTypes(new Type [] {new Type(Exception.class)});
 		theWorker = new prisms.impl.ThreadPoolWorker("Execution Worker", 1);
 		theWorker.setPriority(Thread.MIN_PRIORITY);
 
@@ -805,6 +806,11 @@ public class InterpreterPanel extends javax.swing.JPanel
 						if(!(s instanceof prisms.lang.types.ParsedPreviousAnswer))
 							theEnv.addHistory(type.getType(), type.getValue());
 					}
+				} catch(ExecutionException e)
+				{
+					pareStackTrace(e.getCause());
+					e.getCause().printStackTrace();
+					answer(e.getCause().toString(), true);
 				} catch(EvaluationException e)
 				{
 					pareStackTrace(e);
@@ -846,6 +852,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 			theRow.remove(theInput);
 			theReplaced = new javax.swing.JEditorPane();
 			theReplaced.addKeyListener(theCancelListener);
+			theReplaced.addMouseListener(theGrabListener);
 			theReplaced.setForeground(java.awt.Color.blue);
 			theReplaced.setText(theInput.getText().trim());
 			theReplaced.setEditable(false);
@@ -947,6 +954,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 	 */
 	public static void main(String [] args)
 	{
+		prisms.arch.PrismsServer.initLog4j(prisms.arch.PrismsServer.class.getResource("log4j.xml"));
 		javax.swing.JFrame frame = new javax.swing.JFrame();
 		frame.setTitle("JITR");
 		frame.setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);

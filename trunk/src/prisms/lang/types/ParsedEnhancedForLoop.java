@@ -49,10 +49,10 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 					"Can only iterate over an array or an instanceof java.lang.Iterable", this,
 					theIterable.getMatch().index);
 
-			prisms.lang.EvaluationResult type = theVariable.getType().evaluate(env, true, false);
-			if(!type.getType().isAssignable(instanceType))
+			prisms.lang.Type type = theVariable.evaluateType(env);
+			if(!type.isAssignable(instanceType))
 				throw new prisms.lang.EvaluationException("Type mismatch: cannot convert from " + instanceType + " to "
-					+ type.typeString(), theIterable, theIterable.getMatch().index);
+					+ type, theIterable, theIterable.getMatch().index);
 
 			java.util.Iterator<?> iterator;
 			if(iterRes.getValue() instanceof Iterable)

@@ -394,6 +394,22 @@ public class Type
 		return ret;
 	}
 
+	/** @return The class that most closely represents this type */
+	public Class<?> toClass()
+	{
+		if(theBaseType != null)
+			return theBaseType;
+		else if(theBoundType != null)
+		{
+			if(isUpperBound)
+				return theBoundType.toClass();
+			else
+				return Object.class;
+		}
+		else
+			return Object.class;
+	}
+
 	/** @return The array type whose component type is this type */
 	public Type getArrayType()
 	{
@@ -509,7 +525,12 @@ public class Type
 				base = base.getComponentType();
 			}
 			String imp = isImported(base, env);
-			ret.append(imp != null ? imp : base.getName());
+			if(imp != null)
+				ret.append(imp);
+			else if(base == NULL.getClass())
+				ret.append("null");
+			else
+				ret.append(base.getName());
 			if(theParamTypes.length > 0)
 			{
 				ret.append('<');
