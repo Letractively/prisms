@@ -12,7 +12,7 @@ The main class of the JITR framework is prisms.lang.InterpreterPanel, though the
  * *Fields/methods*  The fields and methods of any java class or instance available to the environment can be accessed.
  * *Operations* Addition, subtraction, multiplication, division, modulo, logical/bitwise and/or/xor, comparisons, bitwise shifts
  * *Control statements* if/else, for, enhanced for, while, do/while, try/catch/finally, switch/case. Statement labels are *NOT* supported at this time.
- * *Previous answer*  Useful for if you forget to or would rather not assign the value of an expression to a variable. For example, if "Math.pow(3, 5)" is entered, then the expression "%" may be used on the next line to refer to the value of that answer.  The expression %index may be used to refer to answers further back.  For example, "%1" refers to the answer before last.  The index must be a literal number, not an expression.
+ * *Previous answer*  Useful for if you forget to or would rather not assign the value of an expression to a variable. The expression "%" may be used to refer to the value of the previous successfully evaluated expression.  The expression %index may be used to refer to answers further back.  For example, "%1" refers to the answer before last.  The index must be a literal number, not an expression.
  * *Function definition*  Functions may be defined similarly to a method within a java class. E.g.
     * int plus(int a, int b)
     * {
