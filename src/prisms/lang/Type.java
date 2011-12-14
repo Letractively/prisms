@@ -124,7 +124,7 @@ public class Type
 				return theBoundType.canAssignTo(c);
 		}
 		else
-			return theBaseType.isAssignableFrom(c);
+			return isAssignable(theBaseType, c);
 	}
 
 	/**
@@ -199,7 +199,7 @@ public class Type
 			}
 			else
 			{
-				if(!theBaseType.isAssignableFrom(t.theBaseType))
+				if(!isAssignable(theBaseType, t.theBaseType))
 					return false;
 				for(int p = 0; p < theParamTypes.length; p++)
 					if(!theParamTypes[p].isAssignable(t.resolve(theBaseType.getTypeParameters()[p], theBaseType, null)))
@@ -207,6 +207,40 @@ public class Type
 				return true;
 			}
 		}
+	}
+
+	private static boolean isAssignable(Class<?> to, Class<?> from)
+	{
+		if(to == from)
+			return true;
+		if(to == Void.TYPE)
+			return false;
+		if(to.isPrimitive())
+		{
+			if(!from.isPrimitive())
+				return false;
+			if(to == Boolean.TYPE)
+				return false;
+			if(to == Character.TYPE)
+				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
+			if(to == Double.TYPE)
+				return from != Boolean.TYPE;
+			if(to == Float.TYPE)
+				return from != Boolean.TYPE && from != Double.TYPE;
+			if(to == Long.TYPE)
+				return from != Boolean.TYPE && from != Double.TYPE && from != Float.TYPE;
+			if(to == Integer.TYPE)
+				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
+			if(to == Short.TYPE)
+				return from == Short.TYPE || from == Byte.TYPE;
+			if(to == Byte.TYPE)
+				return from == Byte.TYPE;
+		}
+		if(from.isPrimitive())
+			return false;
+		if(from == NULL.getClass())
+			return true;
+		return to.isAssignableFrom(from);
 	}
 
 	/**

@@ -252,7 +252,8 @@ public class ParsedConstructor extends ParsedItem
 				return new prisms.lang.EvaluationResult(type, withValues ? goodTarget.newInstance(args) : null);
 			} catch(java.lang.reflect.InvocationTargetException e)
 			{
-				throw new prisms.lang.ExecutionException(new Type(e.getClass()), e, this, getStored("type").index);
+				throw new prisms.lang.ExecutionException(new Type(e.getCause().getClass()), e.getCause(), this,
+					getStored("type").index);
 			} catch(Exception e)
 			{
 				throw new EvaluationException("Could not invoke constructor of class " + type.getBaseType().getName(),

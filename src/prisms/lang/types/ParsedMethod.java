@@ -457,7 +457,8 @@ public class ParsedMethod extends Assignable
 						: null);
 				} catch(java.lang.reflect.InvocationTargetException e)
 				{
-					throw new ExecutionException(new Type(e.getClass()), e, this, getStored("name").index);
+					throw new ExecutionException(new Type(e.getCause().getClass()), e.getCause(), this,
+						getStored("name").index);
 				} catch(Exception e)
 				{
 					throw new EvaluationException("Could not invoke method " + theName + " of class "

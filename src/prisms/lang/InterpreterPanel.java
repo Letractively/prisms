@@ -303,7 +303,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 			jc.setBounds(0, top, getWidth(), jc.getPreferredSize().height);
 			top += jc.getHeight();
 		}
-		setPreferredSize(new java.awt.Dimension(getWidth(), top));
+		setPreferredSize(new java.awt.Dimension(getWidth(), top + 50));
 	}
 
 	org.dom4j.Element getGrammar()
