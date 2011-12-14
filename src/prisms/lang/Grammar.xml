@@ -4,14 +4,14 @@
 	<entity name="char" order="1" impl="prisms.lang.types.ParsedChar">
 		<literal>&apos;</literal>
 		<charset storeAs="value" pattern=".*">
-			<forbid escape="\&apos;">&apos;</forbid>
+			<exclude escape="\&apos;">&apos;</exclude>
 		</charset>
 		<literal>&apos;</literal>
 	</entity>
 	<entity name="string" order="1" impl="prisms.lang.types.ParsedString">
 		<literal>&quot;</literal>
 		<charset storeAs="value" pattern=".*">
-			<forbid escape="\&quot;">&quot;</forbid>
+			<exclude escape="\&quot;">&quot;</exclude>
 		</charset>
 		<literal>&quot;</literal>
 	</entity>
@@ -164,7 +164,7 @@
 		<op storeAs="type" type="type" />
 		<literal>(</literal>
 		<option>
-			<op />
+			<op storeAs="argument" />
 			<option min="0">
 				<literal>,</literal>
 				<op storeAs="argument" />
