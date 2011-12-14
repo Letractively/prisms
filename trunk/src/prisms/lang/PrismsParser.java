@@ -404,7 +404,12 @@ public class PrismsParser
 				if("forbid".equals(item.get("type")))
 				{
 					if(whiteSpace != null)
-						return null;
+					{
+						if(completeness <= COMPLETE_ERROR)
+							throw new ParseException("White space unexpected", command, index);
+						else
+							return null;
+					}
 				}
 				else if(whiteSpace != null)
 				{
@@ -452,7 +457,12 @@ public class PrismsParser
 				{
 					for(int i = 0; i < value.length(); i++)
 						if(index + i >= sb.length() || sb.charAt(index + i) != value.charAt(i))
-							return null;
+						{
+							if(completeness <= COMPLETE_ERROR)
+								throw new ParseException(item.getValue() + "expected", command, index);
+							else
+								return null;
+						}
 					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + value.length()), index,
 						null, true));
 					index += value.length();
@@ -475,7 +485,12 @@ public class PrismsParser
 						return null;
 					}
 					if(!match.find() || match.start() > 0)
-						return null;
+					{
+						if(completeness <= COMPLETE_ERROR)
+							throw new ParseException("Pattern matching " + pattern + " expected", command, index);
+						else
+							return null;
+					}
 					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + match.end()), index,
 						null, true));
 					index += match.end();
@@ -517,7 +532,12 @@ public class PrismsParser
 				}
 				java.util.regex.Matcher match = pat.matcher(sb.substring(index));
 				if(!match.find() || match.start() > 0)
-					return null;
+				{
+					if(completeness <= COMPLETE_ERROR)
+						throw new ParseException("Sequence matching " + pattern + " expected", command, index);
+					else
+						return null;
+				}
 				int end = index + match.end();
 				for(PrismsConfig exclude : item.subConfigs("exclude"))
 				{
@@ -555,7 +575,24 @@ public class PrismsParser
 							break;
 					}
 					if(!found)
-						return null;
+					{
+						if(completeness <= COMPLETE_ERROR)
+						{
+							StringBuilder msg = new StringBuilder();
+							msg.append("One of ");
+							PrismsConfig [] matches = item.subConfigs("match");
+							for(int m = 0; m < matches.length; m++)
+							{
+								if(m > 0)
+									msg.append(", ");
+								msg.append(matches[m].getValue());
+							}
+							msg.append(" expected");
+							throw new ParseException(msg.toString(), command, index);
+						}
+						else
+							return null;
+					}
 				}
 
 				ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index, null, true));
@@ -759,9 +796,42 @@ public class PrismsParser
 
 		ParseMatch op;
 		if(type == null)
+		{
 			op = parseItem(sb, index, priority, command, completeness);
+			if(op == null && completeness <= COMPLETE_ERROR)
+			{
+				String stored = opConfig.get("storeAs");
+				if(stored != null)
+					throw new ParseException(stored + " expected", command, index);
+				else
+					throw new ParseException("Unrecognized content", command, index);
+			}
+		}
 		else
+		{
 			op = parseItem(sb, index, priority, command, completeness, type.split("\\|"));
+			if(op == null && completeness <= COMPLETE_ERROR)
+			{
+				String stored = opConfig.get("storeAs");
+				String [] types = type.split("\\|");
+				StringBuilder msg = new StringBuilder();
+				for(int t = 0; t < types.length; t++)
+				{
+					if(t > 0)
+					{
+						if(t == types.length - 1)
+							msg.append(" or ");
+						else
+							msg.append(", ");
+					}
+					msg.append(types[t]);
+				}
+				msg.append(" expected");
+				if(stored != null)
+					msg.append(" for ").append(stored);
+				throw new ParseException(msg.toString(), command, index);
+			}
+		}
 		return op;
 	}
 
