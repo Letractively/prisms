@@ -24,8 +24,9 @@ public class ClassGetter
 	{
 		if(thePackageNames.contains(name))
 			return true;
+		String startName = name + '.';
 		for(Package pkg : Package.getPackages())
-			if(pkg.getName().equals(name))
+			if(pkg.getName().equals(name) || pkg.getName().startsWith(startName))
 				return true;
 		if(hasScanned)
 			return false;

@@ -201,7 +201,10 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			if(getVariable(name, true) != null)
 			{
 				if(isTransaction)
+				{
 					theParent.dropVariable(name, struct, index);
+					return;
+				}
 				else
 					throw new EvaluationException("Variable " + name
 						+ " can only be dropped from the scope in which it was declared", struct, index);

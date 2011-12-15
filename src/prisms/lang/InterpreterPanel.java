@@ -12,6 +12,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 {
 	private static java.awt.Color darkGreen = new java.awt.Color(0, 176, 0);
 
+	private static final int FONT_SIZE = 12;
+
 	/**
 	 * An class exposed to the interpreter as the "pane" variable that allows the interpreter to interact with the GUI
 	 * in certain ways
@@ -249,6 +251,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		};
 
 		theInput = new javax.swing.JEditorPane();
+		theInput.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, FONT_SIZE));
 		theInput.setForeground(java.awt.Color.blue);
 		theInput.addKeyListener(theReturnListener);
 		newLine();
@@ -786,7 +789,11 @@ public class InterpreterPanel extends javax.swing.JPanel
 			pareStackTrace(e);
 			e.printStackTrace();
 			replaceInput();
-			answer(e.getMessage(), true);
+			String msg = e.toString();
+			int idx = msg.indexOf(e.getMessage());
+			if(idx > 0)
+				msg = msg.substring(idx);
+			answer(msg, true);
 			newLine();
 			return;
 		}
@@ -851,6 +858,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 			theInput.setText(theInput.getText().trim());
 			theRow.remove(theInput);
 			theReplaced = new javax.swing.JEditorPane();
+			theReplaced.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, FONT_SIZE));
 			theReplaced.addKeyListener(theCancelListener);
 			theReplaced.addMouseListener(theGrabListener);
 			theReplaced.setForeground(java.awt.Color.blue);
@@ -920,6 +928,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 			if(textTrim.length() == 0)
 				return;
 			javax.swing.JEditorPane answer = new javax.swing.JEditorPane();
+			answer.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, FONT_SIZE));
 			answer.addMouseListener(theGrabListener);
 			answer.setText("        " + textTrim);
 			answer.setEditable(false);
@@ -948,16 +957,16 @@ public class InterpreterPanel extends javax.swing.JPanel
 	}
 
 	/**
-	 * Tests the Interpreter panel
+	 * Creates a new JFrame wrapping an InterpreterPanel. The actual InterpreterPanel can be retrieved from this frame
+	 * using {@link #getPanelFromFrame(javax.swing.JFrame)}. The frame is named "JITR" and sized 480x640 to the middle
+	 * of the window
 	 * 
-	 * @param args Command line arguments, ignored
+	 * @return The frame created
 	 */
-	public static void main(String [] args)
+	public static javax.swing.JFrame createInterpreterFrame()
 	{
-		prisms.arch.PrismsServer.initLog4j(prisms.arch.PrismsServer.class.getResource("log4j.xml"));
 		javax.swing.JFrame frame = new javax.swing.JFrame();
 		frame.setTitle("JITR");
-		frame.setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);
 		frame.setSize(480, 640);
 		InterpreterPanel interp = new InterpreterPanel();
 		javax.swing.JScrollPane contentPane = new javax.swing.JScrollPane(interp);
@@ -969,5 +978,27 @@ public class InterpreterPanel extends javax.swing.JPanel
 		frame.setLocation((int) (dim.getWidth() - frame.getWidth()) / 2,
 			(int) (dim.getHeight() - frame.getHeight()) / 2);
 		frame.setVisible(true);
+		return frame;
+	}
+
+	/**
+	 * @param frame The frame created with {@link #createInterpreterFrame()}
+	 * @return The InterpreterPanel wrapped by the frame
+	 */
+	public static InterpreterPanel getPanelFromFrame(javax.swing.JFrame frame)
+	{
+		return (InterpreterPanel) ((javax.swing.JScrollPane) frame.getContentPane()).getViewport().getView();
+	}
+
+	/**
+	 * Tests the Interpreter panel
+	 * 
+	 * @param args Command line arguments, ignored
+	 */
+	public static void main(String [] args)
+	{
+		prisms.arch.PrismsServer.initLog4j(prisms.arch.PrismsServer.class.getResource("log4j.xml"));
+		javax.swing.JFrame frame = createInterpreterFrame();
+		frame.setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);
 	}
 }
