@@ -133,7 +133,7 @@ public class PrismsParser
 	{
 		while(match.getParsed() != null && match.getParsed().length > 0)
 			match = match.getParsed()[match.getParsed().length - 1];
-		return match.text.charAt(match.text.length() - 1) == ';';
+		return match.text.length() > 0 && match.text.charAt(match.text.length() - 1) == ';';
 	}
 
 	/**
@@ -231,12 +231,19 @@ public class PrismsParser
 				else
 					withTypesHadPreOp |= hasPreOp(op);
 				ParseMatch temp = parseNextMatch(op, sb, index, preOp, command, completeness);
-				if(temp != null && (ret == null || temp.text.length() > ret.text.length()))
-					ret = temp;
+				if(temp != null && temp.text.length() > 0)
+				{
+					if(ret == null)
+						ret = temp;
+					else if(temp.text.length() > ret.text.length())
+						ret = temp;
+					else if(temp.text.length() == ret.text.length() && !ret.isComplete() && temp.isComplete())
+						ret = temp;
+				}
 			}
 			if(ret != null)
 			{
-				foundOp = true;
+				foundOp = ret.isComplete();
 				index = ret.index + ret.text.length();
 				if(types.length > 0)
 					return ret;
@@ -253,8 +260,9 @@ public class PrismsParser
 				for(int p = 0; p < ret.getParsed().length; p++)
 					if(ret.getParsed()[p].config.getName().equals("pre-op"))
 					{
-						ret = ret.getParsed()[p];
+						ret = ret.getParsed()[p].getParsed()[0];
 						found = true;
+						break;
 					}
 				if(!found)
 					ret = null;
@@ -262,7 +270,7 @@ public class PrismsParser
 			java.util.Collections.reverse(ops);
 			for(PrismsConfig op : ops)
 			{
-				ret = parseNextMatch(op, sb, origIndex, ret, command, COMPLETE_ERROR);
+				ret = parseNextMatch(op, sb, index, ret, command, COMPLETE_ERROR);
 				index = ret.index + ret.text.length();
 			}
 		}
@@ -399,215 +407,7 @@ public class PrismsParser
 				index = wsIdx;
 			}
 
-			if(item.getName().equals("whitespace"))
-			{
-				if("forbid".equals(item.get("type")))
-				{
-					if(whiteSpace != null)
-					{
-						if(completeness <= COMPLETE_ERROR)
-							throw new ParseException("White space unexpected", command, index);
-						else
-							return null;
-					}
-				}
-				else if(whiteSpace != null)
-				{
-					ParseMatch wsMatch = ret[ret.length - 1];
-					ret[ret.length - 1] = new ParseMatch(item, whiteSpace, wsMatch.index, null, true);
-				}
-				else if(index == sb.length())
-				{ // If this is the end of the input, we can treat that as white space
-					ParseMatch wsMatch = ret[ret.length - 1];
-					ret[ret.length - 1] = new ParseMatch(item, "", wsMatch.index, null, true);
-				}
-				else
-				{
-					if(completeness <= COMPLETE_ERROR)
-						throw new ParseException("White space expected", command, index);
-					else
-						return null;
-				}
-				continue;
-			}
-			else if(item.getName().equals("literal"))
-			{
-				String value = item.getValue();
-				if(index == sb.length())
-				{
-					if(ret == null || ret.length == 0)
-						return null;
-					else if(completeness <= COMPLETE_ERROR)
-					{
-						if(value != null && value.length() > 0)
-							throw new ParseException(item.getValue() + " expected", command, index);
-						else
-							throw new ParseException("Pattern matching " + item.get("pattern") + " expected", command,
-								index);
-					}
-					else if(completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
-					{
-						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
-						break;
-					}
-					else
-						return null;
-				}
-				if(value != null && value.length() > 0)
-				{
-					for(int i = 0; i < value.length(); i++)
-						if(index + i >= sb.length() || sb.charAt(index + i) != value.charAt(i))
-						{
-							if(completeness <= COMPLETE_ERROR)
-								throw new ParseException(item.getValue() + "expected", command, index);
-							else
-								return null;
-						}
-					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + value.length()), index,
-						null, true));
-					index += value.length();
-				}
-				else
-				{
-					String pattern = item.get("pattern");
-					if(pattern == null)
-					{
-						log.error("No value or pattern for literal in " + opConfig);
-						return null;
-					}
-					java.util.regex.Matcher match;
-					try
-					{
-						match = java.util.regex.Pattern.compile(pattern).matcher(sb.substring(index));
-					} catch(java.util.regex.PatternSyntaxException e)
-					{
-						log.error("Pattern " + pattern + " in config " + opConfig + " has an error: " + e);
-						return null;
-					}
-					if(!match.find() || match.start() > 0)
-					{
-						if(completeness <= COMPLETE_ERROR)
-							throw new ParseException("Pattern matching " + pattern + " expected", command, index);
-						else
-							return null;
-					}
-					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + match.end()), index,
-						null, true));
-					index += match.end();
-				}
-			}
-			else if(item.getName().equals("charset"))
-			{
-				if(index == sb.length())
-				{
-					if(ret == null || ret.length == 0)
-						return null;
-					else if(completeness <= COMPLETE_ERROR)
-					{
-						throw new ParseException("Sequence matching " + item.get("pattern") + " expected", command,
-							index);
-					}
-					else if(completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
-					{
-						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
-						break;
-					}
-					else
-						return null;
-				}
-				String pattern = item.get("pattern");
-				if(pattern == null)
-				{
-					log.error("No value or pattern for literal in " + opConfig);
-					return null;
-				}
-				java.util.regex.Pattern pat;
-				try
-				{
-					pat = java.util.regex.Pattern.compile(pattern);
-				} catch(java.util.regex.PatternSyntaxException e)
-				{
-					log.error("Pattern " + pattern + " in config " + opConfig + " has an error: " + e);
-					return null;
-				}
-				java.util.regex.Matcher match = pat.matcher(sb.substring(index));
-				if(!match.find() || match.start() > 0)
-				{
-					if(completeness <= COMPLETE_ERROR)
-						throw new ParseException("Sequence matching " + pattern + " expected", command, index);
-					else
-						return null;
-				}
-				int end = index + match.end();
-				for(PrismsConfig exclude : item.subConfigs("exclude"))
-				{
-					String escape = exclude.get("escape");
-					String value = exclude.getValue();
-					if(escape == null)
-					{
-						int idx = sb.indexOf(value, index);
-						if(idx < end)
-							end = idx;
-					}
-					else
-					{
-						for(int i = index; i < end; i++)
-						{
-							if(startsWith(sb, i, escape))
-								i += escape.length() - 1;
-							else if(startsWith(sb, i, value))
-							{
-								end = i;
-								break;
-							}
-						}
-					}
-				}
-				if(item.subConfigs("match").length > 0)
-				{
-					String text = sb.substring(index, end);
-					boolean found = false;
-					for(PrismsConfig m : item.subConfigs("match"))
-					{
-						if(text.equals(m.getValue()))
-							found = true;
-						if(found)
-							break;
-					}
-					if(!found)
-					{
-						if(completeness <= COMPLETE_ERROR)
-						{
-							StringBuilder msg = new StringBuilder();
-							msg.append("One of ");
-							PrismsConfig [] matches = item.subConfigs("match");
-							for(int m = 0; m < matches.length; m++)
-							{
-								if(m > 0)
-									msg.append(", ");
-								msg.append(matches[m].getValue());
-							}
-							msg.append(" expected");
-							throw new ParseException(msg.toString(), command, index);
-						}
-						else
-							return null;
-					}
-				}
-
-				ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index, null, true));
-				index = end;
-			}
-			else if(item.getName().equals("op"))
-			{
-				ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeness, ret);
-				if(op == null)
-					return null;
-				ret = prisms.util.ArrayUtils.add(ret,
-					new ParseMatch(item, op.text, index, new ParseMatch [] {op}, true));
-				index += op.text.length();
-			}
-			else if(item.getName().equals("forbid"))
+			if(item.getName().equals("forbid"))
 			{
 				if(_parseCheck(item, sb, index, preOp, priority, true, command, completeness) != null)
 					return null;
@@ -655,12 +455,16 @@ public class PrismsParser
 						break;
 					total = prisms.util.ArrayUtils.addAll(total, res);
 					index += len;
+					if(!total[total.length - 1].isComplete())
+						break;
 				} while(count < limit);
 				if(count > limit || count < item.getInt("min", 0))
 					return null;
 				if(total == null)
 					continue;
 				ret = ArrayUtils.addAll(ret, total);
+				if(!total[total.length - 1].isComplete())
+					return ret;
 			}
 			else if(item.getName().equals("select"))
 			{
@@ -690,11 +494,12 @@ public class PrismsParser
 				}
 				if(res == null)
 				{
-					if((completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
-						&& index == sb.length())
+					if((completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional)))
 					{
+						if(ret == null)
+							return null;
 						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
-						break;
+						return ret;
 					}
 					else
 						return null;
@@ -714,6 +519,269 @@ public class PrismsParser
 				ret = ArrayUtils.addAll(ret, res);
 				for(ParseMatch m : res)
 					index += m.text.length();
+				if(!res[res.length - 1].isComplete())
+					return ret;
+			}
+			else if(preOp != null)
+				return null; // No pre-op registered, can't take a pre-op
+			else if(item.getName().equals("whitespace"))
+			{
+				if("forbid".equals(item.get("type")))
+				{
+					if(whiteSpace != null)
+					{
+						if(completeness <= COMPLETE_ERROR)
+							throw new ParseException("White space unexpected", command, index);
+						else
+							return null;
+					}
+				}
+				else if(whiteSpace != null)
+				{
+					ParseMatch wsMatch = ret[ret.length - 1];
+					ret[ret.length - 1] = new ParseMatch(item, whiteSpace, wsMatch.index, null, true);
+				}
+				else if(index == sb.length())
+				{ // If this is the end of the input, we can treat that as white space
+					ParseMatch wsMatch = ret[ret.length - 1];
+					ret[ret.length - 1] = new ParseMatch(item, "", wsMatch.index, null, true);
+				}
+				else
+				{
+					if(completeness <= COMPLETE_ERROR)
+						throw new ParseException("White space expected", command, index);
+					else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
+					{
+						if(ret == null)
+							return null;
+						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+						return ret;
+					}
+					else
+						return null;
+				}
+				continue;
+			}
+			else if(item.getName().equals("literal"))
+			{
+				String value = item.getValue();
+				if(index == sb.length())
+				{
+					if(ret == null || ret.length == 0)
+						return null;
+					else if(completeness <= COMPLETE_ERROR)
+					{
+						if(value != null && value.length() > 0)
+							throw new ParseException(item.getValue() + " expected", command, index);
+						else
+							throw new ParseException("Pattern matching " + item.get("pattern") + " expected", command,
+								index);
+					}
+					else if(completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
+					{
+						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+						break;
+					}
+					else
+						return null;
+				}
+				if(value != null && value.length() > 0)
+				{
+					for(int i = 0; i < value.length(); i++)
+						if(index + i >= sb.length() || sb.charAt(index + i) != value.charAt(i))
+						{
+							if(completeness <= COMPLETE_ERROR)
+								throw new ParseException(item.getValue() + " expected for " + opConfig.get("name"),
+									command, index);
+							else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
+							{
+								ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+								return ret;
+							}
+							else
+								return null;
+						}
+					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + value.length()), index,
+						null, true));
+					index += value.length();
+				}
+				else
+				{
+					String pattern = item.get("pattern");
+					if(pattern == null)
+					{
+						log.error("No value or pattern for literal in " + opConfig);
+						return null;
+					}
+					java.util.regex.Matcher match;
+					try
+					{
+						match = java.util.regex.Pattern.compile(pattern).matcher(sb.substring(index));
+					} catch(java.util.regex.PatternSyntaxException e)
+					{
+						log.error("Pattern " + pattern + " in config " + opConfig + " has an error: " + e);
+						return null;
+					}
+					if(!match.find() || match.start() > 0)
+					{
+						if(completeness <= COMPLETE_ERROR)
+							throw new ParseException("Pattern matching " + pattern + " expected for "
+								+ opConfig.get("name"), command, index);
+						else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
+						{
+							ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+							return ret;
+						}
+						else
+							return null;
+					}
+					ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, index + match.end()), index,
+						null, true));
+					index += match.end();
+				}
+			}
+			else if(item.getName().equals("charset"))
+			{
+				if(index == sb.length())
+				{
+					if(ret == null || ret.length == 0)
+						return null;
+					else if(completeness <= COMPLETE_ERROR)
+					{
+						throw new ParseException("Sequence matching " + item.get("pattern") + " expected", command,
+							index);
+					}
+					else if(completeness <= COMPLETE_ANY || (completeness <= COMPLETE_OPTIONAL && !optional))
+					{
+						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+						return ret;
+					}
+					else
+						return null;
+				}
+				String pattern = item.get("pattern");
+				if(pattern == null)
+				{
+					log.error("No value or pattern for literal in " + opConfig);
+					return null;
+				}
+				java.util.regex.Pattern pat;
+				try
+				{
+					pat = java.util.regex.Pattern.compile(pattern);
+				} catch(java.util.regex.PatternSyntaxException e)
+				{
+					log.error("Pattern " + pattern + " in config " + opConfig + " has an error: " + e);
+					return null;
+				}
+				java.util.regex.Matcher match = pat.matcher(sb.substring(index));
+				if(!match.find() || match.start() > 0)
+				{
+					if(completeness <= COMPLETE_ERROR)
+						throw new ParseException("Sequence matching " + pattern + " expected", command, index);
+					else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
+					{
+						ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
+						return ret;
+					}
+					else
+						return null;
+				}
+				int end = index + match.end();
+				for(PrismsConfig exclude : item.subConfigs("exclude"))
+				{
+					String escape = exclude.get("escape");
+					String value = exclude.getValue();
+					if(escape == null)
+					{
+						int idx = sb.indexOf(value, index);
+						if(idx >= 0 && idx < end)
+							end = idx;
+					}
+					else
+					{
+						for(int i = index; i < end; i++)
+						{
+							if(startsWith(sb, i, escape))
+								i += escape.length() - 1;
+							else if(startsWith(sb, i, value))
+							{
+								end = i;
+								if(!pat.matcher(sb.substring(index, end)).matches())
+								{
+									if(completeness <= COMPLETE_ERROR)
+										throw new ParseException(value + " not expected", command, index);
+									else if((completeness <= COMPLETE_OPTIONAL && !optional)
+										|| completeness <= COMPLETE_ANY)
+									{
+										ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index,
+											null, false));
+										return ret;
+									}
+									else
+										return null;
+								}
+								break;
+							}
+						}
+					}
+				}
+				if(item.subConfigs("match").length > 0)
+				{
+					String text = sb.substring(index, end);
+					boolean found = false;
+					for(PrismsConfig m : item.subConfigs("match"))
+					{
+						if(text.equals(m.getValue()))
+							found = true;
+						if(found)
+							break;
+					}
+					if(!found)
+					{
+						if(completeness <= COMPLETE_ERROR)
+						{
+							PrismsConfig [] matches = item.subConfigs("match");
+							StringBuilder msg = new StringBuilder();
+							if(matches.length == 1)
+								msg.append(matches[0].getValue());
+							else
+							{
+								msg.append("One of ");
+								for(int m = 0; m < matches.length; m++)
+								{
+									if(m > 0)
+										msg.append(", ");
+									msg.append(matches[m].getValue());
+								}
+							}
+							msg.append(" expected");
+							throw new ParseException(msg.toString(), command, index);
+						}
+						else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
+						{
+							ret = ArrayUtils.add(ret,
+								new ParseMatch(item, sb.substring(index, end), index, null, false));
+							return ret;
+						}
+						else
+							return null;
+					}
+				}
+
+				ret = ArrayUtils.add(ret, new ParseMatch(item, sb.substring(index, end), index, null, true));
+				index = end;
+			}
+			else if(item.getName().equals("op"))
+			{
+				ParseMatch op = parseOp(sb, index, opConfig, itemIdx, priority, optional, command, completeness, ret);
+				if(op == null)
+					return null;
+				ret = prisms.util.ArrayUtils.add(ret,
+					new ParseMatch(item, op.text, index, new ParseMatch [] {op}, true));
+				index += op.text.length();
+				if(!op.isComplete())
+					return ret;
 			}
 			else
 			{
@@ -800,9 +868,9 @@ public class PrismsParser
 			op = parseItem(sb, index, priority, command, completeness);
 			if(op == null && completeness <= COMPLETE_ERROR)
 			{
-				String stored = opConfig.get("storeAs");
+				String stored = opConfig.subConfigs()[itemIdx].get("storeAs");
 				if(stored != null)
-					throw new ParseException(stored + " expected", command, index);
+					throw new ParseException(stored + " expected for " + opConfig.get("name"), command, index);
 				else
 					throw new ParseException("Unrecognized content", command, index);
 			}
@@ -812,7 +880,7 @@ public class PrismsParser
 			op = parseItem(sb, index, priority, command, completeness, type.split("\\|"));
 			if(op == null && completeness <= COMPLETE_ERROR)
 			{
-				String stored = opConfig.get("storeAs");
+				String stored = opConfig.subConfigs()[itemIdx].get("storeAs");
 				String [] types = type.split("\\|");
 				StringBuilder msg = new StringBuilder();
 				for(int t = 0; t < types.length; t++)
@@ -828,7 +896,7 @@ public class PrismsParser
 				}
 				msg.append(" expected");
 				if(stored != null)
-					msg.append(" for ").append(stored);
+					msg.append(" for ").append(stored).append(" of ").append(opConfig.get("name"));
 				throw new ParseException(msg.toString(), command, index);
 			}
 		}

@@ -3,9 +3,21 @@
 	<!-- Self-contained types -->
 	<entity name="char" order="1" impl="prisms.lang.types.ParsedChar">
 		<literal>&apos;</literal>
-		<charset storeAs="value" pattern=".*">
-			<exclude escape="\&apos;">&apos;</exclude>
-		</charset>
+		<whitespace type="forbid" />
+		<select>
+			<option>
+				<charset pattern="[\x20-~]" storeAs="value">
+					<exclude>&apos;</exclude>
+				</charset>
+			</option>
+			<option>
+				<literal storeAs="value">\[&apos;tnrb]</literal>
+			</option>
+			<option>
+				<charset pattern="\\u[0-9]{4}" storeAs="value" />
+			</option>
+		</select>
+		<whitespace type="forbid" />
 		<literal>&apos;</literal>
 	</entity>
 	<entity name="string" order="1" impl="prisms.lang.types.ParsedString">
