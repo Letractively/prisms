@@ -591,8 +591,7 @@ public class PrismsParser
 						if(index + i >= sb.length() || sb.charAt(index + i) != value.charAt(i))
 						{
 							if(completeness <= COMPLETE_ERROR)
-								throw new ParseException(item.getValue() + " expected for " + opConfig.get("name"),
-									command, index);
+								throw new ParseException(item.getValue() + " expected", command, index);
 							else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
 							{
 								ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
@@ -625,8 +624,7 @@ public class PrismsParser
 					if(!match.find() || match.start() > 0)
 					{
 						if(completeness <= COMPLETE_ERROR)
-							throw new ParseException("Pattern matching " + pattern + " expected for "
-								+ opConfig.get("name"), command, index);
+							throw new ParseException("Pattern matching " + pattern + " expected", command, index);
 						else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
 						{
 							ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
@@ -870,7 +868,7 @@ public class PrismsParser
 			{
 				String stored = opConfig.subConfigs()[itemIdx].get("storeAs");
 				if(stored != null)
-					throw new ParseException(stored + " expected for " + opConfig.get("name"), command, index);
+					throw new ParseException(stored + " expected", command, index);
 				else
 					throw new ParseException("Unrecognized content", command, index);
 			}
@@ -896,7 +894,7 @@ public class PrismsParser
 				}
 				msg.append(" expected");
 				if(stored != null)
-					msg.append(" for ").append(stored).append(" of ").append(opConfig.get("name"));
+					msg.append(" for ").append(stored);
 				throw new ParseException(msg.toString(), command, index);
 			}
 		}

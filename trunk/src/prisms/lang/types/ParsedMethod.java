@@ -439,14 +439,9 @@ public class ParsedMethod extends Assignable
 						args[args.length - 1] = argRes[args.length - 1].getValue();
 				}
 				else
-				{
-					Object varArgs = java.lang.reflect.Array.newInstance(
-						paramTypes[args.length - 1].getComponentType(), theArguments.length - paramTypes.length + 1);
-					args[args.length - 1] = varArgs;
-					for(int i = paramTypes.length - 1; i < theArguments.length; i++)
-						java.lang.reflect.Array.set(varArgs, i - paramTypes.length + 1, argRes[i].getValue());
-				}
-				if(withValues && !isStatic && ctxType.getValue() == null)
+					args[args.length - 1] = argRes[argRes.length - 1].getValue();
+				if(withValues && !isStatic && !Modifier.isStatic(goodTarget.getModifiers())
+					&& ctxType.getValue() == null)
 					throw new ExecutionException(new Type(NullPointerException.class), new NullPointerException(),
 						theContext, theContext.getMatch().index);
 				try
