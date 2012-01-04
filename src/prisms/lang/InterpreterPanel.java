@@ -140,6 +140,12 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 	EvaluationEnvironment theEnv;
 
+	java.util.ArrayList<String> theCommandLog;
+
+	int theCommandLogIndex;
+
+	boolean hasUserTyped;
+
 	prisms.impl.ThreadPoolWorker theWorker;
 
 	javax.swing.JEditorPane theInput;
@@ -218,11 +224,37 @@ public class InterpreterPanel extends javax.swing.JPanel
 						});
 					}
 				}
+				else if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_UP)
+				{
+					if(theInput.getText().length() == 0)
+						hasUserTyped = false;
+					if(hasUserTyped)
+						return;
+					if(theCommandLogIndex >= theCommandLog.size() - 1)
+						return;
+					theCommandLogIndex++;
+					theInput.setText(theCommandLog.get(theCommandLog.size() - theCommandLogIndex - 1));
+				}
+				else if(evt.getKeyCode() == java.awt.event.KeyEvent.VK_DOWN)
+				{
+					if(theInput.getText().length() == 0)
+						hasUserTyped = false;
+					if(hasUserTyped)
+						return;
+					if(theCommandLogIndex < 0)
+						return;
+					theCommandLogIndex--;
+					if(theCommandLogIndex < 0)
+						theInput.setText("");
+					else
+						theInput.setText(theCommandLog.get(theCommandLog.size() - theCommandLogIndex - 1));
+				}
 			}
 
 			@Override
 			public void keyTyped(java.awt.event.KeyEvent evt)
 			{
+				hasUserTyped = true;
 				if(evt.getKeyChar() == ' ' && evt.isControlDown())
 				{}
 				else if(theIntellisenseMenu.isVisible())
@@ -261,6 +293,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theEnv = new DefaultEvaluationEnvironment();
 		addVariable("pane", EnvPane.class, new EnvPane());
 		theEnv.setHandledExceptionTypes(new Type [] {new Type(Exception.class)});
+		theCommandLog = new java.util.ArrayList<String>();
 		theWorker = new prisms.impl.ThreadPoolWorker("Execution Worker", 1);
 		theWorker.setPriority(Thread.MIN_PRIORITY);
 
@@ -776,6 +809,12 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theEnv.uncancel();
 		String text = theInput.getText().trim();
 
+		hasUserTyped = false;
+		if(text.length() > 0)
+		{
+			theCommandLog.add(text);
+			theCommandLogIndex = -1;
+		}
 		ParsedItem [] structs;
 		try
 		{

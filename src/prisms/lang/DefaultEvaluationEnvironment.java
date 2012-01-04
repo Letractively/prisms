@@ -374,7 +374,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	public void addImportType(Class<?> type)
 	{
-		if(theParent != null)
+		if(theParent != null && !isTransaction)
 			throw new IllegalStateException("Imports may only be used at the top level");
 		String name = type.getName();
 		int dotIdx = name.lastIndexOf('.');
@@ -422,7 +422,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 
 	public void addImportMethod(Class<?> type, String method)
 	{
-		if(theParent != null)
+		if(theParent != null && !isTransaction)
 			throw new IllegalStateException("Imports may only be used at the top level");
 		synchronized(theImportMethods)
 		{
