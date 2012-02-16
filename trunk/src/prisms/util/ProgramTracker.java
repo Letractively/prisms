@@ -19,8 +19,8 @@ public class ProgramTracker implements Cloneable
 
 	static
 	{
-		String [] patterns = new String [] {"ddMMM HH:mm:ss.SSS", "dd HH:mm:ss.SSS",
-			"HH:mm:ss.SSS", "mm:ss.SSS", "ss.SSS"};
+		String [] patterns = new String [] {"ddMMM HH:mm:ss.SSS", "dd HH:mm:ss.SSS", "HH:mm:ss.SSS", "mm:ss.SSS",
+			"ss.SSS"};
 
 		formats = new SimpleDateFormat [2] [patterns.length];
 		for(int p = 0; p < patterns.length; p++)
@@ -41,11 +41,10 @@ public class ProgramTracker implements Cloneable
 	public static final java.text.NumberFormat NANO_FORMAT = new java.text.DecimalFormat("0.00E0");
 
 	/**
-	 * This static variable is to be used for <b>temporary</b> debugging purposes only. It allows
-	 * for easier profiling of applications without extensive code changes to access the correct
-	 * tracker. However, if this variable is used in more than one place, it may lead to
-	 * unpredictable results and thrown exceptions. A different mechanism MUST be developed to
-	 * access a tracker if profiling is to be integrated into the application permanently.
+	 * This static variable is to be used for <b>temporary</b> debugging purposes only. It allows for easier profiling
+	 * of applications without extensive code changes to access the correct tracker. However, if this variable is used
+	 * in more than one place, it may lead to unpredictable results and thrown exceptions. A different mechanism MUST be
+	 * developed to access a tracker if profiling is to be integrated into the application permanently.
 	 */
 	public static ProgramTracker instance;
 
@@ -64,12 +63,15 @@ public class ProgramTracker implements Cloneable
 	public static void setThreadTracker(ProgramTracker tracker)
 	{
 		Thread ct = Thread.currentThread();
-		if(tracker != null && tracker.theCurrentThread != ct)
+		if(tracker != null && tracker.theCurrentThread != null && tracker.theCurrentThread != ct)
 			throw new IllegalArgumentException("The given tracker is not tracking for this thread");
 		if(tracker == null)
 			theThreadTrackers.remove(ct);
 		else
-			theThreadTrackers.put(tracker.theCurrentThread, tracker);
+		{
+			tracker.theCurrentThread = ct;
+			theThreadTrackers.put(ct, tracker);
+		}
 	}
 
 	/** @return The tracker for the current thread */
@@ -78,10 +80,7 @@ public class ProgramTracker implements Cloneable
 		return theThreadTrackers.get(Thread.currentThread());
 	}
 
-	/**
-	 * A configuration class that allows the printing of results of a tracking session to be
-	 * customized
-	 */
+	/** A configuration class that allows the printing of results of a tracking session to be customized */
 	public static class PrintConfig implements Cloneable
 	{
 		private float theAccentThreshold;
@@ -168,8 +167,7 @@ public class ProgramTracker implements Cloneable
 		}
 
 		/**
-		 * @return Whether program trackers printed with this config will also print a description
-		 *         of the tracker
+		 * @return Whether program trackers printed with this config will also print a description of the tracker
 		 */
 		public boolean isWithIntro()
 		{
@@ -177,8 +175,7 @@ public class ProgramTracker implements Cloneable
 		}
 
 		/**
-		 * @param wi Whether program trackers printed with this config should also print a
-		 *        description of the tracker
+		 * @param wi Whether program trackers printed with this config should also print a description of the tracker
 		 */
 		public void setWithIntro(boolean wi)
 		{
@@ -217,11 +214,18 @@ public class ProgramTracker implements Cloneable
 
 		long latestStartNanos;
 
+		long latestStartCPU;
+
 		/** The last time this task ended */
 		long endTime;
 
 		/** The total amount of time the routine executed */
-		long length;
+		long runLength;
+
+		long runLengthNanos;
+
+		/** The total amount of CPU time the routine has used */
+		long cpuLength;
 
 		/** Statistics kept on the length of this routine */
 		RunningStatistic lengthStats;
@@ -233,28 +237,30 @@ public class ProgramTracker implements Cloneable
 		java.util.ArrayList<TrackNode> children;
 
 		/**
-		 * The number of times that this routine was {@link ProgramTracker#start(String) start}ed
-		 * but not explicitly {@link ProgramTracker#start(String) end}ed
+		 * The number of times that this routine was {@link ProgramTracker#start(String) start}ed but not explicitly
+		 * {@link ProgramTracker#start(String) end}ed
 		 */
 		public int unfinished;
 
 		boolean isReleased;
 
-		TrackNode(TrackNode aParent, String aName, long time, boolean withStats)
+		TrackNode(TrackNode aParent, String aName, long sysTime, long cpuStart, boolean withStats)
 		{
 			children = new java.util.ArrayList<TrackNode>();
-			init(aParent, aName, time, withStats);
+			init(aParent, aName, sysTime, cpuStart, withStats);
 		}
 
-		void init(TrackNode aParent, String aName, long time, boolean withStats)
+		void init(TrackNode aParent, String aName, long sysTime, long cpuStart, boolean withStats)
 		{
 			parent = aParent;
 			name = aName;
 			count = 1;
-			startTime = time;
-			latestStartTime = time;
+			startTime = sysTime;
+			latestStartTime = sysTime;
+			latestStartCPU = cpuStart;
 			endTime = -1;
-			length = 0;
+			runLength = 0;
+			cpuLength = 0;
 			unfinished = 0;
 			isReleased = false;
 			if(withStats)
@@ -307,7 +313,19 @@ public class ProgramTracker implements Cloneable
 		/** @return The total amount of time the routine executed */
 		public long getLength()
 		{
-			return length;
+			return runLength;
+		}
+
+		/** @return The amount of time the routine executed in nanoseconds (will be 0 if length stats are not enabled) */
+		public long getLengthNanos()
+		{
+			return runLengthNanos;
+		}
+
+		/** @return The total amount of CPU time the routine has used */
+		public long getCpuLength()
+		{
+			return cpuLength;
 		}
 
 		/** @return Statistics kept on the length of this routine */
@@ -338,21 +356,21 @@ public class ProgramTracker implements Cloneable
 			long ret = getRealLength();
 			if(config == null || !config.isAsync())
 				for(TrackNode ch : children)
-					ret -= ch.length;
+					ret -= ch.runLength;
 			else
 				for(Object ch : children.toArray())
-					ret -= ((TrackNode) ch).length;
+					ret -= ((TrackNode) ch).runLength;
 			return ret;
 		}
 
 		/**
-		 * @return The total amount of time this task has been running. Unlike {@link #length}, this
-		 *         method takes into account the amount of time since {@link #latestStartTime} and
-		 *         now if the task is currently running
+		 * @return The total amount of time this task has been running. Unlike {@link #runLength}, this method takes
+		 *         into account the amount of time since {@link #latestStartTime} and now if the task is currently
+		 *         running
 		 */
 		public long getRealLength()
 		{
-			long ret = length;
+			long ret = runLength;
 			if(endTime < latestStartTime)
 				ret += (System.currentTimeMillis() - latestStartTime);
 			return ret;
@@ -405,7 +423,7 @@ public class ProgramTracker implements Cloneable
 				latestStartTime = node.latestStartTime;
 				endTime = node.endTime;
 			}
-			length += node.length;
+			runLength += node.runLength;
 			unfinished += node.unfinished;
 			if(lengthStats != null && node.lengthStats != null)
 				lengthStats.merge(node.lengthStats);
@@ -432,8 +450,8 @@ public class ProgramTracker implements Cloneable
 			TrackNode tn = (TrackNode) o;
 			if(name != tn.name) // Uses internal()
 				return false;
-			if(startTime != tn.startTime || count != tn.count || length != tn.length
-				|| endTime != tn.endTime || latestStartTime != tn.latestStartTime)
+			if(startTime != tn.startTime || count != tn.count || runLength != tn.runLength || endTime != tn.endTime
+				|| latestStartTime != tn.latestStartTime)
 				return false;
 			if(children.equals(tn.children))
 				return false;
@@ -612,8 +630,7 @@ public class ProgramTracker implements Cloneable
 		/**
 		 * Serializes this tracking node and its children to JSON
 		 * 
-		 * @return The JSON representation of this node. May be deserialized with
-		 *         {@link #fromJson(JSONObject)}.
+		 * @return The JSON representation of this node. May be deserialized with {@link #fromJson(JSONObject)}.
 		 */
 		public JSONObject toJson()
 		{
@@ -623,8 +640,9 @@ public class ProgramTracker implements Cloneable
 			ret.put("startTime", Long.valueOf(startTime));
 			ret.put("latestStartTime", Long.valueOf(latestStartTime));
 			ret.put("latestStartNanos", Long.valueOf(latestStartNanos));
+			ret.put("latestStartCPU", Long.valueOf(latestStartCPU));
 			ret.put("endTime", Long.valueOf(endTime));
-			ret.put("length", Long.valueOf(length));
+			ret.put("length", Long.valueOf(runLength));
 			ret.put("unfinished", Integer.valueOf(unfinished));
 			if(lengthStats != null)
 				ret.put("lengthStats", lengthStats.toJson());
@@ -645,12 +663,12 @@ public class ProgramTracker implements Cloneable
 		public static TrackNode fromJson(TrackNode parent, JSONObject json)
 		{
 			TrackNode ret = new TrackNode(parent, (String) json.get("name"),
-				((Number) json.get("startTime")).longValue(), false);
+				((Number) json.get("startTime")).longValue(), ((Number) json.get("latestStartCPU")).longValue(), false);
 			ret.count = ((Number) json.get("count")).intValue();
 			ret.latestStartTime = ((Number) json.get("latestStartTime")).longValue();
 			ret.latestStartNanos = ((Number) json.get("latestStartNanos")).longValue();
 			ret.endTime = ((Number) json.get("endTime")).longValue();
-			ret.length = ((Number) json.get("length")).longValue();
+			ret.runLength = ((Number) json.get("length")).longValue();
 			ret.unfinished = ((Number) json.get("unfinished")).intValue();
 			if(json.get("lengthStats") != null)
 				ret.lengthStats = RunningStatistic.fromJson((JSONObject) json.get("lengthStats"));
@@ -666,13 +684,17 @@ public class ProgramTracker implements Cloneable
 
 	private java.util.ArrayList<TrackNode> theNodes;
 
-	boolean isWithStats;
+	boolean isWithRTStats;
+
+	boolean isWithCPU;
 
 	private TrackNode theCurrentNode;
 
 	private boolean isOn;
 
 	private Thread theCurrentThread;
+
+	private java.lang.management.ThreadMXBean theThreadBean;
 
 	/**
 	 * Creates a ProgramTracker
@@ -696,7 +718,7 @@ public class ProgramTracker implements Cloneable
 		theCacheNodes = new java.util.ArrayList<TrackNode>();
 		theNodes = new java.util.ArrayList<TrackNode>();
 		isOn = true;
-		isWithStats = withStats;
+		isWithRTStats = withStats;
 	}
 
 	/** @return This tracker's name */
@@ -723,28 +745,60 @@ public class ProgramTracker implements Cloneable
 		isOn = on;
 	}
 
-	/** @return Whether this tracker records statistics about each repeated procedure */
-	public boolean isWithStats()
+	/** @return Whether this tracker records run time statistics about each repeated procedure */
+	public boolean isWithRTStats()
 	{
-		return isWithStats;
+		return isWithRTStats;
 	}
 
-	/** @param withStats Whether this tracker should record statistics about each repeated procedure */
-	public void setWithStats(boolean withStats)
+	/** @param withStats Whether this tracker should record run time statistics about each repeated procedure */
+	public void setWithRTStats(boolean withStats)
 	{
-		isWithStats = withStats;
+		isWithRTStats = withStats;
 	}
 
-	private TrackNode newNode(TrackNode aParent, String aName, long time)
+	/** @return Whether this tracker keeps track of CPU time in addition to run time */
+	public boolean isWithCPU()
 	{
+		return isWithCPU;
+	}
+
+	/** @param cpu Whether this tracker should keep track of CPU time in addition to run time */
+	public void setWithCPU(boolean cpu)
+	{
+		isWithCPU = cpu;
+		if(isWithCPU)
+		{
+			java.lang.management.ThreadMXBean tb = java.lang.management.ManagementFactory.getThreadMXBean();
+			tb.setThreadCpuTimeEnabled(true);
+		}
+	}
+
+	private TrackNode newNode(TrackNode aParent, String aName, long time, long nanos)
+	{
+		TrackNode ret;
 		if(theCacheNodes.isEmpty())
-			return new TrackNode(aParent, aName, time, isWithStats);
+			ret = new TrackNode(aParent, aName, time, getCpuNow(), isWithRTStats);
 		else
 		{
-			TrackNode ret = theCacheNodes.remove(theCacheNodes.size() - 1);
-			ret.init(aParent, aName, time, isWithStats);
-			return ret;
+			ret = theCacheNodes.remove(theCacheNodes.size() - 1);
+			ret.init(aParent, aName, time, getCpuNow(), isWithRTStats);
 		}
+		if(isWithRTStats)
+			ret.latestStartNanos = nanos;
+		return ret;
+	}
+
+	private long getCpuNow()
+	{
+		if(isWithCPU)
+		{
+			if(theThreadBean == null)
+				theThreadBean = java.lang.management.ManagementFactory.getThreadMXBean();
+			return theThreadBean.getCurrentThreadCpuTime();
+		}
+		else
+			return 0;
 	}
 
 	void releaseNode(TrackNode node)
@@ -775,8 +829,7 @@ public class ProgramTracker implements Cloneable
 	 * Notifies this tracker that a routine is beginning
 	 * 
 	 * @param routine The name of the routine that is beginning
-	 * @return The routine being run. This will be passed to {@link #end(TrackNode)} when the
-	 *         routine is finished.
+	 * @return The routine being run. This will be passed to {@link #end(TrackNode)} when the routine is finished.
 	 */
 	public final TrackNode start(String routine)
 	{
@@ -795,38 +848,35 @@ public class ProgramTracker implements Cloneable
 		routine = routine.intern();
 		long time = System.currentTimeMillis();
 		long nanos = -1;
-		if(isWithStats)
+		if(isWithRTStats)
 			nanos = System.nanoTime();
+		java.util.List<TrackNode> children;
 		if(theCurrentNode == null)
+			children = theNodes;
+		else
+			children = theCurrentNode.children;
+		TrackNode aggregate = null;
+		for(TrackNode child : children)
+			if(child.getName() == routine)
+			{
+				aggregate = child;
+				break;
+			}
+		if(aggregate != null)
 		{
-			theCurrentNode = newNode(null, routine, time);
-			theNodes.add(theCurrentNode);
+			aggregate.count++;
+			aggregate.latestStartTime = time;
+			if(isWithRTStats)
+				aggregate.latestStartNanos = nanos;
+			theCurrentNode = aggregate;
 		}
 		else
 		{
-			TrackNode aggregate = null;
-			for(TrackNode child : theCurrentNode.children)
-				if(child.getName() == routine)
-				{
-					aggregate = child;
-					break;
-				}
-			if(aggregate != null)
-			{
-				aggregate.count++;
-				aggregate.latestStartTime = time;
-				if(isWithStats)
-					aggregate.latestStartNanos = nanos;
-				theCurrentNode = aggregate;
-			}
-			else
-			{
-				TrackNode newNode = newNode(theCurrentNode, routine, time);
-				if(isWithStats)
-					newNode.latestStartNanos = nanos;
-				theCurrentNode.children.add(newNode);
-				theCurrentNode = newNode;
-			}
+			TrackNode newNode = newNode(theCurrentNode, routine, time, nanos);
+			if(isWithRTStats)
+				newNode.latestStartNanos = nanos;
+			children.add(newNode);
+			theCurrentNode = newNode;
 		}
 		return theCurrentNode;
 	}
@@ -847,7 +897,7 @@ public class ProgramTracker implements Cloneable
 		*/
 		long time = System.currentTimeMillis();
 		long nanos = -1;
-		if(isWithStats)
+		if(isWithRTStats)
 			nanos = System.nanoTime();
 		if(theCurrentNode == null || theCurrentNode != routine)
 		{
@@ -860,7 +910,9 @@ public class ProgramTracker implements Cloneable
 				while(cn != null && cn != routine)
 				{
 					cn.unfinished++;
-					cn.length += time - theCurrentNode.latestStartTime;
+					cn.runLength += time - theCurrentNode.latestStartTime;
+					if(isWithRTStats && theCurrentNode.lengthStats != null)
+						cn.runLengthNanos += nanos - theCurrentNode.latestStartNanos;
 					cn.endTime = time;
 					// But don't pollute the statistics
 					cn = cn.parent;
@@ -876,15 +928,18 @@ public class ProgramTracker implements Cloneable
 					throw new IllegalStateException("Routine " + routine.getName() + " ended twice"
 						+ " or ended after parent routine");
 				else
-					throw new IllegalStateException("Routine " + routine.getName()
-						+ " not started or ended twice: " + printData(new StringBuilder()));
+					throw new IllegalStateException("Routine " + routine.getName() + " not started or ended twice: "
+						+ printData(new StringBuilder()));
 			}
 		}
 		if(theCurrentNode != null)
 		{
-			if(isWithStats && theCurrentNode.lengthStats != null)
+			if(isWithRTStats && theCurrentNode.lengthStats != null)
+			{
 				theCurrentNode.lengthStats.add((nanos - theCurrentNode.latestStartNanos) / 1.0e9f);
-			theCurrentNode.length += time - theCurrentNode.latestStartTime;
+				theCurrentNode.runLengthNanos += nanos - theCurrentNode.latestStartNanos;
+			}
+			theCurrentNode.runLength += time - theCurrentNode.latestStartTime;
 			theCurrentNode.endTime = time;
 			theCurrentNode = theCurrentNode.parent;
 		}
@@ -1036,14 +1091,13 @@ public class ProgramTracker implements Cloneable
 	/**
 	 * Serializes this tracker to JSON
 	 * 
-	 * @return A JSON-serialized representation of this tracker. May be deserialized with
-	 *         {@link #fromJson(JSONObject)}
+	 * @return A JSON-serialized representation of this tracker. May be deserialized with {@link #fromJson(JSONObject)}
 	 */
 	public JSONObject toJson()
 	{
 		JSONObject ret = new JSONObject();
 		ret.put("name", theName);
-		ret.put("withStats", Boolean.valueOf(isWithStats));
+		ret.put("withStats", Boolean.valueOf(isWithRTStats));
 		org.json.simple.JSONArray nodes = new org.json.simple.JSONArray();
 		ret.put("nodes", nodes);
 		for(TrackNode node : theNodes)
@@ -1073,8 +1127,7 @@ public class ProgramTracker implements Cloneable
 		}
 	}
 
-	private void print(TrackNode node, StringBuilder sb, long lastTime, long totalTime, int indent,
-		PrintConfig config)
+	private void print(TrackNode node, StringBuilder sb, long lastTime, long totalTime, int indent, PrintConfig config)
 	{
 		if(node.parent != null && node.getRealLength() < config.getTaskDisplayThreshold())
 			return;
