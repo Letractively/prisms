@@ -197,7 +197,7 @@
 						<op type="function declaration" storeAs="method" />
 					</option>
 					<option>
-						<op type="declaration|final declaration|assignment" storeAs="field" />
+						<op type="declaration|final declaration|assign" storeAs="field" />
 					</option>
 				</select>
 			</option>
@@ -213,7 +213,7 @@
 						<op type="function declaration" storeAs="method" />
 					</option>
 					<option>
-						<op type="declaration|final declaration|assignment" storeAs="field" />
+						<op type="declaration|final declaration|assign" storeAs="field" />
 					</option>
 				</select>
 			</option>
@@ -362,6 +362,7 @@
 		impl="prisms.lang.types.ParsedEnhancedForLoop">
 		<literal>for</literal>
 		<literal>(</literal>
+		<!--<op type="declaration|final declaration" storeAs="variable" />-->
 		<op storeAs="variable" />
 		<literal>:</literal>
 		<op storeAs="iterable" />
