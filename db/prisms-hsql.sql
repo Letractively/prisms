@@ -207,7 +207,7 @@ CREATE TABLE prisms_change_record(
 	minorSubject NUMERIC(20) NULL,
 	preValueID NUMERIC(20) NULL,
 	shortPreValue VARCHAR(100) NULL,
-    longPreValue LONGVARCHAR NULL,
+	longPreValue LONGVARCHAR NULL,
 	changeData1 NUMERIC(20) NULL,
 	changeData2 NUMERIC(20) NULL,
 
