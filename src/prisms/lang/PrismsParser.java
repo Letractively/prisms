@@ -208,7 +208,7 @@ public class PrismsParser
 			completeness = COMPLETE_ANY;
 		ParseMatch ret = null;
 		boolean foundOp = true;
-		boolean withTypesHadPreOp = false;
+		final boolean [] withTypesHadPreOp = new boolean [1];
 		ParseMatch preOp = null;
 		while(index < sb.length() && foundOp)
 		{
@@ -218,6 +218,7 @@ public class PrismsParser
 				preOp = ret;
 				ret = null;
 			}
+			ret = parseNextMatch(sb, index, priority, command, completeness, types, preOp, withTypesHadPreOp);
 			for(PrismsConfig op : theOperators)
 			{
 				if(types.length == 0)
@@ -229,8 +230,30 @@ public class PrismsParser
 				else if(!ArrayUtils.contains(types, op.get("name")))
 					continue;
 				else
-					withTypesHadPreOp |= hasPreOp(op);
+					withTypesHadPreOp[0] |= hasPreOp(op);
 				ParseMatch temp = parseNextMatch(op, sb, index, preOp, command, completeness);
+				// temp can't be incomplete if there is text after the match
+				if(temp != null && !temp.isComplete() && index + temp.text.length() < sb.length())
+					temp = null;
+				// temp must have some real content--can't just be a wrapped pre-op and/or whitespace
+				if(temp != null)
+				{
+					boolean hasContent = false;
+					for(ParseMatch m : temp.getParsed())
+					{
+						if("pre-op".equals(m.config.get("name")))
+						{}
+						else if("whitespace".equals(m.config.get("name")))
+						{}
+						else
+						{
+							hasContent = true;
+							break;
+						}
+					}
+					if(!hasContent)
+						temp = null;
+				}
 				if(temp != null && temp.text.length() > 0)
 				{
 					if(ret == null)
@@ -276,23 +299,15 @@ public class PrismsParser
 		}
 		if(ret == null)
 			ret = preOp;
-		if(ret == null && withTypesHadPreOp)
+		if(ret == null && withTypesHadPreOp[0])
 		{
 			do
 			{
-				for(PrismsConfig op : theOperators)
-				{
-					ret = parseNextMatch(op, sb, index, preOp, command, completeness);
-					if(op.get("priority") != null && op.getInt("priority", 0) < 0)
-						continue;
-					if(ret != null)
-					{
-						index = ret.index + ret.text.length();
-						break;
-					}
-				}
+				String [] allTypes = new String [0];
+				ret = parseNextMatch(sb, index, priority, command, completeness, allTypes, preOp, withTypesHadPreOp);
 				if(ret != null)
 				{
+					index = ret.index + ret.text.length();
 					preOp = ret;
 					ret = null;
 					for(PrismsConfig op : theOperators)
@@ -308,6 +323,57 @@ public class PrismsParser
 					}
 				}
 			} while(ret != null && index < sb.length() && !ArrayUtils.contains(types, ret.config.get("name")));
+		}
+		return ret;
+	}
+
+	private ParseMatch parseNextMatch(StringBuilder sb, int index, int priority, String command, int completeness,
+		String [] types, ParseMatch preOp, boolean [] withTypesHadPreOp) throws ParseException
+	{
+		ParseMatch ret = null;
+		for(PrismsConfig op : theOperators)
+		{
+			if(types.length == 0)
+			{
+				if(op.get("priority") != null && (op.getInt("priority", 0) < 0 || op.getInt("priority", 0) < priority))
+					continue;
+			}
+			else if(!ArrayUtils.contains(types, op.get("name")))
+				continue;
+			else
+				withTypesHadPreOp[0] |= hasPreOp(op);
+			ParseMatch temp = parseNextMatch(op, sb, index, preOp, command, completeness);
+			// temp can't be incomplete if there is text after the match
+			if(temp != null && !temp.isComplete() && index + temp.text.length() < sb.length())
+				temp = null;
+			// temp must have some real content--can't just be a wrapped pre-op and/or whitespace
+			if(temp != null)
+			{
+				boolean hasContent = false;
+				for(ParseMatch m : temp.getParsed())
+				{
+					if("pre-op".equals(m.config.get("name")))
+					{}
+					else if("whitespace".equals(m.config.get("name")))
+					{}
+					else
+					{
+						hasContent = true;
+						break;
+					}
+				}
+				if(!hasContent)
+					temp = null;
+			}
+			if(temp != null && temp.text.length() > 0)
+			{
+				if(ret == null)
+					ret = temp;
+				else if(temp.text.length() > ret.text.length())
+					ret = temp;
+				else if(temp.text.length() == ret.text.length() && !ret.isComplete() && temp.isComplete())
+					ret = temp;
+			}
 		}
 		return ret;
 	}
@@ -592,7 +658,8 @@ public class PrismsParser
 						{
 							if(completeness <= COMPLETE_ERROR)
 								throw new ParseException(item.getValue() + " expected", command, index);
-							else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
+							else if(i > 0
+								&& ((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY))
 							{
 								ret = ArrayUtils.add(ret, new ParseMatch(item, "", index, null, false));
 								return ret;
@@ -728,12 +795,26 @@ public class PrismsParser
 				{
 					String text = sb.substring(index, end);
 					boolean found = false;
+					int maxLen = 0;
+					String maxMatch = null;
 					for(PrismsConfig m : item.subConfigs("match"))
 					{
 						if(text.equals(m.getValue()))
 							found = true;
 						if(found)
 							break;
+						for(int i = 0; i < text.length() && i < m.getValue().length(); i++)
+						{
+							if(text.charAt(i) != m.getValue().length())
+							{
+								if(i > maxLen)
+								{
+									maxLen = i;
+									maxMatch = m.getValue();
+								}
+								break;
+							}
+						}
 					}
 					if(!found)
 					{
@@ -756,10 +837,10 @@ public class PrismsParser
 							msg.append(" expected");
 							throw new ParseException(msg.toString(), command, index);
 						}
-						else if((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY)
+						else if(maxMatch != null
+							&& ((completeness <= COMPLETE_OPTIONAL && !optional) || completeness <= COMPLETE_ANY))
 						{
-							ret = ArrayUtils.add(ret,
-								new ParseMatch(item, sb.substring(index, end), index, null, false));
+							ret = ArrayUtils.add(ret, new ParseMatch(item, maxMatch, index, null, false));
 							return ret;
 						}
 						else

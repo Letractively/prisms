@@ -5,7 +5,22 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
 import prisms.lang.EvaluationEnvironment.Variable;
-import prisms.lang.types.*;
+import prisms.lang.types.ParsedArrayInitializer;
+import prisms.lang.types.ParsedBoolean;
+import prisms.lang.types.ParsedChar;
+import prisms.lang.types.ParsedConstructor;
+import prisms.lang.types.ParsedDeclaration;
+import prisms.lang.types.ParsedDrop;
+import prisms.lang.types.ParsedFunctionDeclaration;
+import prisms.lang.types.ParsedIdentifier;
+import prisms.lang.types.ParsedImport;
+import prisms.lang.types.ParsedKeyword;
+import prisms.lang.types.ParsedMethod;
+import prisms.lang.types.ParsedNumber;
+import prisms.lang.types.ParsedPreviousAnswer;
+import prisms.lang.types.ParsedReturn;
+import prisms.lang.types.ParsedString;
+import prisms.lang.types.ParsedType;
 
 /** A panel that takes user-entered text, interprets it, and prints the results */
 public class InterpreterPanel extends javax.swing.JPanel
@@ -303,7 +318,9 @@ public class InterpreterPanel extends javax.swing.JPanel
 			public void itemSelected(Object item, String text)
 			{
 				String curText = theInput.getText();
-				theInput.setText(curText.substring(0, theInput.getCaretPosition() - toChop) + text
+				curText = curText.replaceAll("\r\n", "\n");
+				int caret = theInput.getCaretPosition();
+				theInput.setText(curText.substring(0, caret - toChop) + text
 					+ curText.substring(theInput.getCaretPosition()));
 			}
 		});
@@ -358,6 +375,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 	{
 		theIntellisenseMenu.clear(false);
 		String text = theInput.getText();
+		text = text.replaceAll("\r\n", "\n");
 		ParsedItem [] structs;
 		if(text.trim().length() == 0)
 			structs = new ParsedItem [0];
@@ -381,7 +399,12 @@ public class InterpreterPanel extends javax.swing.JPanel
 		{
 			if(target instanceof ParsedIdentifier || target instanceof ParsedKeyword || target instanceof ParsedBoolean
 				|| target instanceof ParsedReturn || target instanceof ParsedType)
-				toMatch = target.toString();
+			{
+				if(caret > 0 && text.charAt(caret - 1) == '.')
+					toMatch = ""; // Right after the '.' after a variable
+				else
+					toMatch = target.toString();
+			}
 			else if(target instanceof ParsedChar || target instanceof ParsedNumber
 				|| target instanceof ParsedPreviousAnswer || target instanceof ParsedString)
 				return;

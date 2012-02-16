@@ -7,13 +7,12 @@ import org.apache.log4j.Logger;
 
 /**
  * <p>
- * A PrismsConfig is a hierarchical configuration structure containing attributes that can be used
- * to setup and determine the behavior of various PRISMS functions.
+ * A PrismsConfig is a hierarchical configuration structure containing attributes that can be used to setup and
+ * determine the behavior of various PRISMS functions.
  * </p>
  * <p>
- * For all of the get functions, the key may be used to navigate beyond the immediate children of
- * the config using a notation similar to XPath. '/' characters may be used to navigate beyond one
- * level deep.
+ * For all of the get functions, the key may be used to navigate beyond the immediate children of the config using a
+ * notation similar to XPath. '/' characters may be used to navigate beyond one level deep.
  * </p>
  */
 public abstract class PrismsConfig
@@ -77,8 +76,7 @@ public abstract class PrismsConfig
 		public MergedConfig(PrismsConfig... configs)
 		{
 			if(configs.length == 0)
-				throw new IllegalArgumentException(
-					"Merged configs must contain at least one config");
+				throw new IllegalArgumentException("Merged configs must contain at least one config");
 			theMerged = configs;
 		}
 
@@ -199,8 +197,8 @@ public abstract class PrismsConfig
 	/**
 	 * @param type The type of the config to get
 	 * @param props The properties that a config must match to be returned by this method
-	 * @return The first configuration that would be returned from
-	 *         {@link #subConfigs(String, String...)}, or null if no such sub-configuration exists
+	 * @return The first configuration that would be returned from {@link #subConfigs(String, String...)}, or null if no
+	 *         such sub-configuration exists
 	 */
 	public PrismsConfig subConfig(String type, String... props)
 	{
@@ -237,10 +235,8 @@ public abstract class PrismsConfig
 	 * Gets a sub-configurations of a given type and potentially selected by a set of attributes
 	 * 
 	 * @param type The type of the configs to get
-	 * @param props The properties (name, value, name, value...) that a config must match to be
-	 *        returned by this method
-	 * @return All configuration in this config's children (or descendants) that match the given
-	 *         type and properties
+	 * @param props The properties (name, value, name, value...) that a config must match to be returned by this method
+	 * @return All configuration in this config's children (or descendants) that match the given type and properties
 	 */
 	public PrismsConfig [] subConfigs(String type, String... props)
 	{
@@ -276,8 +272,8 @@ public abstract class PrismsConfig
 	}
 
 	/**
-	 * Gets all attribute values from this configuration (may have been represented by an actual XML
-	 * attribute or an element in XML) that match a given name.
+	 * Gets all attribute values from this configuration (may have been represented by an actual XML attribute or an
+	 * element in XML) that match a given name.
 	 * 
 	 * @param key The name of the attribute to get the values of
 	 * @return The values of the given attribute in this config
@@ -295,8 +291,8 @@ public abstract class PrismsConfig
 	 * Gets a single attribute value from this config
 	 * 
 	 * @param key The name of the attribute to get the value of
-	 * @return The first value that would be returned from {@link #getAll(String)}, or null if no
-	 *         values would be returned
+	 * @return The first value that would be returned from {@link #getAll(String)}, or null if no values would be
+	 *         returned
 	 */
 	public String get(String key)
 	{
@@ -309,8 +305,8 @@ public abstract class PrismsConfig
 	 * 
 	 * @param key The name of the attribute to get the value of
 	 * @param def The value to return if the attribute is missing from the config
-	 * @return The integer parsed from the given attribute of this config, or the given default
-	 *         value if the attribute is missing
+	 * @return The integer parsed from the given attribute of this config, or the given default value if the attribute
+	 *         is missing
 	 */
 	public int getInt(String key, int def)
 	{
@@ -322,8 +318,7 @@ public abstract class PrismsConfig
 			return Integer.parseInt(ret);
 		} catch(NumberFormatException e)
 		{
-			throw new IllegalArgumentException("Value of property " + key + " (" + ret
-				+ ") is not an integer", e);
+			throw new IllegalArgumentException("Value of property " + key + " (" + ret + ") is not an integer", e);
 		}
 	}
 
@@ -332,8 +327,8 @@ public abstract class PrismsConfig
 	 * 
 	 * @param key The name of the attribute to get the value of
 	 * @param def The value to return if the attribute is missing from the config
-	 * @return The float parsed from the given attribute of this config, or the given default value
-	 *         if the attribute is missing
+	 * @return The float parsed from the given attribute of this config, or the given default value if the attribute is
+	 *         missing
 	 */
 	public float getFloat(String key, float def)
 	{
@@ -345,8 +340,7 @@ public abstract class PrismsConfig
 			return Float.parseFloat(ret);
 		} catch(NumberFormatException e)
 		{
-			throw new IllegalArgumentException("Value of property " + key + " (" + ret
-				+ ") is not a float", e);
+			throw new IllegalArgumentException("Value of property " + key + " (" + ret + ") is not a float", e);
 		}
 	}
 
@@ -355,8 +349,8 @@ public abstract class PrismsConfig
 	 * 
 	 * @param key The name of the attribute to get the value of
 	 * @param def The value to return if the given key is missing from this config
-	 * @return The boolean parsed from the given attribute of this config, or <code>def</code> if
-	 *         the attribute is missing
+	 * @return The boolean parsed from the given attribute of this config, or <code>def</code> if the attribute is
+	 *         missing
 	 */
 	public boolean is(String key, boolean def)
 	{
@@ -368,8 +362,7 @@ public abstract class PrismsConfig
 		else if("false".equalsIgnoreCase(ret))
 			return false;
 		else
-			throw new IllegalArgumentException("Value of property " + key + " (" + ret
-				+ ") is not a boolean");
+			throw new IllegalArgumentException("Value of property " + key + " (" + ret + ") is not a boolean");
 	}
 
 	/**
@@ -377,8 +370,7 @@ public abstract class PrismsConfig
 	 * {@link prisms.util.PrismsUtils#parseEnglishTime(String)} to parse the time.
 	 * 
 	 * @param key The name of the attribute to get the value of
-	 * @return The time parsed from the given attribute of this config, or -1 if the attribute is
-	 *         missing
+	 * @return The time parsed from the given attribute of this config, or -1 if the attribute is missing
 	 */
 	public long getTime(String key)
 	{
@@ -394,8 +386,8 @@ public abstract class PrismsConfig
 	 * 
 	 * @param key The name of the attribute to get the value of
 	 * @param def The default value to return if the given key does not exist in this config
-	 * @return The time interval parsed from the given attribute of this config, or <code>def</code>
-	 *         if the attribute is missing
+	 * @return The time interval parsed from the given attribute of this config, or <code>def</code> if the attribute is
+	 *         missing
 	 */
 	public long getTime(String key, long def)
 	{
@@ -411,15 +403,14 @@ public abstract class PrismsConfig
 	 * @param <T> The type of the class to return
 	 * @param key The name of the attribute to get the value of
 	 * @param superClass The super-class to cast the value to
-	 * @return The class parsed from the fully-qualified name in the value of the given attribute,
-	 *         or null if the attribute is missing
-	 * @throws ClassNotFoundException If the class named in the attribute cannot be found in the
-	 *         classpath
+	 * @return The class parsed from the fully-qualified name in the value of the given attribute, or null if the
+	 *         attribute is missing
+	 * @throws ClassNotFoundException If the class named in the attribute cannot be found in the classpath
 	 * @throws ClassCastException If the class named in the attribute is not a subclass of the given
 	 *         <code>superClass</code>
 	 */
-	public <T> Class<? extends T> getClass(String key, Class<T> superClass)
-		throws ClassNotFoundException, ClassCastException
+	public <T> Class<? extends T> getClass(String key, Class<T> superClass) throws ClassNotFoundException,
+		ClassCastException
 	{
 		String className = get(key);
 		if(className == null)
@@ -453,10 +444,11 @@ public abstract class PrismsConfig
 		PrismsConfig [] subConfigs = subConfigs();
 		String [] values = new String [subConfigs.length];
 		int withChildren = 0;
+		boolean hasHadElement = false;
 		for(int c = 0; c < subConfigs.length; c++)
 		{
 			values[c] = subConfigs[c].getValue();
-			if(subConfigs[c].subConfigs().length == 0
+			if(!hasHadElement && subConfigs[c].subConfigs().length == 0
 				&& (values[c] != null && values[c].length() > 0))
 			{
 				ret.append(' ').append(subConfigs[c].getName()).append('=').append('"');
@@ -464,12 +456,13 @@ public abstract class PrismsConfig
 				subConfigs[c] = null;
 			}
 			else
+			{
 				withChildren++;
+				hasHadElement = true;
+			}
 		}
 		if(withChildren == 0 && getValue() == null)
-		{
 			ret.append(' ').append('/').append('>');
-		}
 		else
 		{
 			ret.append('>');
@@ -519,8 +512,7 @@ public abstract class PrismsConfig
 	 * @return The PrismsConfig parsed from the XML at the given location
 	 * @throws java.io.IOException If the XML cannot be found or parsed into a configuration
 	 */
-	public static PrismsConfig fromXml(PrismsEnv env, String location, String... relative)
-		throws java.io.IOException
+	public static PrismsConfig fromXml(PrismsEnv env, String location, String... relative) throws java.io.IOException
 	{
 		org.dom4j.Element root = getRootElement(location, relative);
 		if(root == null)
@@ -552,8 +544,7 @@ public abstract class PrismsConfig
 	 * @return The root element of the given XMl file
 	 * @throws java.io.IOException If an error occurs finding, reading, or parsing the file
 	 */
-	public static org.dom4j.Element getRootElement(String location, String... relative)
-		throws java.io.IOException
+	public static org.dom4j.Element getRootElement(String location, String... relative) throws java.io.IOException
 	{
 		String newLocation = resolve(location, relative);
 		if(newLocation == null)
@@ -561,12 +552,11 @@ public abstract class PrismsConfig
 		java.net.URL configURL;
 		if(newLocation.startsWith("classpath:/"))
 		{ // Classpath resource
-			configURL = PrismsConfig.class
-				.getResource(newLocation.substring("classpath:/".length()));
+			configURL = PrismsConfig.class.getResource(newLocation.substring("classpath:/".length()));
 			if(configURL == null)
 			{
-				throw new java.io.FileNotFoundException("Classpath configuration URL "
-					+ newLocation + " refers to a non-existent resource");
+				throw new java.io.FileNotFoundException("Classpath configuration URL " + newLocation
+					+ " refers to a non-existent resource");
 			}
 		}
 		else if(newLocation.contains(":/"))
@@ -586,8 +576,7 @@ public abstract class PrismsConfig
 	}
 
 	/**
-	 * Gets the location of a class to use in resolving relative paths with
-	 * {@link #getRootElement(String, String...)}
+	 * Gets the location of a class to use in resolving relative paths with {@link #getRootElement(String, String...)}
 	 * 
 	 * @param clazz The class to get the location of
 	 * @return The location of the class file
@@ -639,8 +628,7 @@ public abstract class PrismsConfig
 	private static final java.util.regex.Pattern ENV_VAR_REF_PATTERN = java.util.regex.Pattern
 		.compile("\\$\\{([a-zA-Z_\\-\\.]*)\\}");
 
-	private static PrismsConfig [] fromXml(PrismsEnv env, org.dom4j.Element xml, String location,
-		String... relative)
+	private static PrismsConfig [] fromXml(PrismsEnv env, org.dom4j.Element xml, String location, String... relative)
 	{
 		String ifExp = xml.attributeValue("if");
 		if(ifExp != null && !evaluate(ifExp, env))
@@ -680,8 +668,7 @@ public abstract class PrismsConfig
 		else if("switch".equals(xml.getName()))
 		{
 			if(xml.attributeValue("variable") == null)
-				throw new IllegalStateException("No variable declaration for switch statement: "
-					+ xml.asXML());
+				throw new IllegalStateException("No variable declaration for switch statement: " + xml.asXML());
 			String var = env.getVariable(xml.attributeValue("variable"));
 			if(var == null)
 				var = "null";
@@ -716,8 +703,7 @@ public abstract class PrismsConfig
 					return new PrismsConfig [0];
 				}
 				java.util.ArrayList<PrismsConfig> ret = new java.util.ArrayList<PrismsConfig>();
-				for(org.dom4j.Attribute toAdd : (java.util.List<org.dom4j.Attribute>) caseEl
-					.attributes())
+				for(org.dom4j.Attribute toAdd : (java.util.List<org.dom4j.Attribute>) caseEl.attributes())
 				{
 					if(!"value".equals(toAdd.getName()) && !"warning".equals(toAdd.getName()))
 						ret.add(create(env, toAdd.getName(), replace(toAdd.getValue(), env)));
@@ -742,22 +728,19 @@ public abstract class PrismsConfig
 					return new PrismsConfig [0];
 				}
 				java.util.ArrayList<PrismsConfig> ret = new java.util.ArrayList<PrismsConfig>();
-				for(org.dom4j.Attribute toAdd : (java.util.List<org.dom4j.Attribute>) defCase
-					.attributes())
+				for(org.dom4j.Attribute toAdd : (java.util.List<org.dom4j.Attribute>) defCase.attributes())
 				{
 					if(!"value".equals(toAdd.getName()))
 						ret.add(create(env, toAdd.getName(), replace(toAdd.getValue(), env)));
 				}
-				for(org.dom4j.Element toAdd : (java.util.List<org.dom4j.Element>) defCase
-					.elements())
+				for(org.dom4j.Element toAdd : (java.util.List<org.dom4j.Element>) defCase.elements())
 					for(PrismsConfig c : fromXml(env, toAdd, location, relative))
 						ret.add(c);
 				return ret.toArray(new PrismsConfig [ret.size()]);
 			}
 			else
 			{
-				log.warn("No case found for value " + var + " in switch on "
-					+ xml.attributeValue("variable"));
+				log.warn("No case found for value " + var + " in switch on " + xml.attributeValue("variable"));
 				return new PrismsConfig [0];
 			}
 		}
@@ -810,8 +793,7 @@ public abstract class PrismsConfig
 			if(attSize > 0)
 				for(org.dom4j.Attribute att : atts)
 					if(!att.getName().equals("if"))
-						childConfigs.add(new DefaultPrismsConfig(att.getName(), replace(
-							att.getValue(), env), null));
+						childConfigs.add(new DefaultPrismsConfig(att.getName(), replace(att.getValue(), env), null));
 			for(org.dom4j.Element child : children)
 				for(PrismsConfig toAdd : fromXml(env, child, location, relative))
 					childConfigs.add(toAdd);
@@ -821,8 +803,8 @@ public abstract class PrismsConfig
 	}
 
 	/**
-	 * Replaces references to environment variables with their values as set in the given
-	 * environment. A reference to an environment variable has the form "${variable.name}".
+	 * Replaces references to environment variables with their values as set in the given environment. A reference to an
+	 * environment variable has the form "${variable.name}".
 	 * 
 	 * @param value The string to replace environment variables in
 	 * @param env The PRISMS environment containing the environment variables to replace
@@ -857,8 +839,8 @@ public abstract class PrismsConfig
 
 	private enum Op
 	{
-		AND("&&"), OR("||"), EQUAL2("=="), EQUAL1("="), NOT_EQUAL("!="), LESS("<"), LESS_EQUAL("<="), GREATER(
-			">"), GREATER_EQUAL(">=");
+		AND("&&"), OR("||"), EQUAL2("=="), EQUAL1("="), NOT_EQUAL("!="), LESS("<"), LESS_EQUAL("<="), GREATER(">"), GREATER_EQUAL(
+			">=");
 
 		final String name;
 
@@ -888,22 +870,19 @@ public abstract class PrismsConfig
 	 * Evaluates a condition expression
 	 * 
 	 * @param ifStr <p>
-	 *        The expression to evaluate. This may be a binary expression with comparison operator
-	 *        ("=" (or "=="), "!=", "&gt;", "&lt;", "&gt;=", "&lt;="), usually comparing an
-	 *        environment variable to a constant value. If an equivalence operator is used, the
-	 *        values on either side of the operator will be compared for equality. If one of the
-	 *        "numerical" operators (&lt;, &gt;, etc.) is used, the values will be compared using
-	 *        the {@link #compareVersions(String, String)} method.
+	 *        The expression to evaluate. This may be a binary expression with comparison operator ("=" (or "=="), "!=",
+	 *        "&gt;", "&lt;", "&gt;=", "&lt;="), usually comparing an environment variable to a constant value. If an
+	 *        equivalence operator is used, the values on either side of the operator will be compared for equality. If
+	 *        one of the "numerical" operators (&lt;, &gt;, etc.) is used, the values will be compared using the
+	 *        {@link #compareVersions(String, String)} method.
 	 *        </p>
 	 *        <p>
-	 *        The expression may also be only a reference to an environment variable. If this is the
-	 *        case, this method will return true unless the variable's value is null or "false",
-	 *        case-insensitive.
+	 *        The expression may also be only a reference to an environment variable. If this is the case, this method
+	 *        will return true unless the variable's value is null or "false", case-insensitive.
 	 *        </p>
 	 *        <p>
-	 *        Multiple expressions may be combined using and (&&) and or (||) operations.
-	 *        Parenthetical expressions are also supported, in addition to the unary not ("!")
-	 *        operator.
+	 *        Multiple expressions may be combined using and (&&) and or (||) operations. Parenthetical expressions are
+	 *        also supported, in addition to the unary not ("!") operator.
 	 *        </p>
 	 * @param env The PRISMS environment to get environment variables from
 	 * @return Whether the expression evaluates to true
@@ -967,14 +946,12 @@ public abstract class PrismsConfig
 				return evaluate(expr1, env) || evaluate(expr2, env);
 			case EQUAL1:
 			case EQUAL2:
-				if(VERSION_PATTERN.matcher(expr1).matches()
-					&& VERSION_PATTERN.matcher(expr2).matches())
+				if(VERSION_PATTERN.matcher(expr1).matches() && VERSION_PATTERN.matcher(expr2).matches())
 					return compareVersions(expr1, expr2) == 0;
 				else
 					return expr1.equals(expr2);
 			case NOT_EQUAL:
-				if(VERSION_PATTERN.matcher(expr1).matches()
-					&& VERSION_PATTERN.matcher(expr2).matches())
+				if(VERSION_PATTERN.matcher(expr1).matches() && VERSION_PATTERN.matcher(expr2).matches())
 					return compareVersions(expr1, expr2) != 0;
 				else
 					return !expr1.equals(expr2);
@@ -1024,26 +1001,23 @@ public abstract class PrismsConfig
 
 	/**
 	 * <p>
-	 * Compares two version strings. Version strings may be composed of any number of integers,
-	 * separated by either a '.' or a '_' and may be preceded by a letter string (e.g. "v") that may
-	 * have a separator ('.' or '_') between it and the rest of the version, and terminated by an
-	 * alphanumeric string (e.g. "alpha", "a" or "RC1").
+	 * Compares two version strings. Version strings may be composed of any number of integers, separated by either a
+	 * '.' or a '_' and may be preceded by a letter string (e.g. "v") that may have a separator ('.' or '_') between it
+	 * and the rest of the version, and terminated by an alphanumeric string (e.g. "alpha", "a" or "RC1").
 	 * </p>
 	 * <p>
-	 * If both strings have a prefix, these are compared ignoring case and if different, that value
-	 * is returned. If only one version has a prefix, the other's prefix is ignored. Then each pair
-	 * of integers in the version strings is compared. The first one of these pairs that is
-	 * different will determine the return value. If the integer components of the versions are
-	 * equivalent, the alphanumeric end-tag will be used. If both versions have tags, the tags will
-	 * be compared alphanumerically, ignoring case. If one of the versions has a tag and the other
-	 * one does not, the one without the tag will be deemed more recent. This is inspired by alpha,
-	 * beta, and release-candidate tags. E.g. 3.0.0 &gt; 3.0.0RC2 &gt; 3.0.0b &gt; 3.0.0a
+	 * If both strings have a prefix, these are compared ignoring case and if different, that value is returned. If only
+	 * one version has a prefix, the other's prefix is ignored. Then each pair of integers in the version strings is
+	 * compared. The first one of these pairs that is different will determine the return value. If the integer
+	 * components of the versions are equivalent, the alphanumeric end-tag will be used. If both versions have tags, the
+	 * tags will be compared alphanumerically, ignoring case. If one of the versions has a tag and the other one does
+	 * not, the one without the tag will be deemed more recent. This is inspired by alpha, beta, and release-candidate
+	 * tags. E.g. 3.0.0 &gt; 3.0.0RC2 &gt; 3.0.0b &gt; 3.0.0a
 	 * </p>
 	 * 
 	 * @param v1 The first version string to compare
 	 * @param v2 The second version string to compare
-	 * @return 1 if the first version is newer, -1 if the first version is older, 0 if the versions
-	 *         are the same
+	 * @return 1 if the first version is newer, -1 if the first version is older, 0 if the versions are the same
 	 */
 	public static int compareVersions(String v1, String v2)
 	{
@@ -1106,8 +1080,7 @@ public abstract class PrismsConfig
 					num2 = Integer.parseInt(v2.substring(0, idx2));
 				} catch(NumberFormatException e2)
 				{
-					log.error("Versions in comparison (" + o1 + ", " + o2
-						+ ") are not version numbers");
+					log.error("Versions in comparison (" + o1 + ", " + o2 + ") are not version numbers");
 					return 0;
 				}
 				log.error("Version in comparison (" + o1 + ") is not a version number");
@@ -1153,8 +1126,7 @@ public abstract class PrismsConfig
 						num2 = Integer.parseInt(v2.substring(0, idx2));
 					} catch(NumberFormatException e2)
 					{
-						log.error("Versions in comparison (" + o1 + ", " + o2
-							+ ") are not version numbers");
+						log.error("Versions in comparison (" + o1 + ", " + o2 + ") are not version numbers");
 						return 0;
 					}
 					log.error("Version in comparison (" + o1 + ") is not a version number");
@@ -1217,15 +1189,13 @@ public abstract class PrismsConfig
 	 * @param children The subconfigs for the new PrismsConfig
 	 * @return The new PrismsConfig
 	 */
-	public static PrismsConfig create(PrismsEnv env, String name, String value,
-		PrismsConfig... children)
+	public static PrismsConfig create(PrismsEnv env, String name, String value, PrismsConfig... children)
 	{
 		return new DefaultPrismsConfig(name, replace(value, env), children);
 	}
 
 	/**
-	 * Tests this class by allowing the user to type XML in the console and have it interpreted
-	 * on-the-fly
+	 * Tests this class by allowing the user to type XML in the console and have it interpreted on-the-fly
 	 * 
 	 * @param args Command-line arguments, ignored
 	 */
@@ -1251,8 +1221,8 @@ public abstract class PrismsConfig
 					org.dom4j.Element root = null;
 					try
 					{
-						root = new org.dom4j.io.SAXReader().read(
-							new java.io.StringReader(buffer.toString())).getRootElement();
+						root = new org.dom4j.io.SAXReader().read(new java.io.StringReader(buffer.toString()))
+							.getRootElement();
 					} catch(org.dom4j.DocumentException e)
 					{
 						System.out.println("Could not parse XML: " + e);
