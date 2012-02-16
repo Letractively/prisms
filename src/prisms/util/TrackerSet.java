@@ -6,8 +6,7 @@ package prisms.util;
 import org.apache.log4j.Logger;
 
 /**
- * Maintains a set of {@link ProgramTracker}s to keep track of performance over a set of time
- * intervals
+ * Maintains a set of {@link ProgramTracker}s to keep track of performance over a set of time intervals
  */
 public class TrackerSet
 {
@@ -24,8 +23,7 @@ public class TrackerSet
 		 * Creates a TrackConfig
 		 * 
 		 * @param keepTime The time interval to keep statistics for
-		 * @param withStats Whether this interval should keep statistics for each time a routine is
-		 *        run
+		 * @param withStats Whether this interval should keep statistics for each time a routine is run
 		 */
 		public TrackConfig(long keepTime, boolean withStats)
 		{
@@ -88,7 +86,7 @@ public class TrackerSet
 				{
 					newTrackers[i][j] = new ProgramTracker(theName + " "
 						+ PrismsUtils.printTimeLength(configs[i].getKeepTime()));
-					newTrackers[i][j].setWithStats(configs[i].isWithStats());
+					newTrackers[i][j].setWithRTStats(configs[i].isWithStats());
 				}
 			}
 			theConfigs = ArrayUtils.addAll(theConfigs, configs);
@@ -135,8 +133,7 @@ public class TrackerSet
 			{
 				checkRotate(c);
 				if(theTrackers[c][0].getData().length > 0
-					&& theTrackers[c][0].getData()[0].startTime > now - theConfigs[c].getKeepTime()
-						* .5f)
+					&& theTrackers[c][0].getData()[0].startTime > now - theConfigs[c].getKeepTime() * .5f)
 					theTrackers[c][1].merge(tracker);
 				theTrackers[c][0].merge(tracker);
 			}
@@ -155,12 +152,11 @@ public class TrackerSet
 	/**
 	 * Gets tracking data for a given interval
 	 * 
-	 * @param interval The {@link TrackConfig#getKeepTime() keep time} interval to get tracking data
-	 *        for. This number must match the config time exactly.
-	 * @return The tracking data accumulated for the given time interval. The tracker's start time
-	 *         will not necessarily match the interval exactly, but the tracker will have between
-	 *         50% and 125% of the config's time, or less if there has been no input in the config
-	 *         time's interval.
+	 * @param interval The {@link TrackConfig#getKeepTime() keep time} interval to get tracking data for. This number
+	 *        must match the config time exactly.
+	 * @return The tracking data accumulated for the given time interval. The tracker's start time will not necessarily
+	 *         match the interval exactly, but the tracker will have between 50% and 125% of the config's time, or less
+	 *         if there has been no input in the config time's interval.
 	 */
 	public synchronized ProgramTracker getTrackData(long interval)
 	{
@@ -189,8 +185,7 @@ public class TrackerSet
 			{
 				theTrackers[c][0].clear();
 				if(theTrackers[c][1].getData().length > 0
-					&& theTrackers[c][1].getData()[0].startTime < now - theConfigs[c].getKeepTime()
-						* 1.25f)
+					&& theTrackers[c][1].getData()[0].startTime < now - theConfigs[c].getKeepTime() * 1.25f)
 					theTrackers[c][1].clear();
 				else
 				{
