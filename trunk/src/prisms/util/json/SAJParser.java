@@ -75,9 +75,10 @@ public class SAJParser
 		 * Called when a string is encountered in the JSON
 		 * 
 		 * @param state The current parsing state
-		 * @param value The string value that was parsed
+		 * @param value A reader to read the string value
+		 * @throws IOException If an error occurs reading the string
 		 */
-		void valueString(ParseState state, String value);
+		void valueString(ParseState state, Reader value) throws IOException;
 
 		/**
 		 * Called when a number is encountered in the JSON
@@ -119,9 +120,8 @@ public class SAJParser
 		Object finalValue();
 
 		/**
-		 * Called when an error is encountered in the JSON content that prevents parsing from
-		 * continuing. This method is always called just before the parser throws a
-		 * {@link ParseException}.
+		 * Called when an error is encountered in the JSON content that prevents parsing from continuing. This method is
+		 * always called just before the parser throws a {@link ParseException}.
 		 * 
 		 * @param state The parsing state at the time of the error
 		 * @param error The description of the error that occurred in the JSON content
@@ -130,8 +130,8 @@ public class SAJParser
 	}
 
 	/**
-	 * A simple handler that uses the parser's notifications to create the JSON value as it was
-	 * represented in the stream.
+	 * A simple handler that uses the parser's notifications to create the JSON value as it was represented in the
+	 * stream.
 	 */
 	public static class DefaultHandler implements ParseHandler
 	{
@@ -154,8 +154,7 @@ public class SAJParser
 		}
 
 		/**
-		 * Resets this handler's state. This is only useful in order to reuse the handler after a
-		 * parsing error.
+		 * Resets this handler's state. This is only useful in order to reuse the handler after a parsing error.
 		 */
 		public void reset()
 		{
@@ -213,6 +212,25 @@ public class SAJParser
 			pop();
 		}
 
+		public void valueString(ParseState state, Reader value) throws IOException
+		{
+			StringBuilder val = new StringBuilder();
+			int read = value.read();
+			while(read >= 0)
+			{
+				val.append((char) read);
+				read = value.read();
+			}
+			valueString(state, val.toString());
+		}
+
+		/**
+		 * By default, {@link #valueString(ParseState, Reader)} merely reads the string and passes it to this method for
+		 * easier handling
+		 * 
+		 * @param state The current parsing state
+		 * @param value The string value that was parsed
+		 */
 		public void valueString(ParseState state, String value)
 		{
 			theState = state;
@@ -279,8 +297,8 @@ public class SAJParser
 		}
 
 		/**
-		 * Replaces the most recently parsed value with another. This is useful for modifying the
-		 * content of a JSON structure as it is parsed.
+		 * Replaces the most recently parsed value with another. This is useful for modifying the content of a JSON
+		 * structure as it is parsed.
 		 * 
 		 * @param lastValue The value to replace the most recently parsed value with.
 		 */
@@ -311,8 +329,7 @@ public class SAJParser
 
 		/**
 		 * @param depth The depth of the item to get
-		 * @return The item that is being parsed at the given depth, or null if depth>
-		 *         {@link #getDepth()}
+		 * @return The item that is being parsed at the given depth, or null if depth> {@link #getDepth()}
 		 */
 		public Object fromTop(int depth)
 		{
@@ -365,8 +382,7 @@ public class SAJParser
 		}
 
 		/**
-		 * @return The name of the property that this represents (if its token is
-		 *         {@link ParseToken#PROPERTY})
+		 * @return The name of the property that this represents (if its token is {@link ParseToken#PROPERTY})
 		 */
 		public String getPropertyName()
 		{
@@ -408,10 +424,131 @@ public class SAJParser
 		}
 	}
 
+	/** A reader that parses a JSON-escaped string on the fly */
+	public static class StringParseReader extends Reader
+	{
+		private final Reader theWrapped;
+
+		private char theStartChar;
+
+		private int theBuffer;
+
+		/** @param wrap The reader to read JSON-escaped the string from */
+		public StringParseReader(Reader wrap)
+		{
+			theWrapped = wrap;
+			theBuffer = -1;
+		}
+
+		/**
+		 * Starts this reader. This may be called after the reader has parsed a string, assuming the stream cursor has
+		 * moved
+		 * 
+		 * @param startChar The character that started the string (" or ')
+		 */
+		public void start(char startChar)
+		{
+			theStartChar = startChar;
+		}
+
+		@Override
+		public int read() throws IOException
+		{
+			if(theStartChar == 0)
+				return -1;
+			int buffer = theBuffer;
+			theBuffer = -1;
+			if(buffer >= 0)
+				return buffer;
+
+			int read = theWrapped.read();
+			if(read < 0)
+			{
+				theStartChar = 0;
+				return read;
+			}
+			if(read == '"')
+			{
+				theStartChar = 0;
+				return -1;
+			}
+			if(read != '\\')
+				return read;
+			read = theWrapped.read();
+			if(read != 'u')
+				switch(read)
+				{
+				case 'n':
+					return '\n';
+				case 'r':
+					return '\r';
+				case 't':
+					return '\t';
+				case 'b':
+					return '\b';
+				case 'f':
+					return '\f';
+				case '/':
+					// Solidus
+					return '\u2044';
+				case '\'':
+					return '\'';
+				case '"':
+					return '"';
+				case '\\':
+					return '\\';
+				default:
+					throw new IOException(((char) read) + " is not escapable");
+				}
+			int unicode = 0;
+			StringBuilder unicodeStr = new StringBuilder();
+
+			for(int i = 0; i < 4; i++)
+			{
+				read = theWrapped.read();
+				unicodeStr.append((char) read);
+				unicode <<= 4;
+				if(read >= '0' && read <= '9')
+					unicode |= read - '0';
+				else if(read >= 'a' && read <= 'f')
+					unicode |= read - 'a' + 10;
+				else if(read >= 'A' && read <= 'F')
+					unicode |= read - 'A' + 10;
+				else
+					throw new IOException("Invalid unicode sequence: \"\\u" + unicodeStr);
+			}
+			char [] chars = Character.toChars(unicode);
+			if(chars.length > 1)
+				theBuffer = chars[1];
+			return chars[0];
+		}
+
+		@Override
+		public int read(char [] cbuf, int off, int len) throws IOException
+		{
+			for(int i = 0; i < len; i++)
+			{
+				int read = read();
+				if(read < 0)
+					return i;
+				cbuf[off + i] = (char) read;
+			}
+			return len;
+		}
+
+		@Override
+		public void close() throws IOException
+		{
+			while(read() >= 0);
+		}
+	}
+
 	/** A state object which can be queried for the path to the currently parsed object */
 	public static class ParseState
 	{
 		private final Reader theReader;
+
+		private final StringParseReader theStringReader;
 
 		private final ParseHandler [] theHandlers;
 
@@ -439,10 +576,12 @@ public class SAJParser
 			theLastChar = -1;
 			theCurrentChar = -1;
 			theLineNumber = 1;
+			theStringReader = new StringParseReader(reader);
 		}
 
 		int nextChar() throws IOException
 		{
+			theStringReader.close(); // If a string was being parsed, finish parsing it
 			wasLastLine = false;
 			do
 			{
@@ -476,9 +615,8 @@ public class SAJParser
 		}
 
 		/**
-		 * "Backs up" the stream so that the most recent character read is the next character
-		 * returned from {@link #nextChar()}. This only works once in between calls to
-		 * {@link #nextChar()}
+		 * "Backs up" the stream so that the most recent character read is the next character returned from
+		 * {@link #nextChar()}. This only works once in between calls to {@link #nextChar()}
 		 */
 		void backUp()
 		{
@@ -508,11 +646,9 @@ public class SAJParser
 					if(!isSeparated)
 					{
 						if(top.hasContent())
-							error("Missing separator comma after value of object property "
-								+ top.getPropertyName());
+							error("Missing separator comma after value of object property " + top.getPropertyName());
 						else
-							error("Missing separator colon after object property "
-								+ top.getPropertyName());
+							error("Missing separator colon after object property " + top.getPropertyName());
 					}
 					top.setHasContent();
 					fromTop(1).setHasContent();
@@ -546,6 +682,28 @@ public class SAJParser
 				handler.startProperty(this, propertyName);
 		}
 
+		void startString(char startChar) throws ParseException, IOException
+		{
+			startItem();
+			theStringReader.start(startChar);
+			if(theHandlers.length > 1)
+			{
+				/* If we have more than one handler, we have to read the contents and feed them to each handler from memory */
+				StringBuilder contents = new StringBuilder();
+				int read = theStringReader.read();
+				while(read >= 0)
+				{
+					contents.append((char) read);
+					read = theStringReader.read();
+				}
+				String contentStr = contents.toString();
+				for(int i = 0; i < theHandlers.length; i++)
+					theHandlers[i].valueString(this, new java.io.StringReader(contentStr));
+			}
+			else if(theHandlers.length == 1)
+				theHandlers[0].valueString(this, theStringReader);
+		}
+
 		void setPrimitive(Object value) throws ParseException
 		{
 			startItem();
@@ -558,7 +716,7 @@ public class SAJParser
 				else if(value instanceof Number)
 					handler.valueNumber(this, (Number) value);
 				else if(value instanceof String)
-					handler.valueString(this, (String) value);
+					error("Internal error: Primitive string given, not in reader");
 				else
 					error("Unrecognized primitive value: " + value);
 			}
@@ -710,8 +868,7 @@ public class SAJParser
 		}
 
 		/**
-		 * @return The current depth of the parsing (e.g. an array within a property within an
-		 *         object=depth of 3)
+		 * @return The current depth of the parsing (e.g. an array within a property within an object=depth of 3)
 		 */
 		public int getDepth()
 		{
@@ -728,8 +885,7 @@ public class SAJParser
 
 		/**
 		 * @param depth The depth of the item to get
-		 * @return The item that is being parsed at the given depth, or null if depth>=
-		 *         {@link #getDepth()}
+		 * @return The item that is being parsed at the given depth, or null if depth>= {@link #getDepth()}
 		 */
 		public ParseNode fromTop(int depth)
 		{
@@ -757,10 +913,9 @@ public class SAJParser
 		}
 
 		/**
-		 * @return Whether the current parsing node has been separated, e.g. whether a comma has
-		 *         occurred after an array element or an object property (if this token is
-		 *         {@link ParseToken#OBJECT}) or if a colon has occurred after a property
-		 *         declaration (if this token is {@link ParseToken#PROPERTY})
+		 * @return Whether the current parsing node has been separated, e.g. whether a comma has occurred after an array
+		 *         element or an object property (if this token is {@link ParseToken#OBJECT}) or if a colon has occurred
+		 *         after a property declaration (if this token is {@link ParseToken#PROPERTY})
 		 */
 		public boolean isSeparated()
 		{
@@ -769,30 +924,26 @@ public class SAJParser
 
 		/**
 		 * <p>
-		 * Causes the parser to act as if it just encountered a value. This is useful when parsing
-		 * an outer JSON shell in which individual elements are parsed by a different parser. For
-		 * instance, if an event has a data property whose value should be parsed externally, this
-		 * parser can be used for the event, then after the data property is encountered (and after
-		 * the separator colon), the external parser can parse the value of data and this method can
-		 * be called to satisfy the parser so the event can be further parsed. This method does not
-		 * cause any callbacks to be invoked in the handler.
+		 * Causes the parser to act as if it just encountered a value. This is useful when parsing an outer JSON shell
+		 * in which individual elements are parsed by a different parser. For instance, if an event has a data property
+		 * whose value should be parsed externally, this parser can be used for the event, then after the data property
+		 * is encountered (and after the separator colon), the external parser can parse the value of data and this
+		 * method can be called to satisfy the parser so the event can be further parsed. This method does not cause any
+		 * callbacks to be invoked in the handler.
 		 * </p>
 		 * <p>
-		 * This method will throw a ParseException unless it is invoked in one of the following
-		 * situations:
+		 * This method will throw a ParseException unless it is invoked in one of the following situations:
 		 * <ul>
-		 * <li>Before any content has been parsed. Calling this in this situation will have no
-		 * effect at all.</li>
+		 * <li>Before any content has been parsed. Calling this in this situation will have no effect at all.</li>
 		 * <li>After the separator colon after a property declaration in a JSON object</li>
 		 * <li>After the beginning of an array</li>
 		 * <li>After a separator comma within an array</li>
 		 * </ul>
 		 * </p>
 		 * <p>
-		 * If this method is called superfluously even though the stream is read exclusively from
-		 * this parser, the parser will throw a ParseException after the stream's content is read
-		 * since it will believe it already encountered a value and duplicate values without a
-		 * separator are illegal in JSON.
+		 * If this method is called superfluously even though the stream is read exclusively from this parser, the
+		 * parser will throw a ParseException after the stream's content is read since it will believe it already
+		 * encountered a value and duplicate values without a separator are illegal in JSON.
 		 * </p>
 		 * 
 		 * @throws ParseException If the current state is not appropriate for a value
@@ -877,8 +1028,8 @@ public class SAJParser
 	}
 
 	/**
-	 * Sets whether this parser parses its content strictly or loosely. Some examples of content
-	 * that would violate strict parsing but would be acceptable to a loose parser are:
+	 * Sets whether this parser parses its content strictly or loosely. Some examples of content that would violate
+	 * strict parsing but would be acceptable to a loose parser are:
 	 * <ul>
 	 * <li>Property names that are not enclosed in quotation marks</li>
 	 * <li>Strings enclosed in tick (') marks instead of quotations</li>
@@ -926,15 +1077,15 @@ public class SAJParser
 	/**
 	 * Parses the next JSON-related item in the stream. The next item may be:
 	 * <ul>
-	 * <li>White space--a set of spaces, new lines, etc. that are acceptable characters that do not
-	 * affect the content of a JSON document.</li>
+	 * <li>White space--a set of spaces, new lines, etc. that are acceptable characters that do not affect the content
+	 * of a JSON document.</li>
 	 * <li>A comment. Either a line comment or a block comment</li>
 	 * <li>The beginning of a JSON object</li>
 	 * <li>The end of a JSON object</li>
 	 * <li>The beginning of a JSON array</li>
 	 * <li>The end of a JSON array</li>
-	 * <li>A separator. A comma between object property name/value pairs or between array elements
-	 * or a colon between the name and value of an object property</li>
+	 * <li>A separator. A comma between object property name/value pairs or between array elements or a colon between
+	 * the name and value of an object property</li>
 	 * <li>A string</li>
 	 * <li>A number</li>
 	 * <li>A boolean</li>
@@ -951,8 +1102,7 @@ public class SAJParser
 		return parseNext(state, new StringBuilder());
 	}
 
-	private boolean parseNext(ParseState state, StringBuilder sb) throws IOException,
-		ParseException
+	private boolean parseNext(ParseState state, StringBuilder sb) throws IOException, ParseException
 	{
 		int ch = state.nextChar();
 		if(ch < 0)
@@ -971,6 +1121,8 @@ public class SAJParser
 			state.pop(ParseToken.ARRAY);
 		else if(ch == '/' && allowComments)
 			parseComment(sb, state);
+		else if(ch == '"' || ch == '\'')
+			parseString(state); // Parses the string as a stream
 		else
 		{
 			if(state.top() == null)
@@ -1138,6 +1290,14 @@ public class SAJParser
 			state.error("Unrecognized start of value: " + (char) ch);
 			return null;
 		}
+	}
+
+	void parseString(ParseState state) throws IOException, ParseException
+	{
+		int startChar = state.currentChar();
+		if(useFormalJson && startChar != '"')
+			state.error("Strings must be enclosed in quotations in formal JSON");
+		state.startString((char) startChar);
 	}
 
 	String parseString(StringBuilder sb, ParseState state) throws IOException, ParseException
@@ -1725,12 +1885,12 @@ public class SAJParser
 	}
 
 	/**
-	 * Parses the first JSON value from a stream. The stream is only read up to the last character
-	 * of the first JSON value in the stream.
+	 * Parses the first JSON value from a stream. The stream is only read up to the last character of the first JSON
+	 * value in the stream.
 	 * 
 	 * @param reader The stream to parse
-	 * @return The first JSON value in the stream. May be null if that is the first value in the
-	 *         stream. Otherwise the value will be an instance of:
+	 * @return The first JSON value in the stream. May be null if that is the first value in the stream. Otherwise the
+	 *         value will be an instance of:
 	 *         <ul>
 	 *         <li>{@link org.json.simple.JSONObject}</li>
 	 *         <li>{@link org.json.simple.JSONArray}</li>
@@ -1750,8 +1910,8 @@ public class SAJParser
 	 * Parses the first JSON value from a string. Further content in the string is ignored.
 	 * 
 	 * @param string The string to parse
-	 * @return The first JSON value in the stream. May be null if that is the first value in the
-	 *         string. Otherwise the value will be an instance of:
+	 * @return The first JSON value in the stream. May be null if that is the first value in the string. Otherwise the
+	 *         value will be an instance of:
 	 *         <ul>
 	 *         <li>{@link org.json.simple.JSONObject}</li>
 	 *         <li>{@link org.json.simple.JSONArray}</li>
@@ -1773,8 +1933,8 @@ public class SAJParser
 	}
 
 	/**
-	 * Main tester method. This method asks the user repeatedly for JSON input to parse and prints
-	 * it to the screen formatted.
+	 * Main tester method. This method asks the user repeatedly for JSON input to parse and prints it to the screen
+	 * formatted.
 	 * 
 	 * @param args Command-line arguments, ignored.
 	 */
@@ -1787,8 +1947,8 @@ public class SAJParser
 			System.out.println("\nEnter a JSON value to parse");
 			try
 			{
-				System.out.println(prisms.util.JsonUtils.format(parser.parse(
-					new java.io.InputStreamReader(System.in), handler)));
+				System.out.println(prisms.util.JsonUtils.format(parser.parse(new java.io.InputStreamReader(System.in),
+					handler)));
 			} catch(IOException e)
 			{
 				handler.reset();

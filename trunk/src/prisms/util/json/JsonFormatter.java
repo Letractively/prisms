@@ -4,6 +4,7 @@
 package prisms.util.json;
 
 import java.io.IOException;
+import java.io.Reader;
 
 import prisms.util.json.SAJParser.ParseState;
 
@@ -18,8 +19,7 @@ public class JsonFormatter
 	 */
 	public static void main(String [] args) throws IOException
 	{
-		java.io.Reader fileReader = new java.io.InputStreamReader(
-			new prisms.util.FileSegmentizerInputStream(args[0]));
+		java.io.Reader fileReader = new java.io.InputStreamReader(new prisms.util.FileSegmentizerInputStream(args[0]));
 		String outFileName;
 		int dotIdx = args[0].lastIndexOf('.');
 		if(dotIdx >= 0)
@@ -127,15 +127,17 @@ public class JsonFormatter
 				}
 			}
 
-			public void valueString(ParseState state, String value)
+			public void valueString(ParseState state, Reader value) throws IOException
 			{
-				try
+				java.io.Writer stringWriter = jsonWriter.writeStringAsWriter();
+				int read = value.read();
+				while(read >= 0)
 				{
-					jsonWriter.writeString(value);
-				} catch(IOException e)
-				{
-					throw new IllegalStateException("Could not write JSON", e);
+					stringWriter.write(read);
+					read = value.read();
 				}
+				value.close();
+				stringWriter.close();
 			}
 
 			public void valueNumber(ParseState state, Number value)
@@ -175,9 +177,8 @@ public class JsonFormatter
 
 			public void error(ParseState state, String error)
 			{
-				System.err.println("\nError at Line " + state.getLineNumber() + ", char "
-					+ state.getCharNumber() + "--(Line " + jsonWriter.getLineNumber()
-					+ " formatted)");
+				System.err.println("\nError at Line " + state.getLineNumber() + ", char " + state.getCharNumber()
+					+ "--(Line " + jsonWriter.getLineNumber() + " formatted)");
 			}
 		};
 		try
@@ -192,8 +193,7 @@ public class JsonFormatter
 			{
 				fileReader = new java.io.InputStreamReader(new prisms.util.ImportStream(
 					new prisms.util.FileSegmentizerInputStream(args[0])));
-				fileWriter[0] = new java.io.OutputStreamWriter(
-					new prisms.util.FileSegmentizerOutputStream(outFileName));
+				fileWriter[0] = new java.io.OutputStreamWriter(new prisms.util.FileSegmentizerOutputStream(outFileName));
 				new SAJParser().parse(fileReader, handler);
 			} catch(SAJParser.ParseException e2)
 			{

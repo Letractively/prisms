@@ -25,6 +25,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	private boolean isUnicodeEncoded;
 
+	private boolean isStringOpen;
+
 	/** @return Whether this writer writes formal JSON */
 	public boolean isFormal()
 	{
@@ -32,11 +34,10 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * Sets whether this writer sticks to the formal JSON schema. If false, this writer can be
-	 * slightly more efficient (space-wise) by:
+	 * Sets whether this writer sticks to the formal JSON schema. If false, this writer can be slightly more efficient
+	 * (space-wise) by:
 	 * <ul>
-	 * <li>Removing quotation marks from property names that contain no white space or syntax
-	 * characters</li>
+	 * <li>Removing quotation marks from property names that contain no white space or syntax characters</li>
 	 * <li>Sending large integers in hexadecimal format</li>
 	 * </ul>
 	 * 
@@ -48,8 +49,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * @return The string used to indent JSON content that is written, or null if this writer does
-	 *         not format its data
+	 * @return The string used to indent JSON content that is written, or null if this writer does not format its data
 	 */
 	public String getFormatIndent()
 	{
@@ -57,8 +57,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * @param indent The string to use to indent JSON content that is written, or null if this
-	 *        writer should not format its data
+	 * @param indent The string to use to indent JSON content that is written, or null if this writer should not format
+	 *        its data
 	 */
 	public void setFormatIndent(String indent)
 	{
@@ -72,8 +72,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * @return Whether unicode characters in strings and property names written to this writer are
-	 *         encoded before they are written
+	 * @return Whether unicode characters in strings and property names written to this writer are encoded before they
+	 *         are written
 	 */
 	public boolean isUnicodeEncoded()
 	{
@@ -81,8 +81,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * @param encode Whether unicode characters in strings and property names written to this writer
-	 *        are encoded before they are written
+	 * @param encode Whether unicode characters in strings and property names written to this writer are encoded before
+	 *        they are written
 	 */
 	public void setUnicodeEncoded(boolean encode)
 	{
@@ -113,8 +113,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	/**
 	 * @param ch The character to test
-	 * @return The integer representation of the character that should be printed after the '\' to
-	 *         represent the escaped character in a JSON string if it needs escaping; otherwise -1
+	 * @return The integer representation of the character that should be printed after the '\' to represent the escaped
+	 *         character in a JSON string if it needs escaping; otherwise -1
 	 */
 	public static int needsEscape(char ch)
 	{
@@ -142,6 +142,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	public void startProperty(String name) throws IOException
 	{
+		closeOpenString();
 		ParseNode top = top();
 		if(top == null)
 			throw new IllegalStateException("No object started!!");
@@ -198,6 +199,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	public void endObject() throws IOException
 	{
+		closeOpenString();
 		ParseNode top = top();
 		switch(top.token)
 		{
@@ -225,6 +227,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	public void endArray() throws IOException
 	{
+		closeOpenString();
 		ParseNode top = top();
 		if(top == null)
 			throw new IllegalStateException("No array started!");
@@ -244,6 +247,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	public void writeString(String value) throws IOException
 	{
+		closeOpenString();
 		if(value == null)
 		{
 			writeNull();
@@ -268,6 +272,67 @@ public class JsonStreamWriter implements JsonSerialWriter
 		content(null);
 		theWriter.write(theSB.toString());
 		theSB.setLength(0);
+	}
+
+	/**
+	 * Creates a new string whose content can then be written.
+	 * 
+	 * @return A writer that can be used to write the content of the string
+	 * @throws IOException If an error occurs writing to the underlying stream
+	 */
+	public java.io.Writer writeStringAsWriter() throws IOException
+	{
+		content(null);
+		theWriter.write('"');
+		isStringOpen = true;
+		java.io.Writer ret = new java.io.Writer()
+		{
+			@Override
+			public void write(char [] cbuf, int off, int len) throws IOException
+			{
+				writeStringContent(cbuf, off, len);
+			}
+
+			@Override
+			public void flush() throws IOException
+			{
+			}
+
+			@Override
+			public void close() throws IOException
+			{
+				closeOpenString();
+			}
+		};
+		return ret;
+	}
+
+	void writeStringContent(char [] chars, int off, int len) throws IOException
+	{
+		for(int i = 0; i < len; i++)
+			theSB.append(chars[off + i]);
+		for(int c = 0; c < theSB.length(); c++)
+		{
+			char ch = theSB.charAt(c);
+			int esc = needsEscape(ch);
+			if(esc >= 0)
+			{
+				theSB.insert(c, '\\');
+				c++;
+				theSB.setCharAt(c, (char) esc);
+			}
+		}
+		if(isUnicodeEncoded)
+			prisms.util.PrismsUtils.encodeUnicode(theSB);
+		theWriter.write(theSB.toString());
+		theSB.setLength(0);
+	}
+
+	void closeOpenString() throws IOException
+	{
+		if(isStringOpen)
+			theWriter.write('"');
+		isStringOpen = false;
 	}
 
 	public void writeNumber(Number value) throws IOException
@@ -317,8 +382,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * Call this method <b>before</b> writing a custom JSON item to the stream independent of this
-	 * JSON writer
+	 * Call this method <b>before</b> writing a custom JSON item to the stream independent of this JSON writer
 	 * 
 	 * @throws IOException If an error occurs prepping the stream for the coming value
 	 */
@@ -331,15 +395,16 @@ public class JsonStreamWriter implements JsonSerialWriter
 	 * Writes a comment to the stream
 	 * 
 	 * @param comment The content of the comment
-	 * @param block Whether to write a block-style or line-style comment. If this writer is not
-	 *        formatted ({@link #getFormatIndent()} is null) or the comment has newline characters
-	 *        in it, this parameter will ignored and a block-style comment will be written.
+	 * @param block Whether to write a block-style or line-style comment. If this writer is not formatted (
+	 *        {@link #getFormatIndent()} is null) or the comment has newline characters in it, this parameter will
+	 *        ignored and a block-style comment will be written.
 	 * @throws IOException If an error occurs writing the data to the stream
-	 * @throws IllegalStateException If this writer is specified to be formal JSON--the formal JSON
-	 *         specification does not support comments
+	 * @throws IllegalStateException If this writer is specified to be formal JSON--the formal JSON specification does
+	 *         not support comments
 	 */
 	public void writeComment(String comment, boolean block) throws IOException
 	{
+		closeOpenString();
 		if(useFormalJson)
 			throw new IllegalStateException("Comments are not allowed in formal JSON");
 		if(isUnicodeEncoded)
@@ -390,14 +455,14 @@ public class JsonStreamWriter implements JsonSerialWriter
 	}
 
 	/**
-	 * Finishes writing the JSON content that has been started. This method does NOT flush or close
-	 * the underlying stream. It merely finishes writing JSON data that may have been opened but not
-	 * closed.
+	 * Finishes writing the JSON content that has been started. This method does NOT flush or close the underlying
+	 * stream. It merely finishes writing JSON data that may have been opened but not closed.
 	 * 
 	 * @throws IOException If an error occurs writing to the stream
 	 */
 	public void close() throws IOException
 	{
+		closeOpenString();
 		ParseNode top = top();
 		while(top != null)
 		{
@@ -419,6 +484,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	private void content(ParseToken token) throws IOException
 	{
+		closeOpenString();
 		ParseNode top = top();
 		if(top != null)
 			switch(top.token)
@@ -466,8 +532,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 
 	/**
 	 * @param depth The depth of the item to get
-	 * @return The item that is being written at the given depth, or null if depth>
-	 *         {@link #getDepth()}
+	 * @return The item that is being written at the given depth, or null if depth> {@link #getDepth()}
 	 */
 	public ParseNode fromTop(int depth)
 	{
