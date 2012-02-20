@@ -102,13 +102,13 @@ public class ParsedImport extends prisms.lang.ParsedItem
 						+ ".* cannot be resolved", this, theType.getMatch().index);
 				for(java.lang.reflect.Method m : typeEval.getType().getBaseType().getDeclaredMethods())
 				{
-					if((m.getModifiers() & Modifier.STATIC) != 0)
+					if((m.getModifiers() & Modifier.STATIC) == 0)
 						continue;
 					env.addImportMethod(typeEval.getType().getBaseType(), m.getName());
 				}
 				for(java.lang.reflect.Field f : typeEval.getType().getBaseType().getDeclaredFields())
 				{
-					if((f.getModifiers() & Modifier.STATIC) != 0)
+					if((f.getModifiers() & Modifier.STATIC) == 0)
 						continue;
 					env.addImportMethod(typeEval.getType().getBaseType(), f.getName());
 				}
@@ -177,7 +177,7 @@ public class ParsedImport extends prisms.lang.ParsedItem
 		if(isWildcard)
 			ret.append(".*");
 		else if(theMethodName != null)
-			ret.append(theMethodName);
+			ret.append('.').append(theMethodName);
 		return ret.toString();
 	}
 }

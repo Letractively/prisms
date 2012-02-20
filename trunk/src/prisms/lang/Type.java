@@ -202,7 +202,8 @@ public class Type
 				if(!isAssignable(theBaseType, t.theBaseType))
 					return false;
 				for(int p = 0; p < theParamTypes.length; p++)
-					if(!theParamTypes[p].isAssignable(t.resolve(theBaseType.getTypeParameters()[p], theBaseType, null)))
+					if(!theParamTypes[p].isAssignable(t.resolve(theBaseType.getTypeParameters()[p], theBaseType, null,
+						new java.lang.reflect.Type [0], new Type [0])))
 						return false;
 				return true;
 			}
@@ -250,21 +251,51 @@ public class Type
 	 * @param declaringClass The class that declared the given type
 	 * @param methodTypes A map of type variable name/type of the inferred types of an invocation for a method's
 	 *        declared type variables. May be null if this resolution is not for a type-parameter-declaring method.
+	 * @param paramTypes The types of the method parameters
+	 * @param argTypes The types of the arguments to the method
 	 * @return The resolved type
 	 */
-	public Type resolve(java.lang.reflect.Type type, Class<?> declaringClass, java.util.Map<String, Type> methodTypes)
+	public Type resolve(java.lang.reflect.Type type, Class<?> declaringClass, java.util.Map<String, Type> methodTypes,
+		java.lang.reflect.Type[] paramTypes, Type [] argTypes)
+	{
+		if(paramTypes.length > 0 && argTypes.length > 0 && methodTypes == null)
+			methodTypes = new java.util.HashMap<String, Type>();
+		for(int p = 0; p < paramTypes.length; p++)
+		{
+			if(paramTypes[p] instanceof java.lang.reflect.TypeVariable)
+			{
+				String name = ((java.lang.reflect.TypeVariable<?>) paramTypes[p]).getName();
+				Type t = methodTypes.get(name);
+				if(t != null)
+					t = t.getCommonType(argTypes[p]);
+				else
+					t = argTypes[p];
+				methodTypes.put(name, t);
+			}
+		}
+		Type ret = _resolve(type, declaringClass, methodTypes, new java.util.HashSet<java.lang.reflect.Type>());
+		if(ret == null)
+			ret = new Type(Object.class);
+		return ret;
+	}
+
+	private Type _resolve(java.lang.reflect.Type type, Class<?> declaringClass,
+		java.util.Map<String, Type> methodTypes, java.util.Set<java.lang.reflect.Type> tried)
 	{
 		if(type == null)
 			return new Type(type);
 		else if(type instanceof Class)
 			return new Type(type);
-		else if(type instanceof java.lang.reflect.ParameterizedType)
+		else if(tried.contains(type))
+			return null;
+		tried.add(type);
+		if(type instanceof java.lang.reflect.ParameterizedType)
 		{
 			java.lang.reflect.ParameterizedType pt = (java.lang.reflect.ParameterizedType) type;
 			Type ret = new Type(pt.getRawType());
 			ret.theParamTypes = new Type [pt.getActualTypeArguments().length];
 			for(int p = 0; p < ret.theParamTypes.length; p++)
-				ret.theParamTypes[p] = resolve(pt.getActualTypeArguments()[p], declaringClass, methodTypes);
+				ret.theParamTypes[p] = _resolve(pt.getActualTypeArguments()[p], declaringClass, methodTypes, tried);
 			return ret;
 		}
 		else if(type instanceof java.lang.reflect.WildcardType)
@@ -274,9 +305,9 @@ public class Type
 			java.lang.reflect.WildcardType wt = (java.lang.reflect.WildcardType) type;
 			ret.isUpperBound = wt.getLowerBounds().length == 0;
 			if(wt.getLowerBounds().length > 0)
-				ret.theBoundType = resolve(wt.getLowerBounds()[0], declaringClass, methodTypes);
+				ret.theBoundType = _resolve(wt.getLowerBounds()[0], declaringClass, methodTypes, tried);
 			else if(wt.getUpperBounds().length > 0)
-				ret.theBoundType = resolve(wt.getUpperBounds()[0], declaringClass, methodTypes);
+				ret.theBoundType = _resolve(wt.getUpperBounds()[0], declaringClass, methodTypes, tried);
 			return ret;
 		}
 		else if(type instanceof java.lang.reflect.TypeVariable)
@@ -286,6 +317,7 @@ public class Type
 				return this;
 			if(methodTypes != null && methodTypes.get(tv.getName()) != null)
 				return methodTypes.get(tv.getName());
+
 			if(theBaseType != null)
 			{
 				int decIndex = prisms.util.ArrayUtils.indexOf(declaringClass.getTypeParameters(), tv);
@@ -298,8 +330,8 @@ public class Type
 					{
 						java.lang.reflect.ParameterizedType superPath = (java.lang.reflect.ParameterizedType) path[0];
 						java.lang.reflect.Type paramType = superPath.getActualTypeArguments()[decIndex];
-						return resolve(paramType, (Class<?>) (path[1] instanceof Class ? path[1]
-							: ((java.lang.reflect.ParameterizedType) path[1]).getRawType()), methodTypes);
+						return _resolve(paramType, (Class<?>) (path[1] instanceof Class ? path[1]
+							: ((java.lang.reflect.ParameterizedType) path[1]).getRawType()), methodTypes, tried);
 					}
 				}
 				for(int p = 0; p < theBaseType.getTypeParameters().length; p++)
@@ -315,13 +347,13 @@ public class Type
 			ret.isBounded = true;
 			ret.isUpperBound = true;
 			if(tv.getBounds().length > 0)
-				ret.theBoundType = resolve(tv.getBounds()[0], declaringClass, methodTypes);
+				ret.theBoundType = _resolve(tv.getBounds()[0], declaringClass, methodTypes, tried);
 			return ret;
 		}
 		else if(type instanceof java.lang.reflect.GenericArrayType)
 		{
 			java.lang.reflect.GenericArrayType at = (java.lang.reflect.GenericArrayType) type;
-			Type ret = resolve(at.getGenericComponentType(), declaringClass, methodTypes);
+			Type ret = _resolve(at.getGenericComponentType(), declaringClass, methodTypes, tried);
 			if(ret.theBaseType != null)
 			{
 				if(Void.TYPE != ret.theBaseType)
@@ -488,7 +520,8 @@ public class Type
 					{
 						Type [] paramTypes = new Type [intf.getTypeParameters().length];
 						for(int p = 0; p < paramTypes.length; p++)
-							paramTypes[p] = resolve(intf.getTypeParameters()[p], intf, null);
+							paramTypes[p] = resolve(intf.getTypeParameters()[p], intf, null,
+								new java.lang.reflect.Type [0], new Type [0]);
 						return new Type(intf, paramTypes);
 					}
 				return new Type(Object.class);

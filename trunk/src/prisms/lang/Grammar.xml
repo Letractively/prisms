@@ -274,7 +274,8 @@
 			<literal storeAs="static">static</literal>
 			<whitespace />
 		</option>
-		<op storeAs="type" type="type" />
+		<!--<op storeAs="type" type="member" />-->
+		<op storeAs="type" />
 		<option>
 			<literal storeAs="wildcard">.*</literal>
 		</option>

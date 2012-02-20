@@ -169,8 +169,12 @@ public class ParsedConstructor extends ParsedItem
 		else
 			constructors = type.getBaseType().getDeclaredConstructors();
 		prisms.lang.EvaluationResult[] argRes = new prisms.lang.EvaluationResult [theArguments.length];
+		Type [] argTypes = new Type [theArguments.length];
 		for(int i = 0; i < argRes.length; i++)
+		{
 			argRes[i] = theArguments[i].evaluate(env, false, withValues);
+			argTypes[i] = argRes[i].getType();
+		}
 
 		java.lang.reflect.Constructor goodTarget = null;
 		java.lang.reflect.Constructor badTarget = null;
@@ -179,7 +183,8 @@ public class ParsedConstructor extends ParsedItem
 			java.lang.reflect.Type[] _paramTypes = c.getGenericParameterTypes();
 			Type [] paramTypes = new Type [_paramTypes.length];
 			for(int p = 0; p < paramTypes.length; p++)
-				paramTypes[p] = type.resolve(_paramTypes[p], c.getDeclaringClass(), null);
+				paramTypes[p] = type.resolve(_paramTypes[p], c.getDeclaringClass(), null, c.getGenericParameterTypes(),
+					argTypes);
 			if(paramTypes.length > argRes.length + 1)
 				continue;
 			boolean bad = false;
@@ -334,14 +339,20 @@ public class ParsedConstructor extends ParsedItem
 					continue;
 				int p;
 				for(p = 0; p < f.getParameters().length; p++)
-					if(!f.getParameters()[p].getType().evaluate(env, true, false).getType()
-						.isAssignable(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null)))
+					if(!f.getParameters()[p]
+						.getType()
+						.evaluate(env, true, false)
+						.getType()
+						.isAssignable(
+							type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null,
+								new java.lang.reflect.Type [0], new Type [0])))
 						break;
 				if(p == f.getParameters().length)
 					found = true;
 				else
 					continue;
-				Type rt = type.resolve(m.getReturnType(), m.getDeclaringClass(), null);
+				Type rt = type.resolve(m.getReturnType(), m.getDeclaringClass(), null, new java.lang.reflect.Type [0],
+					new Type [0]);
 				if(!rt.isAssignable(f.getReturnType().evaluate(env, true, false).getType()))
 				{
 					StringBuilder msg = new StringBuilder();
@@ -352,7 +363,8 @@ public class ParsedConstructor extends ParsedItem
 					{
 						if(p2 > 0)
 							msg.append(", ");
-						msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass(), null));
+						msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass(), null,
+							new java.lang.reflect.Type [0], new Type [0]));
 					}
 					msg.append(')');
 					throw new EvaluationException(msg.toString(), this, f.getMatch().index);
@@ -364,7 +376,8 @@ public class ParsedConstructor extends ParsedItem
 						continue;
 					boolean exOk = false;
 					for(java.lang.reflect.Type met : m.getGenericExceptionTypes())
-						if(type.resolve(met, m.getDeclaringClass(), null).isAssignable(t))
+						if(type.resolve(met, m.getDeclaringClass(), null, new java.lang.reflect.Type [0], new Type [0])
+							.isAssignable(t))
 						{
 							exOk = true;
 							break;
@@ -379,7 +392,8 @@ public class ParsedConstructor extends ParsedItem
 						{
 							if(p2 > 0)
 								msg.append(", ");
-							msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass(), null));
+							msg.append(type.resolve(m.getGenericParameterTypes()[p2], m.getDeclaringClass(), null,
+								new java.lang.reflect.Type [0], new Type [0]));
 						}
 						msg.append(')');
 						throw new EvaluationException(msg.toString(), this, f.getMatch().index);
@@ -396,7 +410,8 @@ public class ParsedConstructor extends ParsedItem
 				{
 					if(p > 0)
 						msg.append(", ");
-					msg.append(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null));
+					msg.append(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null,
+						new java.lang.reflect.Type [0], new Type [0]));
 				}
 				msg.append(')');
 				throw new EvaluationException(msg.toString(), this, theType.getMatch().index);
@@ -476,7 +491,7 @@ public class ParsedConstructor extends ParsedItem
 				for(p = 0; p < m.getParameters().length; p++)
 				{
 					Type argType = theImplType.resolve(method.getGenericParameterTypes()[p],
-						method.getDeclaringClass(), null);
+						method.getDeclaringClass(), null, new java.lang.reflect.Type [0], new Type [0]);
 					if(!m.getParameters()[p].evaluateType(theEnv).isAssignable(argType))
 						break;
 					argRes[p] = new prisms.lang.EvaluationResult(argType, args[p]);

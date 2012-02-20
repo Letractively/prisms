@@ -1,5 +1,7 @@
 package prisms.lang.types;
 
+import prisms.lang.Type;
+
 /** Represents an enhanced for loop */
 public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 {
@@ -39,9 +41,10 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 			if(!iterRes.isValue())
 				throw new prisms.lang.EvaluationException(iterRes.typeString() + " cannot be resolved to a variable",
 					this, theIterable.getMatch().index);
-			prisms.lang.Type instanceType;
+			Type instanceType;
 			if(Iterable.class.isAssignableFrom(iterRes.getType().getBaseType()))
-				instanceType = iterRes.getType().resolve(Iterable.class.getTypeParameters()[0], Iterable.class, null);
+				instanceType = iterRes.getType().resolve(Iterable.class.getTypeParameters()[0], Iterable.class, null,
+					new java.lang.reflect.Type [0], new Type [0]);
 			else if(iterRes.getType().isArray())
 				instanceType = iterRes.getType().getComponentType();
 			else
@@ -49,7 +52,7 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 					"Can only iterate over an array or an instanceof java.lang.Iterable", this,
 					theIterable.getMatch().index);
 
-			prisms.lang.Type type = theVariable.evaluateType(env);
+			Type type = theVariable.evaluateType(env);
 			if(!type.isAssignable(instanceType))
 				throw new prisms.lang.EvaluationException("Type mismatch: cannot convert from " + instanceType + " to "
 					+ type, theIterable, theIterable.getMatch().index);

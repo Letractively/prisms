@@ -3,7 +3,14 @@
  */
 package prisms.lang;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+
 import prisms.lang.types.ParsedFunctionDeclaration;
+import prisms.util.json.JsonSerialReader.StructState;
 
 /** Default implementation of {@link EvaluationEnvironment} */
 public class DefaultEvaluationEnvironment implements EvaluationEnvironment
@@ -278,7 +285,8 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 				else
 					throw new EvaluationException("No such function " + function.getShortSig(), struct, index);
 			}
-			theFunctions.remove(fIdx);
+			else
+				theFunctions.remove(fIdx);
 		}
 	}
 
@@ -372,6 +380,34 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	public void clearHistory()
+	{
+		theHistory.clear();
+	}
+
+	public void addImportPackage(String packageName)
+	{
+		if(theParent != null && !isTransaction)
+			throw new IllegalStateException("Imports may only be used at the top level");
+		synchronized(theImportPackages)
+		{
+			theImportPackages.add(packageName);
+		}
+	}
+
+	public String [] getImportPackages()
+	{
+		synchronized(theImportPackages)
+		{
+			return theImportPackages.toArray(new String [theImportPackages.size()]);
+		}
+	}
+
+	public void clearImportPackages()
+	{
+		theImportPackages.clear();
+	}
+
 	public void addImportType(Class<?> type)
 	{
 		if(theParent != null && !isTransaction)
@@ -383,16 +419,6 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		synchronized(theImportTypes)
 		{
 			theImportTypes.put(name, type);
-		}
-	}
-
-	public void addImportPackage(String packageName)
-	{
-		if(theParent != null && !isTransaction)
-			throw new IllegalStateException("Imports may only be used at the top level");
-		synchronized(theImportPackages)
-		{
-			theImportPackages.add(packageName);
 		}
 	}
 
@@ -420,6 +446,19 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return null;
 	}
 
+	public Class<?> [] getImportTypes()
+	{
+		synchronized(theImportTypes)
+		{
+			return theImportTypes.values().toArray(new Class [theImportTypes.size()]);
+		}
+	}
+
+	public void clearImportTypes()
+	{
+		theImportTypes.clear();
+	}
+
 	public void addImportMethod(Class<?> type, String method)
 	{
 		if(theParent != null && !isTransaction)
@@ -440,22 +479,6 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
-	public String [] getImportPackages()
-	{
-		synchronized(theImportPackages)
-		{
-			return theImportPackages.toArray(new String [theImportPackages.size()]);
-		}
-	}
-
-	public Class<?> [] getImportTypes()
-	{
-		synchronized(theImportTypes)
-		{
-			return theImportTypes.values().toArray(new Class [theImportTypes.size()]);
-		}
-	}
-
 	public ImportMethod [] getImportMethods()
 	{
 		synchronized(theImportMethods)
@@ -466,6 +489,11 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 				ret[i++] = new ImportMethod(entry.getValue(), entry.getKey());
 			return ret;
 		}
+	}
+
+	public void clearImportMethods()
+	{
+		theImportMethods.clear();
 	}
 
 	public EvaluationEnvironment scope(boolean dependent)
@@ -515,5 +543,297 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 	public void uncancel()
 	{
 		isCanceled = false;
+	}
+
+	public Variable [] save(OutputStream out) throws IOException
+	{
+		java.io.OutputStreamWriter charWriter = new java.io.OutputStreamWriter(out);
+		prisms.util.json.JsonStreamWriter jsonWriter = new prisms.util.json.JsonStreamWriter(charWriter);
+		prisms.util.HexStreamWriter hexWriter = new prisms.util.HexStreamWriter();
+
+		jsonWriter.startObject();
+		jsonWriter.startProperty("variables");
+		jsonWriter.startArray();
+		java.util.ArrayList<Variable> fails = new java.util.ArrayList<Variable>();
+		for(Variable var : theVariables.values())
+		{
+			if(var.theValue != null && !(var.theValue instanceof java.io.Serializable))
+			{
+				fails.add(var);
+				continue;
+			}
+			try
+			{
+				writeVar(var, jsonWriter, hexWriter, charWriter, false);
+			} catch(java.io.ObjectStreamException e)
+			{
+				e.printStackTrace();
+				fails.add(var);
+			}
+		}
+		jsonWriter.endArray();
+
+		jsonWriter.startProperty("functions");
+		jsonWriter.startArray();
+		for(ParsedFunctionDeclaration func : theFunctions)
+			jsonWriter.writeString(func.getMatch().text);
+		jsonWriter.endArray();
+
+		jsonWriter.startProperty("importPackages");
+		jsonWriter.startArray();
+		for(String pkg : theImportPackages)
+			jsonWriter.writeString(pkg);
+		jsonWriter.endArray();
+
+		jsonWriter.startProperty("importTypes");
+		jsonWriter.startArray();
+		for(Class<?> type : theImportTypes.values())
+			jsonWriter.writeString(type.getName());
+		jsonWriter.endArray();
+
+		jsonWriter.startProperty("importMethods");
+		jsonWriter.startArray();
+		for(java.util.Map.Entry<String, Class<?>> entry : theImportMethods.entrySet())
+		{
+			jsonWriter.startObject();
+			jsonWriter.startProperty("methodName");
+			jsonWriter.writeString(entry.getKey());
+			jsonWriter.startProperty("type");
+			jsonWriter.writeString(entry.getValue().getName());
+			jsonWriter.endObject();
+		}
+		jsonWriter.endArray();
+
+		jsonWriter.startProperty("history");
+		jsonWriter.startArray();
+		for(Variable var : theHistory)
+		{
+			if(var.theValue != null && !(var.theValue instanceof java.io.Serializable))
+			{
+				fails.add(var);
+				continue;
+			}
+			try
+			{
+				writeVar(var, jsonWriter, hexWriter, charWriter, true);
+			} catch(java.io.ObjectStreamException e)
+			{
+				e.printStackTrace();
+				fails.add(var);
+			}
+		}
+		jsonWriter.endArray();
+
+		jsonWriter.endObject();
+		charWriter.close();
+		return fails.toArray(new Variable [fails.size()]);
+	}
+
+	private void writeVar(Variable var, prisms.util.json.JsonStreamWriter jsonWriter,
+		prisms.util.HexStreamWriter hexWriter, java.io.Writer charWriter, boolean isShort) throws IOException
+	{
+		jsonWriter.startObject();
+		jsonWriter.startProperty("name");
+		jsonWriter.writeString(var.theName);
+		jsonWriter.startProperty("type");
+		jsonWriter.writeString(var.theType.toString());
+		if(!isShort)
+		{
+			jsonWriter.startProperty("final");
+			jsonWriter.writeBoolean(var.isFinal);
+			jsonWriter.startProperty("initialized");
+			jsonWriter.writeBoolean(var.isInitialized);
+		}
+		jsonWriter.startProperty("value");
+		hexWriter.setWrapped(jsonWriter.writeStringAsWriter());
+		ObjectOutputStream oos = new ObjectOutputStream(hexWriter);
+		oos.writeObject(var.theValue);
+		oos.close();
+		jsonWriter.endObject();
+	}
+
+	public void load(InputStream in, PrismsParser parser) throws IOException
+	{
+		java.io.InputStreamReader charReader = new java.io.InputStreamReader(in);
+		prisms.util.json.JsonSerialReader jsonReader = new prisms.util.json.JsonSerialReader(charReader);
+		prisms.util.HexStreamReader hexReader = new prisms.util.HexStreamReader();
+
+		try
+		{
+			StructState rootState = jsonReader.startObject();
+			if(!"variables".equals(jsonReader.getNextProperty()))
+				throw new IOException("Unrecognizable JSON stream--no variables");
+			StructState arrayState = jsonReader.startArray();
+			while(jsonReader.getNextItem(true, false) instanceof prisms.util.json.JsonSerialReader.ObjectItem)
+			{
+				StructState varState = jsonReader.save();
+				try
+				{
+					Variable var = parseNextVariable(jsonReader, hexReader, parser);
+					theVariables.put(var.getName(), var);
+				} catch(IOException e)
+				{
+					e.printStackTrace();
+				} finally
+				{
+					jsonReader.endObject(varState);
+				}
+			}
+			jsonReader.endArray(arrayState);
+
+			if(!"functions".equals(jsonReader.getNextProperty()))
+				throw new IOException("Unrecognizable JSON stream--no functions");
+			arrayState = jsonReader.startArray();
+			String text = jsonReader.parseString();
+			while(text != null)
+			{
+				ParseStructRoot root = new ParseStructRoot(text);
+				ParsedFunctionDeclaration func;
+				try
+				{
+					func = (ParsedFunctionDeclaration) parser.parseStructures(root, parser.parseMatches(text))[0];
+					theFunctions.add(func);
+				} catch(ParseException e)
+				{
+					e.printStackTrace();
+				}
+				text = jsonReader.parseString();
+			}
+			jsonReader.endArray(arrayState);
+
+			if(!"importPackages".equals(jsonReader.getNextProperty()))
+				throw new IOException("Unrecognizable JSON stream--no importPackages");
+			arrayState = jsonReader.startArray();
+			String next = jsonReader.parseString();
+			while(next != null)
+			{
+				theImportPackages.add(next);
+				next = jsonReader.parseString();
+			}
+			jsonReader.endArray(arrayState);
+
+			if(!"importTypes".equals(jsonReader.getNextProperty()))
+				throw new IOException("Unrecognizable JSON stream--no importTypes");
+			arrayState = jsonReader.startArray();
+			text = jsonReader.parseString();
+			while(text != null)
+			{
+				String name = text;
+				int dotIdx = name.lastIndexOf('.');
+				if(dotIdx >= 0)
+					name = name.substring(dotIdx + 1);
+				try
+				{
+					theImportTypes.put(name, Class.forName(text));
+				} catch(ClassNotFoundException e)
+				{
+					e.printStackTrace();
+				}
+				text = jsonReader.parseString();
+			}
+			jsonReader.endArray(arrayState);
+
+			if(!"importMethods".equals(jsonReader.getNextProperty()))
+				throw new IOException("Unrecognizable JSON stream--no importMethods");
+			arrayState = jsonReader.startArray();
+			while(jsonReader.getNextItem(true, false) instanceof prisms.util.json.JsonSerialReader.ObjectItem)
+			{
+				StructState objState = jsonReader.save();
+				if(!"methodName".equals(jsonReader.getNextProperty()))
+					throw new IOException("Unrecognizable JSON stream--no methodName on importMethod");
+				String name = jsonReader.parseString();
+				if(!"type".equals(jsonReader.getNextProperty()))
+					throw new IOException("Unrecognizable JSON stream--no type on importMethod");
+				String className = jsonReader.parseString();
+				try
+				{
+					theImportMethods.put(name, Class.forName(className));
+				} catch(ClassNotFoundException e)
+				{
+					e.printStackTrace();
+				}
+				jsonReader.endObject(objState);
+			}
+			jsonReader.endArray(arrayState);
+
+			if(!"history".equals(jsonReader.getNextProperty()))
+				throw new IOException("Unrecognizable JSON stream--no history");
+			arrayState = jsonReader.startArray();
+			while(jsonReader.getNextItem(true, false) instanceof prisms.util.json.JsonSerialReader.ObjectItem)
+			{
+				StructState histState = jsonReader.save();
+				try
+				{
+					Variable var = parseNextVariable(jsonReader, hexReader, parser);
+					theHistory.add(var);
+				} catch(IOException e)
+				{
+					e.printStackTrace();
+				} finally
+				{
+					jsonReader.endObject(histState);
+				}
+			}
+			jsonReader.endArray(arrayState);
+			jsonReader.endObject(rootState);
+		} catch(ClassCastException e)
+		{
+			throw new IOException("Could not parse environment", e);
+		} catch(prisms.util.json.SAJParser.ParseException e)
+		{
+			throw new IOException("Could not parse environment", e);
+		}
+	}
+
+	private Variable parseNextVariable(prisms.util.json.JsonSerialReader jsonReader,
+		prisms.util.HexStreamReader hexReader, PrismsParser parser) throws IOException,
+		prisms.util.json.SAJParser.ParseException
+	{
+		if(!"name".equals(jsonReader.getNextProperty()))
+			throw new IOException("Unrecognizable JSON stream--variable has no name");
+		String name = jsonReader.parseString();
+		if(!"type".equals(jsonReader.getNextProperty()))
+			throw new IOException("Unrecognizable JSON stream--variable has no type");
+		String typeName = jsonReader.parseString();
+		ParseStructRoot root = new ParseStructRoot(typeName);
+		Type type;
+		try
+		{
+			type = parser.parseStructures(root, parser.parseMatches(typeName))[0].evaluate(this, true, false).getType();
+		} catch(ParseException e)
+		{
+			throw new IOException("Could not parse type \"" + typeName + "\" of variable " + name, e);
+		} catch(EvaluationException e)
+		{
+			throw new IOException("Could not parse type \"" + typeName + "\" of variable " + name, e);
+		}
+		String prop = jsonReader.getNextProperty();
+		boolean isFinal = false;
+		boolean initialized = true;
+		if(prop.equals("final"))
+		{
+			isFinal = jsonReader.parseBoolean();
+			prop = jsonReader.getNextProperty();
+		}
+		if(prop.equals("initialized"))
+		{
+			initialized = jsonReader.parseBoolean();
+			prop = jsonReader.getNextProperty();
+		}
+		if(!prop.equals("value"))
+			throw new IOException("Unrecognizable JSON stream--variable has no value");
+		Object value;
+		try
+		{
+			hexReader.setWrapped(jsonReader.parseStringAsReader());
+			value = new ObjectInputStream(hexReader).readObject();
+		} catch(Exception e)
+		{
+			throw new IOException("Could not parse variable " + name, e);
+		}
+		Variable ret = new Variable(type, name, isFinal);
+		ret.theValue = value;
+		ret.isInitialized = initialized;
+		return ret;
 	}
 }

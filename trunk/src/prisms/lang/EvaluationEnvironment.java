@@ -195,6 +195,9 @@ public interface EvaluationEnvironment
 	 */
 	void addHistory(Type type, Object result);
 
+	/** Clears this environment's history */
+	void clearHistory();
+
 	/**
 	 * Allows types to be imported so they can be referred to by name instead of fully-qualified
 	 * 
@@ -212,6 +215,9 @@ public interface EvaluationEnvironment
 	/** @return All packages that have been imported into this environment */
 	String [] getImportPackages();
 
+	/** Clears all package-level imports in this environment */
+	void clearImportPackages();
+
 	/**
 	 * @param name The name of the class to get
 	 * @return The class whose name matches the given name and whose type or package has been imported
@@ -220,6 +226,9 @@ public interface EvaluationEnvironment
 
 	/** @return All types that have been imported into this environment */
 	Class<?> [] getImportTypes();
+
+	/** Clears all type-level imports in this environment */
+	void clearImportTypes();
 
 	/**
 	 * Allows a static method to be imported so it can be referred to by name without a class name qualifier
@@ -237,6 +246,9 @@ public interface EvaluationEnvironment
 	 * @return The type that has been imported for the given name
 	 */
 	Class<?> getImportMethodType(String methodName);
+
+	/** Clears all static imports from this environment */
+	void clearImportMethods();
 
 	/**
 	 * Creates a new scope or subscope with this environment as a parent
@@ -264,4 +276,22 @@ public interface EvaluationEnvironment
 
 	/** Called prior to evaluation so the environment is not marked to cancel execution */
 	void uncancel();
+
+	/**
+	 * Saves this environment to a stream
+	 * 
+	 * @param out The stream to write this environment to
+	 * @return Variables that failed to serialize
+	 * @throws java.io.IOException If an error occurs serializing this environment
+	 */
+	Variable [] save(java.io.OutputStream out) throws java.io.IOException;
+
+	/**
+	 * Populates this environment's data from a stream
+	 * 
+	 * @param in The stream to read this environment's data fro,
+	 * @param parser The parser to parse serialized expressions with
+	 * @throws java.io.IOException If an error occurs deserializing the environment
+	 */
+	void load(java.io.InputStream in, PrismsParser parser) throws java.io.IOException;
 }
