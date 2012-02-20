@@ -637,7 +637,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		addVariable("env", JitrEnv.class, new JitrEnv());
 		try
 		{
-			env.load("default");
+			env.load("default", true);
 		} catch(Throwable e)
 		{
 			e.printStackTrace();
