@@ -6,14 +6,22 @@ package prisms.arch.ds;
 import org.apache.log4j.Logger;
 
 import prisms.arch.PrismsApplication;
-import prisms.records.*;
+import prisms.records.ChangeRecord;
+import prisms.records.DBRecordKeeper;
+import prisms.records.PrismsCenter;
+import prisms.records.PrismsChange;
+import prisms.records.PrismsRecordException;
+import prisms.records.PrismsSynchronizer;
+import prisms.records.RecordKeeper;
+import prisms.records.RecordUtils;
+import prisms.records.SyncRecord;
+import prisms.records.SynchronizeImpl;
 import prisms.util.json.JsonSerialReader;
 import prisms.util.json.JsonStreamWriter;
 import prisms.util.json.SAJParser;
 
 /**
- * Exports PRISMS data to a hidden (dot-prefixed) file in the exported logs directory or imports the
- * data from there.
+ * Exports PRISMS data to a hidden (dot-prefixed) file in the exported logs directory or imports the data from there.
  */
 public class PrismsDataExportImport
 {
@@ -34,8 +42,8 @@ public class PrismsDataExportImport
 		 * Exports all synchronize-enabled PRISMS data to a file to be imported later
 		 * 
 		 * @param ui The user interface to communicate with
-		 * @param global Whether to export ALL data available to synchronization instead of just the
-		 *        local data and local modifications
+		 * @param global Whether to export ALL data available to synchronization instead of just the local data and
+		 *        local modifications
 		 * @return Whether the export succeeded
 		 */
 		public boolean exportData(prisms.ui.UI ui, boolean global)
@@ -51,38 +59,34 @@ public class PrismsDataExportImport
 					{
 						pi.setProgressText("Configuring " + app.getName());
 						// Configure the application. Can't be done except by the PrismsServer
-						prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(
-							theApps[0].getEnvironment().getIDs().getLocalInstance().location,
-							app.getName(), app.getClients()[0].getName(), "System");
+						prisms.util.PrismsServiceConnector conn = new prisms.util.PrismsServiceConnector(theApps[0]
+							.getEnvironment().getIDs().getLocalInstance().location, app.getName(),
+							app.getClients()[0].getName(), "System");
 						try
 						{
-							conn.getConnector().setTrustManager(
-								new javax.net.ssl.X509TrustManager()
+							conn.getConnector().setTrustManager(new javax.net.ssl.X509TrustManager()
+							{
+								public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
+									String authType) throws java.security.cert.CertificateException
 								{
-									public void checkClientTrusted(
-										java.security.cert.X509Certificate[] chain, String authType)
-										throws java.security.cert.CertificateException
-									{
-									}
+								}
 
-									public void checkServerTrusted(
-										java.security.cert.X509Certificate[] chain, String authType)
-										throws java.security.cert.CertificateException
-									{
-									}
+								public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
+									String authType) throws java.security.cert.CertificateException
+								{
+								}
 
-									public java.security.cert.X509Certificate[] getAcceptedIssuers()
-									{
-										return null;
-									}
-								});
+								public java.security.cert.X509Certificate[] getAcceptedIssuers()
+								{
+									return null;
+								}
+							});
 						} catch(java.security.GeneralSecurityException e)
 						{
 							log.error("Could not set trust manager for service connector", e);
 						}
 						conn.setUserSource(theApps[0].getEnvironment().getUserSource());
-						log.debug("Application " + app.getName()
-							+ " is not yet configured. Configuring.");
+						log.debug("Application " + app.getName() + " is not yet configured. Configuring.");
 						try
 						{
 							conn.init();
@@ -115,8 +119,7 @@ public class PrismsDataExportImport
 
 		boolean exportData(prisms.ui.UI ui, prisms.ui.UI.DefaultProgressInformer pi, boolean global)
 		{
-			java.io.File exportFile = new java.io.File(theApps[0].getEnvironment().getLogger()
-				.getExposedDir()
+			java.io.File exportFile = new java.io.File(theApps[0].getEnvironment().getLogger().getExposedDir()
 				+ ".exportedData.dat");
 			if(exportFile.exists() && !prisms.util.FileSegmentizerOutputStream.delete(exportFile))
 			{
@@ -185,8 +188,7 @@ public class PrismsDataExportImport
 					{
 						if(PrismsSynchronizer.class.isAssignableFrom(property.getType()))
 						{
-							PrismsSynchronizer sync = (PrismsSynchronizer) app
-								.getGlobalProperty(property);
+							PrismsSynchronizer sync = (PrismsSynchronizer) app.getGlobalProperty(property);
 							if(sync == null || !(sync.getKeeper() instanceof DBRecordKeeper))
 								continue;
 							exportData(ui, sync, jsw, namespaces, pi, global);
@@ -198,8 +200,8 @@ public class PrismsDataExportImport
 				jsw.startArray();
 				for(User user : theApps[0].getEnvironment().getUserSource().getActiveUsers())
 				{
-					prisms.arch.ds.UserSource.Password pwd = theApps[0].getEnvironment()
-						.getUserSource().getPassword(user);
+					prisms.arch.ds.UserSource.Password pwd = theApps[0].getEnvironment().getUserSource()
+						.getPassword(user);
 					if(pwd == null)
 						continue;
 					jsw.startObject();
@@ -218,10 +220,8 @@ public class PrismsDataExportImport
 				streamWriter.close();
 				fileStream.close();
 				success = true;
-				ui.info("Data has been exported. On server restart after rebuild,"
-					+ " local data will be imported.");
-				log.info("Instance "
-					+ theApps[0].getEnvironment().getIDs().getLocalInstance().location
+				ui.info("Data has been exported. On server restart after rebuild," + " local data will be imported.");
+				log.info("Instance " + theApps[0].getEnvironment().getIDs().getLocalInstance().location
 					+ ": Data has been exported to " + exportFile.getCanonicalPath());
 			} catch(java.io.IOException e)
 			{
@@ -247,8 +247,8 @@ public class PrismsDataExportImport
 		}
 
 		void exportData(prisms.ui.UI ui, PrismsSynchronizer sync, JsonStreamWriter jsw,
-			java.util.HashSet<String> namespaces, prisms.ui.UI.DefaultProgressInformer pi,
-			boolean global) throws java.io.IOException, PrismsRecordException
+			java.util.HashSet<String> namespaces, prisms.ui.UI.DefaultProgressInformer pi, boolean global)
+			throws java.io.IOException, PrismsRecordException
 		{
 			DBRecordKeeper keeper = (DBRecordKeeper) sync.getKeeper();
 			String namespace = keeper.getNamespace();
@@ -271,17 +271,15 @@ public class PrismsDataExportImport
 				}
 
 			jsw.writeString(v);
-			SyncRecord syncRecord = new SyncRecord(new PrismsCenter("Export"),
-				SyncRecord.Type.AUTOMATIC, System.currentTimeMillis(), false);
+			SyncRecord syncRecord = new SyncRecord(new PrismsCenter("Export"), SyncRecord.Type.AUTOMATIC,
+				System.currentTimeMillis(), false);
 			pi.setProgressText("Exporting " + namespace + " items");
 			ui.startTimedTask(pi);
-			PrismsSynchronizer.SyncTransaction syncTrans = sync.transact(v, false, syncRecord,
-				false, pi);
-			PrismsSynchronizer.PS2ItemWriter itemWriter = new PrismsSynchronizer.PS2ItemWriter(
-				syncTrans, jsw, new prisms.records.LatestCenterChange [0]);
+			PrismsSynchronizer.SyncTransaction syncTrans = sync.transact(v, false, syncRecord, false, pi);
+			PrismsSynchronizer.PS2ItemWriter itemWriter = new PrismsSynchronizer.PS2ItemWriter(syncTrans, jsw,
+				new prisms.records.LatestCenterChange [0]);
 
-			int [] centerIDs = global ? keeper.getAllCenterIDs()
-				: new int [] {keeper.getCenterID()};
+			int [] centerIDs = global ? keeper.getAllCenterIDs() : new int [] {keeper.getCenterID()};
 			SynchronizeImpl.ItemIterator iter = impl.getAllItems(centerIDs, syncRecord.getCenter());
 			jsw.startProperty("items");
 			jsw.startArray();
@@ -297,12 +295,10 @@ public class PrismsDataExportImport
 			prisms.util.Sorter<RecordKeeper.ChangeField> sorter;
 			sorter = new prisms.util.Sorter<RecordKeeper.ChangeField>();
 			sorter.addSort(RecordKeeper.ChangeField.CHANGE_TIME, true);
-			prisms.util.Search changeSearch = global ? null
-				: new prisms.records.ChangeSearch.IDRange(Long.valueOf(IDGenerator.getMinID(keeper
-					.getCenterID())), Long.valueOf(IDGenerator.getMaxID(keeper.getCenterID())))
-					.and(new prisms.records.ChangeSearch.LocalOnlySearch(null));
-			prisms.util.LongList changeIDs = new prisms.util.LongList(keeper.search(changeSearch,
-				sorter));
+			prisms.util.Search changeSearch = global ? null : new prisms.records.ChangeSearch.IDRange(
+				Long.valueOf(IDGenerator.getMinID(keeper.getCenterID())), Long.valueOf(IDGenerator.getMaxID(keeper
+					.getCenterID()))).and(new prisms.records.ChangeSearch.LocalOnlySearch(null));
+			prisms.util.LongList changeIDs = new prisms.util.LongList(keeper.search(changeSearch, sorter));
 			long [] batch = new long [changeIDs.size() < 200 ? changeIDs.size() : 200];
 			jsw.startProperty("changes");
 			jsw.startArray();
@@ -313,9 +309,7 @@ public class PrismsDataExportImport
 				changeIDs.arrayCopy(i, batch, 0, batch.length);
 				ChangeRecord [] changes = keeper.getItems(batch);
 				for(ChangeRecord change : changes)
-					if(change != null
-						&& (change.type.subjectType instanceof PrismsChange || impl
-							.shouldSend(change)))
+					if(change != null && (change.type.subjectType instanceof PrismsChange || impl.shouldSend(change)))
 						itemWriter.writeChange(change, false);
 			}
 			jsw.endArray();
@@ -336,8 +330,7 @@ public class PrismsDataExportImport
 				for(int i = 0; i < allCenterIDs.size(); i++)
 					for(int j = 0; j < allCenterIDs.size(); j++)
 					{
-						long changeTime = keeper.getLatestChange(allCenterIDs.get(i),
-							allCenterIDs.get(j));
+						long changeTime = keeper.getLatestChange(allCenterIDs.get(i), allCenterIDs.get(j));
 						if(changeTime > 0)
 						{
 							jsw.startObject();
@@ -417,8 +410,8 @@ public class PrismsDataExportImport
 		}
 
 		/**
-		 * @param thresh The threshold age after which exported data is deemed to be too old and
-		 *        will not be imported. The default is 7 days.
+		 * @param thresh The threshold age after which exported data is deemed to be too old and will not be imported.
+		 *        The default is 7 days.
 		 */
 		public void setDataAgeThreshold(long thresh)
 		{
@@ -429,8 +422,8 @@ public class PrismsDataExportImport
 		 * Reads the exported file and returns the instance ID stored therein
 		 * 
 		 * @param exposedDir The exposed logging directory to look for the exported data in
-		 * @return The instance ID stored in the export file or -1 if the file did not exist or
-		 *         could not be parsed as an export file
+		 * @return The instance ID stored in the export file or -1 if the file did not exist or could not be parsed as
+		 *         an export file
 		 */
 		public int getInstanceID(String exposedDir)
 		{
@@ -470,8 +463,8 @@ public class PrismsDataExportImport
 				theExportDataTime = jsr.parseLong();
 				if(System.currentTimeMillis() - theExportDataTime > theDataAgeThreshold)
 				{
-					log.error("Exported data is too old ("
-						+ prisms.util.PrismsUtils.print(theExportDataTime) + "). Import canceled.");
+					log.error("Exported data is too old (" + prisms.util.PrismsUtils.print(theExportDataTime)
+						+ "). Import canceled.");
 					return -1;
 				}
 				if(!"instance".equals(jsr.getNextProperty()))
@@ -570,8 +563,7 @@ public class PrismsDataExportImport
 					{
 						if(PrismsSynchronizer.class.isAssignableFrom(property.getType()))
 						{
-							PrismsSynchronizer sync = (PrismsSynchronizer) app
-								.getGlobalProperty(property);
+							PrismsSynchronizer sync = (PrismsSynchronizer) app.getGlobalProperty(property);
 							if(sync == null || !(sync.getKeeper() instanceof DBRecordKeeper))
 								continue;
 							syncs.put(((DBRecordKeeper) sync.getKeeper()).getNamespace(), sync);
@@ -588,13 +580,12 @@ public class PrismsDataExportImport
 				JsonSerialReader.StructState rootState = theJsonReader.startArray();
 				JsonSerialReader.JsonParseItem item;
 				StringBuilder message = new StringBuilder();
-				message.append("Imported PRISMS data from ")
-					.append(prisms.util.PrismsUtils.print(theExportDataTime)).append(" (");
-				prisms.util.PrismsUtils.printTimeLength(System.currentTimeMillis()
-					- theExportDataTime, message, false);
+				message.append("Imported PRISMS data from ").append(prisms.util.PrismsUtils.print(theExportDataTime))
+					.append(" (");
+				prisms.util.PrismsUtils.printTimeLength(System.currentTimeMillis() - theExportDataTime, message, false);
 				message.append(" old).");
-				for(item = theJsonReader.getNextItem(true); item instanceof JsonSerialReader.ObjectItem; item = theJsonReader
-					.getNextItem(true))
+				for(item = theJsonReader.getNextItem(true, false); item instanceof JsonSerialReader.ObjectItem; item = theJsonReader
+					.getNextItem(true, false))
 				{
 					JsonSerialReader.StructState syncState = theJsonReader.save();
 					try
@@ -609,12 +600,10 @@ public class PrismsDataExportImport
 						PrismsSynchronizer sync = syncs.get(namespace);
 						if(sync == null)
 						{
-							message
-								.append("\n\tNo synchronizer loaded with namespace " + namespace);
+							message.append("\n\tNo synchronizer loaded with namespace " + namespace);
 							continue;
 						}
-						message.append("\n\tImporting data for namespace \"").append(namespace)
-							.append('"');
+						message.append("\n\tImporting data for namespace \"").append(namespace).append('"');
 						String version;
 						if(!"version".equals(theJsonReader.getNextProperty()))
 							version = null;
@@ -624,8 +613,7 @@ public class PrismsDataExportImport
 						((DBRecordKeeper) sync.getKeeper()).setAbsoluteIntegrity(true);
 						try
 						{
-							importData(appsByNS.get(namespace), sync, version, theJsonReader,
-								message);
+							importData(appsByNS.get(namespace), sync, version, theJsonReader, message);
 						} catch(Exception e)
 						{
 							message.append("\n\t\tImport failed: ").append(e);
@@ -645,8 +633,8 @@ public class PrismsDataExportImport
 				{
 					rootState = theJsonReader.startArray();
 					prisms.util.LongList pwdData = new prisms.util.LongList();
-					for(item = theJsonReader.getNextItem(true); item instanceof JsonSerialReader.ObjectItem; item = theJsonReader
-						.getNextItem(true))
+					for(item = theJsonReader.getNextItem(true, false); item instanceof JsonSerialReader.ObjectItem; item = theJsonReader
+						.getNextItem(true, false))
 					{
 						JsonSerialReader.StructState pwdState = theJsonReader.save();
 						try
@@ -668,8 +656,7 @@ public class PrismsDataExportImport
 							theJsonReader.endArray(null);
 							try
 							{
-								apps[0].getEnvironment().getUserSource()
-									.setPassword(user, pwdData.toArray(), true);
+								apps[0].getEnvironment().getUserSource().setPassword(user, pwdData.toArray(), true);
 							} catch(prisms.arch.PrismsException e)
 							{
 								log.error("Could not set password for user " + userName, e);
@@ -709,18 +696,16 @@ public class PrismsDataExportImport
 				}
 		}
 
-		void importData(PrismsApplication app, PrismsSynchronizer sync, String version,
-			JsonSerialReader jsr, StringBuilder message) throws java.io.IOException,
-			SAJParser.ParseException
+		void importData(PrismsApplication app, PrismsSynchronizer sync, String version, JsonSerialReader jsr,
+			StringBuilder message) throws java.io.IOException, SAJParser.ParseException
 		{
-			SyncRecord syncRecord = new SyncRecord(new PrismsCenter("Export"),
-				SyncRecord.Type.AUTOMATIC, System.currentTimeMillis(), false);
-			PrismsSynchronizer.SyncTransaction trans = sync.transact(version, true, syncRecord,
-				false, new prisms.ui.UI.DefaultProgressInformer());
+			SyncRecord syncRecord = new SyncRecord(new PrismsCenter("Export"), SyncRecord.Type.AUTOMATIC,
+				System.currentTimeMillis(), false);
+			PrismsSynchronizer.SyncTransaction trans = sync.transact(version, true, syncRecord, false,
+				new prisms.ui.UI.DefaultProgressInformer());
 
 			// Items
-			PrismsSynchronizer.PS2ItemReader itemReader = new PrismsSynchronizer.PS2ItemReader(
-				trans);
+			PrismsSynchronizer.PS2ItemReader itemReader = new PrismsSynchronizer.PS2ItemReader(trans);
 			if(!jsr.goToProperty("items"))
 			{
 				message.append("\n\t\tNo items property in sync data");
@@ -770,8 +755,8 @@ public class PrismsDataExportImport
 			}
 
 			// Changes
-			PrismsSynchronizer.ChangeReader changeReader = new PrismsSynchronizer.ChangeReader(
-				trans, null, itemReader, 0);
+			PrismsSynchronizer.ChangeReader changeReader = new PrismsSynchronizer.ChangeReader(trans, null, itemReader,
+				0);
 			if(!jsr.goToProperty("changes"))
 			{
 				message.append("\n\t\tNo changes property in sync data");
@@ -798,7 +783,7 @@ public class PrismsDataExportImport
 				{
 					int syncRecords = 0;
 					jsr.startArray();
-					while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
+					while(jsr.getNextItem(true, false) instanceof JsonSerialReader.ObjectItem)
 					{
 						JsonSerialReader.StructState centerState = jsr.save();
 						try
@@ -827,7 +812,7 @@ public class PrismsDataExportImport
 								continue;
 							}
 							jsr.startArray();
-							while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
+							while(jsr.getNextItem(true, false) instanceof JsonSerialReader.ObjectItem)
 							{
 								JsonSerialReader.StructState srState = jsr.save();
 								try
@@ -853,8 +838,7 @@ public class PrismsDataExportImport
 									SyncRecord.Type type = SyncRecord.Type.byName(typeName);
 									if(type == null)
 									{
-										log.warn("Unrecognized sync type in sync record: "
-											+ typeName);
+										log.warn("Unrecognized sync type in sync record: " + typeName);
 										continue;
 									}
 									if(!jsr.goToProperty("time"))
@@ -874,7 +858,7 @@ public class PrismsDataExportImport
 										log.warn("No syncError property in sync record");
 										continue;
 									}
-									Object syncError = jsr.parseNext();
+									Object syncError = jsr.parseNext(false);
 									SyncRecord sr = new SyncRecord(center, type, time, isImport);
 									sr.setID(srID);
 									sr.setParallelID(parallelID);
@@ -901,7 +885,7 @@ public class PrismsDataExportImport
 									prisms.util.LongList assocIDs = new prisms.util.LongList();
 									prisms.util.BooleanList assocErrors = new prisms.util.BooleanList();
 									jsr.startArray();
-									while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
+									while(jsr.getNextItem(true, false) instanceof JsonSerialReader.ObjectItem)
 									{
 										if(!jsr.goToProperty("id"))
 										{
@@ -920,8 +904,7 @@ public class PrismsDataExportImport
 									ChangeRecord [] assocChanges;
 									try
 									{
-										assocChanges = sync.getKeeper()
-											.getItems(assocIDs.toArray());
+										assocChanges = sync.getKeeper().getItems(assocIDs.toArray());
 									} catch(PrismsRecordException e)
 									{
 										log.error("Could not get associated changes", e);
@@ -932,8 +915,7 @@ public class PrismsDataExportImport
 										if(assocChanges[i] != null)
 											try
 											{
-												sync.getKeeper().associate(assocChanges[i], sr,
-													assocErrors.get(i));
+												sync.getKeeper().associate(assocChanges[i], sr, assocErrors.get(i));
 											} catch(PrismsRecordException e)
 											{
 												log.error("Could not associated change", e);
@@ -959,7 +941,7 @@ public class PrismsDataExportImport
 			if(jsr.goToProperty("latestChanges"))
 			{
 				JsonSerialReader.StructState rootState = jsr.startArray();
-				while(jsr.getNextItem(true) instanceof JsonSerialReader.ObjectItem)
+				while(jsr.getNextItem(true, false) instanceof JsonSerialReader.ObjectItem)
 				{
 					JsonSerialReader.StructState lcState = jsr.save();
 					try

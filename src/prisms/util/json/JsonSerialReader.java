@@ -4,6 +4,7 @@
 package prisms.util.json;
 
 import java.io.IOException;
+import java.io.Reader;
 
 import prisms.util.json.SAJParser.ParseException;
 import prisms.util.json.SAJParser.ParseNode;
@@ -12,13 +13,13 @@ import prisms.util.json.SAJParser.ParseToken;
 
 /**
  * <p>
- * A JsonSerialReader provides a way of navigating sequentially through a JSON document in a more
- * flexible way than implementing a {@link prisms.util.json.SAJParser.ParseHandler} and using
+ * A JsonSerialReader provides a way of navigating sequentially through a JSON document in a more flexible way than
+ * implementing a {@link prisms.util.json.SAJParser.ParseHandler} and using
  * {@link SAJParser#parse(java.io.Reader, prisms.util.json.SAJParser.ParseHandler...)}.
  * </p>
  * <p>
- * The navigation methods of this class always move forward. If an item is skipped during a
- * navigation operation, that item cannot be retrieved through that instance of this class.
+ * The navigation methods of this class always move forward. If an item is skipped during a navigation operation, that
+ * item cannot be retrieved through that instance of this class.
  * </p>
  */
 public class JsonSerialReader
@@ -29,13 +30,13 @@ public class JsonSerialReader
 		/** Represents some white space which has no effect on the JSON content */
 		WHITESPACE,
 		/**
-		 * Represents either a line comment started with // or a block comment beginning with /*
-		 * (slash-star) and ending with star-slash
+		 * Represents either a line comment started with // or a block comment beginning with /* (slash-star) and ending
+		 * with star-slash
 		 */
 		COMMENT,
 		/**
-		 * Represents a comma between elements in an array, a colon between the name and value of an
-		 * object property, or a comma between name/value pairs in an object
+		 * Represents a comma between elements in an array, a colon between the name and value of an object property, or
+		 * a comma between name/value pairs in an object
 		 */
 		SEPARATOR,
 		/** Represents either the beginning ('{') or end ('}') of a JSON object */
@@ -45,8 +46,8 @@ public class JsonSerialReader
 		/** Represents the beginning of a property in a JSON object */
 		PROPERTY,
 		/**
-		 * Represents a String, Number, Boolean, or null as a property value in a JSON object, an
-		 * element in an array, or a standalone value
+		 * Represents a String, Number, Boolean, or null as a property value in a JSON object, an element in an array,
+		 * or a standalone value
 		 */
 		PRIMITIVE;
 	}
@@ -82,8 +83,8 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Represents either a line comment started with // or a block comment beginning with /*
-	 * (slash-star) and ending with star-slash
+	 * Represents either a line comment started with // or a block comment beginning with /* (slash-star) and ending
+	 * with star-slash
 	 */
 	public static class Comment implements JsonParseItem
 	{
@@ -126,8 +127,8 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Represents a comma between elements in an array, a colon between the name and value of an
-	 * object property, or a comma between name/value pairs in an object
+	 * Represents a comma between elements in an array, a colon between the name and value of an object property, or a
+	 * comma between name/value pairs in an object
 	 */
 	public static class Separator implements JsonParseItem
 	{
@@ -147,12 +148,10 @@ public class JsonSerialReader
 		/**
 		 * @return The type of separator that this item represents:
 		 *         <ul>
-		 *         <li>{@link prisms.util.json.SAJParser.ParseToken#OBJECT} For a comma between
-		 *         properties of an object</li>
-		 *         <li>{@link prisms.util.json.SAJParser.ParseToken#PROPERTY} For a colon between
-		 *         the name and value of an object property</li>
-		 *         <li>{@link prisms.util.json.SAJParser.ParseToken#OBJECT} For a comma between
-		 *         elements of an array</li>
+		 *         <li>{@link prisms.util.json.SAJParser.ParseToken#OBJECT} For a comma between properties of an object</li>
+		 *         <li>{@link prisms.util.json.SAJParser.ParseToken#PROPERTY} For a colon between the name and value of
+		 *         an object property</li>
+		 *         <li>{@link prisms.util.json.SAJParser.ParseToken#OBJECT} For a comma between elements of an array</li>
 		 *         </ul>
 		 */
 		public ParseToken getSeparatorType()
@@ -238,8 +237,8 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Represents a String, Number, Boolean, or null as a property value in a JSON object, an
-	 * element in an array, or a standalone value
+	 * Represents a String, Number, Boolean, or null as a property value in a JSON object, an element in an array, or a
+	 * standalone value
 	 */
 	public static class PrimitiveItem implements JsonContentItem
 	{
@@ -268,6 +267,11 @@ public class JsonSerialReader
 	{
 		private ParseNode [] thePath;
 
+		private StructState(ParseNode [] path)
+		{
+			thePath = path;
+		}
+
 		StructState(ParseState state, ParseNode... add)
 		{
 			ParseNode top;
@@ -286,6 +290,16 @@ public class JsonSerialReader
 				thePath[i] = add[i - state.getDepth()];
 		}
 
+		/** @return The parent state of this state */
+		public StructState getParent()
+		{
+			if(thePath.length == 0)
+				return null;
+			ParseNode [] newPath = new ParseNode [thePath.length - 1];
+			System.arraycopy(thePath, 0, newPath, 0, newPath.length);
+			return new StructState(newPath);
+		}
+
 		/** @return The depth of this state */
 		public int getDepth()
 		{
@@ -293,8 +307,8 @@ public class JsonSerialReader
 		}
 
 		/**
-		 * @return The top parse node of this state. Will be of type {@link ParseToken#OBJECT
-		 *         object} or {@link ParseToken#ARRAY array}
+		 * @return The top parse node of this state. Will be of type {@link ParseToken#OBJECT object} or
+		 *         {@link ParseToken#ARRAY array}
 		 */
 		public ParseNode top()
 		{
@@ -332,8 +346,7 @@ public class JsonSerialReader
 		@Override
 		public boolean equals(Object o)
 		{
-			return o instanceof StructState
-				&& prisms.util.ArrayUtils.equals(thePath, ((StructState) o).thePath);
+			return o instanceof StructState && prisms.util.ArrayUtils.equals(thePath, ((StructState) o).thePath);
 		}
 
 		@Override
@@ -373,6 +386,8 @@ public class JsonSerialReader
 	{
 		private Boolean theMode;
 
+		private boolean isStringAsReader;
+
 		private boolean isSep;
 
 		private boolean isWhitespace;
@@ -385,18 +400,28 @@ public class JsonSerialReader
 
 		private String theFullComment;
 
+		private Reader theStringReader;
+
 		/**
 		 * @param mode The mode that this handler should be in:
 		 *        <ul>
 		 *        <li>null - Off. This handler will ignore any calls it receives</li>
-		 *        <li>false - Partial. This handler will accept metadata, but no full content except
-		 *        primitives</li>
+		 *        <li>false - Partial. This handler will accept metadata, but no full content except primitives</li>
 		 *        <li>true - On. This handler accepts all input</li>
 		 *        </ul>
 		 */
 		public void setMode(Boolean mode)
 		{
 			theMode = mode;
+		}
+
+		/**
+		 * @param stringAsReader Whether, when strings are encountered, to store them in the stringReader field for
+		 *        later retrieval, or to parse them as normal string objects
+		 */
+		public void setStringAsReader(boolean stringAsReader)
+		{
+			isStringAsReader = stringAsReader;
 		}
 
 		/** @return The mode that this handler is in */
@@ -429,6 +454,12 @@ public class JsonSerialReader
 			return isNull;
 		}
 
+		/** @return The reader for the string just encountered */
+		public Reader getString()
+		{
+			return theStringReader;
+		}
+
 		/** @return The value of the last white space or comment parsed */
 		public String getContent()
 		{
@@ -449,6 +480,7 @@ public class JsonSerialReader
 			isNull = false;
 			theContent = null;
 			theFullComment = null;
+			theStringReader = null;
 		}
 
 		@Override
@@ -500,12 +532,18 @@ public class JsonSerialReader
 		}
 
 		@Override
-		public void valueString(ParseState state, String value)
+		public void valueString(ParseState state, java.io.Reader value) throws IOException
 		{
 			if(theMode != null)
 			{
-				super.valueString(state, value);
 				clearNonContent();
+				if(isStringAsReader)
+				{
+					theStringReader = value;
+					super.valueString(state, "");
+				}
+				else
+					super.valueString(state, value);
 			}
 		}
 
@@ -585,8 +623,8 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Returned from method in this reader for which <code>null</code> means that no more data is
-	 * left when the value "null" is actually in the stream.
+	 * Returned from method in this reader for which <code>null</code> means that no more data is left when the value
+	 * "null" is actually in the stream.
 	 */
 	public static final Object NULL = new Object();
 
@@ -599,6 +637,8 @@ public class JsonSerialReader
 	private StructItem theLastEnded;
 
 	private StructState theLastState;
+
+	private boolean needsPastSep;
 
 	/**
 	 * Creates a serial reader
@@ -619,24 +659,26 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Parses the next item in the stream. If <code>jsonOnly</code> is true, this method will skip
-	 * over items that do not affect the actual JSON content and the returned item will be of type
-	 * {@link JsonParseType#OBJECT}, {@link JsonParseType#ARRAY}, {@link JsonParseType#PROPERTY}, or
-	 * {@link JsonParseType#PRIMITIVE}. Otherwise any of the JSON types may be returned.
+	 * Parses the next item in the stream. If <code>jsonOnly</code> is true, this method will skip over items that do
+	 * not affect the actual JSON content and the returned item will be of type {@link JsonParseType#OBJECT},
+	 * {@link JsonParseType#ARRAY}, {@link JsonParseType#PROPERTY}, or {@link JsonParseType#PRIMITIVE}. Otherwise any of
+	 * the JSON types may be returned.
 	 * 
 	 * @param jsonOnly Whether to skip over non-JSON content items
+	 * @param stringAsReader Whether to return string in the JSON structure as readers instead of String objects
 	 * @return The next item in the stream, or null if the stream's content is exhausted
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next item cannot be parsed in context
 	 */
-	public JsonParseItem getNextItem(boolean jsonOnly) throws IOException, ParseException
+	public JsonParseItem getNextItem(boolean jsonOnly, boolean stringAsReader) throws IOException, ParseException
 	{
-		return getNextItem(jsonOnly, false);
+		return getNextItem(jsonOnly, stringAsReader, false);
 	}
 
-	private JsonParseItem getNextItem(boolean jsonOnly, boolean calledInternal) throws IOException,
-		ParseException
+	private JsonParseItem getNextItem(boolean jsonOnly, boolean stringAsReader, boolean calledInternal)
+		throws IOException, ParseException
 	{
+		needsPastSep = false;
 		if(theLastEnded != null)
 		{
 			JsonParseItem ret = theLastEnded;
@@ -645,6 +687,7 @@ public class JsonSerialReader
 			if(calledInternal)
 				return ret;
 		}
+		theHandler.setStringAsReader(stringAsReader);
 		boolean preOff = theHandler.getMode() == null;
 		if(preOff)
 			theHandler.setMode(Boolean.FALSE);
@@ -662,6 +705,22 @@ public class JsonSerialReader
 
 			if(theHandler.isNull())
 				return new PrimitiveItem(null);
+			else if(theHandler.getString() != null)
+			{
+				if(stringAsReader)
+					return new PrimitiveItem(theHandler.getString());
+				else
+				{
+					StringBuilder contents = new StringBuilder();
+					int read = theHandler.getString().read();
+					while(read >= 0)
+					{
+						contents.append((char) read);
+						read = theHandler.getString().read();
+					}
+					return new PrimitiveItem(contents.toString());
+				}
+			}
 			else if(theHandler.finalValue() != preValue)
 				return new PrimitiveItem(theHandler.finalValue());
 			else if(theHandler.isSeparator())
@@ -735,17 +794,15 @@ public class JsonSerialReader
 	/**
 	 * Parses through the start of the next item, which must be an object
 	 * 
-	 * @return The state of the object that was started. This object may be ended with
-	 *         {@link #endObject(StructState)}.
+	 * @return The state of the object that was started. This object may be ended with {@link #endObject(StructState)}.
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next item in the stream is not an object
 	 */
 	public StructState startObject() throws IOException, ParseException
 	{
 		if(theState.top() != null && theState.top().token == ParseToken.OBJECT)
-			throw new IllegalStateException("The current state is an object."
-				+ " The next item cannot be an object");
-		JsonParseItem item = getNextItem(true, true);
+			throw new IllegalStateException("The current state is an object." + " The next item cannot be an object");
+		JsonParseItem item = getNextItem(true, false, true);
 		if(item == null)
 			theState.error("Unexpected end of content");
 		if(item instanceof ObjectItem && ((ObjectItem) item).isBegin())
@@ -757,10 +814,8 @@ public class JsonSerialReader
 	/**
 	 * Gets the name of the next property in an object
 	 * 
-	 * @return The name of the next property in the current object, or null if the object has no
-	 *         more properties
-	 * @throws IllegalStateException If the top of this parser's state is not an on object or
-	 *         property
+	 * @return The name of the next property in the current object, or null if the object has no more properties
+	 * @throws IllegalStateException If the top of this parser's state is not an on object or property
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If an error occurs parsing to the next property
 	 */
@@ -768,6 +823,7 @@ public class JsonSerialReader
 	{
 		if(theLastEnded instanceof ObjectItem)
 			return null;
+		parsePastPropertySeparator();
 		if(theState.top() == null
 			|| (theState.top().token != ParseToken.OBJECT && theState.top().token != ParseToken.PROPERTY))
 			throw new IllegalStateException("The current state is not in an object.");
@@ -777,7 +833,7 @@ public class JsonSerialReader
 		JsonParseItem item;
 		do
 		{
-			item = getNextItem(true, true);
+			item = getNextItem(true, false, true);
 			if(item == null)
 				theState.error("Unexpected end of content");
 			if(item instanceof PropertyItem)
@@ -788,19 +844,16 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Goes to the value of the given property within the current object. Note that all methods in
-	 * this class, including this one, only navigate forward. If the given property has been passed
-	 * already, this method will leave the stream position at the end of the current object and will
-	 * return false.
+	 * Goes to the value of the given property within the current object. Note that all methods in this class, including
+	 * this one, only navigate forward. If the given property has been passed already, this method will leave the stream
+	 * position at the end of the current object and will return false.
 	 * 
 	 * @param name The name of the property to go to
 	 * @return Whether the property exists in the current object
-	 * @throws IOException If an error occurs reading the stream between the current stream position
-	 *         and the value of the given property, or the end of the current object if the property
-	 *         cannot be found
-	 * @throws ParseException If an error occurs parsing the data between the current stream
-	 *         position and the value of the given property, or the end of the current object if the
-	 *         property cannot be found
+	 * @throws IOException If an error occurs reading the stream between the current stream position and the value of
+	 *         the given property, or the end of the current object if the property cannot be found
+	 * @throws ParseException If an error occurs parsing the data between the current stream position and the value of
+	 *         the given property, or the end of the current object if the property cannot be found
 	 */
 	public boolean goToProperty(String name) throws IOException, ParseException
 	{
@@ -818,8 +871,7 @@ public class JsonSerialReader
 	 * 
 	 * @throws IllegalStateException If the top of this parser's state is not an object or property
 	 * @throws IOException If an error occurs reading the data from the stream
-	 * @throws ParseException If the data between the current location and the end of the object
-	 *         cannot be parsed
+	 * @throws ParseException If the data between the current location and the end of the object cannot be parsed
 	 */
 	public int endObject(StructState state) throws IOException, ParseException
 	{
@@ -843,7 +895,7 @@ public class JsonSerialReader
 			// Parse to the level of the object that the state points to
 			while(theState.getDepth() > state.getPath().length)
 			{
-				JsonParseItem item = getNextItem(false, true);
+				JsonParseItem item = getNextItem(false, false, true);
 				if(item == null)
 					theState.error("Unexpected end of content");
 				if(item instanceof PropertyItem)
@@ -871,7 +923,7 @@ public class JsonSerialReader
 		JsonParseItem item;
 		do
 		{
-			item = getNextItem(true);
+			item = getNextItem(true, false);
 			if(item == null)
 				theState.error("Unexpected end of content");
 			if(item instanceof PropertyItem && theState.getDepth() == preDepth + 1)
@@ -883,17 +935,15 @@ public class JsonSerialReader
 	/**
 	 * Parses through the start of the next item, which must be an array
 	 * 
-	 * @return The state of the array that was started. This array may be ended with
-	 *         {@link #endArray(StructState)}.
+	 * @return The state of the array that was started. This array may be ended with {@link #endArray(StructState)}.
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next item in the stream is not an array
 	 */
 	public StructState startArray() throws IOException, ParseException
 	{
 		if(theState.top() != null && theState.top().token == ParseToken.OBJECT)
-			throw new IllegalStateException("The current state is an object."
-				+ " The next item cannot be an array.");
-		JsonParseItem item = getNextItem(true, true);
+			throw new IllegalStateException("The current state is an object. The next item cannot be an array.");
+		JsonParseItem item = getNextItem(true, false, true);
 		if(item == null)
 			theState.error("Unexpected end of content");
 		if(item instanceof ArrayItem && ((ArrayItem) item).isBegin())
@@ -909,11 +959,11 @@ public class JsonSerialReader
 	 * @return The number of elements skipped over in the array
 	 * @throws IllegalStateException If the top of this parser's state is not an array
 	 * @throws IOException If an error occurs reading the data from the stream
-	 * @throws ParseException If the data between the current location and the end of the array
-	 *         cannot be parsed
+	 * @throws ParseException If the data between the current location and the end of the array cannot be parsed
 	 */
 	public int endArray(StructState state) throws IOException, ParseException
 	{
+		parsePastPropertySeparator();
 		int ret = 0;
 		if(state != null)
 		{
@@ -934,7 +984,7 @@ public class JsonSerialReader
 			// Parse to the level of the array that the state points to
 			while(theState.getDepth() > state.getPath().length)
 			{
-				JsonParseItem item = getNextItem(false, true);
+				JsonParseItem item = getNextItem(false, false, true);
 				if(item == null)
 					theState.error("Unexpected end of content");
 				if(item instanceof JsonContentItem && state.getDepth() == state.getPath().length)
@@ -959,11 +1009,10 @@ public class JsonSerialReader
 		JsonParseItem item;
 		do
 		{
-			item = getNextItem(true);
+			item = getNextItem(true, false);
 			if(item == null)
 				theState.error("Unexpected end of content");
-			if(theState.getDepth() == preDepth + 1 && item instanceof StructItem
-				&& ((StructItem) item).isBegin())
+			if(theState.getDepth() == preDepth + 1 && item instanceof StructItem && ((StructItem) item).isBegin())
 				ret++;
 			else if(theState.getDepth() == preDepth && item instanceof PrimitiveItem)
 				ret++;
@@ -974,20 +1023,21 @@ public class JsonSerialReader
 	/**
 	 * Parses the next element in an array or value of a property in an object
 	 * 
-	 * @return The value of the current property or the next element in the array. May be an
-	 *         instance of {@link org.json.simple.JSONObject}, {@link org.json.simple.JSONArray},
-	 *         Number, String, Boolean, or may be {@link #NULL} if the next parsed value is null. An
-	 *         actual null will be returned if the last element of the array has already been
-	 *         parsed.
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property
+	 * @param stringAsReader Whether, if the next element in the array or object is a string, to return a Reader or a
+	 *        String object
+	 * @return The value of the current property or the next element in the array. May be an instance of
+	 *         {@link org.json.simple.JSONObject}, {@link org.json.simple.JSONArray}, Number, String, Boolean, or may be
+	 *         {@link #NULL} if the next parsed value is null. An actual null will be returned if the last element of
+	 *         the array has already been parsed.
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the element cannot be parsed
 	 */
-	public Object parseNext() throws IOException, ParseException
+	public Object parseNext(boolean stringAsReader) throws IOException, ParseException
 	{
 		if(theLastEnded != null)
 			return null;
+		parsePastPropertySeparator();
 		if(theState.top() == null
 			|| (theState.top().token != ParseToken.ARRAY && theState.top().token != ParseToken.PROPERTY))
 			throw new IllegalStateException("The current state is not an array or object property");
@@ -996,7 +1046,7 @@ public class JsonSerialReader
 		theHandler.setMode(Boolean.TRUE);
 		try
 		{
-			JsonParseItem item = getNextItem(true, true);
+			JsonParseItem item = getNextItem(true, stringAsReader, true);
 			switch(item.getType())
 			{
 			case WHITESPACE:
@@ -1004,8 +1054,7 @@ public class JsonSerialReader
 			case SEPARATOR:
 				throw new IllegalStateException("Should not have returned non-JSON content");
 			case PROPERTY:
-				throw new IllegalStateException("State was not an object"
-					+ "--should not have returned a property");
+				throw new IllegalStateException("State was not an object" + "--should not have returned a property");
 			case OBJECT:
 				if(((StructItem) item).isBegin())
 				{
@@ -1024,7 +1073,7 @@ public class JsonSerialReader
 				ret = ((PrimitiveItem) item).getValue();
 				if(ret == null)
 					ret = NULL;
-				parsePastPropertySeparator();
+				needsPastSep = true;
 			}
 		} finally
 		{
@@ -1036,89 +1085,84 @@ public class JsonSerialReader
 
 	private void parsePastPropertySeparator() throws IOException, ParseException
 	{
-		if(theState.top() == null || theState.top().token != ParseToken.PROPERTY)
+		if(!needsPastSep || theState.top() == null || theState.top().token != ParseToken.PROPERTY)
 			return;
+		needsPastSep = false;
 
 		JsonParseItem item;
 		do
 		{
-			item = getNextItem(false, true);
+			item = getNextItem(false, false, true);
 			if(item instanceof ObjectItem && !((ObjectItem) item).isBegin())
 				break;
 			if(item instanceof JsonContentItem)
-				throw new IllegalStateException(
-					"Should not encounter content before the property separator");
+				throw new IllegalStateException("Should not encounter content before the property separator");
 		} while(!(item instanceof Separator));
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that the next element, if present, is a JSON
-	 * object. If the current state is an array and there are no elements left, this method will
-	 * return null. Note that if the next item is a null value, this method will throw an
-	 * {@link IllegalStateException}.
+	 * Same as {@link #parseNext(boolean)}, but asserting that the next element, if present, is a JSON object. If the
+	 * current state is an array and there are no elements left, this method will return null. Note that if the next
+	 * item is a null value, this method will throw an {@link IllegalStateException}.
 	 * 
 	 * 
-	 * @return The value of the current property or the next element in the array as a JSON object,
-	 *         or null if the current state is in an array and there is no next element
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, or the next element is not a JSON object
+	 * @return The value of the current property or the next element in the array as a JSON object, or null if the
+	 *         current state is in an array and there is no next element
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, or
+	 *         the next element is not a JSON object
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public org.json.simple.JSONObject parseObject() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			return null;
 		else if(!(ret instanceof org.json.simple.JSONObject))
-			throw new IllegalStateException("Next element is type " + getType(ret)
-				+ ", not a JSON object");
+			throw new IllegalStateException("Next element is type " + getType(ret) + ", not a JSON object");
 		else
 			return (org.json.simple.JSONObject) ret;
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that the next element, if present, is a JSON
-	 * array. If the current state is an array and there are no elements left, this method will
-	 * return null. Note that if the next item is a null value, this method will throw an
-	 * {@link IllegalStateException}.
+	 * Same as {@link #parseNext(boolean)}, but asserting that the next element, if present, is a JSON array. If the
+	 * current state is an array and there are no elements left, this method will return null. Note that if the next
+	 * item is a null value, this method will throw an {@link IllegalStateException}.
 	 * 
 	 * 
-	 * @return The value of the current property or the next element in the array as a JSON array,
-	 *         or null if the current state is in an array and there is no next element
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, or the next element is not a JSON array
+	 * @return The value of the current property or the next element in the array as a JSON array, or null if the
+	 *         current state is in an array and there is no next element
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, or
+	 *         the next element is not a JSON array
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public org.json.simple.JSONArray parseArray() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			return null;
 		else if(!(ret instanceof org.json.simple.JSONArray))
-			throw new IllegalStateException("Next element is a " + getType(ret)
-				+ ", not a JSON array");
+			throw new IllegalStateException("Next element is a " + getType(ret) + ", not a JSON array");
 		else
 			return (org.json.simple.JSONArray) ret;
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that the next element, if present, is a number.
-	 * If the current state is an array and there are no elements left, this method will return
-	 * null. Note that if the next item is a null value, this method will throw an
-	 * {@link IllegalStateException}.
+	 * Same as {@link #parseNext(boolean)}, but asserting that the next element, if present, is a number. If the current
+	 * state is an array and there are no elements left, this method will return null. Note that if the next item is a
+	 * null value, this method will throw an {@link IllegalStateException}.
 	 * 
-	 * @return The value of the current property or the next element in the array as a number, or
-	 *         null if the current state is in an array and there is no next element
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, or the next element is not a number
+	 * @return The value of the current property or the next element in the array as a number, or null if the current
+	 *         state is in an array and there is no next element
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, or
+	 *         the next element is not a number
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public Number parseNumber() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			return null;
 		else if(!(ret instanceof Number))
@@ -1128,21 +1172,20 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that the next element, if present, is a string.
-	 * If the current state is an array and there are no elements left, this method will return
-	 * null. Note that if the next item is a null value, this method will throw an
-	 * {@link IllegalStateException}.
+	 * Same as {@link #parseNext(boolean)}, but asserting that the next element, if present, is a string. If the current
+	 * state is an array and there are no elements left, this method will return null. Note that if the next item is a
+	 * null value, this method will throw an {@link IllegalStateException}.
 	 * 
-	 * @return The value of the current property or the next element in the array as a string, or
-	 *         null if the current state is in an array and there is no next element
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, or the next element is not a string
+	 * @return The value of the current property or the next element in the array as a string, or null if the current
+	 *         state is in an array and there is no next element
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, or
+	 *         the next element is not a string
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public String parseString() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			return null;
 		else if(!(ret instanceof String))
@@ -1152,42 +1195,60 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that there is a next element and that it is an
-	 * int
+	 * Same as {@link #parseNext(boolean)}, but asserting that the next element, if present, is a string. If the current
+	 * state is an array and there are no elements left, this method will return null. Note that if the next item is a
+	 * null value, this method will throw an {@link IllegalStateException}.
+	 * 
+	 * @return The value of the current string property or the next element in the array as a reader, or null if the
+	 *         current state is in an array and there is no next element
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, or
+	 *         the next element is not a string
+	 * @throws IOException If an error occurs reading the data from the stream
+	 * @throws ParseException If the next element cannot be parsed
+	 */
+	public java.io.Reader parseStringAsReader() throws IOException, ParseException
+	{
+		Object ret = parseNext(true);
+		if(ret == null)
+			return null;
+		else if(!(ret instanceof Reader))
+			throw new IllegalStateException("Next element is a " + getType(ret) + ", not a string");
+		else
+			return (Reader) ret;
+	}
+
+	/**
+	 * Same as {@link #parseNext(boolean)}, but asserting that there is a next element and that it is an int
 	 * 
 	 * @return The value of the current property or the next element in the array as an int
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, if there is no next element in the array, or the next element is not
-	 *         an int
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, if
+	 *         there is no next element in the array, or the next element is not an int
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public int parseInt() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			throw new IllegalStateException("No more elements in array");
 		else if(!(ret instanceof Integer))
-			throw new IllegalStateException("Next element is a " + getType(ret)
-				+ ", not an integer");
+			throw new IllegalStateException("Next element is a " + getType(ret) + ", not an integer");
 		else
 			return ((Number) ret).intValue();
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that there is a next element and that it is a
-	 * long
+	 * Same as {@link #parseNext(boolean)}, but asserting that there is a next element and that it is a long
 	 * 
 	 * @return The value of the current property or the next element in the array as a long
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, if there is no next element in the array, or the next element is not
-	 *         a long
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, if
+	 *         there is no next element in the array, or the next element is not a long
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public long parseLong() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			throw new IllegalStateException("No more elements in array");
 		else if(!(ret instanceof Integer) && !(ret instanceof Long))
@@ -1197,19 +1258,18 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that there is a next element and that it is a
-	 * float or double (a double will be cast)
+	 * Same as {@link #parseNext(boolean)}, but asserting that there is a next element and that it is a float or double
+	 * (a double will be cast)
 	 * 
 	 * @return The value of the current property or the next element in the array as a float
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, if there is no next element in the array, or the next element is not
-	 *         a float or a double
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, if
+	 *         there is no next element in the array, or the next element is not a float or a double
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public float parseFloat() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			throw new IllegalStateException("No more elements in array");
 		else if(!(ret instanceof Float) && !(ret instanceof Double))
@@ -1219,19 +1279,18 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that there is a next element and that it is a
-	 * float or double (a float will be cast)
+	 * Same as {@link #parseNext(boolean)}, but asserting that there is a next element and that it is a float or double
+	 * (a float will be cast)
 	 * 
 	 * @return The value of the current property or the next element in the array as a double
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, if there is no next element in the array, or the next element is not
-	 *         a float or a double
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, if
+	 *         there is no next element in the array, or the next element is not a float or a double
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public double parseDouble() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			throw new IllegalStateException("No more elements in array");
 		else if(!(ret instanceof Float) && !(ret instanceof Double))
@@ -1241,41 +1300,37 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that there is a next element and that it is a
-	 * boolean
+	 * Same as {@link #parseNext(boolean)}, but asserting that there is a next element and that it is a boolean
 	 * 
 	 * @return The value of the current property or the next element in the array as a boolean
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, if there is no next element in the array, or the next element is not
-	 *         a boolean
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, if
+	 *         there is no next element in the array, or the next element is not a boolean
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public boolean parseBoolean() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			throw new IllegalStateException("No more elements in array");
 		else if(!(ret instanceof Boolean))
-			throw new IllegalStateException("Next element is a " + getType(ret)
-				+ ", not a boolean ");
+			throw new IllegalStateException("Next element is a " + getType(ret) + ", not a boolean ");
 		else
 			return ((Boolean) ret).booleanValue();
 	}
 
 	/**
-	 * Same as {@link #parseNext()}, but asserting that there is a next element and that it is null.
-	 * If this method returns normally, the value was parsed and was null.
+	 * Same as {@link #parseNext(boolean)}, but asserting that there is a next element and that it is null. If this
+	 * method returns normally, the value was parsed and was null.
 	 * 
-	 * @throws IllegalStateException If the top of this parser's state is not either an array or an
-	 *         object property, if there is no next element in the array, or the next element is not
-	 *         null
+	 * @throws IllegalStateException If the top of this parser's state is not either an array or an object property, if
+	 *         there is no next element in the array, or the next element is not null
 	 * @throws IOException If an error occurs reading the data from the stream
 	 * @throws ParseException If the next element cannot be parsed
 	 */
 	public void parseNull() throws IOException, ParseException
 	{
-		Object ret = parseNext();
+		Object ret = parseNext(false);
 		if(ret == null)
 			throw new IllegalStateException("No more elements in array");
 		else if(ret != NULL)
