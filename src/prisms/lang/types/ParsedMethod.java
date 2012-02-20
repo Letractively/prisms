@@ -5,7 +5,15 @@ package prisms.lang.types;
 
 import java.lang.reflect.Modifier;
 
-import prisms.lang.*;
+import prisms.lang.EvaluationEnvironment;
+import prisms.lang.EvaluationException;
+import prisms.lang.EvaluationResult;
+import prisms.lang.ExecutionException;
+import prisms.lang.ParseException;
+import prisms.lang.ParseMatch;
+import prisms.lang.ParsedItem;
+import prisms.lang.PrismsParser;
+import prisms.lang.Type;
 
 /**
  * Represents one of:
@@ -290,7 +298,8 @@ public class ParsedMethod extends Assignable
 			try
 			{
 				return new EvaluationResult(ctxType.getType().resolve(field.getGenericType(),
-					field.getDeclaringClass(), null), withValues ? field.get(ctxType.getValue()) : null);
+					field.getDeclaringClass(), null, new java.lang.reflect.Type [0], new Type [0]), withValues
+					? field.get(ctxType.getValue()) : null);
 			} catch(Exception e)
 			{
 				throw new EvaluationException("Retrieval of field " + field.getName() + " of type "
@@ -354,7 +363,8 @@ public class ParsedMethod extends Assignable
 				java.lang.reflect.Type[] _paramTypes = m.getGenericParameterTypes();
 				Type [] paramTypes = new Type [_paramTypes.length];
 				for(int p = 0; p < paramTypes.length; p++)
-					paramTypes[p] = ctxType.getType().resolve(_paramTypes[p], m.getDeclaringClass(), null);
+					paramTypes[p] = ctxType.getType().resolve(_paramTypes[p], m.getDeclaringClass(), null,
+						m.getGenericParameterTypes(), argTypes);
 				if(paramTypes.length > argRes.length + 1)
 					continue;
 				inferred.clear();
@@ -424,7 +434,8 @@ public class ParsedMethod extends Assignable
 			{
 				for(java.lang.reflect.Type c : goodTarget.getGenericExceptionTypes())
 				{
-					Type ct = ctxType.getType().resolve(c, goodTarget.getDeclaringClass(), inferred);
+					Type ct = ctxType.getType().resolve(c, goodTarget.getDeclaringClass(), inferred,
+						goodTarget.getGenericParameterTypes(), argTypes);
 					if(!env.canHandle(ct))
 						throw new prisms.lang.EvaluationException("Unhandled exception type " + ct, this,
 							getStored("name").index);
@@ -447,7 +458,7 @@ public class ParsedMethod extends Assignable
 				try
 				{
 					Type retType = ctxType.getType().resolve(goodTarget.getGenericReturnType(),
-						goodTarget.getDeclaringClass(), inferred);
+						goodTarget.getDeclaringClass(), inferred, goodTarget.getGenericParameterTypes(), argTypes);
 					return new EvaluationResult(retType, withValues ? goodTarget.invoke(ctxType.getValue(), args)
 						: null);
 				} catch(java.lang.reflect.InvocationTargetException e)
@@ -528,7 +539,7 @@ public class ParsedMethod extends Assignable
 		for(int t = 0; t < typeParams.length; t++)
 		{
 			Type type = null;
-			for(int p = 0; p < paramTypes.length; p++)
+			for(int p = 0; p < paramTypes.length && p < argTypes.length; p++)
 			{
 				Type check = inferMethodType(typeParams[t].getName(), paramTypes[p], argTypes[p]);
 				if(check != null)

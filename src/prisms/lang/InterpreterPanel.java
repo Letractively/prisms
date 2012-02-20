@@ -1,8 +1,11 @@
 package prisms.lang;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+
+import javax.swing.JOptionPane;
 
 import prisms.lang.EvaluationEnvironment.Variable;
 import prisms.lang.types.ParsedArrayInitializer;
@@ -21,6 +24,7 @@ import prisms.lang.types.ParsedPreviousAnswer;
 import prisms.lang.types.ParsedReturn;
 import prisms.lang.types.ParsedString;
 import prisms.lang.types.ParsedType;
+import prisms.util.ArrayUtils;
 
 /** A panel that takes user-entered text, interprets it, and prints the results */
 public class InterpreterPanel extends javax.swing.JPanel
@@ -30,8 +34,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 	private static final int FONT_SIZE = 12;
 
 	/**
-	 * An class exposed to the interpreter as the "pane" variable that allows the interpreter to interact with the GUI
-	 * in certain ways
+	 * A class exposed to the interpreter as the "pane" variable that allows the interpreter to interact with the GUI in
+	 * certain ways
 	 */
 	public class EnvPane
 	{
@@ -133,6 +137,326 @@ public class InterpreterPanel extends javax.swing.JPanel
 		}
 	}
 
+	/**
+	 * A class exposed to the interpreter as the "env" variable that allows the interpreter to interact with its
+	 * evaluation environment in advanced ways
+	 */
+	public class JitrEnv
+	{
+		private String theStoreDir;
+
+		JitrEnv()
+		{
+			setStoreCurrent();
+		}
+
+		/** Sets the environment store to a folder within the current user's home directory */
+		public void setStoreUser()
+		{
+			String store = System.getProperty("user.home");
+			if(store.charAt(store.length() - 1) != '\\' && store.charAt(store.length() - 1) != '/')
+				store += "/";
+			store += "jitr/";
+			setStore(store);
+		}
+
+		/** Sets the environment store to a folder within the current user directory */
+		public void setStoreCurrent()
+		{
+			String store = System.getProperty("user.dir");
+			if(store.charAt(store.length() - 1) != '\\' && store.charAt(store.length() - 1) != '/')
+				store += "/";
+			store += "jitr/";
+			setStore(store);
+		}
+
+		/** @return The directory that is currently being used to save environments to and load them from */
+		public String getStore()
+		{
+			return theStoreDir;
+		}
+
+		/** @param folderName The path to the folder for the environment store */
+		public void setStore(String folderName)
+		{
+			setStore(folderName, true);
+		}
+
+		private void setStore(String folderName, boolean fromUser)
+		{
+			if(folderName.charAt(folderName.length() - 1) != '\\' && folderName.charAt(folderName.length() - 1) != '/')
+				folderName += "/";
+			File dir = new File(folderName);
+			if(!dir.exists())
+			{
+				if(dir.mkdirs())
+				{
+					if(fromUser)
+						answer("Environment store " + folderName + " created", false);
+				}
+				else
+				{
+					if(fromUser)
+						answer("Could not create environment store " + folderName, true);
+					else
+						answer("WARNING: Could not create environment store " + folderName
+							+ ". Use env.setStore(String) so your environment can be saved", true);
+					return;
+				}
+			}
+			if(!dir.canWrite())
+			{
+				answer(folderName + " cannot be written to", true);
+				return;
+			}
+			theStoreDir = folderName;
+		}
+
+		/**
+		 * Saves the current environment to a file within the current environment store
+		 * 
+		 * @param name The name of the file to save the environment as
+		 */
+		public void save(String name)
+		{
+			File file = new File(theStoreDir + name + ".jitr");
+			if(file.exists())
+			{
+				if(JOptionPane.showConfirmDialog(InterpreterPanel.this, "Environment stored as " + name
+					+ " already exists in this store. Replace existing environment?", "Stored Environment Exists",
+					JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+					return;
+			}
+			java.io.FileOutputStream out;
+			try
+			{
+				out = new java.io.FileOutputStream(file);
+				Variable [] fails;
+				try
+				{
+					fails = theEnv.save(out);
+				} finally
+				{
+					out.close();
+				}
+				StringBuilder msg = new StringBuilder("Save succeeded.");
+				if(fails.length > 0)
+				{
+					int hist = 0;
+					int ignore = 0;
+					for(Variable v : fails)
+					{
+						if(v.getName().equals("%"))
+							hist++;
+						else if(theEnvVarNames.contains(v.getName()))
+							ignore++;
+					}
+					if(fails.length > ignore)
+						msg.append(' ');
+					if(fails.length - hist - ignore > 0)
+					{
+						msg.append("However, some variables could not be serialized:\n");
+						for(int i = 0; i < fails.length; i++)
+							if(!fails[i].getName().equals("%"))
+								msg.append('\t').append(fails[i].getName()).append(": ").append(fails[i].getType())
+									.append('\n');
+					}
+					if(hist > 0)
+						msg.append(hist).append(" history items were unserializable");
+				}
+				answer(msg.toString(), false);
+			} catch(java.io.IOException e)
+			{
+				System.err.println("Could not save environment to " + file.getPath());
+				e.printStackTrace();
+				answer("Could not save environment to " + name + ": " + e.getMessage(), true);
+			}
+		}
+
+		/**
+		 * Loads the environment saved in a file in this store, discarding the current environment
+		 * 
+		 * @param name The name of the file to load the environment from
+		 */
+		public void load(String name)
+		{
+			load(name, false);
+		}
+
+		/**
+		 * Loads the environment saved in a file in this store, with the option to do a soft merge of the target
+		 * environment's data into the current environment instead of discarding the current environment
+		 * 
+		 * @param name The name of the file to load the environment from
+		 * @param soft Whether to do a soft merge of the environments
+		 */
+		public void load(String name, final boolean soft)
+		{
+			if(!soft)
+			{
+				if(JOptionPane.showConfirmDialog(InterpreterPanel.this, "Are you sure you want to load a different"
+					+ " environment?  This operation will erase any information such as variables and functions"
+					+ " created since the last save.", "Overwrite Existing Environment?", JOptionPane.OK_CANCEL_OPTION,
+					JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+					return;
+			}
+			java.io.FileInputStream in;
+			DefaultEvaluationEnvironment env = new DefaultEvaluationEnvironment();
+			try
+			{
+				in = new java.io.FileInputStream(theStoreDir + name + ".jitr");
+				try
+				{
+					env.load(in, getParser());
+				} finally
+				{
+					in.close();
+				}
+			} catch(java.io.FileNotFoundException e)
+			{
+				answer("No environment named \"" + name + "\" saved in this store", true);
+				return;
+			} catch(java.io.IOException e)
+			{
+				System.err.println("Could not load environment " + theStoreDir + name + ".jitr");
+				e.printStackTrace();
+				answer("Could not load environment \"" + name + "\": " + e, true);
+				return;
+			}
+			try
+			{
+				ArrayUtils.adjust(theEnv.getDeclaredVariables(), env.getDeclaredVariables(),
+					new ArrayUtils.DifferenceListenerE<Variable, Variable, EvaluationException>()
+					{
+						public boolean identity(Variable o1, Variable o2)
+						{
+							return o1.getName().equals(o2.getName());
+						}
+
+						public Variable added(Variable o, int mIdx, int retIdx) throws EvaluationException
+						{
+							theEnv.declareVariable(o.getName(), o.getType(), o.isFinal(), null, -1);
+							theEnv.setVariable(o.getName(), o.getValue(), null, -1);
+							return o;
+						}
+
+						public Variable removed(Variable o, int oIdx, int incMod, int retIdx)
+							throws EvaluationException
+						{
+							if(soft || theEnvVarNames.contains(o.getName()))
+								return o;
+							theEnv.dropVariable(o.getName(), null, -1);
+							return null;
+						}
+
+						public Variable set(Variable o1, int idx1, int incMod, Variable o2, int idx2, int retIdx)
+							throws EvaluationException
+						{
+							if(soft || theEnvVarNames.contains(o1.getName()))
+								return o1;
+							theEnv.dropVariable(o1.getName(), null, -1);
+							theEnv.declareVariable(o2.getName(), o2.getType(), o2.isFinal(), null, -1);
+							theEnv.setVariable(o2.getName(), o2.getValue(), null, -1);
+							return o2;
+						}
+					});
+				ArrayUtils
+					.adjust(
+						theEnv.getDeclaredFunctions(),
+						env.getDeclaredFunctions(),
+						new ArrayUtils.DifferenceListenerE<ParsedFunctionDeclaration, ParsedFunctionDeclaration, EvaluationException>()
+						{
+
+							public boolean identity(ParsedFunctionDeclaration o1, ParsedFunctionDeclaration o2)
+								throws EvaluationException
+							{
+								return o1.equalsCallSig(o2);
+							}
+
+							public ParsedFunctionDeclaration added(ParsedFunctionDeclaration o, int mIdx, int retIdx)
+								throws EvaluationException
+							{
+								theEnv.declareFunction(o);
+								return o;
+							}
+
+							public ParsedFunctionDeclaration removed(ParsedFunctionDeclaration o, int oIdx, int incMod,
+								int retIdx) throws EvaluationException
+							{
+								if(soft)
+									return o;
+								theEnv.dropFunction(o, null, -1);
+								return null;
+							}
+
+							public ParsedFunctionDeclaration set(ParsedFunctionDeclaration o1, int idx1, int incMod,
+								ParsedFunctionDeclaration o2, int idx2, int retIdx) throws EvaluationException
+							{
+								if(soft)
+									return o1;
+								theEnv.dropFunction(o1, null, -1);
+								theEnv.declareFunction(o2);
+								return o2;
+							}
+						});
+				if(!soft)
+					theEnv.clearImportPackages();
+				String [] oldImportPackages = theEnv.getImportPackages();
+				for(String pkg : env.getImportPackages())
+				{
+					if(!soft || !ArrayUtils.contains(oldImportPackages, pkg))
+						theEnv.addImportPackage(pkg);
+				}
+				if(!soft)
+					theEnv.clearImportTypes();
+				Class<?> [] oldImportTypes = theEnv.getImportTypes();
+				for(Class<?> type : env.getImportTypes())
+				{
+					if(!soft || !ArrayUtils.contains(oldImportTypes, type))
+						theEnv.addImportType(type);
+				}
+				if(!soft)
+					theEnv.clearImportMethods();
+				for(prisms.lang.EvaluationEnvironment.ImportMethod m : env.getImportMethods())
+				{
+					if(!soft || theEnv.getImportMethodType(m.method) == null)
+						theEnv.addImportMethod(m.type, m.method);
+				}
+				if(!soft)
+				{
+					theEnv.clearHistory();
+					for(int h = env.getHistoryCount() - 1; h >= 0; h--)
+						theEnv.addHistory(env.getHistoryType(h), env.getHistory(h));
+				}
+			} catch(EvaluationException e)
+			{
+				e.printStackTrace();
+			}
+		}
+
+		/** @param name The name of the saved environment to delete */
+		public void delete(String name)
+		{
+			File file = new File(theStoreDir + name + ".jitr");
+			if(file.exists())
+			{
+				if(JOptionPane.showConfirmDialog(InterpreterPanel.this, "Are you sure you want to delete the"
+					+ " environment stored as " + name + "?", "Delete Stored Environment?",
+					JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+					return;
+			}
+			else
+			{
+				JOptionPane.showMessageDialog(InterpreterPanel.this, "No environment has been stored as " + name + ".",
+					"No Such Saved Environment", JOptionPane.ERROR_MESSAGE);
+				return;
+			}
+			if(!file.delete())
+				JOptionPane.showMessageDialog(InterpreterPanel.this, "The environment stored as " + name + " could not"
+					+ " be deleted.", "Deletion Failed", JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
 	static class NamedItem implements Comparable<NamedItem>
 	{
 		final String name;
@@ -179,9 +503,12 @@ public class InterpreterPanel extends javax.swing.JPanel
 
 	int toChop;
 
+	java.util.Set<String> theEnvVarNames;
+
 	/** Creates an intepreter panel */
 	public InterpreterPanel()
 	{
+		theEnvVarNames = new java.util.HashSet<String>();
 		setBackground(java.awt.Color.white);
 		theGrabListener = new java.awt.event.MouseAdapter()
 		{
@@ -301,16 +628,27 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theInput.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, FONT_SIZE));
 		theInput.setForeground(java.awt.Color.blue);
 		theInput.addKeyListener(theReturnListener);
-		newLine();
 
 		theParser = new prisms.lang.PrismsParser();
 		theParser.configure(prisms.arch.PrismsConfig.fromXml(null, getGrammar()));
 		theEnv = new DefaultEvaluationEnvironment();
 		addVariable("pane", EnvPane.class, new EnvPane());
+		JitrEnv env = new JitrEnv();
+		addVariable("env", JitrEnv.class, new JitrEnv());
+		try
+		{
+			env.load("default");
+		} catch(Throwable e)
+		{
+			e.printStackTrace();
+			answer("Could not load default environment: " + e, true);
+		}
 		theEnv.setHandledExceptionTypes(new Type [] {new Type(Exception.class)});
 		theCommandLog = new java.util.ArrayList<String>();
 		theWorker = new prisms.impl.ThreadPoolWorker("Execution Worker", 1);
 		theWorker.setPriority(Thread.MIN_PRIORITY);
+
+		newLine();
 
 		theIntellisenseMenu = new IntellisenseMenu();
 		theIntellisenseMenu.addListener(new IntellisenseMenu.IntellisenseListener()
@@ -326,6 +664,12 @@ public class InterpreterPanel extends javax.swing.JPanel
 		});
 	}
 
+	/** @return The parser that parses input for this panel */
+	public PrismsParser getParser()
+	{
+		return theParser;
+	}
+
 	/**
 	 * Adds a final variable to this interpreter's environment
 	 * 
@@ -339,6 +683,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		{
 			theEnv.declareVariable(name, new Type(type), true, null, 0);
 			theEnv.setVariable(name, value, null, 0);
+			theEnvVarNames.add(name);
 		} catch(EvaluationException e1)
 		{
 			e1.printStackTrace();

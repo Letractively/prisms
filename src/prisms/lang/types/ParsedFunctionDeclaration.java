@@ -222,6 +222,27 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 		return ret.toString();
 	}
 
+	/**
+	 * Checks to see if this function's call signature is identical to another function's. This method checks name and
+	 * parameters, but not parameter names, declared throwable types or functionality.
+	 * 
+	 * @param pfd The function to compare to
+	 * @return Whether this function's call signature is identical to <code>pfd</code>'s
+	 */
+	public boolean equalsCallSig(ParsedFunctionDeclaration pfd)
+	{
+		if(!pfd.theName.equals(theName))
+			return false;
+		if(pfd.theParameters.length != theParameters.length)
+			return false;
+		for(int p = 0; p < theParameters.length; p++)
+			if(!theParameters[p].getType().equals(pfd.theParameters[p].getType()))
+				return false;
+		if(pfd.isVarArgs() != isVarArgs())
+			return false;
+		return true;
+	}
+
 	@Override
 	public String toString()
 	{
