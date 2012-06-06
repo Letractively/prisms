@@ -294,7 +294,7 @@ public class PerformanceDisplayTree extends prisms.ui.tree.DataTreeMgrPlugin
 				text.append(')');
 			}
 			text.append(" @");
-			TrackNode.printTime(node.getFirstStart(), lastTime, text,
+			ProgramTracker.printTime(node.getFirstStart(), lastTime, text,
 				theTimeZone == TimeZoneType.LOCAL);
 			text.append(": ");
 			long localTime = node.getLocalLength(null);

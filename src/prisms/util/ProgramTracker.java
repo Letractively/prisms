@@ -62,22 +62,45 @@ public class ProgramTracker implements Cloneable
 	 */
 	public static void setThreadTracker(ProgramTracker tracker)
 	{
-		Thread ct = Thread.currentThread();
-		if(tracker != null && tracker.theCurrentThread != null && tracker.theCurrentThread != ct)
-			throw new IllegalArgumentException("The given tracker is not tracking for this thread");
-		if(tracker == null)
-			theThreadTrackers.remove(ct);
-		else
-		{
-			tracker.theCurrentThread = ct;
-			theThreadTrackers.put(ct, tracker);
-		}
+		setThreadTracker(Thread.currentThread(), tracker);
 	}
 
 	/** @return The tracker for the current thread */
 	public static ProgramTracker getThreadTracker()
 	{
-		return theThreadTrackers.get(Thread.currentThread());
+		return getThreadTracker(Thread.currentThread());
+	}
+
+	/**
+	 * @param thread The thread to get the tracker for
+	 * @return The tracker assigned to the given thread, or null if none has been assigned
+	 */
+	public static ProgramTracker getThreadTracker(Thread thread)
+	{
+		return theThreadTrackers.get(thread);
+	}
+
+	/**
+	 * @param thread The thread to assign the tracker for
+	 * @param tracker The tracker to track performance on the given thread
+	 */
+	public static void setThreadTracker(Thread thread, ProgramTracker tracker)
+	{
+		if(tracker != null && tracker.theCurrentThread != null && tracker.theCurrentThread != thread)
+			throw new IllegalArgumentException("The given tracker is not tracking for this thread");
+		if(tracker == null)
+			theThreadTrackers.remove(thread);
+		else
+		{
+			tracker.theCurrentThread = thread;
+			theThreadTrackers.put(thread, tracker);
+		}
+	}
+
+	/** @return All threads for which {@link #setThreadTracker(Thread, ProgramTracker)} has been called */
+	public static Thread [] getTrackedThreads()
+	{
+		return theThreadTrackers.keySet().toArray(new Thread [0]);
 	}
 
 	/** A configuration class that allows the printing of results of a tracking session to be customized */
@@ -198,7 +221,7 @@ public class ProgramTracker implements Cloneable
 	}
 
 	/** A node representing a single execution or an aggregate of executions of a routine */
-	public static class TrackNode implements Cloneable
+	public class TrackNode implements Cloneable
 	{
 		/** The name of the routine */
 		String name;
@@ -244,20 +267,20 @@ public class ProgramTracker implements Cloneable
 
 		boolean isReleased;
 
-		TrackNode(TrackNode aParent, String aName, long sysTime, long cpuStart, boolean withStats)
+		TrackNode(TrackNode aParent, String aName, boolean withStats)
 		{
 			children = new java.util.ArrayList<TrackNode>();
-			init(aParent, aName, sysTime, cpuStart, withStats);
+			init(aParent, aName, withStats);
 		}
 
-		void init(TrackNode aParent, String aName, long sysTime, long cpuStart, boolean withStats)
+		void init(TrackNode aParent, String aName, boolean withStats)
 		{
 			parent = aParent;
 			name = aName;
 			count = 1;
-			startTime = sysTime;
-			latestStartTime = sysTime;
-			latestStartCPU = cpuStart;
+			startTime = 0;
+			latestStartTime = 0;
+			latestStartCPU = 0;
 			endTime = -1;
 			runLength = 0;
 			cpuLength = 0;
@@ -272,6 +295,16 @@ public class ProgramTracker implements Cloneable
 			}
 			else if(lengthStats != null)
 				lengthStats = null;
+		}
+
+		void start()
+		{
+			count++;
+			startTime = System.currentTimeMillis();
+			latestStartTime = startTime;
+			latestStartCPU = getCpuNow();
+			if(lengthStats != null)
+				latestStartNanos = System.nanoTime();
 		}
 
 		/** @return The name of the routine */
@@ -406,6 +439,48 @@ public class ProgramTracker implements Cloneable
 				}
 			}
 			return accent;
+		}
+
+		/**
+		 * Gets a subtask under this task and creates one if one does not already exist
+		 * 
+		 * @param task The name of the task to get or create
+		 * @return The subtask with the given name
+		 */
+		public TrackNode create(String task)
+		{
+			task = task.intern();
+			for(TrackNode child : children)
+				if(child.getName().equals(task))
+					return child;
+			TrackNode ret = newNode(this, task);
+			children.add(ret);
+			return ret;
+		}
+
+		/**
+		 * Adds a run time to this tracker manually
+		 * 
+		 * @param nanos The number of nanoseconds of the run time to add to this tracker
+		 */
+		public void add(long nanos)
+		{
+			long millis = nanos / 1000000;
+			if(count == 0)
+			{
+				startTime = System.currentTimeMillis() - millis;
+			}
+			latestStartTime = System.currentTimeMillis() - millis;
+			endTime = latestStartTime;
+			if(lengthStats != null)
+			{
+				runLengthNanos += nanos;
+				lengthStats.add(nanos);
+			}
+			if(cpuLength > 0)
+				cpuLength *= (runLength + millis) * 1.0f / runLength;
+			count++;
+			runLength += millis;
 		}
 
 		/**
@@ -592,42 +667,6 @@ public class ProgramTracker implements Cloneable
 		}
 
 		/**
-		 * Prints a time relative to another time
-		 * 
-		 * @param time The time to print
-		 * @param lastTime The relative time
-		 * @param sb The string builder to print the result to
-		 * @param local Whether to print the time in local format or not
-		 */
-		public static void printTime(long time, long lastTime, StringBuilder sb, boolean local)
-		{
-			int gmt = local ? 1 : 0;
-			java.util.Date d = new java.util.Date(time);
-			if(lastTime == 0)
-			{
-				sb.append(formats[gmt][0].format(d));
-				return;
-			}
-			long diff = time - lastTime;
-			int days, hrs, mins;
-			diff /= 1000;
-			diff /= 60;
-			mins = (int) (diff % 60);
-			diff /= 60;
-			hrs = (int) (diff % 24);
-			diff /= 24;
-			days = (int) diff;
-			if(days > 0)
-				sb.append(formats[gmt][1].format(d));
-			else if(hrs > 0)
-				sb.append(formats[gmt][2].format(d));
-			else if(mins > 0)
-				sb.append(formats[gmt][3].format(d));
-			else
-				sb.append(formats[gmt][4].format(d));
-		}
-
-		/**
 		 * Serializes this tracking node and its children to JSON
 		 * 
 		 * @return The JSON representation of this node. May be deserialized with {@link #fromJson(JSONObject)}.
@@ -650,30 +689,6 @@ public class ProgramTracker implements Cloneable
 			ret.put("children", jsonChildren);
 			for(TrackNode child : children)
 				jsonChildren.add(child.toJson());
-			return ret;
-		}
-
-		/**
-		 * Deserializes a track node from a JSON representation
-		 * 
-		 * @param parent The parent node for the new node
-		 * @param json The JSON-serialized node, serialized with {@link #toJson()}
-		 * @return A track node with the same content as the one that was serialized
-		 */
-		public static TrackNode fromJson(TrackNode parent, JSONObject json)
-		{
-			TrackNode ret = new TrackNode(parent, (String) json.get("name"),
-				((Number) json.get("startTime")).longValue(), ((Number) json.get("latestStartCPU")).longValue(), false);
-			ret.count = ((Number) json.get("count")).intValue();
-			ret.latestStartTime = ((Number) json.get("latestStartTime")).longValue();
-			ret.latestStartNanos = ((Number) json.get("latestStartNanos")).longValue();
-			ret.endTime = ((Number) json.get("endTime")).longValue();
-			ret.runLength = ((Number) json.get("length")).longValue();
-			ret.unfinished = ((Number) json.get("unfinished")).intValue();
-			if(json.get("lengthStats") != null)
-				ret.lengthStats = RunningStatistic.fromJson((JSONObject) json.get("lengthStats"));
-			for(JSONObject node : (java.util.List<JSONObject>) json.get("children"))
-				ret.children.add(fromJson(ret, node));
 			return ret;
 		}
 	}
@@ -774,22 +789,20 @@ public class ProgramTracker implements Cloneable
 		}
 	}
 
-	private TrackNode newNode(TrackNode aParent, String aName, long time, long nanos)
+	TrackNode newNode(TrackNode aParent, String aName)
 	{
 		TrackNode ret;
 		if(theCacheNodes.isEmpty())
-			ret = new TrackNode(aParent, aName, time, getCpuNow(), isWithRTStats);
+			ret = new TrackNode(aParent, aName, isWithRTStats);
 		else
 		{
 			ret = theCacheNodes.remove(theCacheNodes.size() - 1);
-			ret.init(aParent, aName, time, getCpuNow(), isWithRTStats);
+			ret.init(aParent, aName, isWithRTStats);
 		}
-		if(isWithRTStats)
-			ret.latestStartNanos = nanos;
 		return ret;
 	}
 
-	private long getCpuNow()
+	long getCpuNow()
 	{
 		if(isWithCPU)
 		{
@@ -846,39 +859,26 @@ public class ProgramTracker implements Cloneable
 			throw new IllegalStateException("Program Trackers may not be used by multiple threads!");
 		*/
 		routine = routine.intern();
-		long time = System.currentTimeMillis();
-		long nanos = -1;
-		if(isWithRTStats)
-			nanos = System.nanoTime();
-		java.util.List<TrackNode> children;
+		TrackNode ret = null;
 		if(theCurrentNode == null)
-			children = theNodes;
-		else
-			children = theCurrentNode.children;
-		TrackNode aggregate = null;
-		for(TrackNode child : children)
-			if(child.getName() == routine)
+		{
+			for(TrackNode node : theNodes)
+				if(node.getName() == routine)
+				{
+					ret = node;
+					break;
+				}
+			if(ret == null)
 			{
-				aggregate = child;
-				break;
+				ret = newNode(null, routine);
+				theNodes.add(ret);
 			}
-		if(aggregate != null)
-		{
-			aggregate.count++;
-			aggregate.latestStartTime = time;
-			if(isWithRTStats)
-				aggregate.latestStartNanos = nanos;
-			theCurrentNode = aggregate;
 		}
 		else
-		{
-			TrackNode newNode = newNode(theCurrentNode, routine, time, nanos);
-			if(isWithRTStats)
-				newNode.latestStartNanos = nanos;
-			children.add(newNode);
-			theCurrentNode = newNode;
-		}
-		return theCurrentNode;
+			ret = theCurrentNode.create(routine);
+		ret.start();
+		theCurrentNode = ret;
+		return ret;
 	}
 
 	/**
@@ -1154,6 +1154,42 @@ public class ProgramTracker implements Cloneable
 	}
 
 	/**
+	 * Prints a time relative to another time
+	 * 
+	 * @param time The time to print
+	 * @param lastTime The relative time
+	 * @param sb The string builder to print the result to
+	 * @param local Whether to print the time in local format or not
+	 */
+	public static void printTime(long time, long lastTime, StringBuilder sb, boolean local)
+	{
+		int gmt = local ? 1 : 0;
+		java.util.Date d = new java.util.Date(time);
+		if(lastTime == 0)
+		{
+			sb.append(formats[gmt][0].format(d));
+			return;
+		}
+		long diff = time - lastTime;
+		int days, hrs, mins;
+		diff /= 1000;
+		diff /= 60;
+		mins = (int) (diff % 60);
+		diff /= 60;
+		hrs = (int) (diff % 24);
+		diff /= 24;
+		days = (int) diff;
+		if(days > 0)
+			sb.append(formats[gmt][1].format(d));
+		else if(hrs > 0)
+			sb.append(formats[gmt][2].format(d));
+		else if(mins > 0)
+			sb.append(formats[gmt][3].format(d));
+		else
+			sb.append(formats[gmt][4].format(d));
+	}
+
+	/**
 	 * Deserializes a JSON-serialized representation of a tracker
 	 * 
 	 * @param json The JSON representation of a tracker serialized with {@link #toJson()}
@@ -1164,7 +1200,32 @@ public class ProgramTracker implements Cloneable
 		ProgramTracker ret = new ProgramTracker((String) json.get("name"),
 			((Boolean) json.get("withStats")).booleanValue());
 		for(JSONObject node : (java.util.List<JSONObject>) json.get("nodes"))
-			ret.theNodes.add(TrackNode.fromJson(null, node));
+			ret.theNodes.add(ret.nodeFromJson(null, node));
+		return ret;
+	}
+
+	/**
+	 * Deserializes a track node from a JSON representation
+	 * 
+	 * @param parent The parent node for the new node
+	 * @param json The JSON-serialized node, serialized with {@link #toJson()}
+	 * @return A track node with the same content as the one that was serialized
+	 */
+	public TrackNode nodeFromJson(TrackNode parent, JSONObject json)
+	{
+		TrackNode ret = new TrackNode(parent, (String) json.get("name"), false);
+		ret.startTime = ((Number) json.get("startTime")).longValue();
+		ret.latestStartCPU = ((Number) json.get("latestStartCPU")).longValue();
+		ret.count = ((Number) json.get("count")).intValue();
+		ret.latestStartTime = ((Number) json.get("latestStartTime")).longValue();
+		ret.latestStartNanos = ((Number) json.get("latestStartNanos")).longValue();
+		ret.endTime = ((Number) json.get("endTime")).longValue();
+		ret.runLength = ((Number) json.get("length")).longValue();
+		ret.unfinished = ((Number) json.get("unfinished")).intValue();
+		if(json.get("lengthStats") != null)
+			ret.lengthStats = RunningStatistic.fromJson((JSONObject) json.get("lengthStats"));
+		for(JSONObject node : (java.util.List<JSONObject>) json.get("children"))
+			ret.children.add(nodeFromJson(ret, node));
 		return ret;
 	}
 }
