@@ -2081,6 +2081,15 @@ public class DBUtils
 				return wrapped.isClosed();
 			}
 
+			public <T> T getObject(int columnIndex, Class<T> type) throws SQLException
+			{
+				return wrapped.getObject(columnIndex, type);
+			}
+
+			public <T> T getObject(String columnLabel, Class<T> type) throws SQLException
+			{
+				return wrapped.getObject(columnLabel, type);
+			}
 		};
 		return retRS;
 	}
