@@ -163,8 +163,18 @@ public class DBUtils
 
 			return toSQL(str) + " ESCAPE '\\'";
 		case UNKNOWN:
-			log.warn("Cannot escape LIKE expression--database type unrecognized");
-			return str;
+			str = PrismsUtils.replaceAll(str, "\\\\", "\\\\");
+			if(!"%".equals(multi))
+			{
+				str = PrismsUtils.replaceAll(str, "%", "\\%");
+				str = PrismsUtils.replaceAll(str, multi, "%");
+			}
+			if(!"_".equals(single))
+			{
+				str = PrismsUtils.replaceAll(str, "_", "\\_");
+				str = PrismsUtils.replaceAll(str, single, "_");
+			}
+			return toSQL(str);
 		}
 		log.warn("Cannot escape LIKE expression--database type " + type + " unrecognized");
 		return str;
