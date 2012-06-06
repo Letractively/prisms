@@ -15,7 +15,7 @@ import org.apache.log4j.Logger;
  * notation similar to XPath. '/' characters may be used to navigate beyond one level deep.
  * </p>
  */
-public abstract class PrismsConfig
+public abstract class PrismsConfig implements Cloneable
 {
 	private static final Logger log = Logger.getLogger(PrismsConfig.class);
 
@@ -26,7 +26,7 @@ public abstract class PrismsConfig
 
 		private final String theValue;
 
-		private final PrismsConfig [] theElements;
+		private PrismsConfig [] theElements;
 
 		/**
 		 * Creates a default PRISMS config
@@ -61,12 +61,22 @@ public abstract class PrismsConfig
 		{
 			return theElements.clone();
 		}
+
+		@Override
+		public DefaultPrismsConfig clone()
+		{
+			DefaultPrismsConfig ret = (DefaultPrismsConfig) super.clone();
+			ret.theElements = new PrismsConfig [theElements.length];
+			for(int i = 0; i < theElements.length; i++)
+				ret.theElements[i] = theElements[i].clone();
+			return ret;
+		}
 	}
 
 	/** Effectively merges one or more configs to inherit attributes in succession */
 	public static class MergedConfig extends PrismsConfig
 	{
-		private final PrismsConfig [] theMerged;
+		private PrismsConfig [] theMerged;
 
 		/**
 		 * Creates a merged config
@@ -183,6 +193,16 @@ public abstract class PrismsConfig
 			}
 			return ret;
 		}
+
+		@Override
+		public MergedConfig clone()
+		{
+			MergedConfig ret = (MergedConfig) super.clone();
+			ret.theMerged = new PrismsConfig [theMerged.length];
+			for(int i = 0; i < theMerged.length; i++)
+				ret.theMerged[i] = theMerged[i].clone();
+			return ret;
+		}
 	}
 
 	/** @return The name of this configuration */
@@ -248,7 +268,14 @@ public abstract class PrismsConfig
 			PrismsConfig [][] ret = new PrismsConfig [pathEls.length] [];
 			for(int p = 0; p < pathEls.length; p++)
 				ret[p] = pathEls[p].subConfigs(type, props);
-			return prisms.util.ArrayUtils.mergeInclusive(PrismsConfig.class, ret);
+			PrismsConfig [] ret2 = prisms.util.ArrayUtils.mergeInclusive(PrismsConfig.class, ret);
+			if(getClass() != PrismsConfig.class)
+			{
+				PrismsConfig [] ret3 = createConfigArray(ret2.length);
+				System.arraycopy(ret2, 0, ret3, 0, ret2.length);
+				ret2 = ret3;
+			}
+			return ret2;
 		}
 
 		java.util.ArrayList<PrismsConfig> ret = new java.util.ArrayList<PrismsConfig>();
@@ -268,7 +295,16 @@ public abstract class PrismsConfig
 				if(propMatch)
 					ret.add(config);
 			}
-		return ret.toArray(new PrismsConfig [ret.size()]);
+		return ret.toArray(createConfigArray(ret.size()));
+	}
+
+	/**
+	 * @param size The size of the array to create
+	 * @return A PrismsConfig array whose type is that of this class
+	 */
+	protected PrismsConfig [] createConfigArray(int size)
+	{
+		return new PrismsConfig [size];
 	}
 
 	/**
@@ -420,6 +456,38 @@ public abstract class PrismsConfig
 			return (Class<? extends T>) ret;
 		else
 			return ret.asSubclass(superClass);
+	}
+
+	@Override
+	public boolean equals(Object o)
+	{
+		if(!(o instanceof PrismsConfig))
+			return false;
+		PrismsConfig config = (PrismsConfig) o;
+		if(!getName().equals(config.getName()))
+			return false;
+		if(getValue() == null ? config.getValue() != null : !getValue().equals(config.getValue()))
+			return false;
+		PrismsConfig [] children = subConfigs();
+		PrismsConfig [] children2 = config.subConfigs();
+		if(children.length != children2.length)
+			return false;
+		for(int i = 0; i < children.length; i++)
+			if(!children[i].equals(children2[i]))
+				return false;
+		return true;
+	}
+
+	@Override
+	public PrismsConfig clone()
+	{
+		try
+		{
+			return (PrismsConfig) super.clone();
+		} catch(CloneNotSupportedException e)
+		{
+			throw new IllegalStateException(e.toString());
+		}
 	}
 
 	@Override
