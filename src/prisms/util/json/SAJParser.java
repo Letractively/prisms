@@ -1122,7 +1122,12 @@ public class SAJParser
 		else if(ch == '/' && allowComments)
 			parseComment(sb, state);
 		else if(ch == '"' || ch == '\'')
-			parseString(state); // Parses the string as a stream
+		{
+			if(state.top() != null && state.top().token == ParseToken.OBJECT)
+				state.startProperty(parsePropertyName(sb, state));
+			else
+				parseString(state); // Parses the string as a stream
+		}
 		else
 		{
 			if(state.top() == null)
