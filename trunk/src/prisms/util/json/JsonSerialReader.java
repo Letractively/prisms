@@ -801,7 +801,7 @@ public class JsonSerialReader
 	public StructState startObject() throws IOException, ParseException
 	{
 		if(theState.top() != null && theState.top().token == ParseToken.OBJECT)
-			throw new IllegalStateException("The current state is an object." + " The next item cannot be an object");
+			throw new IllegalStateException("The current state is an object. The next item cannot be an object");
 		JsonParseItem item = getNextItem(true, false, true);
 		if(item == null)
 			theState.error("Unexpected end of content");
@@ -1021,7 +1021,7 @@ public class JsonSerialReader
 	}
 
 	/**
-	 * Parses the next element in an array or value of a property in an object
+	 * Parses the next element in an array, value of a property in an object, or value in a stream
 	 * 
 	 * @param stringAsReader Whether, if the next element in the array or object is a string, to return a Reader or a
 	 *        String object
@@ -1038,8 +1038,8 @@ public class JsonSerialReader
 		if(theLastEnded != null)
 			return null;
 		parsePastPropertySeparator();
-		if(theState.top() == null
-			|| (theState.top().token != ParseToken.ARRAY && theState.top().token != ParseToken.PROPERTY))
+		if(theState.top() != null && theState.top().token != ParseToken.ARRAY
+			&& theState.top().token != ParseToken.PROPERTY)
 			throw new IllegalStateException("The current state is not an array or object property");
 
 		Object ret = null;
