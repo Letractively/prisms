@@ -30,6 +30,16 @@ public class ListenerManager<L>
 		theListeners = new java.util.concurrent.ConcurrentHashMap<Object, L []>();
 	}
 
+	/** @return All properties for which this listener has registered listeners */
+	public Object [] getAllProperties()
+	{
+		java.util.ArrayList<Object> ret = new java.util.ArrayList<>();
+		for(Object prop : theListeners.keySet())
+			if(prop != ALL_KEY)
+				ret.add(prop);
+		return ret.toArray();
+	}
+
 	/**
 	 * @param property The name of the listeners to get
 	 * @return All listeners registered with the given name
@@ -59,6 +69,23 @@ public class ListenerManager<L>
 	}
 
 	/**
+	 * @param property The property to get registered listeners for (not including general listeners) or null to get all
+	 *        registered general listeners
+	 * @return All registered listeners for the given property
+	 */
+	public L [] getRegisteredListeners(Object property)
+	{
+		L [] ret;
+		if(property == null)
+			ret = theListeners.get(ALL_KEY);
+		else
+			ret = theListeners.get(property);
+		if(ret == null)
+			ret = (L []) Array.newInstance(theType, 0);
+		return ret;
+	}
+
+	/**
 	 * Adds a listener to be notified when any other listeners are
 	 * 
 	 * @param lstnr The listener to register
@@ -77,7 +104,7 @@ public class ListenerManager<L>
 	public void addListener(Object property, L lstnr)
 	{
 		if(property == null)
-			throw new IllegalArgumentException("Property name cannot be null");
+			throw new IllegalArgumentException("Property cannot be null");
 		if(lstnr == null)
 			return;
 		L [] lstnrs = theListeners.get(property);
