@@ -906,6 +906,7 @@ public final class ArrayUtils
 	{
 		return equalsUnordered(o1, o2, new EqualsChecker()
 		{
+			@Override
 			public boolean equals(Object o3, Object o4)
 			{
 				if(o3 == null)
@@ -1438,6 +1439,49 @@ public final class ArrayUtils
 		}
 		return array;
 	}
+	
+	/**
+	 * @param array The array to iterate over
+	 * @return An iterable that returns an iterator to iterate over each element in the array
+	 */
+	public static <T> Iterable<T> iterable(final T [] array)
+	{
+		return new Iterable<T>(){
+			@Override
+			public java.util.Iterator<T> iterator(){
+				return ArrayUtils.iterator(array);
+			}
+		};
+	}
+	
+	/**
+	 * @param array The array to iterate over
+	 * @return An iterator to iterate over each element in the array
+	 */
+	public static <T> java.util.Iterator<T> iterator(final T [] array)
+	{
+		return new java.util.Iterator<T>(){
+			private int theIndex;
+
+			@Override
+			public boolean hasNext()
+			{
+				return theIndex<array.length;
+			}
+
+			@Override
+			public T next()
+			{
+				return array[theIndex];
+			}
+
+			@Override
+			public void remove()
+			{
+				throw new UnsupportedOperationException();
+			}
+		};
+	}
 
 	/**
 	 * @see DifferenceListenerE
@@ -1452,22 +1496,26 @@ public final class ArrayUtils
 		 * @see prisms.util.ArrayUtils.DifferenceListenerE#identity(java.lang.Object,
 		 *      java.lang.Object)
 		 */
+		@Override
 		boolean identity(T1 o1, T2 o2);
 
 		/**
 		 * @see prisms.util.ArrayUtils.DifferenceListenerE#added(java.lang.Object, int, int)
 		 */
+		@Override
 		T1 added(T2 o, int mIdx, int retIdx);
 
 		/**
 		 * @see prisms.util.ArrayUtils.DifferenceListenerE#removed(java.lang.Object, int, int, int)
 		 */
+		@Override
 		T1 removed(T1 o, int oIdx, int incMod, int retIdx);
 
 		/**
 		 * @see prisms.util.ArrayUtils.DifferenceListenerE#set(java.lang.Object, int, int,
 		 *      java.lang.Object, int, int)
 		 */
+		@Override
 		T1 set(T1 o1, int idx1, int incMod, T2 o2, int idx2, int retIdx);
 	}
 
@@ -2169,21 +2217,25 @@ public final class ArrayUtils
 			}
 			Integer [] result = adjust(start, modifier, new DifferenceListener<Integer, Integer>()
 			{
+				@Override
 				public boolean identity(Integer o1, Integer o2)
 				{
 					return o1.equals(o2);
 				}
 
+				@Override
 				public Integer added(Integer o, int mIdx, int retIdx)
 				{
 					return o;
 				}
 
+				@Override
 				public Integer removed(Integer o, int oIdx, int oIdxAdj, int retIdx)
 				{
 					return o;
 				}
 
+				@Override
 				public Integer set(Integer o1, int idx1, int oIdxAdj, Integer o2, int idx2,
 					int retIdx)
 				{
