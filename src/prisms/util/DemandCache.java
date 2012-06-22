@@ -3,59 +3,64 @@
  */
 package prisms.util;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 
 /**
  * A cache that purges values according to several factors:
  * <ul>
- * <li>If the cache's half-life (preferred age) is set, cache entries will be purged based on the
- * frequency and recency of use. Each time an entry is accessed, the entry is marked so that it is
- * less likely to be purged. A {@link #put(Object, Object) put} on the item is stronger at keeping
- * an entry from being purged than a {@link #get(Object) get}. the {@link #access(Object, int)}
- * method may also be used to mark an entry as less purgeable.</li>
- * <li>If the cache's qualitizer is set with the constructor, the {@link Qualitizer#quality(Object)}
- * method will be used to evaluate how important an item is. More important items will tend to stay
- * in the cache longer than less important items.</li>
- * <li>If the cache's preferred size is set, cache entries will be purged based on the size of the
- * item. The cache will tend to swell to its preferred size, at which point items will start being
- * purged. If the cache's qualitizer is set, larger items (according to
- * {@link Qualitizer#size(Object)}) will tend to be purged more quickly than smaller items. If the
- * qualitizer's size and quality methods return the same value for all items, these will cancel each
- * other out and function similarly to a cache with no qualitizer. As the cache fills up, items will
- * tend to be purged more quickly to keep the size down.</li>
+ * <li>If the cache's half-life (preferred age) is set, cache entries will be purged based on the frequency and recency
+ * of use. Each time an entry is accessed, the entry is marked so that it is less likely to be purged. A
+ * {@link #put(Object, Object) put} on the item is stronger at keeping an entry from being purged than a
+ * {@link #get(Object) get}. the {@link #access(Object, int)} method may also be used to mark an entry as less
+ * purgeable.</li>
+ * <li>If the cache's qualitizer is set with the constructor, the {@link Qualitizer#quality(Object, Object)} method will
+ * be used to evaluate how important an item is. More important items will tend to stay in the cache longer than less
+ * important items.</li>
+ * <li>If the cache's preferred size is set, cache entries will be purged based on the size of the item. The cache will
+ * tend to swell to its preferred size, at which point items will start being purged. If the cache's qualitizer is set,
+ * larger items (according to {@link Qualitizer#size(Object, Object)}) will tend to be purged more quickly than smaller
+ * items. If the qualitizer's size and quality methods return the same value for all items, these will cancel each other
+ * out and function similarly to a cache with no qualitizer. As the cache fills up, items will tend to be purged more
+ * quickly to keep the size down.</li>
  * </ul>
- * All of these criteria can be used together to make a cache that tends to purge items that have
- * not been used in a given amount of time under normal load but will keep items around longer under
- * low load or will purge them faster under high demand.
+ * All of these criteria can be used together to make a cache that tends to purge items that have not been used in a
+ * given amount of time under normal load but will keep items around longer under low load or will purge them faster
+ * under high demand.
  * 
  * @param <K> The type of key to use for the cache
  * @param <V> The type of value to cache
- * @see #shouldRemove(CacheValue, float, float, int)
+ * @see #shouldRemove(Object, CacheValue, float, float, int)
  */
 public class DemandCache<K, V> implements Map<K, V>
 {
 	/**
-	 * Allows this cache to assess the quality of a cache item to determine its value to the
-	 * accessor. Implementors of this class should make the methods as fast as possible to speed up
-	 * the purge process.
+	 * Allows this cache to assess the quality of a cache item to determine its value to the accessor. Implementors of
+	 * this class should make the methods as fast as possible to speed up the purge process.
 	 * 
+	 * @param <K> The key of the entry to qualitize
 	 * @param <T> The type of value to be qualitized
 	 */
-	public static interface Qualitizer<T>
+	public static interface Qualitizer<K, T>
 	{
 		/**
+		 * @param key The key of the value to assess
 		 * @param value The value to assess
-		 * @return The quality of the value. Units are undefined but must be consistent. 0 to 1 is
-		 *         recommended but not required.
+		 * @return The quality of the value. Units are undefined but must be consistent. 0 to 1 is recommended but not
+		 *         required.
 		 */
-		float quality(T value);
+		float quality(K key, T value);
 
 		/**
+		 * @param key the key of the value to assess
 		 * @param value The value to assess
-		 * @return The amount of space the value takes up. Units are undefined but must be
-		 *         consistent. Bytes is recommended but not required.
+		 * @return The amount of space the value takes up. Units are undefined but must be consistent. Bytes is
+		 *         recommended but not required.
 		 */
-		float size(T value);
+		float size(K key, T value);
 	}
 
 	/**
@@ -67,8 +72,7 @@ public class DemandCache<K, V> implements Map<K, V>
 	public static interface PurgeListener<K, V>
 	{
 		/**
-		 * Called before a value is purged and gives this listener the opportunity to veto the
-		 * purge.
+		 * Called before a value is purged and gives this listener the opportunity to veto the purge.
 		 * 
 		 * @param key The key of the entry to be purged
 		 * @param value The value of the entry to be purged
@@ -77,8 +81,8 @@ public class DemandCache<K, V> implements Map<K, V>
 		boolean prePurge(K key, V value);
 
 		/**
-		 * Called when a purge is run and a set of entries is purged. The entries have already been
-		 * purged when this method is called
+		 * Called when a purge is run and a set of entries is purged. The entries have already been purged when this
+		 * method is called
 		 * 
 		 * @param keys The keys of the entries purged
 		 * @param values The values of the entries purged
@@ -107,7 +111,7 @@ public class DemandCache<K, V> implements Map<K, V>
 		float demand;
 	}
 
-	private final Qualitizer<V> theQualitizer;
+	private final Qualitizer<K, V> theQualitizer;
 
 	private final java.util.concurrent.ConcurrentHashMap<K, CacheValue> theCache;
 
@@ -135,11 +139,10 @@ public class DemandCache<K, V> implements Map<K, V>
 	 * Creates a DemandCache
 	 * 
 	 * @param qualitizer The qualitizer to qualitize the values by
-	 * @param prefSize The preferred size of this cache, or <=0 if this cache should have no
-	 *        preferred size
+	 * @param prefSize The preferred size of this cache, or <=0 if this cache should have no preferred size
 	 * @param halfLife The preferred entry age of this cache
 	 */
-	public DemandCache(Qualitizer<V> qualitizer, float prefSize, long halfLife)
+	public DemandCache(Qualitizer<K, V> qualitizer, float prefSize, long halfLife)
 	{
 		theQualitizer = qualitizer;
 		theCache = new java.util.concurrent.ConcurrentHashMap<K, CacheValue>();
@@ -158,8 +161,7 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * @param prefSize The preferred size for this cache or <=0 if this cache should have no
-	 *        preferred size
+	 * @param prefSize The preferred size for this cache or <=0 if this cache should have no preferred size
 	 */
 	public void setPreferredSize(float prefSize)
 	{
@@ -197,6 +199,7 @@ public class DemandCache<K, V> implements Map<K, V>
 		thePurgeListeners = ArrayUtils.remove(thePurgeListeners, listener);
 	}
 
+	@Override
 	public V get(Object key)
 	{
 		CacheValue value = theCache.get(key);
@@ -206,6 +209,7 @@ public class DemandCache<K, V> implements Map<K, V>
 		return value.value;
 	}
 
+	@Override
 	public V put(K key, V value)
 	{
 		V ret = _put(key, value);
@@ -229,41 +233,38 @@ public class DemandCache<K, V> implements Map<K, V>
 		}
 		else
 		{
-			thePurgeMods += s(value);
+			thePurgeMods += s(key, value);
 			if(oldValue != null)
-				thePurgeMods -= s(oldValue.value);
+				thePurgeMods -= s(key, oldValue.value);
 		}
 		return oldValue == null ? null : oldValue.value;
 	}
 
-	private float q(V value)
+	private float q(K key, V value)
 	{
 		if(theQualitizer == null)
 			return 1;
-		float ret = theQualitizer.quality(value);
+		float ret = theQualitizer.quality(key, value);
 		if(Float.isNaN(ret))
-			throw new IllegalStateException("NaN returned by quality method of qualitizer "
-				+ theQualitizer);
+			throw new IllegalStateException("NaN returned by quality method of qualitizer " + theQualitizer);
 		if(ret < 0)
-			throw new IllegalStateException(
-				"Negative value returned by quality method of qualitizer " + theQualitizer);
+			throw new IllegalStateException("Negative value returned by quality method of qualitizer " + theQualitizer);
 		return ret;
 	}
 
-	private float s(V value)
+	private float s(K key, V value)
 	{
 		if(theQualitizer == null)
 			return 1;
-		float ret = theQualitizer.size(value);
+		float ret = theQualitizer.size(key, value);
 		if(Float.isNaN(ret))
-			throw new IllegalStateException("NaN returned by size method of qualitizer "
-				+ theQualitizer);
+			throw new IllegalStateException("NaN returned by size method of qualitizer " + theQualitizer);
 		if(ret < 0)
-			throw new IllegalStateException("Negative value returned by size method of qualitizer "
-				+ theQualitizer);
+			throw new IllegalStateException("Negative value returned by size method of qualitizer " + theQualitizer);
 		return ret;
 	}
 
+	@Override
 	public V remove(Object key)
 	{
 		CacheValue oldValue = theCache.remove(key);
@@ -272,44 +273,49 @@ public class DemandCache<K, V> implements Map<K, V>
 			if(theQualitizer == null || thePreferredSize <= 0)
 				thePurgeMods--;
 			else
-				thePurgeMods -= s(oldValue.value);
+				thePurgeMods -= s((K) key, oldValue.value);
 		}
 		return oldValue == null ? null : oldValue.value;
 	}
 
+	@Override
 	public void clear()
 	{
 		thePurgeMods = 0;
 		theCache.clear();
 	}
 
+	@Override
 	public int size()
 	{
 		return theCache.size();
 	}
 
+	@Override
 	public boolean isEmpty()
 	{
 		return theCache.isEmpty();
 	}
 
 	/**
-	 * Checks for the presence of a given key in the cache. This method does not affect the
-	 * purgability of the entry accessed.
+	 * Checks for the presence of a given key in the cache. This method does not affect the purgability of the entry
+	 * accessed.
 	 * 
 	 * @see Map#containsKey(Object)
 	 */
+	@Override
 	public boolean containsKey(Object key)
 	{
 		return theCache.containsKey(key);
 	}
 
 	/**
-	 * Checks for the presence of a given value in the cache. This method does not affect the
-	 * purgability of the entry accessed.
+	 * Checks for the presence of a given value in the cache. This method does not affect the purgability of the entry
+	 * accessed.
 	 * 
 	 * @see Map#containsValue(Object)
 	 */
+	@Override
 	public boolean containsValue(Object value)
 	{
 		for(CacheValue val : theCache.values())
@@ -318,6 +324,7 @@ public class DemandCache<K, V> implements Map<K, V>
 		return false;
 	}
 
+	@Override
 	public void putAll(Map<? extends K, ? extends V> m)
 	{
 		for(Map.Entry<? extends K, ? extends V> entry : m.entrySet())
@@ -326,13 +333,13 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * Gets the set of all keys to which values are mapped in this cache. The sets returned from
-	 * {@link #keySet()}, {@link #values()}, and {@link #entrySet()} have access to all the cache's
-	 * data, but calling methods on these sets will not affect when any entries are purged as calls
-	 * to {@link #get(Object)} would.
+	 * Gets the set of all keys to which values are mapped in this cache. The sets returned from {@link #keySet()},
+	 * {@link #values()}, and {@link #entrySet()} have access to all the cache's data, but calling methods on these sets
+	 * will not affect when any entries are purged as calls to {@link #get(Object)} would.
 	 * 
 	 * @see Map#keySet()
 	 */
+	@Override
 	public Set<K> keySet()
 	{
 		final Object [] keys;
@@ -347,11 +354,13 @@ public class DemandCache<K, V> implements Map<K, V>
 				{
 					private int index = 0;
 
+					@Override
 					public boolean hasNext()
 					{
 						return index < keys.length;
 					}
 
+					@Override
 					public K next()
 					{
 						if(index >= keys.length)
@@ -360,6 +369,7 @@ public class DemandCache<K, V> implements Map<K, V>
 						return (K) keys[index - 1];
 					}
 
+					@Override
 					public void remove()
 					{
 						DemandCache.this.remove(keys[index - 1]);
@@ -376,13 +386,13 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * Gets the set of key/value mappings in this cache. The sets returned from {@link #keySet()},
-	 * {@link #values()}, and {@link #entrySet()} have access to all the cache's data, but calling
-	 * methods on these sets will not affect when any entries are purged as calls to
-	 * {@link #get(Object)} would.
+	 * Gets the set of key/value mappings in this cache. The sets returned from {@link #keySet()}, {@link #values()},
+	 * and {@link #entrySet()} have access to all the cache's data, but calling methods on these sets will not affect
+	 * when any entries are purged as calls to {@link #get(Object)} would.
 	 * 
 	 * @see Map#entrySet()
 	 */
+	@Override
 	public Set<Map.Entry<K, V>> entrySet()
 	{
 		final Map.Entry<K, CacheValue> [] entries;
@@ -397,27 +407,32 @@ public class DemandCache<K, V> implements Map<K, V>
 				{
 					int index = 0;
 
+					@Override
 					public boolean hasNext()
 					{
 						return index < entries.length;
 					}
 
+					@Override
 					public Map.Entry<K, V> next()
 					{
 						Map.Entry<K, V> ret = new Map.Entry<K, V>()
 						{
 							private final int entryIndex = index;
 
+							@Override
 							public K getKey()
 							{
 								return entries[entryIndex].getKey();
 							}
 
+							@Override
 							public V getValue()
 							{
 								return entries[entryIndex].getValue().value;
 							}
 
+							@Override
 							public V setValue(V value)
 							{
 								V retValue = entries[entryIndex].getValue().value;
@@ -436,6 +451,7 @@ public class DemandCache<K, V> implements Map<K, V>
 						return ret;
 					}
 
+					@Override
 					public void remove()
 					{
 						DemandCache.this.remove(entries[index - 1].getKey());
@@ -452,16 +468,16 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * Gets the set of all values mapped to keys in this cache. The sets returned from
-	 * {@link #keySet()}, {@link #values()}, and {@link #entrySet()} have access to all the cache's
-	 * data, but calling methods on these sets will not affect when any entries are purged as calls
-	 * to {@link #get(Object)} would.
+	 * Gets the set of all values mapped to keys in this cache. The sets returned from {@link #keySet()},
+	 * {@link #values()}, and {@link #entrySet()} have access to all the cache's data, but calling methods on these sets
+	 * will not affect when any entries are purged as calls to {@link #get(Object)} would.
 	 * 
 	 * @see Map#values()
 	 */
+	@Override
 	public Set<V> values()
 	{
-		final Set<Map.Entry<K, V>> entrySet = entrySet();
+		final Set<Entry<K, V>> entrySet = entrySet();
 		return new java.util.AbstractSet<V>()
 		{
 			@Override
@@ -471,16 +487,19 @@ public class DemandCache<K, V> implements Map<K, V>
 				entryIter = entrySet.iterator();
 				return new java.util.Iterator<V>()
 				{
+					@Override
 					public boolean hasNext()
 					{
 						return entryIter.hasNext();
 					}
 
+					@Override
 					public V next()
 					{
 						return entryIter.next().getValue();
 					}
 
+					@Override
 					public void remove()
 					{
 						entryIter.remove();
@@ -497,24 +516,22 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * @return The total size of the data in this cache, according to
-	 *         {@link Qualitizer#size(Object)}. This value will return the same as {@link #size()}
-	 *         if the qualitizer was not set in the constructor.
+	 * @return The total size of the data in this cache, according to {@link Qualitizer#size(Object)}. This value will
+	 *         return the same as {@link #size()} if the qualitizer was not set in the constructor.
 	 */
 	public float getTotalSize()
 	{
 		if(theQualitizer == null)
 			return theCache.size();
 		float ret = 0;
-		for(CacheValue value : theCache.values())
-			ret += s(value.value);
+		for(Entry<K, CacheValue> entry : theCache.entrySet())
+			ret += s(entry.getKey(), entry.getValue().value);
 		return ret;
 	}
 
 	/**
-	 * @return The average quality of the values in this cache, according to
-	 *         {@link Qualitizer#quality(Object)}. This value will return 1 if the qualitizer was
-	 *         not set in the constructor.
+	 * @return The average quality of the values in this cache, according to {@link Qualitizer#quality(Object)}. This
+	 *         value will return 1 if the qualitizer was not set in the constructor.
 	 */
 	public float getAverageQuality()
 	{
@@ -522,10 +539,10 @@ public class DemandCache<K, V> implements Map<K, V>
 			return theCache.size();
 		float ret = 0;
 		int count = 0;
-		for(CacheValue value : theCache.values())
+		for(Entry<K, CacheValue> entry : theCache.entrySet())
 		{
 			count++;
-			ret += q(value.value);
+			ret += q(entry.getKey(), entry.getValue().value);
 		}
 		return ret / count;
 	}
@@ -548,9 +565,9 @@ public class DemandCache<K, V> implements Map<K, V>
 	 * Performs an access operation on a cache item, causing it to live longer in the cache
 	 * 
 	 * @param key The key of the item to access
-	 * @param weight The weight of the access--higher weight will result in a more persistent cache
-	 *        item. 1-10 are supported. A guideline is that the cache item will survive longer by
-	 *        {@link #getHalfLife()} x <code>weight</code>.
+	 * @param weight The weight of the access--higher weight will result in a more persistent cache item. 1-10 are
+	 *        supported. A guideline is that the cache item will survive longer by {@link #getHalfLife()} x
+	 *        <code>weight</code>.
 	 * @see #ACCESS_GET
 	 * @see #ACCESS_SET
 	 */
@@ -562,14 +579,13 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * Purges the cache of values that are deemed of less use to the accessor. The behavior of this
-	 * method depends the behavior of {@link #shouldRemove(CacheValue, float, float, int)}
+	 * Purges the cache of values that are deemed of less use to the accessor. The behavior of this method depends the
+	 * behavior of {@link #shouldRemove(Object, CacheValue, float, float, int)}
 	 * 
-	 * @param force If false, the purge operation will only be performed if this cache determines
-	 *        that a purge is needed (determined by the number of modifications directly to this
-	 *        cache and time elapsed since the last purge). <code>force</code> may be used to cause
-	 *        a purge without a perceived "need", such as may be warranted if a cached item's size
-	 *        or quality changes drastically.
+	 * @param force If false, the purge operation will only be performed if this cache determines that a purge is needed
+	 *        (determined by the number of modifications directly to this cache and time elapsed since the last purge).
+	 *        <code>force</code> may be used to cause a purge without a perceived "need", such as may be warranted if a
+	 *        cached item's size or quality changes drastically.
 	 */
 	public void purge(boolean force)
 	{
@@ -597,11 +613,11 @@ public class DemandCache<K, V> implements Map<K, V>
 			totalQuality = count;
 		}
 		else
-			for(CacheValue value : theCache.values())
+			for(Entry<K, CacheValue> entry : theCache.entrySet())
 			{
 				count++;
-				totalSize += s(value.value);
-				totalQuality += q(value.value);
+				totalSize += s(entry.getKey(), entry.getValue().value);
+				totalQuality += q(entry.getKey(), entry.getValue().value);
 			}
 
 		java.util.ArrayList<K> purgeKeys = new java.util.ArrayList<K>();
@@ -611,7 +627,7 @@ public class DemandCache<K, V> implements Map<K, V>
 		{
 			Entry<K, CacheValue> entry = iter.next();
 			CacheValue value = entry.getValue();
-			if(!shouldRemove(value, totalSize, totalQuality / count, count))
+			if(!shouldRemove(entry.getKey(), value, totalSize, totalQuality / count, count))
 				continue;
 			boolean purge = true;
 			for(int i = 0; i < pls.length && purge; i++)
@@ -621,8 +637,8 @@ public class DemandCache<K, V> implements Map<K, V>
 			count--;
 			if(theQualitizer != null)
 			{
-				totalSize -= s(value.value);
-				totalQuality -= q(value.value);
+				totalSize -= s(entry.getKey(), value.value);
+				totalQuality -= q(entry.getKey(), value.value);
 			}
 			else
 			{
@@ -655,29 +671,28 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * Determines whether a cache value should be removed from the cache. The behavior of this
-	 * method depends on many variables:
+	 * Determines whether a cache value should be removed from the cache. The behavior of this method depends on many
+	 * variables:
 	 * <ul>
 	 * <li>How frequently and recently the value has been accessed</li>
-	 * <li>The quality of the value according to {@link Qualitizer#quality(Object)} compared to the
-	 * average quality of the cache</li>
-	 * <li>The size of the value according to {@link Qualitizer#size(Object)} compared to the
-	 * average size of the cache's values</li>
-	 * <li>The total size of the cache compared to its preferred size (assuming this is set to a
-	 * value greater than 0)
+	 * <li>The quality of the value according to {@link Qualitizer#quality(Object)} compared to the average quality of
+	 * the cache</li>
+	 * <li>The size of the value according to {@link Qualitizer#size(Object)} compared to the average size of the
+	 * cache's values</li>
+	 * <li>The total size of the cache compared to its preferred size (assuming this is set to a value greater than 0)
 	 * </ul>
 	 * 
+	 * @param key The key whose value to determine the quality of
 	 * @param value The value to determine the quality of
 	 * @param totalSize The total size (determined by the Qualitizer) of this cache
 	 * @param avgQuality The average quality of the cache
 	 * @param entryCount The number of entries in this cache
 	 * @return Whether the value should be removed from the cache
 	 */
-	protected boolean shouldRemove(CacheValue value, float totalSize, float avgQuality,
-		int entryCount)
+	protected boolean shouldRemove(K key, CacheValue value, float totalSize, float avgQuality, int entryCount)
 	{
-		float quality = q(value.value);
-		float size = s(value.value);
+		float quality = q(key, value.value);
+		float size = s(key, value.value);
 		if(quality == 0)
 			return true; // Remove if the value has no quality
 		if(size == 0)
@@ -701,8 +716,7 @@ public class DemandCache<K, V> implements Map<K, V>
 			else if(totalSize > thePreferredSize)
 			{
 				float sizeToQual = (size / avgSize) / (quality / avgQuality);
-				valueQuality /= Math.pow(2, totalSize / thePreferredSize * 4 * sizeToQual
-					* sizeToQual);
+				valueQuality /= Math.pow(2, totalSize / thePreferredSize * 4 * sizeToQual * sizeToQual);
 			}
 			else
 				valueQuality /= totalSize / thePreferredSize;
@@ -723,9 +737,8 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * Scales all {@link CacheValue#demand} values to keep them and {@link #theReference} small.
-	 * This allows the cache to be kept for long periods of time. The write lock must be obtained
-	 * before calling this method.
+	 * Scales all {@link CacheValue#demand} values to keep them and {@link #theReference} small. This allows the cache
+	 * to be kept for long periods of time. The write lock must be obtained before calling this method.
 	 */
 	private void scaleReference()
 	{
@@ -760,11 +773,13 @@ public class DemandCache<K, V> implements Map<K, V>
 			cache.setHalfLife(10000); // 10 seconds
 			cache.addPurgeListener(new PurgeListener<Integer, Long>()
 			{
+				@Override
 				public boolean prePurge(Integer key, Long value)
 				{
 					return true;
 				}
 
+				@Override
 				public void purged(List<? extends Integer> keys, List<? extends Long> values)
 				{
 					long now = System.currentTimeMillis();
@@ -788,8 +803,7 @@ public class DemandCache<K, V> implements Map<K, V>
 					max = now - max;
 					mean = now - mean;
 					System.out.println("Purged " + values.size() + " values, age min="
-						+ PrismsUtils.printTimeLength(max) + ", avg="
-						+ PrismsUtils.printTimeLength(mean) + ", max="
+						+ PrismsUtils.printTimeLength(max) + ", avg=" + PrismsUtils.printTimeLength(mean) + ", max="
 						+ PrismsUtils.printTimeLength(min));
 				}
 			});
@@ -822,9 +836,9 @@ public class DemandCache<K, V> implements Map<K, V>
 			min = now - min;
 			max = now - max;
 			mean = now - mean;
-			System.out.println("Half-life testing completed. Retained " + cache.size()
-				+ " entries, age min=" + PrismsUtils.printTimeLength(max) + ", avg="
-				+ PrismsUtils.printTimeLength(mean) + ", max=" + PrismsUtils.printTimeLength(min));
+			System.out.println("Half-life testing completed. Retained " + cache.size() + " entries, age min="
+				+ PrismsUtils.printTimeLength(max) + ", avg=" + PrismsUtils.printTimeLength(mean) + ", max="
+				+ PrismsUtils.printTimeLength(min));
 			cache.clear();
 			cache = null;
 		}
@@ -832,25 +846,29 @@ public class DemandCache<K, V> implements Map<K, V>
 		if(DO_PS_TEST)
 		{
 			System.out.println("Testing the preferred size functionality");
-			cache = new DemandCache<Integer, Long>(new Qualitizer<Long>()
+			cache = new DemandCache<Integer, Long>(new Qualitizer<Integer, Long>()
 			{
-				public float quality(Long value)
+				@Override
+				public float quality(Integer key, Long value)
 				{
 					return 1;
 				}
 
-				public float size(Long value)
+				@Override
+				public float size(Integer key, Long value)
 				{
 					return value.floatValue() / 100;
 				}
 			}, 1000000, -1);
 			cache.addPurgeListener(new PurgeListener<Integer, Long>()
 			{
+				@Override
 				public boolean prePurge(Integer key, Long value)
 				{
 					return true;
 				}
 
+				@Override
 				public void purged(List<? extends Integer> keys, List<? extends Long> values)
 				{
 					long min = Long.MAX_VALUE, max = Long.MIN_VALUE, mean = 0;
@@ -866,8 +884,8 @@ public class DemandCache<K, V> implements Map<K, V>
 					min /= 100;
 					max /= 100;
 					mean /= 100;
-					System.out.println("Purged " + values.size() + " values, size min=" + min
-						+ ", avg=" + mean + ", max=" + max);
+					System.out.println("Purged " + values.size() + " values, size min=" + min + ", avg=" + mean
+						+ ", max=" + max);
 				}
 			});
 			final long begin = System.currentTimeMillis();
@@ -899,9 +917,8 @@ public class DemandCache<K, V> implements Map<K, V>
 			max /= 100;
 			total /= 100;
 			mean = total / cache.size();
-			System.out.println("Preferred size testing completed. Retained " + cache.size()
-				+ " entries, size min=" + min + ", avg=" + mean + ", max=" + max + ", total="
-				+ total);
+			System.out.println("Preferred size testing completed. Retained " + cache.size() + " entries, size min="
+				+ min + ", avg=" + mean + ", max=" + max + ", total=" + total);
 			cache.clear();
 			cache = null;
 		}
@@ -915,14 +932,16 @@ public class DemandCache<K, V> implements Map<K, V>
 			}
 			System.out.println("Testing the combined functionality");
 			DemandCache<TestItem, TestItem> cache2;
-			cache2 = new DemandCache<TestItem, TestItem>(new Qualitizer<TestItem>()
+			cache2 = new DemandCache<TestItem, TestItem>(new Qualitizer<TestItem, TestItem>()
 			{
-				public float quality(TestItem value)
+				@Override
+				public float quality(TestItem key, TestItem value)
 				{
 					return value.theQuality;
 				}
 
-				public float size(TestItem value)
+				@Override
+				public float size(TestItem key, TestItem value)
 				{
 					return value.theSize;
 				}
@@ -943,10 +962,9 @@ public class DemandCache<K, V> implements Map<K, V>
 					if(time2 >= time + 5000)
 					{
 						time = time2;
-						System.out.println(count + " items inserted, retaining " + cache2.size()
-							+ ", total size=" + cache2.getTotalSize() + ", avg size="
-							+ (cache2.getTotalSize() / cache2.size()) + ", avg qual="
-							+ cache2.getAverageQuality());
+						System.out.println(count + " items inserted, retaining " + cache2.size() + ", total size="
+							+ cache2.getTotalSize() + ", avg size=" + (cache2.getTotalSize() / cache2.size())
+							+ ", avg qual=" + cache2.getAverageQuality());
 					}
 				}
 				if(count % 1000 == 0)

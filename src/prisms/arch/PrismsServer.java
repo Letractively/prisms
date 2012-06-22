@@ -24,8 +24,8 @@ import prisms.util.PrismsUtils;
 import prisms.util.ProgramTracker.TrackNode;
 
 /**
- * This server is the root of the PRISMS architecture. It takes HTTP requests that conform to the
- * PRISMS specification and delegates them to the appropriate applications, sessions, and plugins.
+ * This server is the root of the PRISMS architecture. It takes HTTP requests that conform to the PRISMS specification
+ * and delegates them to the appropriate applications, sessions, and plugins.
  */
 public class PrismsServer extends javax.servlet.http.HttpServlet
 {
@@ -34,35 +34,31 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	static final Logger sessionLog = Logger.getLogger("prisms.sessions");
 
 	/**
-	 * The threshold before a session expires at which the client will receive a warning that its
-	 * session is about to expire
+	 * The threshold before a session expires at which the client will receive a warning that its session is about to
+	 * expire
 	 */
 	public static final long WARN_EXPIRE_THRESHOLD = 120000L;
 
-	private static final java.text.SimpleDateFormat MOD_DATE_FORMAT = new java.text.SimpleDateFormat(
-		"ddMMMyyyy");
+	private static final java.text.SimpleDateFormat MOD_DATE_FORMAT = new java.text.SimpleDateFormat("ddMMMyyyy");
 
 	/** An error code that will be sent back with events of type method="error" */
 	public static enum ErrorCode
 	{
 		/**
-		 * Signifies that an error occurred inside the PRISMS servlet such that the request could
-		 * not be fulfilled
+		 * Signifies that an error occurred inside the PRISMS servlet such that the request could not be fulfilled
 		 */
 		ServerError("Server Error"),
 		/**
-		 * Signifies that an error occurred in the application such that the request could not be
-		 * fulfilled
+		 * Signifies that an error occurred in the application such that the request could not be fulfilled
 		 */
 		ApplicationError("Application Error"),
 		/**
-		 * Signifies that some of the data fields in the request are missing or invalid, so that the
-		 * request could not be understood or fulfilled
+		 * Signifies that some of the data fields in the request are missing or invalid, so that the request could not
+		 * be understood or fulfilled
 		 */
 		RequestInvalid("Request Invalid"),
 		/**
-		 * Signifies that the request could not be validated and so is not authorized to access the
-		 * requested data
+		 * Signifies that the request could not be validated and so is not authorized to access the requested data
 		 */
 		ValidationFailed("Validation Failed");
 
@@ -90,28 +86,26 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
-	 * Represents a constraint on the number of times a remote host can query a PRISMS server within
-	 * a set amount of time. If a host exceeds this constraint, the host may be prevented from
-	 * accessing PRISMS data for a time.
+	 * Represents a constraint on the number of times a remote host can query a PRISMS server within a set amount of
+	 * time. If a host exceeds this constraint, the host may be prevented from accessing PRISMS data for a time.
 	 */
 	public static class ActivityConstraint
 	{
 		/**
-		 * The amount of time within which a host may not hit this server {@link #maxHits} times, in
-		 * seconds
+		 * The amount of time within which a host may not hit this server {@link #maxHits} times, in seconds
 		 */
 		public final int constraintTime;
 
 		/**
-		 * The maximum number of times a host is permitted to access this server within the
-		 * {@link #constraintTime} interval
+		 * The maximum number of times a host is permitted to access this server within the {@link #constraintTime}
+		 * interval
 		 */
 		public final int maxHits;
 
 		/**
-		 * The recommended amount of time that a host will be locked out of the server for exceeding
-		 * this constraint, in seconds. The actual lockout time will be determined by just how
-		 * quickly the client uses up its max hit count compared to the constraint time.
+		 * The recommended amount of time that a host will be locked out of the server for exceeding this constraint, in
+		 * seconds. The actual lockout time will be determined by just how quickly the client uses up its max hit count
+		 * compared to the constraint time.
 		 */
 		public final int lockTime;
 
@@ -164,20 +158,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					return theError; // If configuration fails, don't try again
 				if(theClientConfigEl == null)
 					return null; // The client has already been configured
-				log.info("Configuring client " + theClient.getName() + " of PRISMS application "
-					+ theClient.getApp());
+				log.info("Configuring client " + theClient.getName() + " of PRISMS application " + theClient.getApp());
 				try
 				{
 					appConfig.configureClient(theClient, theClientConfigEl);
 				} catch(RuntimeException e)
 				{
-					log.error("Could not configure client " + theClient + " of application "
-						+ theClient.getApp(), e);
+					log.error("Could not configure client " + theClient + " of application " + theClient.getApp(), e);
 					theError = e.toString();
 				} catch(Error e)
 				{
-					log.error("Could not configure client " + theClient + " of application "
-						+ theClient.getApp(), e);
+					log.error("Could not configure client " + theClient + " of application " + theClient.getApp(), e);
 					theError = e.toString();
 				}
 				if(theError != null)
@@ -318,8 +309,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		java.util.List<org.apache.commons.fileupload.FileItem> theUploads;
 
-		PrismsRequest(HttpServletRequest req, HttpServletResponse resp,
-			RemoteEventSerializer serializer)
+		PrismsRequest(HttpServletRequest req, HttpServletResponse resp, RemoteEventSerializer serializer)
 		{
 			httpRequest = req;
 			theResponse = resp;
@@ -370,9 +360,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 
 		/**
-		 * Some WMS clients don't support multiple non-WMS parameters, so we have to account for
-		 * that as best we can. The client and serverMethod names can be assumed to be "WMS" and the
-		 * application name can be stored within the unencrypted data parameter.
+		 * Some WMS clients don't support multiple non-WMS parameters, so we have to account for that as best we can.
+		 * The client and serverMethod names can be assumed to be "WMS" and the application name can be stored within
+		 * the unencrypted data parameter.
 		 * 
 		 * @return An error event if this method did not complete successfully
 		 */
@@ -396,8 +386,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						clientName = (String) data.get("service");
 				} catch(Exception e)
 				{
-					return error(ErrorCode.RequestInvalid,
-						"Couldn't retrieve necessary parameters from data");
+					return error(ErrorCode.RequestInvalid, "Couldn't retrieve necessary parameters from data");
 				}
 			}
 			if(clientName == null)
@@ -461,8 +450,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		boolean shouldEncrypt;
 
 		/**
-		 * This constructor is used by the security session to return the events that need to be
-		 * processed by the session.
+		 * This constructor is used by the security session to return the events that need to be processed by the
+		 * session.
 		 */
 		PrismsResponse(PrismsAuthenticator.RequestAuthenticator ra, JSONObject process)
 		{
@@ -473,8 +462,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		/**
 		 * This constructor is used to return the events that need to be passed back to the client
 		 */
-		PrismsResponse(PrismsAuthenticator.RequestAuthenticator ra, JSONArray events,
-			boolean encrypt)
+		PrismsResponse(PrismsAuthenticator.RequestAuthenticator ra, JSONArray events, boolean encrypt)
 		{
 			reqAuth = ra;
 			toReturn = events;
@@ -510,8 +498,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private boolean isLoggedIn;
 
-		SecuritySession(PrismsAuthenticator auth, User user, HttpServletRequest req)
-			throws PrismsException
+		SecuritySession(PrismsAuthenticator auth, User user, HttpServletRequest req) throws PrismsException
 		{
 			theAuth = auth;
 			theUser = user;
@@ -519,8 +506,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			{
 				theRemoteAddr = req.getRemoteAddr();
 				theRemoteHost = req.getRemoteHost();
-				theClientEnv = prisms.util.ClientEnvironment.getClientEnv(req
-					.getHeader("User-Agent"));
+				theClientEnv = prisms.util.ClientEnvironment.getClientEnv(req.getHeader("User-Agent"));
 			}
 			else
 			{
@@ -561,8 +547,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 
 		/**
-		 * Checks this session holder's user against the data source periodically to see whether the
-		 * password has changed or the user has been locked.
+		 * Checks this session holder's user against the data source periodically to see whether the password has
+		 * changed or the user has been locked.
 		 * 
 		 * @return Whether the authentication data was renewed
 		 * @throws PrismsException
@@ -604,8 +590,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 			}
 			if(!req.client.isCommonSession() && !req.user.equals(theUser))
-				return error(null, req, ErrorCode.RequestInvalid,
-					"Attempted to access another user's session!", false);
+				return error(null, req, ErrorCode.RequestInvalid, "Attempted to access another user's session!", false);
 
 			// First deal with attempted anonymous access
 			if(isAnonymous && !req.client.allowsAnonymous())
@@ -621,13 +606,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						"Could not send login information: " + e.getMessage(), false);
 				}
 				if(login == null)
-					return error(null, req, ErrorCode.ServerError,
-						"Anonymous access forbidden for client " + req.client.getName()
-							+ " of application " + req.app.getName(), false);
+					return error(null, req, ErrorCode.ServerError, "Anonymous access forbidden for client "
+						+ req.client.getName() + " of application " + req.app.getName(), false);
 				else
-					return sendLogin(null, req, "Anonymous access forbidden for client "
-						+ req.client.getName() + " of application " + req.app.getName()
-						+ ".  Please log in.", "init".equals(req.serverMethod), false);
+					return sendLogin(null, req, "Anonymous access forbidden for client " + req.client.getName()
+						+ " of application " + req.app.getName() + ".  Please log in.",
+						"init".equals(req.serverMethod), false);
 			}
 			if(req.getUser().isLocked())
 				return error(null, req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
@@ -641,31 +625,30 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(PrismsException e)
 			{
 				log.error("Could not authenticate session", e);
-				return error(null, req, ErrorCode.ServerError, "Could not authenticate session: "
-					+ e.getMessage(), false);
+				return error(null, req, ErrorCode.ServerError, "Could not authenticate session: " + e.getMessage(),
+					false);
 			}
 			if(reqAuth.isError())
 			{
 				if(reqAuth.shouldReattempt())
 				{
 					if(req.isWMS)
-						return error(reqAuth, req, ErrorCode.ValidationFailed,
-							"WMS does not support encryption.", false);
+						return error(reqAuth, req, ErrorCode.ValidationFailed, "WMS does not support encryption.",
+							false);
 					else
-						return sendLogin(reqAuth, req, reqAuth.getError(),
-							"init".equals(req.serverMethod), reqAuth.getError() != null);
+						return sendLogin(reqAuth, req, reqAuth.getError(), "init".equals(req.serverMethod),
+							reqAuth.getError() != null);
 				}
 				else
-					return error(reqAuth, req, ErrorCode.ValidationFailed, reqAuth.getError(),
-						false);
+					return error(reqAuth, req, ErrorCode.ValidationFailed, reqAuth.getError(), false);
 			}
 			if(!isLoggedIn)
 			{
 				String className = theAuth.getClass().getName();
 				if(className.indexOf('.') >= 0)
 					className = className.substring(className.lastIndexOf('.') + 1);
-				sessionLog.info("User " + theUser + " at " + req.httpRequest.getRemoteHost()
-					+ " was authenticated by " + className);
+				sessionLog.info("User " + theUser + " at " + req.httpRequest.getRemoteHost() + " was authenticated by "
+					+ className);
 				isLoggedIn = true;
 			}
 
@@ -675,20 +658,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				try
 				{
 					if(!getEnv().getUserSource().canAccess(theUser, req.app))
-						return error(
-							null,
-							req,
-							ErrorCode.ValidationFailed,
-							"User \"" + theUser.getName()
-								+ "\" does not have permission to access application \""
-								+ req.app.getName() + "\"", false);
+						return error(null, req, ErrorCode.ValidationFailed, "User \"" + theUser.getName()
+							+ "\" does not have permission to access application \"" + req.app.getName() + "\"", false);
 				} catch(PrismsException e)
 				{
-					log.error("Could not determine user " + theUser + "'s access to application "
-						+ req.app.getName(), e);
-					return error(null, req, ErrorCode.ServerError, "Could not determine user "
-						+ theUser.getName() + "'s access to application " + req.app.getName(),
-						false);
+					log.error("Could not determine user " + theUser + "'s access to application " + req.app.getName(),
+						e);
+					return error(null, req, ErrorCode.ServerError, "Could not determine user " + theUser.getName()
+						+ "'s access to application " + req.app.getName(), false);
 				}
 				theAccessApps = ArrayUtils.add(theAccessApps, req.appName);
 			}
@@ -700,8 +677,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					getEnv().getUserSource().assertAccessible(theUser, req.client);
 			} catch(PrismsException e)
 			{
-				log.error("User " + theUser + " cannot access client " + req.client.getName()
-					+ " of application " + req.app.getName(), e);
+				log.error("User " + theUser + " cannot access client " + req.client.getName() + " of application "
+					+ req.app.getName(), e);
 				return error(null, req, ErrorCode.ValidationFailed, e.getMessage(), false);
 			}
 
@@ -713,8 +690,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					long authID = theSessionAuth.recheck();
 					if(authID >= 0)
 					{
-						authMsg = (JSONObject) sendLogin(reqAuth, req,
-							"Password changed. Enter new password.", false, false).toReturn.get(0);
+						authMsg = (JSONObject) sendLogin(reqAuth, req, "Password changed. Enter new password.", false,
+							false).toReturn.get(0);
 						authMsg.put("authID", Long.valueOf(authID));
 					}
 				}
@@ -757,8 +734,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				} catch(Exception e)
 				{
 					log.error("Deserialization failed" + e.getMessage());
-					return error(reqAuth, req, ErrorCode.RequestInvalid, "Deserialization of "
-						+ dataStr + " failed", true);
+					return error(reqAuth, req, ErrorCode.RequestInvalid, "Deserialization of " + dataStr + " failed",
+						true);
 				}
 			}
 			else
@@ -770,10 +747,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				java.util.Calendar cal = java.util.Calendar.getInstance();
 				JSONObject toSend = new JSONObject();
 				toSend.put("time", Long.valueOf(cal.getTimeInMillis()));
-				toSend.put("timeZoneOffset",
-					Integer.valueOf(cal.getTimeZone().getOffset(cal.getTimeInMillis())));
-				toSend.put("timeZoneDisplay",
-					cal.getTimeZone().getDisplayName(true, java.util.TimeZone.SHORT));
+				toSend.put("timeZoneOffset", Integer.valueOf(cal.getTimeZone().getOffset(cal.getTimeInMillis())));
+				toSend.put("timeZoneDisplay", cal.getTimeZone().getDisplayName(true, java.util.TimeZone.SHORT));
 				toSend.put("year", Integer.valueOf(cal.get(java.util.Calendar.YEAR)));
 				toSend.put("month", Integer.valueOf(cal.get(java.util.Calendar.MONTH) + 1));
 				toSend.put("day", Integer.valueOf(cal.get(java.util.Calendar.DAY_OF_MONTH)));
@@ -792,8 +767,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				} catch(PrismsException e)
 				{
 					log.error("Could not send change password", e);
-					return error(reqAuth, req, ErrorCode.ServerError, "Could not change password: "
-						+ e.getMessage(), false);
+					return error(reqAuth, req, ErrorCode.ServerError, "Could not change password: " + e.getMessage(),
+						false);
 				}
 				if(error != null)
 				{
@@ -804,8 +779,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					} catch(PrismsException e)
 					{
 						log.error("Could not request password change", e);
-						return error(reqAuth, req, ErrorCode.ServerError,
-							"Could not request password change", true);
+						return error(reqAuth, req, ErrorCode.ServerError, "Could not request password change", true);
 					}
 					String msg = (String) change.remove("message");
 					if(msg != null)
@@ -824,14 +798,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(theSessionAuth.needsPasswordChange())
 				{
 					if(req.isWMS)
-						return error(reqAuth, req, ErrorCode.ValidationFailed,
-							"Password change required for user \"" + theUser.getName() + "\"",
-							false);
+						return error(reqAuth, req, ErrorCode.ValidationFailed, "Password change required for user \""
+							+ theUser.getName() + "\"", false);
 					JSONObject change = theSessionAuth.requestPasswordChange();
 					String msg = (String) change.get("message");
 					if(msg != null)
-						msg = "Password change required for user \"" + theUser.getName() + "\"\n"
-							+ msg;
+						msg = "Password change required for user \"" + theUser.getName() + "\"\n" + msg;
 					else
 						msg = "Password change required for user \"" + theUser.getName() + "\"";
 					change.put("message", msg);
@@ -854,8 +826,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				} catch(PrismsException e)
 				{
 					log.error("Could not request password change", e);
-					return error(reqAuth, req, ErrorCode.ServerError,
-						"Could not request password change", true);
+					return error(reqAuth, req, ErrorCode.ServerError, "Could not request password change", true);
 				}
 				change.put("method", "changePassword");
 				return singleMessage(reqAuth, req, change, true);
@@ -869,8 +840,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					for(int v = 0; v < req.app.getVersion().length; v++)
 						version.add(Integer.valueOf(req.app.getVersion()[v]));
 				}
-				return singleMessage(reqAuth, req, true, "setVersion", "version", version,
-					"modified", Long.valueOf(req.app.getModifiedDate()));
+				return singleMessage(reqAuth, req, true, "setVersion", "version", version, "modified",
+					Long.valueOf(req.app.getModifiedDate()));
 			}
 			// The password is valid
 
@@ -931,8 +902,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 
-		private String encrypt(PrismsAuthenticator.RequestAuthenticator reqAuth,
-			PrismsRequest request, String text) throws PrismsException
+		private String encrypt(PrismsAuthenticator.RequestAuthenticator reqAuth, PrismsRequest request, String text)
+			throws PrismsException
 		{
 			/* TODO: For whatever reason, information encrypted by the server is not decrypted
 			 * correctly by the javascript dojo blowfish implementation on the HTML client. Pending
@@ -942,8 +913,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return text;
 		}
 
-		PrismsResponse sendLogin(prisms.arch.PrismsAuthenticator.RequestAuthenticator reqAuth,
-			PrismsRequest req, String error, boolean postInit, boolean isError)
+		PrismsResponse sendLogin(prisms.arch.PrismsAuthenticator.RequestAuthenticator reqAuth, PrismsRequest req,
+			String error, boolean postInit, boolean isError)
 		{
 			if(theSessionAuth == null)
 			{
@@ -968,8 +939,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					"Could not send login information: " + e.getMessage(), false);
 			}
 			if(evt == null)
-				return singleMessage(reqAuth, req, PrismsUtils.rEventProps("method", "restart",
-					"message", "You have been successfully logged out."), false);
+				return singleMessage(reqAuth, req,
+					PrismsUtils.rEventProps("method", "restart", "message", "You have been successfully logged out."),
+					false);
 			if(postInit)
 				evt.put("postAction", "callInit");
 			/* Prior to service client version 2.1.2, the client connector had a bug that caused an
@@ -982,8 +954,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return singleMessage(reqAuth, req, evt, false);
 		}
 
-		private PrismsResponse error(RequestAuthenticator reqAuth, PrismsRequest req,
-			ErrorCode code, String message, boolean encrypted)
+		private PrismsResponse error(RequestAuthenticator reqAuth, PrismsRequest req, ErrorCode code, String message,
+			boolean encrypted)
 		{
 			/* Wait a little here. This degrades the effectiveness of a denial-of-service attack if
 			 * the attacker does not have valid credentials */
@@ -997,21 +969,21 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			JSONObject evt = new JSONObject();
 			evt.put("code", code);
 			evt.put("message", message);
-			PrismsResponse ret = singleMessage(reqAuth, req, encrypted, "error", "code",
-				code.description, "message", message);
+			PrismsResponse ret = singleMessage(reqAuth, req, encrypted, "error", "code", code.description, "message",
+				message);
 			ret.code = code;
 			ret.error = message;
 			return ret;
 		}
 
-		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req,
-			boolean encrypted, String method, Object... params)
+		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req, boolean encrypted,
+			String method, Object... params)
 		{
 			return singleMessage(reqAuth, req, toEvent(method, params), encrypted);
 		}
 
-		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req,
-			JSONObject evt, boolean encrypted)
+		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req, JSONObject evt,
+			boolean encrypted)
 		{
 			JSONArray arr = new JSONArray();
 			arr.add(evt);
@@ -1069,8 +1041,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		 * @param security The security session that allowed access to this session
 		 * @param client The client configuration that this session is for
 		 */
-		public PrismsSessionHolder(HttpSession httpSession, SecuritySession security,
-			ClientConfig client)
+		public PrismsSessionHolder(HttpSession httpSession, SecuritySession security, ClientConfig client)
 		{
 			theHttpSession = httpSession;
 			theSecurity = security;
@@ -1104,8 +1075,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		 * @return The response if the result was in an event form
 		 * @throws IOException If an error occurs writing to the response
 		 */
-		public PrismsResponse processEvent(RequestAuthenticator reqAuth, PrismsRequest req,
-			JSONObject event) throws IOException
+		public PrismsResponse processEvent(RequestAuthenticator reqAuth, PrismsRequest req, JSONObject event)
+			throws IOException
 		{
 			if(hasCreatedSession)
 			{
@@ -1120,9 +1091,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						"Could not get application lock: " + e.getMessage());
 				}
 				if(lock != null && lock.getLockingSession() != theSession)
-					return singleMessage(reqAuth, req, true, "appLocked", "message",
-						lock.getMessage(), "scale", Integer.valueOf(lock.getScale()), "progress",
-						Integer.valueOf(lock.getProgress()));
+					return singleMessage(reqAuth, req, true, "appLocked", "message", lock.getMessage(), "scale",
+						Integer.valueOf(lock.getScale()), "progress", Integer.valueOf(lock.getProgress()));
 			}
 			// Do prisms methods
 			if("init".equals(req.serverMethod))
@@ -1138,8 +1108,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				else
 					return singleMessage(reqAuth, req, true, "restart");
 			}
-			final PrismsTransaction trans = getEnv().transact(theSession,
-				PrismsTransaction.Stage.processEvent);
+			final PrismsTransaction trans = getEnv().transact(theSession, PrismsTransaction.Stage.processEvent);
 			TrackNode track = trans.getTracker().start("Server Calls");
 			try
 			{
@@ -1150,20 +1119,18 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					{
 						theHttpSession.removeSession(this);
 						destroy();
-						sessionLog.info("Session "
-							+ (theSession == null ? "" : theSession.getMetadata().getID() + ",")
-							+ " user " + theUser + ", application " + theClient.getApp()
-							+ ", client " + theClient.getName() + " logged out.");
+						sessionLog.info("Session " + (theSession == null ? "" : theSession.getMetadata().getID() + ",")
+							+ " user " + theUser + ", application " + theClient.getApp() + ", client "
+							+ theClient.getName() + " logged out.");
 						/* After the call to HttpSession.removeSession(), the security session used
 						 * by this session holder may have been deleted. We need to retrieve the
 						 * security session from the HttpSession and if it's not there, create it. */
-						SecuritySession security = theHttpSession.getSecurity(
-							theSecurity.getAuth(), theSecurity.getUser());
+						SecuritySession security = theHttpSession.getSecurity(theSecurity.getAuth(),
+							theSecurity.getUser());
 						if(security == null)
-							security = theHttpSession.createSecurity(theSecurity.getAuth(),
-								theSecurity.getUser(), req.httpRequest);
-						return security.sendLogin(reqAuth, req,
-							"You have been successfully logged out", false, false);
+							security = theHttpSession.createSecurity(theSecurity.getAuth(), theSecurity.getUser(),
+								req.httpRequest);
+						return security.sendLogin(reqAuth, req, "You have been successfully logged out", false, false);
 					} finally
 					{
 						trans.getTracker().end(track2);
@@ -1190,8 +1157,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					if(!"png".equals(format) && !"jpg".equals(format) && !"jpeg".equals(format)
 						&& !"gif".equals(format))
 					{
-						log.error("Unrecognized image format: " + format
-							+ ".  Cannot generate image");
+						log.error("Unrecognized image format: " + format + ".  Cannot generate image");
 						return new PrismsResponse(reqAuth, null);
 					}
 					if(format.equals("jpg"))
@@ -1220,8 +1186,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				trans.getTracker().end(track);
 				getEnv().finish(trans);
 			}
-			return error(reqAuth, req, ErrorCode.RequestInvalid,
-				"Unable to process request: serverMethod " + req.serverMethod + " not defined");
+			return error(reqAuth, req, ErrorCode.RequestInvalid, "Unable to process request: serverMethod "
+				+ req.serverMethod + " not defined");
 		}
 
 		private PrismsResponse init(RequestAuthenticator reqAuth, PrismsRequest req)
@@ -1242,9 +1208,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 			} catch(PrismsException e)
 			{
-				String error = "Could not create " + (theClient.isService() ? "service " : "UI ")
-					+ theApp.getName() + " session for user " + theUser.getName() + ", client "
-					+ theClient.getName();
+				String error = "Could not create " + (theClient.isService() ? "service " : "UI ") + theApp.getName()
+					+ " session for user " + theUser.getName() + ", client " + theClient.getName();
 				log.error(error, e);
 				return error(reqAuth, req, ErrorCode.ServerError, error + ": " + e.getMessage());
 			}
@@ -1254,9 +1219,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				theSession.init();
 			} catch(Throwable e)
 			{
-				String error = "Could not initialize "
-					+ (theClient.isService() ? "service " : "UI ") + theApp.getName()
-					+ " session for user " + theUser.getName() + ", client " + theClient.getName();
+				String error = "Could not initialize " + (theClient.isService() ? "service " : "UI ")
+					+ theApp.getName() + " session for user " + theUser.getName() + ", client " + theClient.getName();
 				log.error(error, e);
 				if(e.getCause() != null)
 					error = e.getCause().getMessage();
@@ -1276,8 +1240,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		{
 			JSONArray ret = null;
 			PrismsTransaction trans = getEnv().getTransaction();
-			if(theSession.getClient().isService()
-				|| Boolean.TRUE.equals(event.get("prisms-synchronous")))
+			if(theSession.getClient().isService() || Boolean.TRUE.equals(event.get("prisms-synchronous")))
 			{
 				TrackNode track = PrismsUtils.track(trans, "processSync");
 				try
@@ -1310,15 +1273,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return new PrismsResponse(reqAuth, ret, true);
 		}
 
-		private PrismsResponse processWMS(RequestAuthenticator reqAuth, PrismsRequest req,
-			JSONObject event, PrismsWmsRequest wms) throws IOException
+		private PrismsResponse processWMS(RequestAuthenticator reqAuth, PrismsRequest req, JSONObject event,
+			PrismsWmsRequest wms) throws IOException
 		{
 			String pluginName = (String) event.get("plugin");
 			WmsPlugin plugin = (WmsPlugin) theSession.getPlugin(pluginName);
 			HttpServletResponse response = req.theResponse;
 			if(plugin == null)
-				return error(reqAuth, req, ErrorCode.RequestInvalid, "No plugin " + pluginName
-					+ " loaded");
+				return error(reqAuth, req, ErrorCode.RequestInvalid, "No plugin " + pluginName + " loaded");
 			PrismsTransaction trans = getEnv().getTransaction();
 			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName + ".wms("
 				+ wms.getRequest().name() + ")");
@@ -1349,8 +1311,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					else
 						response.setContentType("image/" + wms.getFormat());
 					java.io.OutputStream out = response.getOutputStream();
-					if(wms.getHeight() == 0 || wms.getWidth() == 0
-						|| wms.getBounds().minLat == wms.getBounds().maxLat
+					if(wms.getHeight() == 0 || wms.getWidth() == 0 || wms.getBounds().minLat == wms.getBounds().maxLat
 						|| wms.getBounds().minLon == wms.getBounds().maxLon)
 						javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(1, 1,
 							java.awt.image.BufferedImage.TYPE_4BYTE_ABGR), wms.getFormat(), out);
@@ -1376,16 +1337,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					writer.close();
 					break;
 				default:
-					throw new IllegalStateException("WMS request type " + wms.getRequest()
-						+ " not recognized");
+					throw new IllegalStateException("WMS request type " + wms.getRequest() + " not recognized");
 				}
 			} catch(Throwable e)
 			{
 				if(e instanceof java.io.IOException)
 					throw (java.io.IOException) e;
 				log.error("Could not fulfill " + wms.getRequest() + " typed WMS request", e);
-				return error(reqAuth, req, ErrorCode.ApplicationError, e.getClass().getName()
-					+ ": " + e.getMessage());
+				return error(reqAuth, req, ErrorCode.ApplicationError, e.getClass().getName() + ": " + e.getMessage());
 			} finally
 			{
 				PrismsUtils.end(trans, track);
@@ -1393,8 +1352,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return new PrismsResponse(reqAuth, null);
 		}
 
-		private void generateImage(JSONObject event, String format, java.io.OutputStream out)
-			throws IOException
+		private void generateImage(JSONObject event, String format, java.io.OutputStream out) throws IOException
 		{
 			String pluginName = (String) event.get("plugin");
 			String method = (String) event.get("method");
@@ -1414,12 +1372,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			theSession.runTasks();
 			PrismsTransaction trans = getEnv().getTransaction();
-			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName
-				+ ".writeImage()");
+			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName + ".writeImage()");
 			try
 			{
-				((ImagePlugin) theSession.getPlugin(pluginName)).writeImage(method, format,
-					xOffset, yOffset, refWidth, refHeight, imWidth, imHeight, out);
+				((ImagePlugin) theSession.getPlugin(pluginName)).writeImage(method, format, xOffset, yOffset, refWidth,
+					refHeight, imWidth, imHeight, out);
 			} finally
 			{
 				PrismsUtils.end(trans, track);
@@ -1441,14 +1398,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			if(contentType == null)
 				contentType = "application/octet-stream";
 			response.setContentType(contentType);
-			response.setHeader("Content-Disposition",
-				"attachment; filename=\"" + plugin.getFileName(event) + "\"");
+			response.setHeader("Content-Disposition", "attachment; filename=\"" + plugin.getFileName(event) + "\"");
 			int size = plugin.getDownloadSize(event);
 			if(size >= 0)
 				response.setContentLength(size);
 			PrismsTransaction trans = getEnv().getTransaction();
-			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName
-				+ ".doDownload");
+			TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName + ".doDownload");
 			try
 			{
 				plugin.doDownload(event, response.getOutputStream());
@@ -1464,8 +1419,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 		}
 
-		private void doUpload(final PrismsRequest request, final JSONObject event)
-			throws IOException
+		private void doUpload(final PrismsRequest request, final JSONObject event) throws IOException
 		{
 			if(request.theUploads == null)
 				throw new IllegalArgumentException("getUpload called without multipart content");
@@ -1481,21 +1435,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			Runnable toRun = new Runnable()
 			{
+				@Override
 				public void run()
 				{
 					PrismsTransaction trans = getEnv().getTransaction();
-					TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName
-						+ ".doUpload");
+					TrackNode track = PrismsUtils.track(trans, "PRISMS Plugin " + pluginName + ".doUpload");
 					try
 					{
 						for(org.apache.commons.fileupload.FileItem item : request.theUploads)
 						{
-							String fileName = org.apache.commons.io.FilenameUtils.getName(item
-								.getName());
+							String fileName = org.apache.commons.io.FilenameUtils.getName(item.getName());
 							try
 							{
-								plugin.doUpload(event, fileName, item.getContentType(),
-									item.getInputStream(), item.getSize());
+								plugin.doUpload(event, fileName, item.getContentType(), item.getInputStream(),
+									item.getSize());
 							} catch(java.io.IOException e)
 							{
 								log.error("Upload " + fileName + " failed", e);
@@ -1524,33 +1477,31 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 
 		private prisms.arch.PrismsSession.SessionMetadata createMetadata()
 		{
-			return new PrismsSession.SessionMetadata(
-				Integer.toHexString(theHttpSession.hashCode()), theSecurity.getAuth(),
-				theSecurity.getRemoteAddr(), theSecurity.getRemoteHost(),
+			return new PrismsSession.SessionMetadata(Integer.toHexString(theHttpSession.hashCode()),
+				theSecurity.getAuth(), theSecurity.getRemoteAddr(), theSecurity.getRemoteHost(),
 				theSecurity.getClientEnv(), theHttpSession.getGovernor());
 		}
 
-		private PrismsResponse error(RequestAuthenticator reqAuth, PrismsRequest req,
-			ErrorCode code, String message)
+		private PrismsResponse error(RequestAuthenticator reqAuth, PrismsRequest req, ErrorCode code, String message)
 		{
 			JSONObject evt = new JSONObject();
 			evt.put("code", code);
 			evt.put("message", message);
-			PrismsResponse ret = singleMessage(reqAuth, req, true, "error", "code",
-				code.description, "message", message);
+			PrismsResponse ret = singleMessage(reqAuth, req, true, "error", "code", code.description, "message",
+				message);
 			ret.code = code;
 			ret.error = message;
 			return ret;
 		}
 
-		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req,
-			boolean encrypted, String method, Object... params)
+		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req, boolean encrypted,
+			String method, Object... params)
 		{
 			return singleMessage(reqAuth, req, toEvent(method, params), encrypted);
 		}
 
-		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req,
-			JSONObject evt, boolean encrypted)
+		private PrismsResponse singleMessage(RequestAuthenticator reqAuth, PrismsRequest req, JSONObject evt,
+			boolean encrypted)
 		{
 			JSONArray arr = new JSONArray();
 			arr.add(evt);
@@ -1633,8 +1584,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			return null;
 		}
 
-		synchronized SecuritySession createSecurity(PrismsAuthenticator auth, User user,
-			HttpServletRequest req) throws PrismsException
+		synchronized SecuritySession createSecurity(PrismsAuthenticator auth, User user, HttpServletRequest req)
+			throws PrismsException
 		{
 			for(SecuritySession sec : theSecurities)
 				if(sec.getAuth().equals(auth) && sec.getUser().equals(user))
@@ -1661,11 +1612,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 							else
 								theSessionHolders = ArrayUtils.remove(theSessionHolders, session);
 							session.destroy();
-							sessionLog.info("Session "
-								+ (session.getSession() == null ? "" : session.getSession()
-									.getMetadata().getID()
-									+ ",") + " user " + session.getUser() + ", client "
-								+ session.getClient().getName() + " has timed out.");
+							sessionLog
+								.info("Session "
+									+ (session.getSession() == null ? "" : session.getSession().getMetadata().getID()
+										+ ",") + " user " + session.getUser() + ", client "
+									+ session.getClient().getName() + " has timed out.");
 							String key = theID + "/" + session.getClient().getApp().getName() + "/"
 								+ session.getClient().getName() + "/" + session.getUser().getName();
 							theEpitaphs.put(key, new SessionEpitaph("Session has timed out."));
@@ -1681,8 +1632,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		synchronized PrismsSessionHolder createSession(SecuritySession security, ClientConfig client)
 		{
 			for(PrismsSessionHolder session : theSessionHolders)
-				if(session.getUser().equals(security.getUser())
-					&& session.getClient().equals(client))
+				if(session.getUser().equals(security.getUser()) && session.getClient().equals(client))
 					return session;
 			PrismsSessionHolder newSession = new PrismsSessionHolder(this, security, client);
 			theSessionHolders = ArrayUtils.add(theSessionHolders, newSession);
@@ -1737,22 +1687,20 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 							if(holder.isKilled())
 							{
 								sessionLog.info("Session "
-									+ (holder.getSession() == null ? "" : holder.getSession()
-										.getMetadata().getID()
+									+ (holder.getSession() == null ? "" : holder.getSession().getMetadata().getID()
 										+ " ") + ", user " + holder.getUser() + ", application "
-									+ holder.getClient().getApp() + ", client "
-									+ holder.getClient() + " has been killed by an administrator.");
-								theEpitaphs.put(key, new SessionEpitaph(
-									"Session has been killed by an administrator."));
+									+ holder.getClient().getApp() + ", client " + holder.getClient()
+									+ " has been killed by an administrator.");
+								theEpitaphs
+									.put(key, new SessionEpitaph("Session has been killed by an administrator."));
 							}
 							else
 							{
 								sessionLog.info("Session "
-									+ (holder.getSession() == null ? "" : holder.getSession()
-										.getMetadata().getID()
+									+ (holder.getSession() == null ? "" : holder.getSession().getMetadata().getID()
 										+ "") + ", user " + holder.getUser() + ", application "
-									+ holder.getClient().getApp() + ", client "
-									+ holder.getClient().getName() + " has timed out.");
+									+ holder.getClient().getApp() + ", client " + holder.getClient().getName()
+									+ " has timed out.");
 								theEpitaphs.put(key, new SessionEpitaph("Session has timed out."));
 							}
 							theSessionHolders = ArrayUtils.remove(theSessionHolders, s);
@@ -1882,8 +1830,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 
 		/**
-		 * @return The number of hits that this client has had since this counter was started or
-		 *         restarted
+		 * @return The number of hits that this client has had since this counter was started or restarted
 		 */
 		public int getHitCount()
 		{
@@ -1948,8 +1895,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 							sb.append(" locked out for ").append(newHits).append(" hits in ");
 							PrismsUtils.printTimeLength(now - oStart, sb, false);
 							sb.append(": Unlock set to ");
-							sb.append(PrismsUtils.TimePrecision.SECONDS.print(activity.unlockTime,
-								true));
+							sb.append(PrismsUtils.TimePrecision.SECONDS.print(activity.unlockTime, true));
 							log.error(sb.toString());
 						}
 						activity.hitCount = 0;
@@ -1963,8 +1909,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 
 		/**
-		 * @return The time when this governor will unlock access of its client to the server, or -1
-		 *         if the client is not currently locked out
+		 * @return The time when this governor will unlock access of its client to the server, or -1 if the client is
+		 *         not currently locked out
 		 */
 		public long isLocked()
 		{
@@ -1976,9 +1922,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 
 		/**
-		 * Gets the activity counter for this client governor corresponding to an activity
-		 * constraint set in the server. The counters in this governor are indexed identically to
-		 * the constraints in the server.
+		 * Gets the activity counter for this client governor corresponding to an activity constraint set in the server.
+		 * The counters in this governor are indexed identically to the constraints in the server.
 		 * 
 		 * @param index The index of the activity counter to get
 		 * @return The activity counter at the given index
@@ -2006,18 +1951,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 
 		/**
-		 * Checks how close the counter at the given index is to exceeding its constraint. 0 means
-		 * there have been no hits from the client within any of the constraint times, 1 means that
-		 * one or more of the constraints have just or are about to lock the client out. This method
-		 * will not always return 1 when the client is locked out. In fact, a client that is locked
-		 * out will gradually become farther and farther from exceeding its constraints, so that
-		 * when it is unlocked, it will have larger thresholds before it is locked out again.
+		 * Checks how close the counter at the given index is to exceeding its constraint. 0 means there have been no
+		 * hits from the client within any of the constraint times, 1 means that one or more of the constraints have
+		 * just or are about to lock the client out. This method will not always return 1 when the client is locked out.
+		 * In fact, a client that is locked out will gradually become farther and farther from exceeding its
+		 * constraints, so that when it is unlocked, it will have larger thresholds before it is locked out again.
 		 * 
 		 * @param index The index of the constraint to test
-		 * @return How close the counter at the given index is to exceeding its constraint. 0 means
-		 *         there have been no hits from the client within any of the constraint times, 1
-		 *         means that one or more of the constraints have just or are about to lock the
-		 *         client out.
+		 * @return How close the counter at the given index is to exceeding its constraint. 0 means there have been no
+		 *         hits from the client within any of the constraint times, 1 means that one or more of the constraints
+		 *         have just or are about to lock the client out.
 		 */
 		public float getCloseness(int index)
 		{
@@ -2096,9 +2039,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		theSessions = new java.util.concurrent.ConcurrentHashMap<String, HttpSession>(32);
 		theEpitaphs = new java.util.concurrent.ConcurrentHashMap<String, SessionEpitaph>();
 		theClientGovernors = new prisms.util.DemandCache<String, ClientGovernor>(
-			new prisms.util.DemandCache.Qualitizer<ClientGovernor>()
+			new prisms.util.DemandCache.Qualitizer<String, ClientGovernor>()
 			{
-				public float quality(ClientGovernor value)
+				@Override
+				public float quality(String key, ClientGovernor value)
 				{
 					if(value.isLocked() >= 0)
 						return 1000;
@@ -2106,7 +2050,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						return 1;
 				}
 
-				public float size(ClientGovernor value)
+				@Override
+				public float size(String key, ClientGovernor value)
 				{
 					return 1;
 				}
@@ -2130,8 +2075,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	/**
 	 * Initializes the log4j system for PRISMS
 	 * 
-	 * @param log4jXML The address to the XML to use to initialize Log4j, or null if this server
-	 *        should not initialize Log4j
+	 * @param log4jXML The address to the XML to use to initialize Log4j, or null if this server should not initialize
+	 *        Log4j
 	 */
 	public static void initLog4j(java.net.URL log4jXML)
 	{
@@ -2150,8 +2095,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	/**
 	 * Initializes the log4j system for PRISMS
 	 * 
-	 * @param log4jprops - the properties to use to initialize Log4j, or null if this server should
-	 *        not initialize Log4j
+	 * @param log4jprops - the properties to use to initialize Log4j, or null if this server should not initialize Log4j
 	 */
 	public static void initLog4j(java.util.Properties log4jprops)
 	{
@@ -2181,8 +2125,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
-	 * @return The amount of time (in milliseconds) that this server keeps unused security sessions
-	 *         around before it purges them.
+	 * @return The amount of time (in milliseconds) that this server keeps unused security sessions around before it
+	 *         purges them.
 	 */
 	public long getSecurityTimeout()
 	{
@@ -2190,8 +2134,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
-	 * @return The amount of time (in milliseconds) that this server keeps security sessions around
-	 *         before it purges them for security.
+	 * @return The amount of time (in milliseconds) that this server keeps security sessions around before it purges
+	 *         them for security.
 	 */
 	public long getSecurityRefresh()
 	{
@@ -2205,8 +2149,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
-	 * @return Whether this server checks for running transactions that are taking a long time to
-	 *         finish
+	 * @return Whether this server checks for running transactions that are taking a long time to finish
 	 */
 	public boolean isCheckingForRunaways()
 	{
@@ -2214,8 +2157,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
-	 * @param cfr Whether this server checks for running transactions that are taking a long time to
-	 *        finish
+	 * @param cfr Whether this server checks for running transactions that are taking a long time to finish
 	 */
 	public void setCheckingForRunaways(boolean cfr)
 	{
@@ -2227,8 +2169,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	{
 		try
 		{
-			return PrismsConfig.fromXml(theEnv, "PRISMSConfig.xml",
-				PrismsConfig.getLocation(getClass()));
+			return PrismsConfig.fromXml(theEnv, "PRISMSConfig.xml", PrismsConfig.getLocation(getClass()));
 		} catch(Exception e)
 		{
 			log.error("Could not read PRISMS config file!", e);
@@ -2237,16 +2178,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	/**
-	 * @return The configuration to use to configure this server's default applications. These are
-	 *         the applications that come packaged with PRISMS and must exist to support the
-	 *         architecture.
+	 * @return The configuration to use to configure this server's default applications. These are the applications that
+	 *         come packaged with PRISMS and must exist to support the architecture.
 	 */
 	protected PrismsConfig getDefaultAppConfig()
 	{
 		try
 		{
-			return PrismsConfig.fromXml(theEnv, "DefaultApplications.xml",
-				PrismsConfig.getLocation(PrismsServer.class));
+			return PrismsConfig
+				.fromXml(theEnv, "DefaultApplications.xml", PrismsConfig.getLocation(PrismsServer.class));
 		} catch(Exception e)
 		{
 			log.error("Could not read PRISMS default applications file!", e);
@@ -2257,9 +2197,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	/**
 	 * Configures this server
 	 * 
-	 * @param req The request that is requesting the initialization of this PRISMS server. May be
-	 *        null if no request is unavailable. Additional configuration may be required in this
-	 *        case.
+	 * @param req The request that is requesting the initialization of this PRISMS server. May be null if no request is
+	 *        unavailable. Additional configuration may be required in this case.
 	 * @return null if successful, or an error message if something goes wrong
 	 * @throws IllegalStateException If an error occurs
 	 */
@@ -2313,8 +2252,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					log.error("A positive lockout-time must be specified for each activity constraint");
 					continue;
 				}
-				theActivityConstraints[c] = new ActivityConstraint((int) (constTime / 1000),
-					maxHits, (int) (lockTime / 1000));
+				theActivityConstraints[c] = new ActivityConstraint((int) (constTime / 1000), maxHits,
+					(int) (lockTime / 1000));
 			}
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
@@ -2327,14 +2266,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				serializerClass = pConfig.getClass("serializer", RemoteEventSerializer.class);
 			} catch(ClassNotFoundException e)
 			{
-				String msg = "Class " + pConfig.get("serializer")
-					+ " not found for remote event serializer";
+				String msg = "Class " + pConfig.get("serializer") + " not found for remote event serializer";
 				log.error(msg, e);
 				throw new IllegalStateException(msg, e);
 			} catch(ClassCastException e)
 			{
-				String msg = "Class " + pConfig.get("serializer")
-					+ " is not a remote event serializer";
+				String msg = "Class " + pConfig.get("serializer") + " is not a remote event serializer";
 				log.error(msg, e);
 				throw new IllegalStateException(msg, e);
 			}
@@ -2345,8 +2282,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				} catch(Throwable e)
 				{
 					log.error("Could not instantiate serializer " + serializerClass.getName(), e);
-					throw new IllegalStateException("Could not instantiate serializer "
-						+ serializerClass, e);
+					throw new IllegalStateException("Could not instantiate serializer " + serializerClass, e);
 				}
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
@@ -2359,28 +2295,24 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				pfClass = pConfig.getClass("connection-factory/class", ConnectionFactory.class);
 			} catch(ClassNotFoundException e)
 			{
-				String msg = "Class " + pConfig.get("connection-factory/class")
-					+ " not found for connection factory";
+				String msg = "Class " + pConfig.get("connection-factory/class") + " not found for connection factory";
 				log.error(msg, e);
 				throw new IllegalStateException(msg, e);
 			} catch(ClassCastException e)
 			{
-				String msg = "Class " + pConfig.get("connection-factory/class")
-					+ " is not a connection factory";
+				String msg = "Class " + pConfig.get("connection-factory/class") + " is not a connection factory";
 				log.error(msg, e);
 				throw new IllegalStateException(msg, e);
 			}
 			if(pfClass == null)
-				throw new IllegalStateException(
-					"No ConnectionFactory class set--cannot configure PRISMS");
+				throw new IllegalStateException("No ConnectionFactory class set--cannot configure PRISMS");
 			try
 			{
 				theEnv.setConnectionFactory(pfClass.newInstance());
 			} catch(Throwable e)
 			{
 				log.error("Could not instantiate connection factory " + pfClass.getName(), e);
-				throw new IllegalStateException("Could not instantiate connection factory "
-					+ pfClass.getName(), e);
+				throw new IllegalStateException("Could not instantiate connection factory " + pfClass.getName(), e);
 			}
 			theEnv.getConnectionFactory().configure(pConfig.subConfig("connection-factory"));
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
@@ -2401,14 +2333,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				usClass = theConfigProgress.theUsEl.getClass("class", UserSource.class);
 			} catch(ClassNotFoundException e)
 			{
-				String msg = "Class " + theConfigProgress.theUsEl.get("class")
-					+ " not found for user source";
+				String msg = "Class " + theConfigProgress.theUsEl.get("class") + " not found for user source";
 				log.error(msg, e);
 				throw new IllegalStateException(msg, e);
 			} catch(ClassCastException e)
 			{
-				String msg = "Class " + theConfigProgress.theUsEl.get("class")
-					+ " is not a user source";
+				String msg = "Class " + theConfigProgress.theUsEl.get("class") + " is not a user source";
 				log.error(msg, e);
 				throw new IllegalStateException(msg, e);
 			}
@@ -2420,8 +2350,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(Exception e)
 			{
 				log.error("Could not instantiate user source " + usClass.getName(), e);
-				throw new IllegalStateException("Could not instantiate user source "
-					+ usClass.getName(), e);
+				throw new IllegalStateException("Could not instantiate user source " + usClass.getName(), e);
 			}
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
@@ -2429,8 +2358,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		if(theConfigProgress.theStage.compareTo(ConfigStage.ID_GENERATOR) <= 0)
 		{
 			PrismsConfig connEl = theConfigProgress.theUsEl.subConfig("connection");
-			prisms.arch.ds.IDGenerator ids = new prisms.arch.ds.IDGenerator(
-				theEnv.getConnectionFactory(), connEl);
+			prisms.arch.ds.IDGenerator ids = new prisms.arch.ds.IDGenerator(theEnv.getConnectionFactory(), connEl);
 			theEnv.setIDs(ids);
 
 			String localScheme = pConfig.get("local-scheme");
@@ -2458,8 +2386,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(localPath == null && req != null)
 				{
 					localPath = req.getContextPath();
-					localPath = req.getRequestURI().substring(
-						req.getRequestURI().indexOf(localPath));
+					localPath = req.getRequestURI().substring(req.getRequestURI().indexOf(localPath));
 					if(localPath.startsWith("/"))
 						localPath = localPath.substring(1);
 					if(localPath.endsWith("/"))
@@ -2473,8 +2400,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						localPort = -1;
 					if(localPath.startsWith("/"))
 						localPath = localPath.substring(1);
-					String loc = localScheme + "://" + addr
-						+ (localPort > 0 ? ":" + localPort : "") + "/" + localPath;
+					String loc = localScheme + "://" + addr + (localPort > 0 ? ":" + localPort : "") + "/" + localPath;
 					boolean valid = false;
 					try
 					{
@@ -2496,14 +2422,10 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						reader.close();
 						writer.close();
 						if(!writer.toString().startsWith("success"))
-							log.warn("Self-reference location " + loc
-								+ " does not point to a PRISMS server."
-								+ " Enterprise and self connections will not be available.\n"
-								+ writer.toString());
-						else if(!writer.toString().equals(
-							"success:" + Integer.toHexString(theEnv.hashCode())))
-							log.warn("Self-reference location " + loc
-								+ " does not point to this server."
+							log.warn("Self-reference location " + loc + " does not point to a PRISMS server."
+								+ " Enterprise and self connections will not be available.\n" + writer.toString());
+						else if(!writer.toString().equals("success:" + Integer.toHexString(theEnv.hashCode())))
+							log.warn("Self-reference location " + loc + " does not point to this server."
 								+ "Enterprise and self connections will not be available.");
 						else
 							valid = true;
@@ -2524,8 +2446,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			prisms.arch.ds.PrismsDataExportImport.Import importer = theConfigProgress.theImporter;
 			if(importer == null)
 				importer = new prisms.arch.ds.PrismsDataExportImport.Import();
-			int exportedCenterID = importer.getInstanceID(prisms.logging.PrismsLogger
-				.getConfiguredExposedDir(pConfig.subConfig("logger")));
+			int exportedCenterID = importer.getInstanceID(prisms.logging.PrismsLogger.getConfiguredExposedDir(pConfig
+				.subConfig("logger")));
 
 			try
 			{
@@ -2536,8 +2458,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(PrismsException e)
 			{
 				log.error("Could not configure ID generator for environment", e);
-				throw new IllegalStateException("Could not configure ID generator for environment",
-					e);
+				throw new IllegalStateException("Could not configure ID generator for environment", e);
 			}
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
@@ -2551,12 +2472,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(workerEl == null || workerEl.get("threads") == null)
 					worker = new prisms.impl.ThreadPoolWorker("PRISMS Worker");
 				else
-					worker = new prisms.impl.ThreadPoolWorker("PRISMS Worker", workerEl.getInt(
-						"threads", 0));
+					worker = new prisms.impl.ThreadPoolWorker("PRISMS Worker", workerEl.getInt("threads", 0));
 			}
 			else
-				throw new IllegalArgumentException("Unrecognized worker type in worker element "
-					+ workerEl + "\nCannot configure application without worker");
+				throw new IllegalArgumentException("Unrecognized worker type in worker element " + workerEl
+					+ "\nCannot configure application without worker");
 			theEnv.setWorker(worker);
 
 			PrismsConfig tracking = pConfig.subConfig("tracking");
@@ -2571,8 +2491,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				gpc.setInfoThreshold(displayThresh.getTime("info", gpc.getInfoThreshold()));
 				gpc.setWarningThreshold(displayThresh.getTime("warn", gpc.getWarningThreshold()));
 				gpc.setErrorThreshold(displayThresh.getTime("error", gpc.getErrorThreshold()));
-				gpc.setTaskDisplayThreshold(displayThresh.getTime("task",
-					gpc.getTaskDisplayThreshold()));
+				gpc.setTaskDisplayThreshold(displayThresh.getTime("task", gpc.getTaskDisplayThreshold()));
 				gpc.setAccentThreshold(displayThresh.getFloat("accent", gpc.getAccentThreshold()));
 			}
 
@@ -2615,8 +2534,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					}
 					if(mgrType == null)
 					{
-						String msg = "No type configured for property manager in global set "
-							+ globalName;
+						String msg = "No type configured for property manager in global set " + globalName;
 						log.error(msg);
 						return msg;
 					}
@@ -2649,16 +2567,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			// Now we load the custom applications
 			defAppConfig = pConfig.subConfig("applications");
 			if(defAppConfig == null)
-				log.warn("No custom applications found in "
-					+ getClass().getResource("PRISMSConfig.xml"));
+				log.warn("No custom applications found in " + getClass().getResource("PRISMSConfig.xml"));
 			else
 				loadApps(defAppConfig, configXmlRef);
 			theEnv.seal();
 			theConfigProgress.theStage = theConfigProgress.theStage.next();
 		}
 
-		PrismsApplication [] apps = theApps.values()
-			.toArray(new PrismsApplication [theApps.size()]);
+		PrismsApplication [] apps = theApps.values().toArray(new PrismsApplication [theApps.size()]);
 
 		if(theConfigProgress.theStage.compareTo(ConfigStage.CONFIG_USER_SOURCE) <= 0)
 		{
@@ -2690,8 +2606,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						error = config.configureApp(false);
 						if(error != null)
 						{
-							log.error("Could not load manager application--"
-								+ "PRISMS configuration failed: " + error);
+							log.error("Could not load manager application--" + "PRISMS configuration failed: " + error);
 							return "Could not load manager application: " + error;
 						}
 						break;
@@ -2704,8 +2619,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						{
 							log.error("Could not load application " + config.theApp.getName()
 								+ "--PRISMS configuration failed: " + error);
-							return "Could not load application " + config.theApp.getName() + ": "
-								+ error;
+							return "Could not load application " + config.theApp.getName() + ": " + error;
 						}
 					}
 				theConfigProgress.theImporter.importData(theApps.values().toArray(
@@ -2721,13 +2635,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			for(PrismsApplication app : theApps.values())
 				if(theEnv.isManager(app))
 				{
-					app.addManager(new prisms.util.persisters.ReadOnlyManager<PrismsApplication []>(
-						app, prisms.arch.event.PrismsProperties.applications, apps));
+					app.addManager(new prisms.util.persisters.ReadOnlyManager<PrismsApplication []>(app,
+						prisms.arch.event.PrismsProperties.applications, apps));
 					String error = theConfigs.get(app.getName()).configureApp(true);
 					if(error != null)
 					{
-						log.error("Could not load manager application--PRISMS configuration failed: "
-							+ error);
+						log.error("Could not load manager application--PRISMS configuration failed: " + error);
 						return "Could not load manager application: " + error;
 					}
 					log.info("Configured manager application \"" + app.getName() + "\"");
@@ -2741,8 +2654,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			boolean init;
 			try
 			{
-				init = theEnv.getIDs().isNewInstall()
-					|| theEnv.getUserSource().getActiveUsers().length == 0;
+				init = theEnv.getIDs().isNewInstall() || theEnv.getUserSource().getActiveUsers().length == 0;
 			} catch(PrismsException e)
 			{
 				log.error("Could not check user count", e);
@@ -2909,8 +2821,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					modDate = MOD_DATE_FORMAT.parse(dateString).getTime();
 				} catch(Exception e)
 				{
-					log.error("Invalid modified date in XML: " + dateString
-						+ "--must be in form ddMMMyyyy", e);
+					log.error("Invalid modified date in XML: " + dateString + "--must be in form ddMMMyyyy", e);
 				}
 			}
 			AppConfigurator ac = new AppConfigurator(config, appEl);
@@ -2936,8 +2847,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				String clientConfigXML = clientEl.get("configXML");
 				if(clientConfigXML == null)
 				{
-					log.error("Missing configXML attribute in client of application "
-						+ app.getName());
+					log.error("Missing configXML attribute in client of application " + app.getName());
 					continue;
 				}
 				PrismsConfig clientXml;
@@ -2946,8 +2856,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					clientXml = PrismsConfig.fromXml(theEnv, clientConfigXML, appConfigXML, path);
 				} catch(IOException e)
 				{
-					log.error("Could not client config XML " + clientConfigXML + " of application "
-						+ app.getName(), e);
+					log.error("Could not client config XML " + clientConfigXML + " of application " + app.getName(), e);
 					continue;
 				}
 				if(clientXml == null)
@@ -2970,8 +2879,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				boolean service = clientEl.is("service", false);
 				boolean commonSession = clientEl.is("common-session", false);
 				boolean anonymous = clientEl.is("allowAnonymous", false);
-				client = new ClientConfig(app, clientName, descrip, service, commonSession,
-					anonymous, ac.addClient(clientName, clientEl));
+				client = new ClientConfig(app, clientName, descrip, service, commonSession, anonymous, ac.addClient(
+					clientName, clientEl));
 				app.addClientConfig(client);
 				ac.setClient(client);
 
@@ -2981,14 +2890,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					serializerClass = clientEl.getClass("serializer", RemoteEventSerializer.class);
 				} catch(ClassNotFoundException e)
 				{
-					String msg = "Class " + clientEl.get("serializer")
-						+ " not found for remote event serializer";
+					String msg = "Class " + clientEl.get("serializer") + " not found for remote event serializer";
 					log.error(msg, e);
 					throw new IllegalStateException(msg, e);
 				} catch(ClassCastException e)
 				{
-					String msg = "Class " + clientEl.get("serializer")
-						+ " is not a remote event serializer";
+					String msg = "Class " + clientEl.get("serializer") + " is not a remote event serializer";
 					log.error(msg, e);
 					throw new IllegalStateException(msg, e);
 				}
@@ -2998,18 +2905,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 						theSerializer = serializerClass.newInstance();
 					} catch(Throwable e)
 					{
-						log.error("Could not instantiate serializer " + serializerClass.getName(),
-							e);
-						throw new IllegalStateException("Could not instantiate serializer "
-							+ serializerClass, e);
+						log.error("Could not instantiate serializer " + serializerClass.getName(), e);
+						throw new IllegalStateException("Could not instantiate serializer " + serializerClass, e);
 					}
 				else
 					client.setSerializer(new JsonSerializer());
 				String sessionTimeout = clientEl.get("session-timeout");
 				if(sessionTimeout == null)
 				{
-					log.error("Session timeout not specified for client " + client.getName()
-						+ " of application " + client.getApp().getName());
+					log.error("Session timeout not specified for client " + client.getName() + " of application "
+						+ client.getApp().getName());
 					continue;
 				}
 				try
@@ -3017,22 +2922,19 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					client.setSessionTimeout(Long.parseLong(sessionTimeout));
 				} catch(NumberFormatException e)
 				{
-					log.error("Session timeout \"" + sessionTimeout + "\" invalid for client "
-						+ client.getName() + " of application " + app.getName()
-						+ ": must be an integer");
+					log.error("Session timeout \"" + sessionTimeout + "\" invalid for client " + client.getName()
+						+ " of application " + app.getName() + ": must be an integer");
 					continue;
 				}
 			}
 		}
 		if(!theEnv.hasManager())
-			throw new IllegalStateException("No manager application configured in"
-				+ " DefaultApplications.xml");
+			throw new IllegalStateException("No manager application configured in" + " DefaultApplications.xml");
 	}
 
 	private void loadDefaultUsers(PrismsConfig config, boolean init) throws PrismsException
 	{
-		prisms.arch.ds.ManageableUserSource us = (prisms.arch.ds.ManageableUserSource) theEnv
-			.getUserSource();
+		prisms.arch.ds.ManageableUserSource us = (prisms.arch.ds.ManageableUserSource) theEnv.getUserSource();
 		if(init)
 		{
 			PrismsConfig pcEl = config.subConfig("password-constraints");
@@ -3045,13 +2947,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				pc.setMinDigits(pcEl.getInt("digit", pc.getMinDigits()));
 				pc.setMinSpecialChars(pcEl.getInt("special", pc.getMinSpecialChars()));
 				long durationMult = 24L * 60 * 60 * 1000;
-				pc.setMaxPasswordDuration(pcEl.getInt("duration",
-					(int) (pc.getMaxPasswordDuration() / durationMult))
+				pc.setMaxPasswordDuration(pcEl.getInt("duration", (int) (pc.getMaxPasswordDuration() / durationMult))
 					* durationMult);
 				long changeMult = 60L * 1000;
 				pc.setMinPasswordChangeInterval(pcEl.getInt("change-interval",
-					(int) (pc.getMinPasswordChangeInterval() / changeMult))
-					* changeMult);
+					(int) (pc.getMinPasswordChangeInterval() / changeMult)) * changeMult);
 				us.setPasswordConstraints(pc);
 			}
 		}
@@ -3088,8 +2988,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 			if(group == null)
 			{
-				group = us.createGroup(app, groupName,
-					new prisms.records.RecordsTransaction(us.getSystemUser()));
+				group = us.createGroup(app, groupName, new prisms.records.RecordsTransaction(us.getSystemUser()));
 				log.debug("Created " + appName + " group " + groupName);
 			}
 			boolean changed = false;
@@ -3114,8 +3013,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				{
 					changed = true;
 					group.getPermissions().addPermission(perm);
-					log.debug("Adding permission " + permName + " to " + appName + " group "
-						+ groupName);
+					log.debug("Adding permission " + permName + " to " + appName + " group " + groupName);
 				}
 			}
 			if(changed)
@@ -3130,8 +3028,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			User user = us.getUser(userName);
 			if(user == null)
 			{
-				user = us.createUser(userName,
-					new prisms.records.RecordsTransaction(us.getSystemUser()));
+				user = us.createUser(userName, new prisms.records.RecordsTransaction(us.getSystemUser()));
 				log.debug("Created user " + userName);
 			}
 			boolean changed = false;
@@ -3159,8 +3056,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				}
 				if(!us.canAccess(user, app))
 				{
-					us.setUserAccess(user, app, true,
-						new prisms.records.RecordsTransaction(us.getSystemUser()));
+					us.setUserAccess(user, app, true, new prisms.records.RecordsTransaction(us.getSystemUser()));
 					log.debug("Granted user " + userName + " access to application " + appName);
 				}
 			}
@@ -3178,8 +3074,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				PrismsApplication app = theApps.get(appName);
 				if(app == null)
 				{
-					log.error("No such app " + appName + " to associate user " + userName
-						+ " with group " + groupName);
+					log.error("No such app " + appName + " to associate user " + userName + " with group " + groupName);
 					continue;
 				}
 				UserGroup group = null;
@@ -3191,16 +3086,15 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					}
 				if(group == null)
 				{
-					log.error("No such group " + groupName + " for application " + appName
-						+ " to associate user " + userName + " with");
+					log.error("No such group " + groupName + " for application " + appName + " to associate user "
+						+ userName + " with");
 					continue;
 				}
 				if(!ArrayUtils.contains(user.getGroups(), group))
 				{
 					changed = true;
 					user.addTo(group);
-					log.debug("Associated user " + userName + " with " + appName + " group "
-						+ groupName);
+					log.debug("Associated user " + userName + " with " + appName + " group " + groupName);
 				}
 			}
 			if(userEl.get("readonly") != null)
@@ -3213,16 +3107,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		}
 	}
 
-	PrismsSession createSession(ClientConfig client, User user,
-		prisms.arch.PrismsSession.SessionMetadata md) throws PrismsException
+	PrismsSession createSession(ClientConfig client, User user, prisms.arch.PrismsSession.SessionMetadata md)
+		throws PrismsException
 	{
 		PrismsSession ret = new PrismsSession(client.getApp(), client, user, md);
 		AppConfig appConfig = theConfigs.get(client.getApp().getName()).theAppConfig;
 		PrismsTransaction trans = theEnv.transact(ret, PrismsTransaction.Stage.initApp);
 		try
 		{
-			sessionLog.info("User " + user + " logged in to application " + client.getApp()
-				+ ", client " + client.getName() + ", session " + md.getID());
+			sessionLog.info("User " + user + " logged in to application " + client.getApp() + ", client "
+				+ client.getName() + ", session " + md.getID());
 			client.getApp().configureSession(ret);
 			appConfig.configureSession(ret);
 		} catch(Throwable e)
@@ -3238,8 +3132,8 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			client.configure(ret);
 		} catch(Throwable e)
 		{
-			throw new PrismsException("Could not configure session of client " + client.getName()
-				+ " of application " + client.getApp().getName() + " for user " + user, e);
+			throw new PrismsException("Could not configure session of client " + client.getName() + " of application "
+				+ client.getApp().getName() + " for user " + user, e);
 		} finally
 		{
 			theEnv.finish(trans);
@@ -3274,9 +3168,9 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		long unlockTime = clientGovernor != null ? clientGovernor.hit(rh) : -1;
 		if(unlockTime >= 0)
 		{
-			events.add(error(ErrorCode.RequestInvalid, "Client activity constraint exceeded."
-				+ " Host " + rh + " may not access this server until "
-				+ PrismsUtils.TimePrecision.SECONDS.print(unlockTime, true) + " server time"));
+			events.add(error(ErrorCode.RequestInvalid, "Client activity constraint exceeded." + " Host " + rh
+				+ " may not access this server until " + PrismsUtils.TimePrecision.SECONDS.print(unlockTime, true)
+				+ " server time"));
 			resp.setContentType("text/prisms-json");
 			java.io.PrintWriter out = resp.getWriter();
 			out.print(theSerializer.serialize(events));
@@ -3306,8 +3200,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(Throwable e)
 			{
 				log.error("PRISMS configuration failed", e);
-				events.add(error(ErrorCode.ServerError,
-					"PRISMS configuration failed: " + e.getMessage()));
+				events.add(error(ErrorCode.ServerError, "PRISMS configuration failed: " + e.getMessage()));
 				pReq.send(events);
 				return;
 			}
@@ -3357,8 +3250,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 		HttpSession httpSession;
 		if(pReq.client.isCommonSession())
 		{
-			sessionIDs = new String [] {pReq.user.getName() + "/" + pReq.app.getName() + "/"
-				+ pReq.client.getName()};
+			sessionIDs = new String [] {pReq.user.getName() + "/" + pReq.app.getName() + "/" + pReq.client.getName()};
 			httpSession = theSessions.get(sessionIDs[0]);
 		}
 		else if(req.getSession().isNew())
@@ -3403,16 +3295,14 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			else if(pReq.client.isService())
 			{
 				/* Service didn't call init before first request. Make them call init and then resubmit.*/
-				events.add(toEvent("callInit", "message",
-					"init needs to be called before service calls can be made."));
+				events.add(toEvent("callInit", "message", "init needs to be called before service calls can be made."));
 				pReq.send(events);
 				return;
 			}
 			else
 			{
 				/* No session sent.  This means the server has been redeployed. */
-				events.add(toEvent("restart", "message", "Server has been restarted."
-					+ " Refresh required."));
+				events.add(toEvent("restart", "message", "Server has been restarted." + " Refresh required."));
 				pReq.send(events);
 				return;
 			}
@@ -3428,13 +3318,11 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			 * expired, create a new one and let the security tell them what to do. */
 			try
 			{
-				security = httpSession.createSecurity(pReq.auth, pReq.user,
-					pReq.client.isCommonSession() ? null : req);
+				security = httpSession.createSecurity(pReq.auth, pReq.user, pReq.client.isCommonSession() ? null : req);
 			} catch(PrismsException e)
 			{
 				log.error("Could not retrieve validation info", e);
-				events.add(error(ErrorCode.ServerError,
-					"Could not retrieve validation info: " + e.getMessage()));
+				events.add(error(ErrorCode.ServerError, "Could not retrieve validation info: " + e.getMessage()));
 				pReq.send(events);
 				return;
 			}
@@ -3460,8 +3348,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				if(!theEnv.isManager(pReq.app) // Don't forbid access to the manager
 					&& runtime.freeMemory() + (maxMem - runtime.totalMemory()) < maxMem * 0.15f)
 				{
-					events.add(error(ErrorCode.ServerError,
-						"Request cannot be processed due to high memory load"));
+					events.add(error(ErrorCode.ServerError, "Request cannot be processed due to high memory load"));
 					pReq.send(events);
 					return;
 				}
@@ -3471,12 +3358,12 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			{
 				SessionEpitaph epitaph = null;
 				for(int i = 0; i < sessionIDs.length && epitaph == null; i++)
-					epitaph = theEpitaphs.get(sessionIDs[0] + "/" + pReq.app.getName() + "/"
-						+ pReq.client.getName() + "/" + pReq.user.getName());
+					epitaph = theEpitaphs.get(sessionIDs[0] + "/" + pReq.app.getName() + "/" + pReq.client.getName()
+						+ "/" + pReq.user.getName());
 				if(epitaph != null)
 				{
-					events.add(toEvent("restart", "message", epitaph.message + " Refresh to use "
-						+ pReq.appName + "."));
+					events
+						.add(toEvent("restart", "message", epitaph.message + " Refresh to use " + pReq.appName + "."));
 					pReq.send(events);
 				}
 				else
@@ -3487,8 +3374,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					 * 2) They haven't contacted the PRISMS server in a long time and they timed
 					 * 		out a while back.
 					 * We'll assume the former--the consequences of being wrong are negligible. */
-					events.add(toEvent("restart", "message", "Server has been restarted."
-						+ " Refresh required."));
+					events.add(toEvent("restart", "message", "Server has been restarted." + " Refresh required."));
 					pReq.send(events);
 				}
 				return;
@@ -3515,8 +3401,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	}
 
 	@Override
-	protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-		throws ServletException, IOException
+	protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException
 	{
 		doGet(req, resp);
 	}
@@ -3539,8 +3424,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 	 * 
 	 * @param v1 The first version string to compare
 	 * @param v2 The second version string to compare
-	 * @return 1 if the first version is newer, -1 if the first version is older, 0 if the versions
-	 *         are the same
+	 * @return 1 if the first version is newer, -1 if the first version is older, 0 if the versions are the same
 	 */
 	public static int compareVersions(String v1, String v2)
 	{
@@ -3590,17 +3474,17 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			} catch(Throwable e)
 			{
 				log.error("Could not configure applcation " + req.appName, e);
-				return error(ErrorCode.ServerError, "Application \"" + req.appName
-					+ "\" could not be configured: " + e.getMessage());
+				return error(ErrorCode.ServerError,
+					"Application \"" + req.appName + "\" could not be configured: " + e.getMessage());
 			}
 			if(error != null)
-				return error(ErrorCode.ServerError, "Application \"" + req.appName
-					+ "\" could not be configured: " + error);
+				return error(ErrorCode.ServerError, "Application \"" + req.appName + "\" could not be configured: "
+					+ error);
 		}
 		req.client = req.app.getClient(req.clientName);
 		if(req.client == null)
-			return error(ErrorCode.RequestInvalid, "No such client \"" + req.clientName
-				+ "\" for application \"" + req.appName + "\"");
+			return error(ErrorCode.RequestInvalid, "No such client \"" + req.clientName + "\" for application \""
+				+ req.appName + "\"");
 		if(!req.client.isConfigured())
 		{
 			String error;
@@ -3609,15 +3493,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				error = theConfigs.get(req.app.getName()).configureClient(req.client);
 			} catch(Throwable e)
 			{
-				log.error("Could not configure client " + req.clientName + " of application "
-					+ req.appName, e);
-				return error(ErrorCode.ServerError,
-					"Client \"" + req.clientName + "\" of application \"" + req.appName
-						+ "\" could not be configured: " + e.getMessage());
+				log.error("Could not configure client " + req.clientName + " of application " + req.appName, e);
+				return error(ErrorCode.ServerError, "Client \"" + req.clientName + "\" of application \"" + req.appName
+					+ "\" could not be configured: " + e.getMessage());
 			}
 			if(error != null)
-				return error(ErrorCode.ServerError, "Client \"" + req.clientName
-					+ "\" of application \"" + req.appName + "\" could not be configured: " + error);
+				return error(ErrorCode.ServerError, "Client \"" + req.clientName + "\" of application \"" + req.appName
+					+ "\" could not be configured: " + error);
 		}
 		try
 		{
@@ -3706,12 +3588,13 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 				new prisms.util.ResourcePool.ResourceCreator<RunawayCheck>()
 				{
 
-					public RunawayCheck createResource()
-						throws prisms.util.ResourcePool.ResourceCreationException
+					@Override
+					public RunawayCheck createResource() throws prisms.util.ResourcePool.ResourceCreationException
 					{
 						return new RunawayCheck();
 					}
 
+					@Override
 					public void destroyResource(RunawayCheck resource)
 					{
 					}
@@ -3724,14 +3607,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			theChecks = new RunawayCheck [0];
 		final ArrayUtils.ArrayAdjuster<RunawayCheck, PrismsTransaction, RuntimeException> [] adjuster;
 		adjuster = new ArrayUtils.ArrayAdjuster [1];
-		adjuster[0] = new ArrayUtils.ArrayAdjuster<RunawayCheck, PrismsTransaction, RuntimeException>(
-			theChecks, trans, new ArrayUtils.DifferenceListener<RunawayCheck, PrismsTransaction>()
+		adjuster[0] = new ArrayUtils.ArrayAdjuster<RunawayCheck, PrismsTransaction, RuntimeException>(theChecks, trans,
+			new ArrayUtils.DifferenceListener<RunawayCheck, PrismsTransaction>()
 			{
+				@Override
 				public boolean identity(RunawayCheck o1, PrismsTransaction o2)
 				{
 					return o1 != null && o1.transID.equals(o2.getID());
 				}
 
+				@Override
 				public RunawayCheck added(PrismsTransaction o, int mIdx, int retIdx)
 				{
 					RunawayCheck ret;
@@ -3749,14 +3634,16 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 					return ret;
 				}
 
+				@Override
 				public RunawayCheck removed(RunawayCheck o, int oIdx, int incMod, int retIdx)
 				{
 					theChecks = ArrayUtils.remove(theChecks, incMod);
 					return null;
 				}
 
-				public RunawayCheck set(RunawayCheck o1, int idx1, int incMod,
-					PrismsTransaction o2, int idx2, int retIdx)
+				@Override
+				public RunawayCheck set(RunawayCheck o1, int idx1, int incMod, PrismsTransaction o2, int idx2,
+					int retIdx)
 				{
 					return o1;
 				}
@@ -3830,8 +3717,7 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			PrismsUtils.printTimeLength(now - root.getFirstStart(), msg, false);
 			msg.append(", ");
 			PrismsUtils.printTimeLength(now - ct.getLatestStart(), msg, false);
-			msg.append("\n\tApplication: ").append(
-				trans[t].getApp() == null ? "Global" : trans[t].getApp().getName());
+			msg.append("\n\tApplication: ").append(trans[t].getApp() == null ? "Global" : trans[t].getApp().getName());
 			if(trans[t].getSession() != null)
 			{
 				msg.append(", Client: ").append(trans[t].getSession().getClient().getName());
@@ -3840,29 +3726,26 @@ public class PrismsServer extends javax.servlet.http.HttpServlet
 			}
 			msg.append("\n\tThread: ");
 			msg.append(trans[t].getThread().getName());
-			msg.append(" (").append(trans[t].getThread().getState().name().toLowerCase())
-				.append(')');
+			msg.append(" (").append(trans[t].getThread().getState().name().toLowerCase()).append(')');
 			msg.append(" (ID ").append(trans[t].getThread().getId()).append(')');
 			msg.append("\n\tStage: ");
 			msg.append(trans[t].getStage());
-			java.lang.management.ThreadMXBean tmxb = java.lang.management.ManagementFactory
-				.getThreadMXBean();
+			java.lang.management.ThreadMXBean tmxb = java.lang.management.ManagementFactory.getThreadMXBean();
 			if(PrismsUtils.isJava6())
 			{
-				java.lang.management.ThreadInfo ti = tmxb.getThreadInfo(new long [] {trans[t]
-					.getThread().getId()}, true, true)[0];
+				java.lang.management.ThreadInfo ti = tmxb.getThreadInfo(new long [] {trans[t].getThread().getId()},
+					true, true)[0];
 				java.lang.management.LockInfo lock = ti.getLockInfo();
 				if(lock != null)
 				{
 					msg.append("\n\tWaiting for ").append(lock.toString());
-					java.lang.management.ThreadInfo ti2 = tmxb.getThreadInfo(
-						new long [] {ti.getLockOwnerId()}, true, true)[0];
+					java.lang.management.ThreadInfo ti2 = tmxb.getThreadInfo(new long [] {ti.getLockOwnerId()}, true,
+						true)[0];
 					if(ti2.getLockOwnerId() == trans[t].getThread().getId())
 						msg.append(" deadlocked with ");
 					else
 						msg.append(" owned by ");
-					msg.append(ti.getLockOwnerName()).append(" (ID ").append(ti.getLockOwnerId())
-						.append(')');
+					msg.append(ti.getLockOwnerName()).append(" (ID ").append(ti.getLockOwnerId()).append(')');
 					if(ti2.getLockOwnerId() == trans[t].getThread().getId())
 						msg.append(" over ").append(ti.getLockInfo().toString());
 				}

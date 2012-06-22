@@ -6,7 +6,12 @@ package prisms.impl;
 import org.apache.log4j.Logger;
 import org.json.simple.JSONObject;
 
-import prisms.arch.*;
+import prisms.arch.BlowfishEncryption;
+import prisms.arch.Encryption;
+import prisms.arch.PrismsApplication;
+import prisms.arch.PrismsAuthenticator;
+import prisms.arch.PrismsConfig;
+import prisms.arch.PrismsException;
 import prisms.arch.PrismsServer.PrismsRequest;
 import prisms.arch.ds.User;
 import prisms.util.ArrayUtils;
@@ -46,6 +51,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			shouldReattempt = reattempt;
 		}
 
+		@Override
 		public String encrypt(javax.servlet.http.HttpServletResponse response, String data)
 		{
 			if(theEncryption != null)
@@ -60,21 +66,25 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				return data;
 		}
 
+		@Override
 		public boolean isError()
 		{
 			return theErrorMessage != null || shouldReattempt;
 		}
 
+		@Override
 		public String getError()
 		{
 			return theErrorMessage;
 		}
 
+		@Override
 		public boolean shouldReattempt()
 		{
 			return shouldReattempt;
 		}
 
+		@Override
 		public String getData()
 		{
 			return theDecryptedData;
@@ -97,14 +107,16 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		DummySessionAuth()
 		{
 			theEncryptions = new prisms.util.DemandCache<String, DummySessionData>(
-				new prisms.util.DemandCache.Qualitizer<DummySessionData>()
+				new prisms.util.DemandCache.Qualitizer<String, DummySessionData>()
 				{
-					public float quality(DummySessionData value)
+					@Override
+					public float quality(String key, DummySessionData value)
 					{
 						return 1;
 					}
 
-					public float size(DummySessionData value)
+					@Override
+					public float size(String key, DummySessionData value)
 					{
 						float ret = 2;
 						if(value.hashing != null)
@@ -116,8 +128,8 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				}, 5000, 15L * 60 * 1000);
 		}
 
-		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request)
-			throws PrismsException
+		@Override
+		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request) throws PrismsException
 		{
 			DummySessionData data = theEncryptions.get(request.getUser().getName());
 			if(data == null)
@@ -145,6 +157,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return new USReqAuth(request, LOGIN_FAIL_MESSAGE, true);
 		}
 
+		@Override
 		public JSONObject requestLogin(PrismsRequest request) throws PrismsException
 		{
 			DummySessionData data = theEncryptions.get(request.getUser().getName());
@@ -159,8 +172,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			{
 				data.enc = createEncryption();
 				long now = System.currentTimeMillis();
-				data.enc.init(new long [] {now, Math.abs(now ^ 0xffffffffffffffffL)},
-					theEncryptionProperties);
+				data.enc.init(new long [] {now, Math.abs(now ^ 0xffffffffffffffffL)}, theEncryptionProperties);
 			}
 
 			JSONObject evt = new JSONObject();
@@ -172,26 +184,31 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return evt;
 		}
 
+		@Override
 		public boolean needsPasswordChange() throws PrismsException
 		{
 			return false;
 		}
 
+		@Override
 		public JSONObject requestPasswordChange() throws PrismsException
 		{
 			return null; // Can't get here because they can't log in successfully
 		}
 
+		@Override
 		public AuthenticationError changePassword(JSONObject event) throws PrismsException
 		{
 			return null; // Can't get here because they can't log in successfully
 		}
 
+		@Override
 		public long recheck() throws PrismsException
 		{
 			return -1;
 		}
 
+		@Override
 		public void destroy() throws PrismsException
 		{
 			theEncryptions.purge(true);
@@ -230,8 +247,8 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		}
 
 		/**
-		 * Checks this session holder's user against the data source periodically to see whether the
-		 * password has changed or the user has been locked.
+		 * Checks this session holder's user against the data source periodically to see whether the password has
+		 * changed or the user has been locked.
 		 * 
 		 * @param force Whether to force this auth info to update from the database
 		 * @throws PrismsException If an error occurs contacting the database
@@ -251,8 +268,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				{
 					thePassword = pwd;
 					theEncryption = createEncryption();
-					theEncryption.init(theHashing.generateKey(thePassword.hash),
-						theEncryptionProperties);
+					theEncryption.init(theHashing.generateKey(thePassword.hash), theEncryptionProperties);
 					return pwd.setTime;
 				}
 				else if(pwd == null)
@@ -260,9 +276,9 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 					if(isSystem)
 					{
 						// If the user is System, set the initial password
-						thePassword = theUserSource.setPassword(theUser, theHashing
-							.generateKey(theHashing.partialHash(java.util.UUID.randomUUID()
-								.toString())), true);
+						thePassword = theUserSource.setPassword(theUser,
+							theHashing.generateKey(theHashing.partialHash(java.util.UUID.randomUUID().toString())),
+							true);
 						theEncryption = createEncryption();
 						theEncryption.init(theHashing.generateKey(thePassword.hash), null);
 						authChanged = true;
@@ -290,8 +306,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 				{
 					// If the user is System, change the password randomly every minute
 					thePassword = theUserSource.setPassword(theUser,
-						theHashing.generateKey(theHashing.partialHash(java.util.UUID.randomUUID()
-							.toString())), true);
+						theHashing.generateKey(theHashing.partialHash(java.util.UUID.randomUUID().toString())), true);
 					theEncryption = createEncryption();
 					theEncryption.init(theHashing.generateKey(thePassword.hash), null);
 					authChanged = true;
@@ -302,13 +317,14 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			}
 		}
 
+		@Override
 		public long recheck() throws PrismsException
 		{
 			return checkAuthenticationData(true);
 		}
 
-		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request)
-			throws PrismsException
+		@Override
+		public RequestAuthenticator getRequestAuthenticator(PrismsRequest request) throws PrismsException
 		{
 			String dataStr = request.getParameter("data");
 			Encryption enc = theEncryption;
@@ -334,24 +350,20 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 					{
 						/* Even though no exception was thrown the decryption has failed.
 						 * The result is not a JSON object. */
-						Exception toThrow = new Exception("Decrypted result: " + dataStr
-							+ " is not a JSON object");
+						Exception toThrow = new Exception("Decrypted result: " + dataStr + " is not a JSON object");
 						toThrow.setStackTrace(new StackTraceElement [0]);
 						throw toThrow; // To be caught in same method
 					}
 				} catch(Exception e)
 				{
-					USReqAuth ret = checkOlderPasswords(request, request.getParameter("data")
-						.replaceAll(" ", "+"));
+					USReqAuth ret = checkOlderPasswords(request, request.getParameter("data").replaceAll(" ", "+"));
 					if(ret != null)
 						return ret;
-					log.debug("Decryption of " + encryptedText + " failed with encryption "
-						+ theEncryption, e);
+					log.debug("Decryption of " + encryptedText + " failed with encryption " + theEncryption, e);
 					loginFailed();
 					if(theUser.isLocked())
-						return new USReqAuth(request,
-							"Too many incorrect password attempts.\nUser " + theUser.getName()
-								+ " is locked. Contact your admin", true);
+						return new USReqAuth(request, "Too many incorrect password attempts.\nUser "
+							+ theUser.getName() + " is locked. Contact your admin", true);
 					else if(authChanged)
 						return new USReqAuth(request, theUser + "'s password has been changed."
 							+ " Use the new password or contact your admin.", true);
@@ -371,8 +383,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return new USReqAuth(request, null, dataStr);
 		}
 
-		String decrypt(PrismsRequest request, String encrypted, Encryption enc)
-			throws java.io.IOException
+		String decrypt(PrismsRequest request, String encrypted, Encryption enc) throws java.io.IOException
 		{
 			if(enc == null)
 				return encrypted;
@@ -384,8 +395,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return ret;
 		}
 
-		private USReqAuth checkOlderPasswords(PrismsRequest request, String dataStr)
-			throws PrismsException
+		private USReqAuth checkOlderPasswords(PrismsRequest request, String dataStr) throws PrismsException
 		{
 			long now = System.currentTimeMillis();
 			prisms.arch.ds.UserSource.Password[] passwords = theUserSource.getOldPasswords(theUser);
@@ -406,8 +416,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 						continue;
 					if(now - passwords[p].setTime > theOldPasswordTolerance)
 						return new USReqAuth(request, theUser + "'s password"
-							+ " has been changed. Use the new password or contact your admin.",
-							true);
+							+ " has been changed. Use the new password or contact your admin.", true);
 					used = true;
 					return new USReqAuth(request, enc, aTry);
 				} catch(Exception e)
@@ -422,6 +431,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return null;
 		}
 
+		@Override
 		public JSONObject requestLogin(PrismsRequest request) throws PrismsException
 		{
 			checkAuthenticationData(false);
@@ -466,6 +476,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			authChanged = false;
 		}
 
+		@Override
 		public boolean needsPasswordChange() throws PrismsException
 		{
 			long pwdExp;
@@ -473,6 +484,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return pwdExp > 0 && pwdExp < System.currentTimeMillis();
 		}
 
+		@Override
 		public JSONObject requestPasswordChange() throws PrismsException
 		{
 			prisms.arch.ds.PasswordConstraints pc = theUserSource.getPasswordConstraints();
@@ -622,13 +634,13 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return ret;
 		}
 
+		@Override
 		public AuthenticationError changePassword(JSONObject event) throws PrismsException
 		{
 			long [] pwdData = null;
 			try
 			{
-				org.json.simple.JSONArray jsonPwdData = (org.json.simple.JSONArray) event
-					.get("passwordData");
+				org.json.simple.JSONArray jsonPwdData = (org.json.simple.JSONArray) event.get("passwordData");
 				pwdData = new long [jsonPwdData.size()];
 				for(int i = 0; i < pwdData.length; i++)
 					pwdData[i] = ((Number) jsonPwdData.get(i)).longValue();
@@ -639,15 +651,16 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			{
 				log.error("Password change failed", e);
 				if(pwdData != null)
-					log.error("Could not set password data for user " + theUser.getName() + " to "
-						+ ArrayUtils.toString(pwdData), e);
+					log.error(
+						"Could not set password data for user " + theUser.getName() + " to "
+							+ ArrayUtils.toString(pwdData), e);
 				else
-					log.error("Could not set password data for user " + theUser.getName()
-						+ ": no passwordData sent", e);
+					log.error("Could not set password data for user " + theUser.getName() + ": no passwordData sent", e);
 				return new AuthenticationError("Could not change password: " + e.getMessage(), true);
 			}
 		}
 
+		@Override
 		public void destroy()
 		{
 			if(theEncryption != null)
@@ -696,8 +709,8 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 
 	boolean revealLoginMistakes = false;
 
-	public void configure(PrismsConfig config, prisms.arch.ds.UserSource userSource,
-		PrismsApplication [] apps)
+	@Override
+	public void configure(PrismsConfig config, prisms.arch.ds.UserSource userSource, PrismsApplication [] apps)
 	{
 		theUserSource = userSource;
 		theUserParam = config.get("userparam");
@@ -714,8 +727,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			} catch(Throwable e)
 			{
 				log.error("Could not instantiate encryption " + encryptionClass, e);
-				throw new IllegalStateException("Could not instantiate encryption "
-					+ encryptionClass, e);
+				throw new IllegalStateException("Could not instantiate encryption " + encryptionClass, e);
 			}
 			for(PrismsConfig propEl : encryptionEl.subConfigs())
 			{
@@ -744,8 +756,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			else if(id > 0)
 				id = -id;
 			theDummyUser = new User(null, "Dummy", id);
-			theDummyUsers = new prisms.util.DemandCache<String, DummyUser>(null, 50,
-				10L * 60 * 1000);
+			theDummyUsers = new prisms.util.DemandCache<String, DummyUser>(null, 50, 10L * 60 * 1000);
 			theDummyAuth = new DummySessionAuth();
 		}
 	}
@@ -769,16 +780,17 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			return theEncryptionClass.newInstance();
 		} catch(Exception e)
 		{
-			throw new IllegalStateException("Could not instantiate encryption "
-				+ theEncryptionClass, e);
+			throw new IllegalStateException("Could not instantiate encryption " + theEncryptionClass, e);
 		}
 	}
 
+	@Override
 	public boolean recognized(PrismsRequest request)
 	{
 		return true; // This is a default authenticator--it may be used in any case as a last resort
 	}
 
+	@Override
 	public User getUser(PrismsRequest request) throws PrismsException
 	{
 		String userName = request.getParameter(theUserParam);
@@ -807,8 +819,7 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 			{
 				long id = Math.abs(userName.hashCode());
 				id <<= 31;
-				id |= (Math.abs(userName.toUpperCase().hashCode()) ^ Math.abs(userName
-					.toLowerCase().hashCode()));
+				id |= (Math.abs(userName.toUpperCase().hashCode()) ^ Math.abs(userName.toLowerCase().hashCode()));
 				ret = new DummyUser(theDummyUser, userName);
 				ret.setID(id);
 				theDummyUsers.put(userName, (DummyUser) ret);
@@ -817,8 +828,8 @@ public class UserSourceAuthenticator implements PrismsAuthenticator
 		return ret;
 	}
 
-	public SessionAuthenticator createSessionAuthenticator(PrismsRequest request, User user)
-		throws PrismsException
+	@Override
+	public SessionAuthenticator createSessionAuthenticator(PrismsRequest request, User user) throws PrismsException
 	{
 		if(user instanceof DummyUser)
 			return theDummyAuth;
