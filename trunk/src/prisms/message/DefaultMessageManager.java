@@ -7,7 +7,11 @@ import static prisms.util.DBUtils.boolToSql;
 import static prisms.util.DBUtils.toSQL;
 
 import java.io.IOException;
-import java.sql.*;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.Collection;
 
 import org.apache.log4j.Logger;
@@ -21,7 +25,15 @@ import prisms.message.MessageChangeTypes.MessageChange;
 import prisms.message.MessageChangeTypes.RecipientChange;
 import prisms.message.MessageSearch.SizeSearch;
 import prisms.records.RecordsTransaction;
-import prisms.util.*;
+import prisms.util.ArrayUtils;
+import prisms.util.DBUtils;
+import prisms.util.DemandCache;
+import prisms.util.IntList;
+import prisms.util.LongList;
+import prisms.util.PrismsUtils;
+import prisms.util.Search;
+import prisms.util.SearchableAPI;
+import prisms.util.Sorter;
 import prisms.util.Sorter.Field;
 
 /** The default {@link MessageManager} implementation for PRISMS */
@@ -40,8 +52,8 @@ public class DefaultMessageManager implements MessageManager
 	private static class DBMessagePrepSearch extends
 		prisms.util.DBPreparedSearch<MessageSearch, Field, PrismsMessageException>
 	{
-		DBMessagePrepSearch(Transactor<PrismsMessageException> transactor, String sql, Search srch,
-			Sorter<Field> sorter) throws PrismsMessageException
+		DBMessagePrepSearch(Transactor<PrismsMessageException> transactor, String sql, Search srch, Sorter<Field> sorter)
+			throws PrismsMessageException
 		{
 			super(transactor, sql, srch, null, MessageSearch.class);
 		}
@@ -189,6 +201,7 @@ public class DefaultMessageManager implements MessageManager
 		{
 		}
 
+		@Override
 		public long [] search(Search search, Sorter<Field> sorter) throws PrismsMessageException
 		{
 			StringBuilder joins = new StringBuilder();
@@ -200,8 +213,8 @@ public class DefaultMessageManager implements MessageManager
 			if(search instanceof Search.ExpressionSearch)
 				((Search.ExpressionSearch) search).simplify();
 			joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
-			joins.append("prisms_message_view msgView ON msgView.messageNS=msg.messageNS AND")
-				.append(" msgView.viewMsg=msg.id");
+			joins.append("prisms_message_view msgView ON msgView.messageNS=msg.messageNS AND").append(
+				" msgView.viewMsg=msg.id");
 			compileQuery(search, false, true, joins, wheres);
 			String select = "SELECT DISTINCT msgView.id, msg.msgTime";
 			select += " FROM " + theTransactor.getTablePrefix() + "prisms_message msg";
@@ -252,8 +265,9 @@ public class DefaultMessageManager implements MessageManager
 			}
 		}
 
-		public prisms.util.SearchableAPI.PreparedSearch<Field> prepare(Search search,
-			Sorter<Field> sorter) throws PrismsMessageException
+		@Override
+		public prisms.util.SearchableAPI.PreparedSearch<Field> prepare(Search search, Sorter<Field> sorter)
+			throws PrismsMessageException
 		{
 			StringBuilder joins = new StringBuilder();
 			StringBuilder wheres = new StringBuilder();
@@ -264,8 +278,8 @@ public class DefaultMessageManager implements MessageManager
 			if(search instanceof Search.ExpressionSearch)
 				((Search.ExpressionSearch) search).simplify();
 			joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
-			joins.append("prisms_message_view msgView ON msgView.messageNS=msg.messageNS AND")
-				.append(" msgView.viewMsg=msg.id");
+			joins.append("prisms_message_view msgView ON msgView.messageNS=msg.messageNS AND").append(
+				" msgView.viewMsg=msg.id");
 			compileQuery(search, true, true, joins, wheres);
 			String select = "SELECT DISTINCT msgView.id, msg.msgTime";
 			select += " FROM " + theTransactor.getTablePrefix() + "prisms_message msg";
@@ -281,18 +295,20 @@ public class DefaultMessageManager implements MessageManager
 			return new DBMessagePrepSearch(theTransactor, sql, search, sorter);
 		}
 
-		public long [] execute(prisms.util.SearchableAPI.PreparedSearch<Field> search,
-			Object... params) throws PrismsMessageException
+		@Override
+		public long [] execute(prisms.util.SearchableAPI.PreparedSearch<Field> search, Object... params)
+			throws PrismsMessageException
 		{
 			return ((DBMessagePrepSearch) search).execute(params);
 		}
 
-		public void destroy(prisms.util.SearchableAPI.PreparedSearch<Field> search)
-			throws PrismsMessageException
+		@Override
+		public void destroy(prisms.util.SearchableAPI.PreparedSearch<Field> search) throws PrismsMessageException
 		{
 			((DBMessagePrepSearch) search).dispose();
 		}
 
+		@Override
 		public MessageView [] getItems(long... ids) throws PrismsMessageException
 		{
 			if(ids.length == 0)
@@ -302,9 +318,8 @@ public class DefaultMessageManager implements MessageManager
 			java.util.ArrayList<MessageView> ret = new java.util.ArrayList<MessageView>();
 			java.util.HashMap<Long, MessageView []> viewsByMsgId = new java.util.HashMap<Long, MessageView []>();
 			DBUtils.KeyExpression keys = DBUtils.simplifyKeySet(idList.toArray(), 90);
-			String sql = "SELECT * FROM " + theTransactor.getTablePrefix()
-				+ "prisms_message_view msg INNER JOIN " + theTransactor.getTablePrefix()
-				+ "prisms_conversation_view conv ON msg.messageNS=conv.messageNS AND"
+			String sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_view msg INNER JOIN "
+				+ theTransactor.getTablePrefix() + "prisms_conversation_view conv ON msg.messageNS=conv.messageNS AND"
 				+ " msg.viewConversation=conv.id WHERE ";
 			java.util.HashMap<Long, ConversationView> convs = new java.util.HashMap<Long, ConversationView>();
 			Statement stmt = null;
@@ -387,24 +402,27 @@ public class DefaultMessageManager implements MessageManager
 				ret.toArray(new MessageView [ret.size()]), idObjs,
 				new ArrayUtils.DifferenceListener<MessageView, Long>()
 				{
+					@Override
 					public boolean identity(MessageView o1, Long o2)
 					{
 						return o1.getID() == o2.longValue();
 					}
 
+					@Override
 					public MessageView added(Long o, int mIdx, int retIdx)
 					{
 						adjuster[0].nullElement();
 						return null;
 					}
 
+					@Override
 					public MessageView removed(MessageView o, int oIdx, int incMod, int retIdx)
 					{
 						return null;
 					}
 
-					public MessageView set(MessageView o1, int idx1, int incMod, Long o2, int idx2,
-						int retIdx)
+					@Override
+					public MessageView set(MessageView o1, int idx1, int incMod, Long o2, int idx2, int retIdx)
 					{
 						return o1;
 					}
@@ -449,11 +467,10 @@ public class DefaultMessageManager implements MessageManager
 	 * @param namespace The namespace to get messages from
 	 * @param env The PRISMS environment to get messages in
 	 * @param connEl The connection element to use to connect to the data source
-	 * @param recordKeeper The record keeper to keep track of changes to all messages in this data
-	 *        source
+	 * @param recordKeeper The record keeper to keep track of changes to all messages in this data source
 	 */
-	public DefaultMessageManager(String namespace, prisms.arch.PrismsEnv env,
-		prisms.arch.PrismsConfig connEl, prisms.records.DBRecordKeeper recordKeeper)
+	public DefaultMessageManager(String namespace, prisms.arch.PrismsEnv env, prisms.arch.PrismsConfig connEl,
+		prisms.records.DBRecordKeeper recordKeeper)
 	{
 		theNamespace = namespace;
 		theEnv = env;
@@ -461,11 +478,13 @@ public class DefaultMessageManager implements MessageManager
 		theTransactor = theEnv.getConnectionFactory().getConnection(connEl, null,
 			new prisms.arch.ds.Transactor.Thrower<PrismsMessageException>()
 			{
+				@Override
 				public void error(String message) throws PrismsMessageException
 				{
 					throw new PrismsMessageException(message);
 				}
 
+				@Override
 				public void error(String message, Throwable cause) throws PrismsMessageException
 				{
 					throw new PrismsMessageException(message, cause);
@@ -473,6 +492,7 @@ public class DefaultMessageManager implements MessageManager
 			});
 		theTransactor.addReconnectListener(new prisms.arch.ds.Transactor.ReconnectListener()
 		{
+			@Override
 			public void reconnected(boolean initial)
 			{
 				if(initial)
@@ -487,20 +507,23 @@ public class DefaultMessageManager implements MessageManager
 				}
 			}
 
+			@Override
 			public void released()
 			{
 			}
 		});
 		theRecordKeeper = recordKeeper;
 		theViewAPI = new ViewAPI();
-		theMessageCache = new DemandCache<Long, Message>(new DemandCache.Qualitizer<Message>()
+		theMessageCache = new DemandCache<Long, Message>(new DemandCache.Qualitizer<Long, Message>()
 		{
-			public float quality(Message value)
+			@Override
+			public float quality(Long key, Message value)
 			{
 				return 1;
 			}
 
-			public float size(Message value)
+			@Override
+			public float size(Long key, Message value)
 			{
 				return getMessageSize(value);
 			}
@@ -530,22 +553,19 @@ public class DefaultMessageManager implements MessageManager
 		String sql = null;
 		try
 		{
-			sql = "SELECT content FROM " + theTransactor.getTablePrefix()
-				+ "prisms_message_content WHERE messageNS=" + toSQL(theNamespace)
-				+ " AND message=? AND contentType=? ORDER BY indexNum";
+			sql = "SELECT content FROM " + theTransactor.getTablePrefix() + "prisms_message_content WHERE messageNS="
+				+ toSQL(theNamespace) + " AND message=? AND contentType=? ORDER BY indexNum";
 			theContentGetter = theTransactor.getConnection().prepareStatement(sql);
 			thePStatements.add(theContentGetter);
 
-			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_recipient"
-				+ " WHERE messageNS=" + toSQL(theNamespace) + " AND (deleted=" + boolToSql(false)
-				+ " OR deleted='?') ORDER BY rcptMessage";
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_recipient" + " WHERE messageNS="
+				+ toSQL(theNamespace) + " AND (deleted=" + boolToSql(false) + " OR deleted='?') ORDER BY rcptMessage";
 			theReceiptGetter = theTransactor.getConnection().prepareStatement(sql);
 			thePStatements.add(theReceiptGetter);
 
-			sql = "SELECT id, attName, attType, attLength, attCrc, deleted FROM "
-				+ theTransactor.getTablePrefix() + "prisms_message_attachment WHERE messageNS="
-				+ toSQL(theNamespace) + " AND attMessage=? AND (deleted=" + boolToSql(false)
-				+ " OR deleted='?')";
+			sql = "SELECT id, attName, attType, attLength, attCrc, deleted FROM " + theTransactor.getTablePrefix()
+				+ "prisms_message_attachment WHERE messageNS=" + toSQL(theNamespace)
+				+ " AND attMessage=? AND (deleted=" + boolToSql(false) + " OR deleted='?')";
 			theAttachGetter = theTransactor.getConnection().prepareStatement(sql);
 			thePStatements.add(theAttachGetter);
 
@@ -561,14 +581,13 @@ public class DefaultMessageManager implements MessageManager
 			thePStatements.add(theActionUpdater);
 
 			sql = "INSERT INTO " + theTransactor.getTablePrefix() + "prisms_message_content"
-				+ " (messageNS, message, contentType, indexNum, content) VALUES ("
-				+ toSQL(theNamespace) + ", ?, ?, ?, ?)";
+				+ " (messageNS, message, contentType, indexNum, content) VALUES (" + toSQL(theNamespace)
+				+ ", ?, ?, ?, ?)";
 			theContentInserter = theTransactor.getConnection().prepareStatement(sql);
 			thePStatements.add(theContentInserter);
 
-			sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_message_content WHERE"
-				+ " messageNS=" + toSQL(theNamespace) + " AND message=? AND contentType=?"
-				+ " AND indexNum>=?";
+			sql = "DELETE FROM " + theTransactor.getTablePrefix() + "prisms_message_content WHERE" + " messageNS="
+				+ toSQL(theNamespace) + " AND message=? AND contentType=?" + " AND indexNum>=?";
 			theContentDeleter = theTransactor.getConnection().prepareStatement(sql);
 			thePStatements.add(theContentDeleter);
 
@@ -579,16 +598,17 @@ public class DefaultMessageManager implements MessageManager
 			thePStatements.add(theContentUpdater);
 		} catch(SQLException e)
 		{
-			throw new PrismsMessageException("Could not prepare statements for messaging: SQL="
-				+ sql, e);
+			throw new PrismsMessageException("Could not prepare statements for messaging: SQL=" + sql, e);
 		}
 	}
 
+	@Override
 	public SearchableAPI<MessageView, Field, PrismsMessageException> views()
 	{
 		return theViewAPI;
 	}
 
+	@Override
 	public long [] search(Search search, Sorter<Sorter.Field> sorter) throws PrismsMessageException
 	{
 		StringBuilder joins = new StringBuilder();
@@ -648,8 +668,8 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
-	public PreparedSearch<Field> prepare(Search search, Sorter<Field> sorter)
-		throws PrismsMessageException
+	@Override
+	public PreparedSearch<Field> prepare(Search search, Sorter<Field> sorter) throws PrismsMessageException
 	{
 		StringBuilder joins = new StringBuilder();
 		StringBuilder wheres = new StringBuilder();
@@ -674,24 +694,25 @@ public class DefaultMessageManager implements MessageManager
 		return new DBMessagePrepSearch(theTransactor, sql, search, sorter);
 	}
 
-	public long [] execute(PreparedSearch<Field> search, Object... params)
-		throws PrismsMessageException
+	@Override
+	public long [] execute(PreparedSearch<Field> search, Object... params) throws PrismsMessageException
 	{
 		return ((DBMessagePrepSearch) search).execute(params);
 	}
 
+	@Override
 	public void destroy(PreparedSearch<Field> search) throws PrismsMessageException
 	{
 		((DBMessagePrepSearch) search).dispose();
 	}
 
+	@Override
 	public Message [] getItems(long... ids) throws PrismsMessageException
 	{
 		return getMessages(null, false, ids);
 	}
 
-	Message [] getMessages(Statement stmt, boolean withDeletedContent, long... ids)
-		throws PrismsMessageException
+	Message [] getMessages(Statement stmt, boolean withDeletedContent, long... ids) throws PrismsMessageException
 	{
 		if(ids.length == 0)
 			return new Message [0];
@@ -732,8 +753,8 @@ public class DefaultMessageManager implements MessageManager
 		ResultSet rs = null;
 		try
 		{
-			String sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message"
-				+ " WHERE messageNS=" + toSQL(theNamespace);
+			String sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message" + " WHERE messageNS="
+				+ toSQL(theNamespace);
 			boolean hasLargeSubject = false;
 			rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, "", "id", 90);
 			while(rs.next())
@@ -749,8 +770,7 @@ public class DefaultMessageManager implements MessageManager
 				}
 				if(author == null)
 				{
-					log.error("No such user with ID " + authorID + "--could not retrieve message "
-						+ rs.getLong("id"));
+					log.error("No such user with ID " + authorID + "--could not retrieve message " + rs.getLong("id"));
 					continue;
 				}
 				Message msg = new Message(this, author);
@@ -783,8 +803,7 @@ public class DefaultMessageManager implements MessageManager
 			{
 				sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_content"
 					+ " WHERE messageNS=" + toSQL(theNamespace) + " AND contentType=" + toSQL("S");
-				rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY message, indexNum",
-					"message", 90);
+				rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY message, indexNum", "message", 90);
 				while(rs.next())
 				{
 					long msgID = rs.getLong("message");
@@ -796,20 +815,18 @@ public class DefaultMessageManager implements MessageManager
 						msg.setSubject(rs.getString("content"));
 					else
 						msg.setSubject(msg.getSubject()
-							+ rs.getString("content").substring(
-								msg.getSubject().length() - rs.getInt("indexNum")));
+							+ rs.getString("content").substring(msg.getSubject().length() - rs.getInt("indexNum")));
 				}
 				rs.close();
 				rs = null;
 			}
 
 			// Retrieve recipients
-			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_recipient"
-				+ " WHERE messageNS=" + toSQL(theNamespace);
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_recipient" + " WHERE messageNS="
+				+ toSQL(theNamespace);
 			if(!withDeletedContent)
 				sql += " AND deleted=" + boolToSql(false);
-			rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY rcptMessage",
-				"rcptMessage", 90);
+			rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY rcptMessage", "rcptMessage", 90);
 			msg = null;
 			while(rs.next())
 			{
@@ -829,8 +846,8 @@ public class DefaultMessageManager implements MessageManager
 				}
 				if(user == null)
 				{
-					log.error("No such user with ID " + userID
-						+ "--could not retrieve recipient of message " + msg.getID());
+					log.error("No such user with ID " + userID + "--could not retrieve recipient of message "
+						+ msg.getID());
 					continue;
 				}
 				Recipient rcpt = msg.addRecipient(user);
@@ -845,12 +862,11 @@ public class DefaultMessageManager implements MessageManager
 			rs = null;
 
 			// Retrieve attachments
-			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_attachment"
-				+ " WHERE messageNS=" + toSQL(theNamespace);
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_attachment" + " WHERE messageNS="
+				+ toSQL(theNamespace);
 			if(!withDeletedContent)
 				sql += " AND deleted=" + boolToSql(false);
-			rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY attMessage",
-				"attMessage", 90);
+			rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY attMessage", "attMessage", 90);
 			msg = null;
 			while(rs.next())
 			{
@@ -859,9 +875,8 @@ public class DefaultMessageManager implements MessageManager
 					msg = msgsById.get(Long.valueOf(msgID));
 				if(msg == null)
 					continue;
-				Attachment att = new Attachment(msg, rs.getLong("id"), DBUtils.fromSQL(rs
-					.getString("attName")), DBUtils.fromSQL(rs.getString("attType")),
-					rs.getInt("attLength"), rs.getLong("attCrc"));
+				Attachment att = new Attachment(msg, rs.getLong("id"), DBUtils.fromSQL(rs.getString("attName")),
+					DBUtils.fromSQL(rs.getString("attType")), rs.getInt("attLength"), rs.getLong("attCrc"));
 				att.setDeleted(DBUtils.boolFromSql(rs.getString("deleted")));
 				msg.addAttachment(att);
 			}
@@ -869,12 +884,11 @@ public class DefaultMessageManager implements MessageManager
 			rs = null;
 
 			// Retrieve actions
-			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_action"
-				+ " WHERE messageNS=" + toSQL(theNamespace);
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_action" + " WHERE messageNS="
+				+ toSQL(theNamespace);
 			if(!withDeletedContent)
 				sql += " AND deleted=" + boolToSql(false);
-			rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY actionMessage",
-				"actionMessage", 90);
+			rs = DBUtils.executeQuery(stmt, sql + " AND ", expr, " ORDER BY actionMessage", "actionMessage", 90);
 			msg = null;
 			while(rs.next())
 			{
@@ -917,8 +931,7 @@ public class DefaultMessageManager implements MessageManager
 						user = theEnv.getUserSource().getUser(userID.longValue());
 					} catch(PrismsException e)
 					{
-						log.error("Could not get user " + userID
-							+ " who completed action on message " + msg.getID(), e);
+						log.error("Could not get user " + userID + " who completed action on message " + msg.getID(), e);
 						continue;
 					}
 					action.setCompletedUser(user);
@@ -970,25 +983,28 @@ public class DefaultMessageManager implements MessageManager
 		final ArrayUtils.ArrayAdjuster<Message, Long, RuntimeException> [] adjuster;
 		adjuster = new ArrayUtils.ArrayAdjuster [1];
 		adjuster[0] = new ArrayUtils.ArrayAdjuster<Message, Long, RuntimeException>(
-			ret.toArray(new Message [ret.size()]), idObjs,
-			new ArrayUtils.DifferenceListener<Message, Long>()
+			ret.toArray(new Message [ret.size()]), idObjs, new ArrayUtils.DifferenceListener<Message, Long>()
 			{
+				@Override
 				public boolean identity(Message o1, Long o2)
 				{
 					return o1 != null && o1.getID() == o2.longValue();
 				}
 
+				@Override
 				public Message added(Long o, int idx, int retIdx)
 				{
 					adjuster[0].nullElement();
 					return null;
 				}
 
+				@Override
 				public Message removed(Message o, int idx, int incMod, int retIdx)
 				{
 					return o;
 				}
 
+				@Override
 				public Message set(Message o1, int idx1, int incMod, Long o2, int idx2, int retIdx)
 				{
 					return o1;
@@ -1010,6 +1026,7 @@ public class DefaultMessageManager implements MessageManager
 				msg.removeAction(action);
 	}
 
+	@Override
 	public Message getDBMessage(long id) throws PrismsMessageException
 	{
 		Statement stmt = null;
@@ -1039,6 +1056,7 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
+	@Override
 	public String getContent(Message msg, int length) throws PrismsMessageException
 	{
 		synchronized(theContentGetter)
@@ -1055,8 +1073,7 @@ public class DefaultMessageManager implements MessageManager
 					if(ret.length() == 0)
 						ret.append(rs.getString("content"));
 					else
-						ret.append(rs.getString("content").substring(
-							ret.length() - rs.getInt("indexNum")));
+						ret.append(rs.getString("content").substring(ret.length() - rs.getInt("indexNum")));
 				}
 			} catch(SQLException e)
 			{
@@ -1142,12 +1159,11 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
-	public java.io.InputStream getAttachmentContent(Attachment attach)
-		throws PrismsMessageException
+	@Override
+	public java.io.InputStream getAttachmentContent(Attachment attach) throws PrismsMessageException
 	{
 		String sql = "SELECT content from " + theTransactor.getTablePrefix()
-			+ "prisms_message_attachment WHERE messageNS=" + toSQL(theNamespace) + " AND id="
-			+ attach.getID();
+			+ "prisms_message_attachment WHERE messageNS=" + toSQL(theNamespace) + " AND id=" + attach.getID();
 		Statement stmt = null;
 		ResultSet rs = null;
 		boolean doRelease = true;
@@ -1156,8 +1172,8 @@ public class DefaultMessageManager implements MessageManager
 			stmt = theTransactor.getConnection().createStatement();
 			rs = stmt.executeQuery(sql);
 			if(!rs.next())
-				throw new PrismsMessageException("No such attachment with ID " + attach.getID()
-					+ " of message " + attach.getMessage().getSubject());
+				throw new PrismsMessageException("No such attachment with ID " + attach.getID() + " of message "
+					+ attach.getMessage().getSubject());
 			java.sql.Blob blob = rs.getBlob(1);
 			doRelease = false;
 			return new BlobInputStream(stmt, rs, blob);
@@ -1185,8 +1201,8 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
-	public MessageView [] getMessageViews(User viewer, Message... messages)
-		throws PrismsMessageException
+	@Override
+	public MessageView [] getMessageViews(User viewer, Message... messages) throws PrismsMessageException
 	{
 		if(messages.length == 0)
 			return new MessageView [0];
@@ -1199,10 +1215,10 @@ public class DefaultMessageManager implements MessageManager
 		}
 		MessageView [] ret = new MessageView [messages.length];
 		DBUtils.KeyExpression keys = DBUtils.simplifyKeySet(ids.toArray(), 90);
-		String sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_view msg"
-			+ " INNER JOIN " + theTransactor.getTablePrefix() + "prisms_conversation_view conv"
-			+ " ON msg.messageNS=conv.messageNS AND msg.viewConversation=conv.id"
-			+ " WHERE msg.viewUser=" + viewer.getID() + " AND ";
+		String sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_message_view msg" + " INNER JOIN "
+			+ theTransactor.getTablePrefix() + "prisms_conversation_view conv"
+			+ " ON msg.messageNS=conv.messageNS AND msg.viewConversation=conv.id" + " WHERE msg.viewUser="
+			+ viewer.getID() + " AND ";
 		LongList neededConvs = new LongList(true, true);
 		java.util.HashMap<Long, ConversationView> convs = new java.util.HashMap<Long, ConversationView>();
 		Statement stmt = null;
@@ -1250,13 +1266,12 @@ public class DefaultMessageManager implements MessageManager
 			if(!neededConvs.isEmpty())
 			{
 				keys = DBUtils.simplifyKeySet(neededConvs.toArray(), 90);
-				sql = "SELECT * FROM " + theTransactor.getTablePrefix()
-					+ "prisms_conversation_view WHERE viewUser=" + viewer.getID() + " AND ";
+				sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_conversation_view WHERE viewUser="
+					+ viewer.getID() + " AND ";
 				rs = DBUtils.executeQuery(stmt, sql, keys, "", "viewConversation", 90);
 				while(rs.next())
 				{
-					ConversationView view = new ConversationView(rs.getLong("viewConversation"),
-						viewer);
+					ConversationView view = new ConversationView(rs.getLong("viewConversation"), viewer);
 					view.setID(rs.getLong("id"));
 					view.setArchived(DBUtils.boolFromSql(rs.getString("viewArchived")));
 					view.setStarred(DBUtils.boolFromSql(rs.getString("viewStarred")));
@@ -1311,8 +1326,7 @@ public class DefaultMessageManager implements MessageManager
 		{
 			if(ret[i] != null || !canView(viewer, messages[i]))
 				continue;
-			ret[i] = new MessageView(convs.get(Long.valueOf(messages[i].getConversationID())),
-				messages[i]);
+			ret[i] = new MessageView(convs.get(Long.valueOf(messages[i].getConversationID())), messages[i]);
 			putMessageView(ret[i], new RecordsTransaction(system));
 		}
 		return ret;
@@ -1328,14 +1342,13 @@ public class DefaultMessageManager implements MessageManager
 		return false;
 	}
 
-	public ConversationHolder [] getConversations(long... messageViewIDs)
-		throws PrismsMessageException
+	@Override
+	public ConversationHolder [] getConversations(long... messageViewIDs) throws PrismsMessageException
 	{
 		LongList mvids = new LongList(true, true);
 		mvids.addAll(messageViewIDs);
 		DBUtils.KeyExpression key = DBUtils.simplifyKeySet(mvids.toArray(), 90);
-		String sql = "SELECT viewConversation FROM " + theTransactor.getTablePrefix()
-			+ "prisms_message_view WHERE ";
+		String sql = "SELECT viewConversation FROM " + theTransactor.getTablePrefix() + "prisms_message_view WHERE ";
 		Statement stmt = null;
 		ResultSet rs = null;
 		java.util.HashMap<Long, ConversationHolder> convs = new java.util.HashMap<Long, ConversationHolder>();
@@ -1349,10 +1362,9 @@ public class DefaultMessageManager implements MessageManager
 			rs.close();
 			rs = null;
 
-			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_conversation_view"
-				+ " conv LEFT JOIN " + theTransactor.getTablePrefix() + "prisms_message_view"
-				+ " msgView ON msgView.messageNS=conv.messageNS"
-				+ " AND msgView.viewConversation=conv.id WHERE ";
+			sql = "SELECT * FROM " + theTransactor.getTablePrefix() + "prisms_conversation_view" + " conv LEFT JOIN "
+				+ theTransactor.getTablePrefix() + "prisms_message_view"
+				+ " msgView ON msgView.messageNS=conv.messageNS" + " AND msgView.viewConversation=conv.id WHERE ";
 			key = DBUtils.simplifyKeySet(convIDs.toArray(), 90);
 			rs = DBUtils.executeQuery(stmt, sql, key, "", "conv.id", 90);
 			while(rs.next())
@@ -1367,11 +1379,9 @@ public class DefaultMessageManager implements MessageManager
 						viewer = theEnv.getUserSource().getUser(rs.getLong("conv.viewUser"));
 					} catch(PrismsException e)
 					{
-						throw new PrismsMessageException("Could not get viewer for conversation "
-							+ convID, e);
+						throw new PrismsMessageException("Could not get viewer for conversation " + convID, e);
 					}
-					ConversationView cv = new ConversationView(rs.getLong("conv.viewConversation"),
-						viewer);
+					ConversationView cv = new ConversationView(rs.getLong("conv.viewConversation"), viewer);
 					conv = new ConversationHolder(cv);
 					convs.put(convID, conv);
 				}
@@ -1417,10 +1427,10 @@ public class DefaultMessageManager implements MessageManager
 		ConversationHolder [] ret = convs.values().toArray(new ConversationHolder [convs.size()]);
 		java.util.Arrays.sort(ret, new java.util.Comparator<ConversationHolder>()
 		{
+			@Override
 			public int compare(ConversationHolder o1, ConversationHolder o2)
 			{
-				long diff = o1.getLastMessage().getMessage().getTime()
-					- o2.getLastMessage().getMessage().getTime();
+				long diff = o1.getLastMessage().getMessage().getTime() - o2.getLastMessage().getMessage().getTime();
 				return diff > 0 ? 1 : diff < 0 ? -1 : 0;
 			}
 		});
@@ -1428,8 +1438,8 @@ public class DefaultMessageManager implements MessageManager
 	}
 
 	void addModification(RecordsTransaction trans, MessageSubjectType subjectType,
-		prisms.records.ChangeType changeType, int add, Object majorSubject, Object minorSubject,
-		Object previousValue, Object data1, Object data2) throws PrismsMessageException
+		prisms.records.ChangeType changeType, int add, Object majorSubject, Object minorSubject, Object previousValue,
+		Object data1, Object data2) throws PrismsMessageException
 	{
 		if(trans == null || theRecordKeeper == null)
 			return;
@@ -1438,8 +1448,8 @@ public class DefaultMessageManager implements MessageManager
 		prisms.records.ChangeRecord record;
 		try
 		{
-			record = theRecordKeeper.persist(trans, subjectType, changeType, add, majorSubject,
-				minorSubject, previousValue, data1, data2);
+			record = theRecordKeeper.persist(trans, subjectType, changeType, add, majorSubject, minorSubject,
+				previousValue, data1, data2);
 		} catch(prisms.records.PrismsRecordException e)
 		{
 			throw new PrismsMessageException("Could not persist change record", e);
@@ -1456,170 +1466,157 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
-	public void putMessage(final Message message, final RecordsTransaction trans)
-		throws PrismsMessageException
+	@Override
+	public void putMessage(final Message message, final RecordsTransaction trans) throws PrismsMessageException
 	{
-		theTransactor.performTransaction(
-			new Transactor.TransactionOperation<PrismsMessageException>()
+		theTransactor.performTransaction(new Transactor.TransactionOperation<PrismsMessageException>()
+		{
+			@Override
+			public Object run(Statement stmt) throws PrismsMessageException
 			{
-				public Object run(Statement stmt) throws PrismsMessageException
-				{
-					Message dbHeader = dbGetMessage(message.getID(), stmt);
-					if(dbHeader == null)
-						dbInsertMessage(message, stmt, trans);
-					else
-						dbUpdateMessage(dbHeader, message, stmt, trans);
-					return null;
-				}
-			}, "Could not add/modify message " + message.getSubject());
+				Message dbHeader = dbGetMessage(message.getID(), stmt);
+				if(dbHeader == null)
+					dbInsertMessage(message, stmt, trans);
+				else
+					dbUpdateMessage(dbHeader, message, stmt, trans);
+				return null;
+			}
+		}, "Could not add/modify message " + message.getSubject());
 	}
 
-	public void putMessageView(final MessageView msg, final RecordsTransaction trans)
-		throws PrismsMessageException
+	@Override
+	public void putMessageView(final MessageView msg, final RecordsTransaction trans) throws PrismsMessageException
 	{
-		theTransactor.performTransaction(
-			new Transactor.TransactionOperation<PrismsMessageException>()
+		theTransactor.performTransaction(new Transactor.TransactionOperation<PrismsMessageException>()
+		{
+			@Override
+			public Object run(Statement stmt) throws PrismsMessageException
 			{
-				public Object run(Statement stmt) throws PrismsMessageException
+				String sql = null;
+				ResultSet rs = null;
+				try
 				{
-					String sql = null;
-					ResultSet rs = null;
-					try
+					sql = "SELECT deleted FROM " + theTransactor.getTablePrefix()
+						+ "prisms_message_view WHERE messageNS=" + toSQL(theNamespace) + " AND id=" + msg.getID();
+					rs = stmt.executeQuery(sql);
+					Boolean deleted = rs.next() ? Boolean.valueOf(DBUtils.boolFromSql(rs.getString(1))) : null;
+					rs.close();
+					rs = null;
+					if(deleted == null)
 					{
-						sql = "SELECT deleted FROM " + theTransactor.getTablePrefix()
-							+ "prisms_message_view WHERE messageNS=" + toSQL(theNamespace)
-							+ " AND id=" + msg.getID();
-						rs = stmt.executeQuery(sql);
-						Boolean deleted = rs.next() ? Boolean.valueOf(DBUtils.boolFromSql(rs
-							.getString(1))) : null;
-						rs.close();
-						rs = null;
-						if(deleted == null)
-						{
-							sql = "INSERT INTO " + theTransactor.getTablePrefix()
-								+ "prisms_message_view (messageNS, id, viewMsg, viewUser,"
-								+ " viewConversation, deleted) VALUES(" + toSQL(theNamespace)
-								+ ", " + msg.getID() + ", " + msg.getMessage().getID() + ", "
-								+ msg.getConversation().getViewer().getID()
-								+ msg.getConversation().getID() + ", " + boolToSql(msg.isDeleted())
-								+ ")";
-							stmt.executeUpdate(sql);
-							addModification(trans, MessageSubjectType.messageView, null, 1, msg,
-								null, null, msg.getMessage(), msg.getConversation());
-							if(msg.isDeleted())
-								addModification(trans, MessageSubjectType.messageView, null, -1,
-									msg, null, null, msg.getMessage(), msg.getConversation());
-						}
-						else if(deleted.booleanValue() != msg.isDeleted())
-						{
-							sql = "UPDATE " + theTransactor.getTablePrefix()
-								+ "prisms_message_view SET deleted=" + boolToSql(msg.isDeleted())
-								+ " WHERE messageNS=" + toSQL(theNamespace) + " AND id="
-								+ msg.getID();
-							stmt.executeUpdate(sql);
-							addModification(trans, MessageSubjectType.messageView, null,
-								msg.isDeleted() ? -1 : 1, msg, null, null, msg.getMessage(),
-								msg.getConversation());
-						}
-					} catch(SQLException e)
-					{
-						throw new PrismsMessageException("Could not update user "
-							+ msg.getConversation().getViewer() + "'s view of message "
-							+ msg.getMessage().getSubject() + ": SQL=" + sql, e);
-					} finally
-					{
-						if(rs != null)
-							try
-							{
-								rs.close();
-							} catch(SQLException e)
-							{
-								log.error("Connection error", e);
-							}
+						sql = "INSERT INTO " + theTransactor.getTablePrefix()
+							+ "prisms_message_view (messageNS, id, viewMsg, viewUser,"
+							+ " viewConversation, deleted) VALUES(" + toSQL(theNamespace) + ", " + msg.getID() + ", "
+							+ msg.getMessage().getID() + ", " + msg.getConversation().getViewer().getID()
+							+ msg.getConversation().getID() + ", " + boolToSql(msg.isDeleted()) + ")";
+						stmt.executeUpdate(sql);
+						addModification(trans, MessageSubjectType.messageView, null, 1, msg, null, null,
+							msg.getMessage(), msg.getConversation());
+						if(msg.isDeleted())
+							addModification(trans, MessageSubjectType.messageView, null, -1, msg, null, null,
+								msg.getMessage(), msg.getConversation());
 					}
-					return null;
+					else if(deleted.booleanValue() != msg.isDeleted())
+					{
+						sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_view SET deleted="
+							+ boolToSql(msg.isDeleted()) + " WHERE messageNS=" + toSQL(theNamespace) + " AND id="
+							+ msg.getID();
+						stmt.executeUpdate(sql);
+						addModification(trans, MessageSubjectType.messageView, null, msg.isDeleted() ? -1 : 1, msg,
+							null, null, msg.getMessage(), msg.getConversation());
+					}
+				} catch(SQLException e)
+				{
+					throw new PrismsMessageException("Could not update user " + msg.getConversation().getViewer()
+						+ "'s view of message " + msg.getMessage().getSubject() + ": SQL=" + sql, e);
+				} finally
+				{
+					if(rs != null)
+						try
+						{
+							rs.close();
+						} catch(SQLException e)
+						{
+							log.error("Connection error", e);
+						}
 				}
-			}, "Could not persist user " + msg.getConversation().getViewer()
-				+ "'s view of message " + msg.getMessage().getSubject());
+				return null;
+			}
+		}, "Could not persist user " + msg.getConversation().getViewer() + "'s view of message "
+			+ msg.getMessage().getSubject());
 	}
 
+	@Override
 	public void putConversation(final ConversationView view, final RecordsTransaction trans)
 		throws PrismsMessageException
 	{
-		theTransactor.performTransaction(
-			new Transactor.TransactionOperation<PrismsMessageException>()
-			{
-				public Object run(Statement stmt) throws PrismsMessageException
+		theTransactor
+			.performTransaction(
+				new Transactor.TransactionOperation<PrismsMessageException>()
 				{
-					String sql = null;
-					ResultSet rs = null;
-					try
+					@Override
+					public Object run(Statement stmt) throws PrismsMessageException
 					{
-						sql = "SELECT viewArchived, viewStarred FROM "
-							+ theTransactor.getTablePrefix()
-							+ "prisms_message_view WHERE messageNS=" + toSQL(theNamespace)
-							+ " AND id=" + view.getID();
-						rs = stmt.executeQuery(sql);
-						boolean hasEntry = rs.next();
-						boolean archived = hasEntry ? DBUtils.boolFromSql(rs
-							.getString("viewArchived")) : false;
-						boolean starred = hasEntry ? DBUtils.boolFromSql(rs
-							.getString("viewStarred")) : false;
-						rs.close();
-						rs = null;
-						if(!hasEntry)
+						String sql = null;
+						ResultSet rs = null;
+						try
 						{
-							sql = "INSERT INTO " + theTransactor.getTablePrefix()
-								+ "prisms_conversation_view (messageNS, id, viewConversation,"
-								+ " viewUser, viewArchived, viewStarred) VALUES("
-								+ toSQL(theNamespace) + ", " + view.getID() + ", "
-								+ view.getConversationID() + ", " + view.getViewer().getID() + ", "
-								+ boolToSql(view.isArchived()) + ", " + boolToSql(view.isStarred())
-								+ ")";
-							stmt.executeUpdate(sql);
-							addModification(trans, MessageSubjectType.conversationView, null, 1,
-								view, null, null, view.getViewer(),
-								Long.valueOf(view.getConversationID()));
-						}
-						else if(archived != view.isArchived() || starred != view.isStarred())
-						{
-							sql = "UPDATE " + theTransactor.getTablePrefix()
-								+ "prisms_conversation_view SET viewArchived="
-								+ boolToSql(view.isArchived()) + ", viewStarred="
-								+ boolToSql(view.isStarred()) + " WHERE messageNS="
-								+ toSQL(theNamespace) + " AND id=" + view.getID();
-							stmt.executeUpdate(sql);
-							if(archived != view.isArchived())
-								addModification(trans, MessageSubjectType.conversationView,
-									ConversationViewChange.archived, 0, view, null,
-									Boolean.valueOf(archived), view.getViewer(),
-									Long.valueOf(view.getConversationID()));
-							if(starred != view.isStarred())
-								addModification(trans, MessageSubjectType.conversationView,
-									ConversationViewChange.starred, 0, view, null,
-									Boolean.valueOf(starred), view.getViewer(),
-									Long.valueOf(view.getConversationID()));
-						}
-					} catch(SQLException e)
-					{
-						throw new PrismsMessageException("Could not update user "
-							+ view.getViewer() + "'s view of conversation with ID "
-							+ view.getConversationID() + ": SQL=" + sql, e);
-					} finally
-					{
-						if(rs != null)
-							try
+							sql = "SELECT viewArchived, viewStarred FROM " + theTransactor.getTablePrefix()
+								+ "prisms_message_view WHERE messageNS=" + toSQL(theNamespace) + " AND id="
+								+ view.getID();
+							rs = stmt.executeQuery(sql);
+							boolean hasEntry = rs.next();
+							boolean archived = hasEntry ? DBUtils.boolFromSql(rs.getString("viewArchived")) : false;
+							boolean starred = hasEntry ? DBUtils.boolFromSql(rs.getString("viewStarred")) : false;
+							rs.close();
+							rs = null;
+							if(!hasEntry)
 							{
-								rs.close();
-							} catch(SQLException e)
-							{
-								log.error("Connection error", e);
+								sql = "INSERT INTO " + theTransactor.getTablePrefix()
+									+ "prisms_conversation_view (messageNS, id, viewConversation,"
+									+ " viewUser, viewArchived, viewStarred) VALUES(" + toSQL(theNamespace) + ", "
+									+ view.getID() + ", " + view.getConversationID() + ", " + view.getViewer().getID()
+									+ ", " + boolToSql(view.isArchived()) + ", " + boolToSql(view.isStarred()) + ")";
+								stmt.executeUpdate(sql);
+								addModification(trans, MessageSubjectType.conversationView, null, 1, view, null, null,
+									view.getViewer(), Long.valueOf(view.getConversationID()));
 							}
+							else if(archived != view.isArchived() || starred != view.isStarred())
+							{
+								sql = "UPDATE " + theTransactor.getTablePrefix()
+									+ "prisms_conversation_view SET viewArchived=" + boolToSql(view.isArchived())
+									+ ", viewStarred=" + boolToSql(view.isStarred()) + " WHERE messageNS="
+									+ toSQL(theNamespace) + " AND id=" + view.getID();
+								stmt.executeUpdate(sql);
+								if(archived != view.isArchived())
+									addModification(trans, MessageSubjectType.conversationView,
+										ConversationViewChange.archived, 0, view, null, Boolean.valueOf(archived),
+										view.getViewer(), Long.valueOf(view.getConversationID()));
+								if(starred != view.isStarred())
+									addModification(trans, MessageSubjectType.conversationView,
+										ConversationViewChange.starred, 0, view, null, Boolean.valueOf(starred),
+										view.getViewer(), Long.valueOf(view.getConversationID()));
+							}
+						} catch(SQLException e)
+						{
+							throw new PrismsMessageException("Could not update user " + view.getViewer()
+								+ "'s view of conversation with ID " + view.getConversationID() + ": SQL=" + sql, e);
+						} finally
+						{
+							if(rs != null)
+								try
+								{
+									rs.close();
+								} catch(SQLException e)
+								{
+									log.error("Connection error", e);
+								}
+						}
+						return null;
 					}
-					return null;
-				}
-			}, "Could not persist user " + view.getViewer() + "'s view of conversation with ID "
-				+ view.getConversationID());
+				},
+				"Could not persist user " + view.getViewer() + "'s view of conversation with ID "
+					+ view.getConversationID());
 	}
 
 	static class BlobInsertInputStream extends java.io.InputStream
@@ -1683,77 +1680,73 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
+	@Override
 	public Attachment createAttachment(final Message message, final String name, final String type,
-		final java.io.InputStream data, final RecordsTransaction trans)
-		throws PrismsMessageException, IOException
+		final java.io.InputStream data, final RecordsTransaction trans) throws PrismsMessageException, IOException
 	{
-		return (Attachment) theTransactor.performTransaction(
-			new TransactionOperation<PrismsMessageException>()
+		return (Attachment) theTransactor.performTransaction(new TransactionOperation<PrismsMessageException>()
+		{
+			@Override
+			public Object run(Statement stmt) throws PrismsMessageException
 			{
-				public Object run(Statement stmt) throws PrismsMessageException
+				long id;
+				try
 				{
-					long id;
-					try
-					{
-						id = theEnv.getIDs().getNextID("prisms_message_attachment", "id", stmt,
-							theTransactor.getTablePrefix(), "messageNS=" + toSQL(theNamespace));
-					} catch(PrismsException e)
-					{
-						throw new PrismsMessageException("Could not get next attachment ID", e);
-					}
-					String sql = "INSERT INTO " + theTransactor.getTablePrefix()
-						+ "prisms_message_attachment (messageNS, id, attMessage, attName, attType,"
-						+ " attLength, attCrc, attContent, deleted) VALUES (" + toSQL(theNamespace)
-						+ ", " + id + ", " + message.getID() + ", " + toSQL(name) + ", "
-						+ toSQL(type) + ", 0, 0, ?, " + boolToSql(false) + ")";
-					BlobInsertInputStream blobInput = new BlobInsertInputStream(data);
-					java.sql.PreparedStatement ps = null;
-					try
-					{
-						ps = theTransactor.getConnection().prepareStatement(sql);
-						DBUtils.setBlob(ps, 1, blobInput);
-						ps.executeUpdate();
-					} catch(SQLException e)
-					{
-						throw new PrismsMessageException("Could not insert attachment " + name
-							+ " for message " + message.getSubject() + ": SQL=" + sql, e);
-					} finally
-					{
-						try
-						{
-							if(ps != null)
-								ps.close();
-						} catch(SQLException e)
-						{
-							log.error("Connection error", e);
-						} catch(Error e)
-						{
-							// Keep getting these from an HSQL bug--silence
-							if(!e.getMessage().contains("compilation"))
-								log.error("Error", e);
-						}
-					}
-					Attachment ret = new Attachment(message, id, name, type, blobInput.getLength(),
-						blobInput.getCRC());
-					addModification(trans, MessageSubjectType.attachment, null, 1, ret, null, null,
-						ret.getMessage(), null);
-					message.addAttachment(ret);
-					sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_attachment"
-						+ " SET attLength=" + blobInput.getLength() + ", attCrc="
-						+ blobInput.getCRC() + " WHERE messageNS=" + toSQL(theNamespace)
-						+ " AND id=" + id;
-					try
-					{
-						stmt.executeUpdate(sql);
-					} catch(SQLException e)
-					{
-						throw new PrismsMessageException(
-							"Could not update metadata for attachment " + name + " in message "
-								+ message.getSubject() + ": SQL=" + sql, e);
-					}
-					return ret;
+					id = theEnv.getIDs().getNextID("prisms_message_attachment", "id", stmt,
+						theTransactor.getTablePrefix(), "messageNS=" + toSQL(theNamespace));
+				} catch(PrismsException e)
+				{
+					throw new PrismsMessageException("Could not get next attachment ID", e);
 				}
-			}, "Could not add attachment to  message " + message.getSubject());
+				String sql = "INSERT INTO " + theTransactor.getTablePrefix()
+					+ "prisms_message_attachment (messageNS, id, attMessage, attName, attType,"
+					+ " attLength, attCrc, attContent, deleted) VALUES (" + toSQL(theNamespace) + ", " + id + ", "
+					+ message.getID() + ", " + toSQL(name) + ", " + toSQL(type) + ", 0, 0, ?, " + boolToSql(false)
+					+ ")";
+				BlobInsertInputStream blobInput = new BlobInsertInputStream(data);
+				java.sql.PreparedStatement ps = null;
+				try
+				{
+					ps = theTransactor.getConnection().prepareStatement(sql);
+					DBUtils.setBlob(ps, 1, blobInput);
+					ps.executeUpdate();
+				} catch(SQLException e)
+				{
+					throw new PrismsMessageException("Could not insert attachment " + name + " for message "
+						+ message.getSubject() + ": SQL=" + sql, e);
+				} finally
+				{
+					try
+					{
+						if(ps != null)
+							ps.close();
+					} catch(SQLException e)
+					{
+						log.error("Connection error", e);
+					} catch(Error e)
+					{
+						// Keep getting these from an HSQL bug--silence
+						if(!e.getMessage().contains("compilation"))
+							log.error("Error", e);
+					}
+				}
+				Attachment ret = new Attachment(message, id, name, type, blobInput.getLength(), blobInput.getCRC());
+				addModification(trans, MessageSubjectType.attachment, null, 1, ret, null, null, ret.getMessage(), null);
+				message.addAttachment(ret);
+				sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_attachment" + " SET attLength="
+					+ blobInput.getLength() + ", attCrc=" + blobInput.getCRC() + " WHERE messageNS="
+					+ toSQL(theNamespace) + " AND id=" + id;
+				try
+				{
+					stmt.executeUpdate(sql);
+				} catch(SQLException e)
+				{
+					throw new PrismsMessageException("Could not update metadata for attachment " + name
+						+ " in message " + message.getSubject() + ": SQL=" + sql, e);
+				}
+				return ret;
+			}
+		}, "Could not add attachment to  message " + message.getSubject());
 	}
 
 	Message dbGetMessage(long id, Statement stmt) throws PrismsMessageException
@@ -1761,8 +1754,7 @@ public class DefaultMessageManager implements MessageManager
 		return getMessages(stmt, true, id)[0];
 	}
 
-	void dbInsertMessage(Message message, Statement stmt, RecordsTransaction trans)
-		throws PrismsMessageException
+	void dbInsertMessage(Message message, Statement stmt, RecordsTransaction trans) throws PrismsMessageException
 	{
 		String sql = null;
 		ResultSet rs = null;
@@ -1771,9 +1763,8 @@ public class DefaultMessageManager implements MessageManager
 		{
 			if(message.getConversationID() >= 0)
 			{
-				sql = "SELECT id FROM " + theTransactor.getTablePrefix() + "prisms_conversation"
-					+ " WHERE messageNS=" + toSQL(theNamespace) + " AND id="
-					+ message.getConversationID();
+				sql = "SELECT id FROM " + theTransactor.getTablePrefix() + "prisms_conversation" + " WHERE messageNS="
+					+ toSQL(theNamespace) + " AND id=" + message.getConversationID();
 				rs = stmt.executeQuery(sql);
 				boolean hasConv = rs.next();
 				rs.close();
@@ -1781,23 +1772,20 @@ public class DefaultMessageManager implements MessageManager
 				if(!hasConv)
 				{
 					sql = "INSERT INTO " + theTransactor.getTablePrefix() + "prisms_conversation"
-						+ " (messageNS, id) VALUES (" + toSQL(theNamespace) + ", "
-						+ message.getConversationID();
+						+ " (messageNS, id) VALUES (" + toSQL(theNamespace) + ", " + message.getConversationID();
 					stmt.executeUpdate(sql);
 				}
 			}
 			else if(message.getPredecessorID() >= 0)
 			{
 				sql = "SELECT msgConversation FROM " + theTransactor.getTablePrefix()
-					+ "prisms_message WHERE messageNS=" + toSQL(theNamespace) + " AND id="
-					+ message.getPredecessorID();
+					+ "prisms_message WHERE messageNS=" + toSQL(theNamespace) + " AND id=" + message.getPredecessorID();
 				rs = stmt.executeQuery(sql);
 				Number conv = null;
 				if(rs.next())
 					conv = (Number) rs.getObject(1);
 				else
-					throw new PrismsMessageException("Predecessor " + message.getPredecessorID()
-						+ " does not exist");
+					throw new PrismsMessageException("Predecessor " + message.getPredecessorID() + " does not exist");
 				if(conv != null)
 					message.setConversationID(conv.longValue());
 			}
@@ -1806,9 +1794,8 @@ public class DefaultMessageManager implements MessageManager
 			{
 				try
 				{
-					message.setConversationID(theEnv.getIDs().getNextID("prisms_conversation",
-						"id", stmt, theTransactor.getTablePrefix(),
-						"messageNS=" + toSQL(theNamespace)));
+					message.setConversationID(theEnv.getIDs().getNextID("prisms_conversation", "id", stmt,
+						theTransactor.getTablePrefix(), "messageNS=" + toSQL(theNamespace)));
 				} catch(PrismsException e)
 				{
 					throw new PrismsMessageException("Could not generate new conversation ID", e);
@@ -1825,15 +1812,13 @@ public class DefaultMessageManager implements MessageManager
 					throw new PrismsMessageException("Could not generate new message ID", e);
 				}
 			}
-			sql = "INSERT INTO " + theTransactor.getTablePrefix()
-				+ "prisms_message (messageNS, id,"
+			sql = "INSERT INTO " + theTransactor.getTablePrefix() + "prisms_message (messageNS, id,"
 				+ " msgConversation, msgAuthor, msgTime, msgSent, msgPriority, msgPredecessor,"
-				+ " msgShortSubject, msgContentLength, msgContentCrc, msgSize, deleted) VALUES ("
-				+ toSQL(theNamespace) + ", " + message.getID() + ", " + message.getConversationID()
-				+ ", " + message.getAuthor().getID() + ", " + message.getTime() + ", "
-				+ boolToSql(message.isSent()) + ", " + message.getPriority().ordinal() + ", ";
-			sql = (message.getPredecessorID() < 0 ? "NULL" : "" + message.getPredecessorID())
-				+ ", ";
+				+ " msgShortSubject, msgContentLength, msgContentCrc, msgSize, deleted) VALUES (" + toSQL(theNamespace)
+				+ ", " + message.getID() + ", " + message.getConversationID() + ", " + message.getAuthor().getID()
+				+ ", " + message.getTime() + ", " + boolToSql(message.isSent()) + ", "
+				+ message.getPriority().ordinal() + ", ";
+			sql = (message.getPredecessorID() < 0 ? "NULL" : "" + message.getPredecessorID()) + ", ";
 			if(subject.length() <= 100)
 				sql += toSQL(subject);
 			else
@@ -1897,8 +1882,7 @@ public class DefaultMessageManager implements MessageManager
 		return ret;
 	}
 
-	void insertReceipt(Recipient receipt, Statement stmt, RecordsTransaction trans)
-		throws PrismsMessageException
+	void insertReceipt(Recipient receipt, Statement stmt, RecordsTransaction trans) throws PrismsMessageException
 	{
 		if(receipt.getID() < 0)
 			try
@@ -1910,10 +1894,9 @@ public class DefaultMessageManager implements MessageManager
 				throw new PrismsMessageException("Could not generate new recipient ID", e);
 			}
 		String sql = "INSERT INTO " + theTransactor.getTablePrefix() + "prisms_message_recipient"
-			+ " (messageNS, id, rcptMessage, rcptUser, rcptType, firstViewed, lastViewed, deleted)"
-			+ " VALUES (" + toSQL(theNamespace) + receipt.getID() + ", "
-			+ receipt.getMessage().getID() + ", " + receipt.getUser().getID() + ", "
-			+ receipt.getApplicability().ordinal() + ", ";
+			+ " (messageNS, id, rcptMessage, rcptUser, rcptType, firstViewed, lastViewed, deleted)" + " VALUES ("
+			+ toSQL(theNamespace) + receipt.getID() + ", " + receipt.getMessage().getID() + ", "
+			+ receipt.getUser().getID() + ", " + receipt.getApplicability().ordinal() + ", ";
 		sql += DBUtils.formatDate(receipt.getFirstViewed(), isOracle()) + ", ";
 		sql += DBUtils.formatDate(receipt.getLastViewed(), isOracle()) + ", ";
 		sql += boolToSql(receipt.isDeleted()) + ")";
@@ -1922,15 +1905,13 @@ public class DefaultMessageManager implements MessageManager
 			stmt.executeUpdate(sql);
 		} catch(SQLException e)
 		{
-			throw new PrismsMessageException("Could not insert receipt " + receipt
-				+ " for message " + receipt.getMessage().getSubject() + ": SQL=" + sql, e);
+			throw new PrismsMessageException("Could not insert receipt " + receipt + " for message "
+				+ receipt.getMessage().getSubject() + ": SQL=" + sql, e);
 		}
-		addModification(trans, MessageSubjectType.recipient, null, 1, receipt, null, null,
-			receipt.getMessage(), null);
+		addModification(trans, MessageSubjectType.recipient, null, 1, receipt, null, null, receipt.getMessage(), null);
 	}
 
-	void insertAction(MessageAction action, Statement stmt, RecordsTransaction trans)
-		throws PrismsMessageException
+	void insertAction(MessageAction action, Statement stmt, RecordsTransaction trans) throws PrismsMessageException
 	{
 		if(action.getID() < 0)
 			try
@@ -1947,8 +1928,7 @@ public class DefaultMessageManager implements MessageManager
 			{
 				theActionInserter.setLong(1, action.getID());
 				theActionInserter.setLong(2, action.getMessage().getID());
-				DBUtils
-					.setClob(theActionInserter, 3, new java.io.StringReader(action.getDescrip()));
+				DBUtils.setClob(theActionInserter, 3, new java.io.StringReader(action.getDescrip()));
 				if(action.getCompletedUser() != null)
 					theActionInserter.setLong(4, action.getCompletedUser().getID());
 				else
@@ -2012,8 +1992,7 @@ public class DefaultMessageManager implements MessageManager
 	{
 		// Get the earliest index at which the two contents differ
 		int idx = 0;
-		for(idx = 0; idx < dbContent.length() && idx < content.length()
-			&& dbContent.charAt(idx) == content.charAt(idx); idx++);
+		for(idx = 0; idx < dbContent.length() && idx < content.length() && dbContent.charAt(idx) == content.charAt(idx); idx++);
 		int startIdx = CONTENT_LENGTH;
 		if(startIdx > idx)
 			startIdx = 0;
@@ -2096,19 +2075,18 @@ public class DefaultMessageManager implements MessageManager
 	void dbUpdateMessage(final Message dbMessage, final Message message, final Statement stmt,
 		final RecordsTransaction trans) throws PrismsMessageException
 	{
-		final String [] status = new String [] {"Modified message " + dbMessage.getSubject()
-			+ ":\n\t"};
+		final String [] status = new String [] {"Modified message " + dbMessage.getSubject() + ":\n\t"};
 		int oStatLength = status[0].length();
 		String sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message SET ";
 		boolean modified = false;
 		if(dbMessage.getTime() != message.getTime())
 		{
 			modified = true;
-			status[0] += "Message time changed from " + PrismsUtils.print(dbMessage.getTime())
-				+ " to " + PrismsUtils.print(message.getTime()) + "\n\t";
+			status[0] += "Message time changed from " + PrismsUtils.print(dbMessage.getTime()) + " to "
+				+ PrismsUtils.print(message.getTime()) + "\n\t";
 			sql += "messageTime=" + message.getTime() + ", ";
-			addModification(trans, MessageSubjectType.message, MessageChange.time, 0, dbMessage,
-				null, Long.valueOf(dbMessage.getTime()), null, null);
+			addModification(trans, MessageSubjectType.message, MessageChange.time, 0, dbMessage, null,
+				Long.valueOf(dbMessage.getTime()), null, null);
 			dbMessage.setTime(message.getTime());
 		}
 		if(dbMessage.isSent() != message.isSent())
@@ -2116,25 +2094,23 @@ public class DefaultMessageManager implements MessageManager
 			modified = true;
 			status[0] += "Message " + (message.isSent() ? "sent" : "unsent") + "\n\t";
 			sql += "sent=" + boolToSql(message.isSent()) + ", ";
-			addModification(trans, MessageSubjectType.message, MessageChange.sent, 0, dbMessage,
-				null, Boolean.valueOf(dbMessage.isSent()), null, null);
+			addModification(trans, MessageSubjectType.message, MessageChange.sent, 0, dbMessage, null,
+				Boolean.valueOf(dbMessage.isSent()), null, null);
 			dbMessage.setSent(message.isSent());
 		}
 		if(dbMessage.getPriority() != message.getPriority())
 		{
 			modified = true;
-			status[0] += "Priority changed from " + dbMessage.getPriority() + " to "
-				+ message.getPriority() + "\n\t";
+			status[0] += "Priority changed from " + dbMessage.getPriority() + " to " + message.getPriority() + "\n\t";
 			sql += "priority=" + message.getPriority().ordinal() + ", ";
-			addModification(trans, MessageSubjectType.message, MessageChange.priority, 0,
-				dbMessage, null, dbMessage.getPriority(), null, null);
+			addModification(trans, MessageSubjectType.message, MessageChange.priority, 0, dbMessage, null,
+				dbMessage.getPriority(), null, null);
 			dbMessage.setPriority(message.getPriority());
 		}
 		if(!dbMessage.getSubject().equals(message.getSubject()))
 		{
 			modified = true;
-			status[0] += "Subject changed from " + dbMessage.getSubject() + " to "
-				+ message.getSubject() + "\n\t";
+			status[0] += "Subject changed from " + dbMessage.getSubject() + " to " + message.getSubject() + "\n\t";
 			String dbSubject = PrismsUtils.encodeUnicode(dbMessage.getSubject());
 			String subject = PrismsUtils.encodeUnicode(message.getSubject());
 			if(dbSubject.length() > 100 && subject.length() > 100)
@@ -2152,8 +2128,7 @@ public class DefaultMessageManager implements MessageManager
 							theContentDeleter.executeUpdate();
 						} catch(SQLException e)
 						{
-							throw new PrismsMessageException("Could not update subject of message "
-								+ message, e);
+							throw new PrismsMessageException("Could not update subject of message " + message, e);
 						}
 					}
 				if(subject.length() > 100)
@@ -2164,8 +2139,8 @@ public class DefaultMessageManager implements MessageManager
 				else
 					sql += "subject=" + toSQL(message.getSubject()) + ", ";
 			}
-			addModification(trans, MessageSubjectType.message, MessageChange.subject, 0, dbMessage,
-				null, dbMessage.getSubject(), null, null);
+			addModification(trans, MessageSubjectType.message, MessageChange.subject, 0, dbMessage, null,
+				dbMessage.getSubject(), null, null);
 			dbMessage.setSubject(message.getSubject());
 		}
 		if(dbMessage.getPredecessorID() != message.getPredecessorID())
@@ -2182,14 +2157,12 @@ public class DefaultMessageManager implements MessageManager
 				{
 					rs = stmt.executeQuery(subSql);
 					if(!rs.next())
-						throw new PrismsMessageException("No such predecessor with ID "
-							+ dbMessage.getPredecessorID() + " for message "
-							+ dbMessage.getSubject());
+						throw new PrismsMessageException("No such predecessor with ID " + dbMessage.getPredecessorID()
+							+ " for message " + dbMessage.getSubject());
 				} catch(SQLException e)
 				{
-					throw new PrismsMessageException(
-						"Could not check for existence of predecessor with ID "
-							+ dbMessage.getPredecessorID(), e);
+					throw new PrismsMessageException("Could not check for existence of predecessor with ID "
+						+ dbMessage.getPredecessorID(), e);
 				} finally
 				{
 					if(rs != null)
@@ -2205,48 +2178,41 @@ public class DefaultMessageManager implements MessageManager
 			if(message.getPredecessorID() >= 0)
 			{
 				String subSql = "SELECT deleted FROM " + theTransactor.getTablePrefix()
-					+ "prisms_message WHERE messageNS=" + toSQL(theNamespace) + " AND id="
-					+ message.getPredecessorID();
+					+ "prisms_message WHERE messageNS=" + toSQL(theNamespace) + " AND id=" + message.getPredecessorID();
 				ResultSet rs = null;
 				try
 				{
 					rs = stmt.executeQuery(subSql);
 					if(!rs.next())
-						throw new PrismsMessageException("No such predecessor with ID "
-							+ message.getPredecessorID() + " for message " + message.getSubject());
+						throw new PrismsMessageException("No such predecessor with ID " + message.getPredecessorID()
+							+ " for message " + message.getSubject());
 					if(DBUtils.boolFromSql(rs.getString(1)))
-						throw new PrismsMessageException("Predecessor with ID "
-							+ message.getPredecessorID() + " for message " + message.getSubject()
-							+ " has been deleted");
+						throw new PrismsMessageException("Predecessor with ID " + message.getPredecessorID()
+							+ " for message " + message.getSubject() + " has been deleted");
 				} catch(SQLException e)
 				{
-					throw new PrismsMessageException(
-						"Could not check for existence of predecessor with ID "
-							+ message.getPredecessorID(), e);
+					throw new PrismsMessageException("Could not check for existence of predecessor with ID "
+						+ message.getPredecessorID(), e);
 				}
 			}
 			status[0] += "Predecessor changed from " + dbMessage.getPredecessorID() + " to "
 				+ message.getPredecessorID() + "\n\t";
-			sql += "predecessor="
-				+ (message.getPredecessorID() < 0 ? "NULL" : "" + message.getPredecessorID())
-				+ ", ";
-			addModification(trans, MessageSubjectType.message, MessageChange.predecessor, 0,
-				dbMessage, null, pred, null, null);
+			sql += "predecessor=" + (message.getPredecessorID() < 0 ? "NULL" : "" + message.getPredecessorID()) + ", ";
+			addModification(trans, MessageSubjectType.message, MessageChange.predecessor, 0, dbMessage, null, pred,
+				null, null);
 			dbMessage.setPredecessorID(message.getPredecessorID());
 		}
-		if(dbMessage.getContentCRC() != message.getContentCRC()
-			|| dbMessage.getLength() != message.getLength())
+		if(dbMessage.getContentCRC() != message.getContentCRC() || dbMessage.getLength() != message.getLength())
 		{
 			modified = true;
-			status[0] += "Content changed from " + dbMessage.getLength() + " to "
-				+ message.getLength() + " characters\n\t";
-			sql += "msgContentLength=" + message.getLength() + ", msgContentCrc="
-				+ message.getContentCRC() + ", ";
+			status[0] += "Content changed from " + dbMessage.getLength() + " to " + message.getLength()
+				+ " characters\n\t";
+			sql += "msgContentLength=" + message.getLength() + ", msgContentCrc=" + message.getContentCRC() + ", ";
 			String dbContent = dbMessage.getContent(-1);
 			String content = message.getContent(-1);
 			updateContent(dbMessage.getID(), "C", dbContent, content);
-			addModification(trans, MessageSubjectType.message, MessageChange.content, 0, dbMessage,
-				null, null, null, null);
+			addModification(trans, MessageSubjectType.message, MessageChange.content, 0, dbMessage, null, null, null,
+				null);
 			dbMessage.setContent(message.getContent(-1));
 		}
 
@@ -2266,8 +2232,8 @@ public class DefaultMessageManager implements MessageManager
 				stmt.executeUpdate(sql);
 			} catch(SQLException e)
 			{
-				throw new PrismsMessageException("Could not update message "
-					+ dbMessage.getSubject() + ": SQL=" + sql, e);
+				throw new PrismsMessageException("Could not update message " + dbMessage.getSubject() + ": SQL=" + sql,
+					e);
 			}
 		}
 
@@ -2279,78 +2245,78 @@ public class DefaultMessageManager implements MessageManager
 		r = 0;
 		for(Recipient rec : message.recipients())
 			receipts[r++] = rec;
-		ArrayUtils.adjust(dbReceipts, receipts,
-			new ArrayUtils.DifferenceListener<Recipient, Recipient>()
+		ArrayUtils.adjust(dbReceipts, receipts, new ArrayUtils.DifferenceListener<Recipient, Recipient>()
+		{
+			@Override
+			public boolean identity(Recipient o1, Recipient o2)
 			{
-				public boolean identity(Recipient o1, Recipient o2)
-				{
-					return o1.equals(o2);
-				}
+				return o1.equals(o2);
+			}
 
-				public Recipient added(Recipient o, int mIdx, int retIdx)
+			@Override
+			public Recipient added(Recipient o, int mIdx, int retIdx)
+			{
+				if(!o.isDeleted())
+					status[0] += "Added recipient " + o + "\n\t";
+				try
 				{
-					if(!o.isDeleted())
-						status[0] += "Added recipient " + o + "\n\t";
+					insertReceipt(o, stmt, trans);
+					addModification(trans, MessageSubjectType.recipient, null, 1, o, null, null, o.getMessage(), null);
+					if(o.isDeleted())
+						addModification(trans, MessageSubjectType.recipient, null, -1, o, null, null, o.getMessage(),
+							null);
+				} catch(PrismsMessageException e)
+				{
+					log.error(e.getMessage(), e);
+				}
+				Recipient newRec = dbMessage.addRecipient(o.getUser());
+				newRec.setID(o.getID());
+				newRec.setApplicability(o.getApplicability());
+				newRec.setFirstViewed(o.getFirstViewed());
+				newRec.setLastViewed(o.getLastViewed());
+				newRec.setDeleted(o.isDeleted());
+				return o;
+			}
+
+			@Override
+			public Recipient removed(Recipient o, int oIdx, int incMod, int retIdx)
+			{
+				if(!o.isDeleted())
+				{
+					status[0] += "Removed recipient " + o + "\n\t";
+					String sql2 = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_recipient SET deleted="
+						+ boolToSql(true) + " WHERE messageNS=" + toSQL(theNamespace) + " AND id=" + o.getID();
 					try
 					{
-						insertReceipt(o, stmt, trans);
-						addModification(trans, MessageSubjectType.recipient, null, 1, o, null,
-							null, o.getMessage(), null);
-						if(o.isDeleted())
-							addModification(trans, MessageSubjectType.recipient, null, -1, o, null,
-								null, o.getMessage(), null);
+						stmt.executeUpdate(sql2);
+						addModification(trans, MessageSubjectType.recipient, null, -1, o, null, null, o.getMessage(),
+							null);
+					} catch(SQLException e)
+					{
+						log.error("Could not delete recipient " + o + " of message " + o.getMessage().getSubject()
+							+ ": SQL=" + sql2, e);
 					} catch(PrismsMessageException e)
 					{
-						log.error(e.getMessage(), e);
+						log.error("Could not write record for recipient deletion", e);
 					}
-					Recipient newRec = dbMessage.addRecipient(o.getUser());
-					newRec.setID(o.getID());
-					newRec.setApplicability(o.getApplicability());
-					newRec.setFirstViewed(o.getFirstViewed());
-					newRec.setLastViewed(o.getLastViewed());
-					newRec.setDeleted(o.isDeleted());
-					return o;
+					o.setDeleted(true);
 				}
+				return o;
+			}
 
-				public Recipient removed(Recipient o, int oIdx, int incMod, int retIdx)
+			@Override
+			public Recipient set(Recipient o1, int idx1, int incMod, Recipient o2, int idx2, int retIdx)
+			{
+				try
 				{
-					if(!o.isDeleted())
-					{
-						status[0] += "Removed recipient " + o + "\n\t";
-						String sql2 = "UPDATE " + theTransactor.getTablePrefix()
-							+ "prisms_message_recipient SET deleted=" + boolToSql(true)
-							+ " WHERE messageNS=" + toSQL(theNamespace) + " AND id=" + o.getID();
-						try
-						{
-							stmt.executeUpdate(sql2);
-							addModification(trans, MessageSubjectType.recipient, null, -1, o, null,
-								null, o.getMessage(), null);
-						} catch(SQLException e)
-						{
-							log.error("Could not delete recipient " + o + " of message "
-								+ o.getMessage().getSubject() + ": SQL=" + sql2, e);
-						} catch(PrismsMessageException e)
-						{
-							log.error("Could not write record for recipient deletion", e);
-						}
-						o.setDeleted(true);
-					}
-					return o;
-				}
-
-				public Recipient set(Recipient o1, int idx1, int incMod, Recipient o2, int idx2,
-					int retIdx)
+					dbUpdateReceipt(o1, o2, stmt, trans, status);
+				} catch(PrismsMessageException e)
 				{
-					try
-					{
-						dbUpdateReceipt(o1, o2, stmt, trans, status);
-					} catch(PrismsMessageException e)
-					{
-						log.error(e.getMessage(), e);
-					}
-					return o1;
+					log.error(e.getMessage(), e);
 				}
-			});
+				return o1;
+			}
+		});
 
 		Attachment [] dbAttaches = new Attachment [dbMessage.getAttachmentCount()];
 		int a = 0;
@@ -2360,58 +2326,59 @@ public class DefaultMessageManager implements MessageManager
 		a = 0;
 		for(Attachment att : message.attachments())
 			attaches[a++] = att;
-		ArrayUtils.adjust(dbAttaches, attaches,
-			new ArrayUtils.DifferenceListener<Attachment, Attachment>()
+		ArrayUtils.adjust(dbAttaches, attaches, new ArrayUtils.DifferenceListener<Attachment, Attachment>()
+		{
+			@Override
+			public boolean identity(Attachment o1, Attachment o2)
 			{
-				public boolean identity(Attachment o1, Attachment o2)
-				{
-					return o1.equals(o2);
-				}
+				return o1.equals(o2);
+			}
 
-				public Attachment added(Attachment o, int mIdx, int retIdx)
-				{
-					log.error("Attachment added by another method than MessageManager.createAttachment!");
-					return null;
-				}
+			@Override
+			public Attachment added(Attachment o, int mIdx, int retIdx)
+			{
+				log.error("Attachment added by another method than MessageManager.createAttachment!");
+				return null;
+			}
 
-				public Attachment removed(Attachment o, int oIdx, int incMod, int retIdx)
+			@Override
+			public Attachment removed(Attachment o, int oIdx, int incMod, int retIdx)
+			{
+				if(!o.isDeleted())
 				{
-					if(!o.isDeleted())
-					{
-						status[0] += "Attachment " + o.getName() + " removed\n\t";
-						String sql2 = "UPDATE " + theTransactor.getTablePrefix()
-							+ "prisms_message_attachment SET deleted=" + boolToSql(true)
-							+ " WHERE id=" + o.getID();
-						try
-						{
-							stmt.executeUpdate(sql2);
-							addModification(trans, MessageSubjectType.attachment, null, -1, o,
-								null, null, o.getMessage(), null);
-						} catch(SQLException e)
-						{
-							log.error("Could not delete attachment", e);
-						} catch(PrismsMessageException e)
-						{
-							log.error("Could not write record for attachment deletion", e);
-						}
-						o.setDeleted(true);
-					}
-					return o;
-				}
-
-				public Attachment set(Attachment o1, int idx1, int incMod, Attachment o2, int idx2,
-					int retIdx)
-				{
+					status[0] += "Attachment " + o.getName() + " removed\n\t";
+					String sql2 = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_attachment SET deleted="
+						+ boolToSql(true) + " WHERE id=" + o.getID();
 					try
 					{
-						dbUpdateAttachment(o1, o2, stmt, trans, status);
+						stmt.executeUpdate(sql2);
+						addModification(trans, MessageSubjectType.attachment, null, -1, o, null, null, o.getMessage(),
+							null);
+					} catch(SQLException e)
+					{
+						log.error("Could not delete attachment", e);
 					} catch(PrismsMessageException e)
 					{
-						log.error(e.getMessage(), e);
+						log.error("Could not write record for attachment deletion", e);
 					}
-					return o1;
+					o.setDeleted(true);
 				}
-			});
+				return o;
+			}
+
+			@Override
+			public Attachment set(Attachment o1, int idx1, int incMod, Attachment o2, int idx2, int retIdx)
+			{
+				try
+				{
+					dbUpdateAttachment(o1, o2, stmt, trans, status);
+				} catch(PrismsMessageException e)
+				{
+					log.error(e.getMessage(), e);
+				}
+				return o1;
+			}
+		});
 
 		MessageAction [] dbActions = new MessageAction [dbMessage.getActionCount()];
 		a = 0;
@@ -2421,81 +2388,81 @@ public class DefaultMessageManager implements MessageManager
 		a = 0;
 		for(MessageAction action : message.actions())
 			actions[a++] = action;
-		ArrayUtils.adjust(dbActions, actions,
-			new ArrayUtils.DifferenceListener<MessageAction, MessageAction>()
+		ArrayUtils.adjust(dbActions, actions, new ArrayUtils.DifferenceListener<MessageAction, MessageAction>()
+		{
+			@Override
+			public boolean identity(MessageAction o1, MessageAction o2)
 			{
-				public boolean identity(MessageAction o1, MessageAction o2)
-				{
-					return o1.equals(o2);
-				}
+				return o1.equals(o2);
+			}
 
-				public MessageAction added(MessageAction o, int mIdx, int retIdx)
+			@Override
+			public MessageAction added(MessageAction o, int mIdx, int retIdx)
+			{
+				try
 				{
+					insertAction(o, stmt, trans);
+				} catch(PrismsMessageException e)
+				{
+					log.error("Could not add action", e);
+					return null;
+				}
+				MessageAction newAction = new MessageAction(dbMessage);
+				dbMessage.addAction(newAction);
+				newAction.setID(o.getID());
+				newAction.setDescrip(o.getDescrip());
+				newAction.setCompletedUser(o.getCompletedUser());
+				try
+				{
+					addModification(trans, MessageSubjectType.action, null, 1, o, null, null, o.getMessage(), null);
+					if(o.isDeleted())
+						addModification(trans, MessageSubjectType.action, null, -11, o, null, null, o.getMessage(),
+							null);
+				} catch(PrismsMessageException e)
+				{
+					log.error("Could not write record for action creation", e);
+				}
+				return newAction;
+			}
+
+			@Override
+			public MessageAction removed(MessageAction o, int oIdx, int incMod, int retIdx)
+			{
+				if(!o.isDeleted())
+				{
+					status[0] += "Action " + o.getDescrip() + " removed\n\t";
+					String sql2 = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_action SET deleted="
+						+ boolToSql(true) + " WHERE id=" + o.getID();
 					try
 					{
-						insertAction(o, stmt, trans);
+						stmt.executeUpdate(sql2);
+						addModification(trans, MessageSubjectType.action, null, -11, o, null, null, o.getMessage(),
+							null);
+					} catch(SQLException e)
+					{
+						log.error("Could not delete attachment", e);
 					} catch(PrismsMessageException e)
 					{
-						log.error("Could not add action", e);
-						return null;
+						log.error("Could not write record for action deletion", e);
 					}
-					MessageAction newAction = new MessageAction(dbMessage);
-					dbMessage.addAction(newAction);
-					newAction.setID(o.getID());
-					newAction.setDescrip(o.getDescrip());
-					newAction.setCompletedUser(o.getCompletedUser());
-					try
-					{
-						addModification(trans, MessageSubjectType.action, null, 1, o, null, null,
-							o.getMessage(), null);
-						if(o.isDeleted())
-							addModification(trans, MessageSubjectType.action, null, -11, o, null,
-								null, o.getMessage(), null);
-					} catch(PrismsMessageException e)
-					{
-						log.error("Could not write record for action creation", e);
-					}
-					return newAction;
+					o.setDeleted(true);
 				}
+				return o;
+			}
 
-				public MessageAction removed(MessageAction o, int oIdx, int incMod, int retIdx)
+			@Override
+			public MessageAction set(MessageAction o1, int idx1, int incMod, MessageAction o2, int idx2, int retIdx)
+			{
+				try
 				{
-					if(!o.isDeleted())
-					{
-						status[0] += "Action " + o.getDescrip() + " removed\n\t";
-						String sql2 = "UPDATE " + theTransactor.getTablePrefix()
-							+ "prisms_message_action SET deleted=" + boolToSql(true) + " WHERE id="
-							+ o.getID();
-						try
-						{
-							stmt.executeUpdate(sql2);
-							addModification(trans, MessageSubjectType.action, null, -11, o, null,
-								null, o.getMessage(), null);
-						} catch(SQLException e)
-						{
-							log.error("Could not delete attachment", e);
-						} catch(PrismsMessageException e)
-						{
-							log.error("Could not write record for action deletion", e);
-						}
-						o.setDeleted(true);
-					}
-					return o;
-				}
-
-				public MessageAction set(MessageAction o1, int idx1, int incMod, MessageAction o2,
-					int idx2, int retIdx)
+					dbUpdateAction(o1, o2, stmt, trans, status);
+				} catch(PrismsMessageException e)
 				{
-					try
-					{
-						dbUpdateAction(o1, o2, stmt, trans, status);
-					} catch(PrismsMessageException e)
-					{
-						log.error(e.getMessage(), e);
-					}
-					return o1;
+					log.error(e.getMessage(), e);
 				}
-			});
+				return o1;
+			}
+		});
 
 		if(status[0].length() != oStatLength)
 			log.debug(status[0].substring(0, status[0].length() - 2));
@@ -2504,8 +2471,8 @@ public class DefaultMessageManager implements MessageManager
 	long getMessageSize(Message header, Statement stmt) throws PrismsMessageException
 	{
 		ResultSet rs = null;
-		String sql = "SELECT msgSize FROM " + theTransactor.getTablePrefix()
-			+ "prisms_message WHERE messageNS=" + toSQL(theNamespace) + " AND id=" + header.getID();
+		String sql = "SELECT msgSize FROM " + theTransactor.getTablePrefix() + "prisms_message WHERE messageNS="
+			+ toSQL(theNamespace) + " AND id=" + header.getID();
 		try
 		{
 			rs = stmt.executeQuery(sql);
@@ -2518,8 +2485,8 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
-	void dbUpdateReceipt(Recipient dbReceipt, Recipient receipt, Statement stmt,
-		RecordsTransaction trans, String [] status) throws PrismsMessageException
+	void dbUpdateReceipt(Recipient dbReceipt, Recipient receipt, Statement stmt, RecordsTransaction trans,
+		String [] status) throws PrismsMessageException
 	{
 		String sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_recipient SET ";
 		boolean modified = false;
@@ -2531,46 +2498,42 @@ public class DefaultMessageManager implements MessageManager
 			else
 				status[0] += "Recipient " + receipt + " re-added\n\t";
 			sql += "deleted=" + boolToSql(receipt.isDeleted()) + ", ";
-			addModification(trans, MessageSubjectType.recipient, null,
-				receipt.isDeleted() ? -1 : 1, dbReceipt, null, null, dbReceipt.getMessage(), null);
+			addModification(trans, MessageSubjectType.recipient, null, receipt.isDeleted() ? -1 : 1, dbReceipt, null,
+				null, dbReceipt.getMessage(), null);
 			dbReceipt.setDeleted(receipt.isDeleted());
 		}
 		if(dbReceipt.getApplicability() != receipt.getApplicability())
 		{
 			modified = true;
-			status[0] += "Applicability of recipient " + receipt + " changed to "
-				+ receipt.getApplicability() + "\n\t";
+			status[0] += "Applicability of recipient " + receipt + " changed to " + receipt.getApplicability() + "\n\t";
 			sql += "applicability=" + receipt.getApplicability().ordinal() + ", ";
-			addModification(trans, MessageSubjectType.recipient, RecipientChange.applicability, 0,
-				receipt, null, dbReceipt.getApplicability(), dbReceipt.getMessage(), null);
+			addModification(trans, MessageSubjectType.recipient, RecipientChange.applicability, 0, receipt, null,
+				dbReceipt.getApplicability(), dbReceipt.getMessage(), null);
 			dbReceipt.setApplicability(receipt.getApplicability());
 		}
 		if(dbReceipt.getFirstViewed() != receipt.getFirstViewed())
 		{
 			modified = true;
 			status[0] += "Recipient " + receipt + " first view changed from ";
-			status[0] += (dbReceipt.getFirstViewed() >= 0 ? PrismsUtils.print(dbReceipt
-				.getFirstViewed()) : "none");
+			status[0] += (dbReceipt.getFirstViewed() >= 0 ? PrismsUtils.print(dbReceipt.getFirstViewed()) : "none");
 			status[0] += " to ";
-			status[0] += (receipt.getFirstViewed() >= 0 ? PrismsUtils.print(receipt
-				.getFirstViewed()) : "none") + "\n\t";
+			status[0] += (receipt.getFirstViewed() >= 0 ? PrismsUtils.print(receipt.getFirstViewed()) : "none")
+				+ "\n\t";
 			sql += "firstView=" + DBUtils.formatDate(receipt.getFirstViewed(), isOracle()) + ", ";
-			addModification(trans, MessageSubjectType.messageView, RecipientChange.firstViewed, 0,
-				receipt, null, Long.valueOf(dbReceipt.getFirstViewed()), receipt.getMessage(), null);
+			addModification(trans, MessageSubjectType.messageView, RecipientChange.firstViewed, 0, receipt, null,
+				Long.valueOf(dbReceipt.getFirstViewed()), receipt.getMessage(), null);
 			dbReceipt.setFirstViewed(receipt.getFirstViewed());
 		}
 		if(dbReceipt.getLastViewed() != receipt.getLastViewed())
 		{
 			modified = true;
 			status[0] += "Recipient " + receipt + " last view changed from ";
-			status[0] += (dbReceipt.getLastViewed() >= 0 ? PrismsUtils.print(dbReceipt
-				.getLastViewed()) : "none");
+			status[0] += (dbReceipt.getLastViewed() >= 0 ? PrismsUtils.print(dbReceipt.getLastViewed()) : "none");
 			status[0] += " to ";
-			status[0] += (receipt.getLastViewed() >= 0 ? PrismsUtils.print(receipt.getLastViewed())
-				: "none") + "\n\t";
+			status[0] += (receipt.getLastViewed() >= 0 ? PrismsUtils.print(receipt.getLastViewed()) : "none") + "\n\t";
 			sql += "lastView=" + DBUtils.formatDate(receipt.getLastViewed(), isOracle()) + ", ";
-			addModification(trans, MessageSubjectType.messageView, RecipientChange.lastViewed, 0,
-				receipt, null, Long.valueOf(dbReceipt.getLastViewed()), receipt.getMessage(), null);
+			addModification(trans, MessageSubjectType.messageView, RecipientChange.lastViewed, 0, receipt, null,
+				Long.valueOf(dbReceipt.getLastViewed()), receipt.getMessage(), null);
 			dbReceipt.setLastViewed(receipt.getLastViewed());
 		}
 
@@ -2582,14 +2545,14 @@ public class DefaultMessageManager implements MessageManager
 				stmt.executeUpdate(sql);
 			} catch(SQLException e)
 			{
-				throw new PrismsMessageException("Could not update recipient " + dbReceipt
-					+ " of message " + dbReceipt.getMessage().getSubject() + ": SQL=" + sql, e);
+				throw new PrismsMessageException("Could not update recipient " + dbReceipt + " of message "
+					+ dbReceipt.getMessage().getSubject() + ": SQL=" + sql, e);
 			}
 		}
 	}
 
-	void dbUpdateAttachment(Attachment dbAttach, Attachment attach, Statement stmt,
-		RecordsTransaction trans, String [] status) throws PrismsMessageException
+	void dbUpdateAttachment(Attachment dbAttach, Attachment attach, Statement stmt, RecordsTransaction trans,
+		String [] status) throws PrismsMessageException
 	{
 		String sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_attachment SET ";
 		boolean modified = false;
@@ -2601,19 +2564,17 @@ public class DefaultMessageManager implements MessageManager
 			else
 				status[0] += "Attachment " + dbAttach.getName() + " re-added\n\t";
 			sql += "deleted=" + boolToSql(attach.isDeleted()) + ", ";
-			addModification(trans, MessageSubjectType.attachment, null,
-				attach.isDeleted() ? -1 : 1, attach, null, null, attach.getMessage(), null);
+			addModification(trans, MessageSubjectType.attachment, null, attach.isDeleted() ? -1 : 1, attach, null,
+				null, attach.getMessage(), null);
 			dbAttach.setDeleted(attach.isDeleted());
 		}
 		if(!dbAttach.getName().equals(attach.getName()))
 		{
 			modified = true;
-			status[0] += "Attachment " + dbAttach.getName() + " renamed to " + attach.getName()
-				+ "\n\t";
+			status[0] += "Attachment " + dbAttach.getName() + " renamed to " + attach.getName() + "\n\t";
 			sql += "name=" + toSQL(attach.getName());
-			addModification(trans, MessageSubjectType.attachment,
-				MessageChangeTypes.AttachmentChange.name, 0, attach, null, dbAttach.getName(),
-				attach.getMessage(), null);
+			addModification(trans, MessageSubjectType.attachment, MessageChangeTypes.AttachmentChange.name, 0, attach,
+				null, dbAttach.getName(), attach.getMessage(), null);
 			dbAttach.setName(attach.getName());
 		}
 		if(modified)
@@ -2624,15 +2585,14 @@ public class DefaultMessageManager implements MessageManager
 				stmt.executeUpdate(sql);
 			} catch(SQLException e)
 			{
-				throw new PrismsMessageException("Could not update attachment "
-					+ dbAttach.getName() + " of message " + dbAttach.getMessage().getSubject()
-					+ ": SQL=" + sql, e);
+				throw new PrismsMessageException("Could not update attachment " + dbAttach.getName() + " of message "
+					+ dbAttach.getMessage().getSubject() + ": SQL=" + sql, e);
 			}
 		}
 	}
 
-	void dbUpdateAction(MessageAction dbAction, MessageAction action, Statement stmt,
-		RecordsTransaction trans, String [] status) throws PrismsMessageException
+	void dbUpdateAction(MessageAction dbAction, MessageAction action, Statement stmt, RecordsTransaction trans,
+		String [] status) throws PrismsMessageException
 	{
 		String sql = "UPDATE " + theTransactor.getTablePrefix() + "prisms_message_action SET ";
 		boolean modified = false;
@@ -2644,8 +2604,8 @@ public class DefaultMessageManager implements MessageManager
 			else
 				status[0] += "Action " + dbAction.getDescrip() + " re-added\n\t";
 			sql += "deleted=" + boolToSql(action.isDeleted()) + ", ";
-			addModification(trans, MessageSubjectType.action, null, action.isDeleted() ? -1 : 1,
-				action, null, null, action.getMessage(), null);
+			addModification(trans, MessageSubjectType.action, null, action.isDeleted() ? -1 : 1, action, null, null,
+				action.getMessage(), null);
 			dbAction.setDeleted(action.isDeleted());
 		}
 		if(!dbAction.getDescrip().equals(action.getDescrip()))
@@ -2654,38 +2614,33 @@ public class DefaultMessageManager implements MessageManager
 			{
 				try
 				{
-					DBUtils.setClob(theActionInserter, 1,
-						new java.io.StringReader(action.getDescrip()));
+					DBUtils.setClob(theActionInserter, 1, new java.io.StringReader(action.getDescrip()));
 					theActionUpdater.setLong(2, dbAction.getID());
 					theActionUpdater.executeUpdate();
 				} catch(SQLException e)
 				{
-					throw new PrismsMessageException("Could not update action " + dbAction.getID()
-						+ " of message " + dbAction.getMessage(), e);
+					throw new PrismsMessageException("Could not update action " + dbAction.getID() + " of message "
+						+ dbAction.getMessage(), e);
 				}
 			}
-			addModification(trans, MessageSubjectType.action,
-				MessageChangeTypes.ActionChange.descrip, 0, action, null, dbAction.getDescrip(),
-				action.getMessage(), null);
+			addModification(trans, MessageSubjectType.action, MessageChangeTypes.ActionChange.descrip, 0, action, null,
+				dbAction.getDescrip(), action.getMessage(), null);
 			dbAction.setDescrip(action.getDescrip());
 		}
 		if(!ArrayUtils.equals(dbAction.getCompletedUser(), action.getCompletedUser()))
 		{
 			modified = true;
 			if(dbAction.getCompletedUser() == null)
-				status[0] += "Action " + dbAction.getDescrip() + " completed by "
-					+ action.getCompletedUser() + " (ID " + action.getCompletedUser().getID()
-					+ ")\n\t";
+				status[0] += "Action " + dbAction.getDescrip() + " completed by " + action.getCompletedUser() + " (ID "
+					+ action.getCompletedUser().getID() + ")\n\t";
 			else if(action.getCompletedUser() == null)
 				status[0] += "Action " + dbAction.getDescrip() + " marked as uncompleted\n\t";
 			else
 				status[0] += "Action " + dbAction.getDescrip() + " completed user changed from "
-					+ dbAction.getCompletedUser() + " (ID " + dbAction.getCompletedUser().getID()
-					+ ") to " + action.getCompletedUser() + " (ID "
-					+ action.getCompletedUser().getID() + ")\n\t";
+					+ dbAction.getCompletedUser() + " (ID " + dbAction.getCompletedUser().getID() + ") to "
+					+ action.getCompletedUser() + " (ID " + action.getCompletedUser().getID() + ")\n\t";
 			sql += "actionCompleted="
-				+ (action.getCompletedUser() == null ? "NULL" : ""
-					+ action.getCompletedUser().getID()) + ", ";
+				+ (action.getCompletedUser() == null ? "NULL" : "" + action.getCompletedUser().getID()) + ", ";
 			dbAction.setCompletedUser(action.getCompletedUser());
 		}
 		if(modified)
@@ -2696,15 +2651,15 @@ public class DefaultMessageManager implements MessageManager
 				stmt.executeUpdate(sql);
 			} catch(SQLException e)
 			{
-				throw new PrismsMessageException("Could not update action " + dbAction.getID()
-					+ " of message " + dbAction.getMessage().getSubject() + ": SQL=" + sql, e);
+				throw new PrismsMessageException("Could not update action " + dbAction.getID() + " of message "
+					+ dbAction.getMessage().getSubject() + ": SQL=" + sql, e);
 			}
 		}
 	}
 
 	/**
-	 * Checks a search for a {@link MessageSearch.DeletedSearch} instance, as this has impacts on
-	 * how a search is performed.
+	 * Checks a search for a {@link MessageSearch.DeletedSearch} instance, as this has impacts on how a search is
+	 * performed.
 	 * 
 	 * @param search The search to search for a deleted type
 	 * @return Whether the given search has a deleted search or not
@@ -2720,8 +2675,8 @@ public class DefaultMessageManager implements MessageManager
 		return false;
 	}
 
-	void compileQuery(Search search, boolean withParameters, boolean withConversation,
-		StringBuilder joins, StringBuilder wheres) throws PrismsMessageException
+	void compileQuery(Search search, boolean withParameters, boolean withConversation, StringBuilder joins,
+		StringBuilder wheres) throws PrismsMessageException
 	{
 		if(search instanceof Search.NotSearch)
 		{
@@ -2782,8 +2737,7 @@ public class DefaultMessageManager implements MessageManager
 					if(withParameters)
 						wheres.append('?');
 					else
-						throw new PrismsMessageException(
-							"No conversation ID specified in conversation search");
+						throw new PrismsMessageException("No conversation ID specified in conversation search");
 				}
 				else
 					wheres.append(convS.conversationID);
@@ -2796,8 +2750,7 @@ public class DefaultMessageManager implements MessageManager
 					if(withParameters)
 						wheres.append('?');
 					else
-						throw new PrismsMessageException(
-							"No predecessor specified in successor search");
+						throw new PrismsMessageException("No predecessor specified in successor search");
 				}
 				else
 					wheres.append(sucS.message.getID());
@@ -2818,8 +2771,8 @@ public class DefaultMessageManager implements MessageManager
 				wheres.append(DBUtils.getLowerFn(connType));
 				wheres.append("(msg.shortSubject) LIKE ").append(srch);
 				wheres.append(" OR (");
-				wheres.append(DBUtils.getLowerFn(connType)).append("(msgContent.content) LIKE ")
-					.append(srch).append(" AND msgContent.contentType='S'");
+				wheres.append(DBUtils.getLowerFn(connType)).append("(msgContent.content) LIKE ").append(srch)
+					.append(" AND msgContent.contentType='S'");
 				wheres.append(')');
 				break;
 			case author:
@@ -2861,8 +2814,7 @@ public class DefaultMessageManager implements MessageManager
 					if(withParameters)
 						wheres.append('?');
 					else
-						throw new PrismsMessageException(
-							"No priority specified for priority search");
+						throw new PrismsMessageException("No priority specified for priority search");
 				}
 				else
 					wheres.append(priS.priority.ordinal());
@@ -2881,8 +2833,7 @@ public class DefaultMessageManager implements MessageManager
 					if(joins.indexOf("msgReceiptUser") < 0)
 					{
 						joins.append(" INNER JOIN ").append(theTransactor.getTablePrefix());
-						joins.append("prisms_user msgReceiptUser").append(
-							" ON msgReceiptUser.id=msgReceipt.rcptUser");
+						joins.append("prisms_user msgReceiptUser").append(" ON msgReceiptUser.id=msgReceipt.rcptUser");
 					}
 					wheres.append("msgReceiptUser.userName=").append(toSQL(recS.userName));
 				}
@@ -2918,8 +2869,7 @@ public class DefaultMessageManager implements MessageManager
 					if(joins.indexOf("msgReceiptUser") < 0)
 					{
 						joins.append(" INNER JOIN ").append(theTransactor.getTablePrefix());
-						joins.append("prisms_user msgReceiptUser").append(
-							" ON msgReceiptUser.id=msgReceipt.rcptUser");
+						joins.append("prisms_user msgReceiptUser").append(" ON msgReceiptUser.id=msgReceipt.rcptUser");
 					}
 					wheres.append("msgReceiptUser.userName=").append(toSQL(rts.userName));
 				}
@@ -2939,8 +2889,8 @@ public class DefaultMessageManager implements MessageManager
 				wheres.append(" AND ");
 				connType = DBUtils.getType(theTransactor.getConnection());
 				if(rts.readTime != null)
-					createDateQuery(rts.operator, rts.readTime, connType, rts.isLast ? "lastViewed"
-						: "firstViewed", wheres);
+					createDateQuery(rts.operator, rts.readTime, connType, rts.isLast ? "lastViewed" : "firstViewed",
+						wheres);
 				else if(withParameters)
 				{
 					wheres.append(rts.isLast ? "lastViewed" : "firstViewed");
@@ -3004,14 +2954,13 @@ public class DefaultMessageManager implements MessageManager
 			case content:
 				MessageSearch.ContentSearch contS = (MessageSearch.ContentSearch) search;
 				if(contS.search.length() > CONTENT_OVERLAP)
-					throw new IllegalArgumentException("Content searches may be no longer than "
-						+ CONTENT_OVERLAP + " characters in length");
+					throw new IllegalArgumentException("Content searches may be no longer than " + CONTENT_OVERLAP
+						+ " characters in length");
 				if(joins.indexOf("msgContent") < 0)
 				{
 					joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
 					joins.append("prisms_message_content msgContent")
-						.append(" ON msgContent.messageNS=msg.messageNS AND ")
-						.append("msg_content.message=msg.id ");
+						.append(" ON msgContent.messageNS=msg.messageNS AND ").append("msg_content.message=msg.id ");
 				}
 				connType = DBUtils.getType(theTransactor.getConnection());
 				srch = contS.search.toLowerCase();
@@ -3026,8 +2975,7 @@ public class DefaultMessageManager implements MessageManager
 				{
 					joins.append(" LEFT JOIN ").append(theTransactor.getTablePrefix());
 					joins.append("prisms_message_attachment msgAttach");
-					joins.append("ON msgAttach.messageNS=msg.messageNS").append(
-						" AND msgAttach.message=msg.id");
+					joins.append("ON msgAttach.messageNS=msg.messageNS").append(" AND msgAttach.message=msg.id");
 				}
 
 				connType = DBUtils.getType(theTransactor.getConnection());
@@ -3044,8 +2992,7 @@ public class DefaultMessageManager implements MessageManager
 				else if(attS.size != null)
 					createSizeQuery(attS.size, "msgAttach.attachLength", wheres, 1);
 				else
-					throw new IllegalStateException("Unrecognized attachment search type: "
-						+ search);
+					throw new IllegalStateException("Unrecognized attachment search type: " + search);
 				wheres.append(" AND msgAttach.deleted=").append(boolToSql(false));
 				break;
 			case size:
@@ -3064,8 +3011,8 @@ public class DefaultMessageManager implements MessageManager
 		}
 	}
 
-	private void createDateQuery(MessageSearch.Operator operator, MessageSearch.SearchDate date,
-		DBUtils.ConnType type, String column, StringBuilder wheres)
+	private void createDateQuery(MessageSearch.Operator operator, MessageSearch.SearchDate date, DBUtils.ConnType type,
+		String column, StringBuilder wheres)
 	{
 		switch(operator)
 		{
@@ -3140,6 +3087,7 @@ public class DefaultMessageManager implements MessageManager
 		return _isOracle.booleanValue();
 	}
 
+	@Override
 	public void disconnect()
 	{
 		closePStatements();
