@@ -516,8 +516,8 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * @return The total size of the data in this cache, according to {@link Qualitizer#size(Object)}. This value will
-	 *         return the same as {@link #size()} if the qualitizer was not set in the constructor.
+	 * @return The total size of the data in this cache, according to {@link Qualitizer#size(Object, Object)}. This
+	 *         value will return the same as {@link #size()} if the qualitizer was not set in the constructor.
 	 */
 	public float getTotalSize()
 	{
@@ -530,8 +530,8 @@ public class DemandCache<K, V> implements Map<K, V>
 	}
 
 	/**
-	 * @return The average quality of the values in this cache, according to {@link Qualitizer#quality(Object)}. This
-	 *         value will return 1 if the qualitizer was not set in the constructor.
+	 * @return The average quality of the values in this cache, according to {@link Qualitizer#quality(Object, Object)}.
+	 *         This value will return 1 if the qualitizer was not set in the constructor.
 	 */
 	public float getAverageQuality()
 	{
@@ -675,10 +675,10 @@ public class DemandCache<K, V> implements Map<K, V>
 	 * variables:
 	 * <ul>
 	 * <li>How frequently and recently the value has been accessed</li>
-	 * <li>The quality of the value according to {@link Qualitizer#quality(Object)} compared to the average quality of
-	 * the cache</li>
-	 * <li>The size of the value according to {@link Qualitizer#size(Object)} compared to the average size of the
-	 * cache's values</li>
+	 * <li>The quality of the value according to {@link Qualitizer#quality(Object, Object)} compared to the average
+	 * quality of the cache</li>
+	 * <li>The size of the value according to {@link Qualitizer#size(Object, Object)} compared to the average size of
+	 * the cache's values</li>
 	 * <li>The total size of the cache compared to its preferred size (assuming this is set to a value greater than 0)
 	 * </ul>
 	 * 
