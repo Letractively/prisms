@@ -1472,7 +1472,7 @@ public final class ArrayUtils
 			@Override
 			public T next()
 			{
-				return array[theIndex];
+				return array[theIndex++];
 			}
 
 			@Override
