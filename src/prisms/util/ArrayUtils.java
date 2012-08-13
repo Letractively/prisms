@@ -14,20 +14,18 @@ public final class ArrayUtils
 	private ArrayUtils()
 	{
 	}
-	
+
 	/**
-	 * Gets the first element in the given array for which the
-	 * {@link EqualsChecker#equals(Object, Object)} returns true, or null if this never occurs. The
-	 * equals method is called with the element as the first argument and the test parameter as the
-	 * second.
+	 * Gets the first element in the given array for which the {@link EqualsChecker#equals(Object, Object)} returns
+	 * true, or null if this never occurs. The equals method is called with the element as the first argument and the
+	 * test parameter as the second.
 	 * 
 	 * @param <T> The type of array to get an element of
 	 * @param array The array to get the element of
 	 * @param test The object to compare the others with. This may be null.
 	 * @param checker The checker to determine which element to get
-	 * @return The first element in the array for which the
-	 *         {@link EqualsChecker#equals(Object, Object)} returns true, or null if this never
-	 *         occurs
+	 * @return The first element in the array for which the {@link EqualsChecker#equals(Object, Object)} returns true,
+	 *         or null if this never occurs
 	 */
 	public static <T> T get(T [] array, Object test, EqualsChecker checker)
 	{
@@ -43,8 +41,8 @@ public final class ArrayUtils
 	 * @param anArray The array to insert into
 	 * @param anElement The element to insert
 	 * @param anIndex The index for the new element
-	 * @return The new array with all elements of <code>anArray</code>, but with
-	 *         <code>anElement</code> inserted at index <code>anIndex</code>
+	 * @return The new array with all elements of <code>anArray</code>, but with <code>anElement</code> inserted at
+	 *         index <code>anIndex</code>
 	 */
 	public static Object addP(Object anArray, Object anElement, int anIndex)
 	{
@@ -53,8 +51,7 @@ public final class ArrayUtils
 		if(anArray == null)
 		{
 			if(anIndex != 0)
-				throw new ArrayIndexOutOfBoundsException("Cannot set " + anIndex
-					+ " element in a null array");
+				throw new ArrayIndexOutOfBoundsException("Cannot set " + anIndex + " element in a null array");
 			ret = Array.newInstance(anElement.getClass(), 1);
 			Array.set(ret, 0, anElement);
 			return ret;
@@ -77,8 +74,8 @@ public final class ArrayUtils
 	 * @param anArray The array to insert into
 	 * @param anElement The element to insert
 	 * @param anIndex The index for the new element
-	 * @return The new array with all elements of <code>anArray</code>, but with
-	 *         <code>anElement</code> inserted at index <code>anIndex</code>
+	 * @return The new array with all elements of <code>anArray</code>, but with <code>anElement</code> inserted at
+	 *         index <code>anIndex</code>
 	 */
 	public static <T> T [] add(T [] anArray, T anElement, int anIndex)
 	{
@@ -86,8 +83,7 @@ public final class ArrayUtils
 		if(anArray == null)
 		{
 			if(anIndex != 0)
-				throw new ArrayIndexOutOfBoundsException("Cannot set " + anIndex
-					+ " element in a null array");
+				throw new ArrayIndexOutOfBoundsException("Cannot set " + anIndex + " element in a null array");
 			ret = (T []) Array.newInstance(anElement.getClass(), 1);
 			ret[0] = anElement;
 			return ret;
@@ -106,8 +102,8 @@ public final class ArrayUtils
 	 * @param anArray The array to insert into
 	 * @param anIndex The start index for the new elements
 	 * @param elements The elements to insert
-	 * @return The new array with all elements of <code>anArray</code>, but with
-	 *         <code>elements</code> inserted at index <code>anIndex</code>
+	 * @return The new array with all elements of <code>anArray</code>, but with <code>elements</code> inserted at index
+	 *         <code>anIndex</code>
 	 */
 	public static <T> T [] add(T [] anArray, int anIndex, T... elements)
 	{
@@ -115,24 +111,21 @@ public final class ArrayUtils
 		if(anArray == null)
 		{
 			if(anIndex != 0)
-				throw new ArrayIndexOutOfBoundsException("Cannot set " + anIndex
-					+ " element in a null array");
+				throw new ArrayIndexOutOfBoundsException("Cannot set " + anIndex + " element in a null array");
 			return elements;
 		}
-		ret = (T []) Array.newInstance(anArray.getClass().getComponentType(), anArray.length
-			+ elements.length);
+		ret = (T []) Array.newInstance(anArray.getClass().getComponentType(), anArray.length + elements.length);
 		System.arraycopy(anArray, 0, ret, 0, anIndex);
 		System.arraycopy(elements, 0, ret, anIndex, elements.length);
-		System
-			.arraycopy(anArray, anIndex, ret, anIndex + elements.length, anArray.length - anIndex);
+		System.arraycopy(anArray, anIndex, ret, anIndex + elements.length, anArray.length - anIndex);
 		return ret;
 	}
 
 	/**
 	 * @param anArray The array to extend
 	 * @param anElement The element to add into <code>anArray</code>
-	 * @return A new array of length <code>anArray.length+1</code> whose contents are those of
-	 *         <code>anArray</code> followed by <code>anElement</code>
+	 * @return A new array of length <code>anArray.length+1</code> whose contents are those of <code>anArray</code>
+	 *         followed by <code>anElement</code>
 	 */
 	public static Object addP(Object anArray, Object anElement)
 	{
@@ -144,8 +137,8 @@ public final class ArrayUtils
 	 * @param <T> The type of the array
 	 * @param anArray The array to extend
 	 * @param anElement The element to add into <code>anArray</code>
-	 * @return A new array of length <code>anArray.length+1</code> whose contents are those of
-	 *         <code>anArray</code> followed by <code>anElement</code>
+	 * @return A new array of length <code>anArray.length+1</code> whose contents are those of <code>anArray</code>
+	 *         followed by <code>anElement</code>
 	 */
 	public static <T> T [] add(T [] anArray, T anElement)
 	{
@@ -157,8 +150,8 @@ public final class ArrayUtils
 	 * @param <T> The type of the array
 	 * @param anArray The array to extend
 	 * @param elements The elements to add into <code>anArray</code>
-	 * @return A new array of length <code>anArray.length+elements.length</code> whose contents are
-	 *         those of <code>anArray</code> followed by those of <code>elements</code>
+	 * @return A new array of length <code>anArray.length+elements.length</code> whose contents are those of
+	 *         <code>anArray</code> followed by those of <code>elements</code>
 	 */
 	public static <T> T [] addAll(T [] anArray, T... elements)
 	{
@@ -242,13 +235,12 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Merges all elements of a set of arrays into a single array with no duplicates. For primitive
-	 * types.
+	 * Merges all elements of a set of arrays into a single array with no duplicates. For primitive types.
 	 * 
 	 * @param type The type of the result
 	 * @param arrays The arrays to merge
-	 * @return A new array containing all elements of <code>array1</code> and all elements of
-	 *         <code>array2</code> that are not present in <code>array1</code>
+	 * @return A new array containing all elements of <code>array1</code> and all elements of <code>array2</code> that
+	 *         are not present in <code>array1</code>
 	 * @throws NullPointerException If either array is null
 	 * @throws ArrayStoreException If elements in the arrays are incompatible with <code>type</code>
 	 */
@@ -279,8 +271,8 @@ public final class ArrayUtils
 	 * @param <T2> The type of the input arrays
 	 * @param type The type of the result
 	 * @param arrays The arrays to merge
-	 * @return A new array containing all elements of <code>array1</code> and all elements of
-	 *         <code>array2</code> that are not present in <code>array1</code>
+	 * @return A new array containing all elements of <code>array1</code> and all elements of <code>array2</code> that
+	 *         are not present in <code>array1</code>
 	 * @throws NullPointerException If either array is null
 	 */
 	public static <T1, T2 extends T1> T1 [] mergeInclusive(Class<T1> type, T2 []... arrays)
@@ -296,13 +288,11 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Merges elements found in each of a set of arrays into a single array with no duplicates. For
-	 * primitive types.
+	 * Merges elements found in each of a set of arrays into a single array with no duplicates. For primitive types.
 	 * 
 	 * @param type The type of the result
 	 * @param arrays The arrays to merge
-	 * @return A new array containing all common elements between <code>array1</code> and
-	 *         <code>array2</code>
+	 * @return A new array containing all common elements between <code>array1</code> and <code>array2</code>
 	 * @throws NullPointerException If either array is null
 	 * @throws ArrayStoreException If elements in the arrays are incompatible with <code>type</code>
 	 */
@@ -347,8 +337,7 @@ public final class ArrayUtils
 	 * @param <T2> The type of the input arrays
 	 * @param type The type of the result
 	 * @param arrays The arrays to merge
-	 * @return A new array containing all common elements between <code>array1</code> and
-	 *         <code>array2</code>
+	 * @return A new array containing all common elements between <code>array1</code> and <code>array2</code>
 	 * @throws NullPointerException If either array is null
 	 */
 	public static <T1, T2 extends T1> T1 [] mergeExclusive(Class<T1> type, T2 []... arrays)
@@ -446,9 +435,8 @@ public final class ArrayUtils
 	 * @param <T> The type of the array to search
 	 * @param anArray The array to search
 	 * @param anElement The element to search for
-	 * @return The first index <code>0&lt;=idx&lt;anArray.length</code> such that
-	 *         {@link #equals(Object, Object)} returns true for both <code>anArray[idx]</code> and
-	 *         <code>anElement</code>, or -1 if no such index exists
+	 * @return The first index <code>0&lt;=idx&lt;anArray.length</code> such that {@link #equals(Object, Object)}
+	 *         returns true for both <code>anArray[idx]</code> and <code>anElement</code>, or -1 if no such index exists
 	 */
 	public static <T> int indexOf(T [] anArray, T anElement)
 	{
@@ -461,33 +449,31 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Searches an array using binary search. If the array is not sorted by the given comparator (or
-	 * by its natural order if <code>T</code> implements {@link Comparable}), this method will give
-	 * unpredictable results. By using binary search, this method can achieve much better
-	 * performance than {@link #indexOf(Object[], Object)}, especially for large arrays.
+	 * Searches an array using binary search. If the array is not sorted by the given comparator (or by its natural
+	 * order if <code>T</code> implements {@link Comparable}), this method will give unpredictable results. By using
+	 * binary search, this method can achieve much better performance than {@link #indexOf(Object[], Object)},
+	 * especially for large arrays.
 	 * 
 	 * It should be noted that the compare method ({@link Comparable#compareTo(Object)} or
 	 * {@link java.util.Comparator#compare(Object, Object)}) is used for identity comparison, not
-	 * {@link Object#equals(Object)}. So the compare method may return 0 where equals returns false
-	 * or vice versa, this method may return a different result than
-	 * {@link #indexOf(Object[], Object)} even for sorted arrays.
+	 * {@link Object#equals(Object)}. So the compare method may return 0 where equals returns false or vice versa, this
+	 * method may return a different result than {@link #indexOf(Object[], Object)} even for sorted arrays.
 	 * 
 	 * @param <T> The type of array to search
 	 * @param array The array to search
 	 * @param anElement The element to search for
-	 * @param compare The comparator to use to compare the items. <code>T</code> implements
-	 *        {@link Comparable}, this may be null.
+	 * @param compare The comparator to use to compare the items. <code>T</code> implements {@link Comparable}, this may
+	 *        be null.
 	 * @return The index where the given item was found, or -1 if it was not found
 	 */
-	public static <T> int binaryIndexOf(T [] array, T anElement,
-		java.util.Comparator<? super T> compare)
+	public static <T> int binaryIndexOf(T [] array, T anElement, java.util.Comparator<? super T> compare)
 	{
 		int min = 0, max = array.length - 1;
 		while(min < max)
 		{
 			int mid = (min + max) >>> 1;
-			int comp = compare == null ? ((Comparable<T>) array[mid]).compareTo(anElement)
-				: compare.compare(array[mid], anElement);
+			int comp = compare == null ? ((Comparable<T>) array[mid]).compareTo(anElement) : compare.compare(
+				array[mid], anElement);
 			if(comp > 0)
 				max = mid - 1;
 			else if(comp < 0)
@@ -497,8 +483,8 @@ public final class ArrayUtils
 		}
 		if(min != max)
 			return -1;
-		int comp = compare == null ? ((Comparable<T>) array[min]).compareTo(anElement) : compare
-			.compare(array[min], anElement);
+		int comp = compare == null ? ((Comparable<T>) array[min]).compareTo(anElement) : compare.compare(array[min],
+			anElement);
 		if(comp == 0)
 			return min;
 		else
@@ -508,9 +494,8 @@ public final class ArrayUtils
 	/**
 	 * @param anArray The array to search
 	 * @param anElement The element to search for
-	 * @return The first index <code>0&lt;=idx&lt;anArray.length</code> such that
-	 *         {@link #equals(Object, Object)} returns true for both <code>anArray[idx]</code> and
-	 *         <code>anElement</code>, or -1 if no such index exists
+	 * @return The first index <code>0&lt;=idx&lt;anArray.length</code> such that {@link #equals(Object, Object)}
+	 *         returns true for both <code>anArray[idx]</code> and <code>anElement</code>, or -1 if no such index exists
 	 */
 	public static int indexOfP(Object anArray, Object anElement)
 	{
@@ -544,8 +529,7 @@ public final class ArrayUtils
 	 * 
 	 * @param anArray The array to remove an element from
 	 * @param anIndex The index of the element to remove
-	 * @return A new array with all the elements of <code>anArray</code> except the element at
-	 *         <code>anIndex</code>
+	 * @return A new array with all the elements of <code>anArray</code> except the element at <code>anIndex</code>
 	 */
 	public static Object removeP(Object anArray, int anIndex)
 	{
@@ -569,8 +553,7 @@ public final class ArrayUtils
 	 * @param <T> The type of the array
 	 * @param anArray The array to remove an element from
 	 * @param anIndex The index of the element to remove
-	 * @return A new array with all the elements of <code>anArray</code> except the element at
-	 *         <code>anIndex</code>
+	 * @return A new array with all the elements of <code>anArray</code> except the element at <code>anIndex</code>
 	 */
 	public static <T> T [] remove(T [] anArray, int anIndex)
 	{
@@ -579,8 +562,7 @@ public final class ArrayUtils
 			return null;
 		else
 		{
-			ret = (T []) Array.newInstance(anArray.getClass().getComponentType(),
-				anArray.length - 1);
+			ret = (T []) Array.newInstance(anArray.getClass().getComponentType(), anArray.length - 1);
 		}
 		System.arraycopy(anArray, 0, ret, 0, anIndex);
 		System.arraycopy(anArray, anIndex + 1, ret, anIndex, anArray.length - anIndex - 1);
@@ -592,8 +574,7 @@ public final class ArrayUtils
 	 * 
 	 * @param anArray The array to remove an element from
 	 * @param anElement The element to remove
-	 * @return A new array with all the elements of <code>anArray</code> except
-	 *         <code>anElement</code>
+	 * @return A new array with all the elements of <code>anArray</code> except <code>anElement</code>
 	 */
 	public static Object removeP(Object anArray, Object anElement)
 	{
@@ -610,8 +591,7 @@ public final class ArrayUtils
 	 * @param <T> The type of the array
 	 * @param anArray The array to remove an element from
 	 * @param anElement The element to remove
-	 * @return A new array with all the elements of <code>anArray</code> except
-	 *         <code>anElement</code>
+	 * @return A new array with all the elements of <code>anArray</code> except <code>anElement</code>
 	 */
 	public static <T> T [] remove(T [] anArray, T anElement)
 	{
@@ -623,8 +603,8 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Removes all contents of <code>array2</code> from <code>array1</code>. All instances of
-	 * <code>array2</code> will also be removed from <code>array1</code>. For primitive types.
+	 * Removes all contents of <code>array2</code> from <code>array1</code>. All instances of <code>array2</code> will
+	 * also be removed from <code>array1</code>. For primitive types.
 	 * 
 	 * @param array1 The array to remove elements from
 	 * @param array2 The array containing the elements to remove; or the element to remove itself
@@ -655,8 +635,7 @@ public final class ArrayUtils
 				}
 			}
 		}
-		Object ret = Array.newInstance(array1.getClass().getComponentType(),
-			len1 - remove.cardinality());
+		Object ret = Array.newInstance(array1.getClass().getComponentType(), len1 - remove.cardinality());
 		// This copying section might be replaced by a more efficient version
 		// using System.arraycopy()--this would be much faster than reflection,
 		// especially for large arrays needing only a few elements removed
@@ -672,8 +651,8 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Removes all contents of <code>array2</code> from <code>array1</code>. All instances of
-	 * <code>array2</code> will also be removed from <code>array1</code>.
+	 * Removes all contents of <code>array2</code> from <code>array1</code>. All instances of <code>array2</code> will
+	 * also be removed from <code>array1</code>.
 	 * 
 	 * @param <T> The type of the array
 	 * @param array1 The array to remove elements from
@@ -703,8 +682,7 @@ public final class ArrayUtils
 				}
 			}
 		}
-		T [] ret = (T []) Array.newInstance(array1.getClass().getComponentType(),
-			len1 - remove.cardinality());
+		T [] ret = (T []) Array.newInstance(array1.getClass().getComponentType(), len1 - remove.cardinality());
 		// This copying section might be replaced by a more efficient version
 		// using System.arraycopy()--this would be much faster than reflection,
 		// especially for large arrays needing only a few elements removed
@@ -784,13 +762,11 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Like {@link #containsP(Object, Object)} but the equality test is by identity instead of the
-	 * equals method
+	 * Like {@link #containsP(Object, Object)} but the equality test is by identity instead of the equals method
 	 * 
 	 * @param anArray The array to search
 	 * @param anElement The element to search for
-	 * @return True if <code>anArray</code> contains <code>anElement</code> by identity, false
-	 *         otherwise
+	 * @return True if <code>anArray</code> contains <code>anElement</code> by identity, false otherwise
 	 */
 	public static boolean containspID(Object anArray, Object anElement)
 	{
@@ -818,15 +794,13 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Like {@link #contains(Object[], Object)} but the equality test is by identity instead of the
-	 * equals method
+	 * Like {@link #contains(Object[], Object)} but the equality test is by identity instead of the equals method
 	 * 
 	 * @param <T> The type of the array to search
 	 * @param <E> The type of the element to search for
 	 * @param anArray The array to search
 	 * @param anElement The element to search for
-	 * @return True if <code>anArray</code> contains <code>anElement</code> by identity, false
-	 *         otherwise
+	 * @return True if <code>anArray</code> contains <code>anElement</code> by identity, false otherwise
 	 */
 	public static <T, E extends T> boolean containsID(T [] anArray, E anElement)
 	{
@@ -841,14 +815,13 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * A utility version of equals that allows comparison of null objects and arrays. WARNING: Does
-	 * not account for an array that contains a reference to itself, directly or indirectly
+	 * A utility version of equals that allows comparison of null objects and arrays. WARNING: Does not account for an
+	 * array that contains a reference to itself, directly or indirectly
 	 * 
 	 * @param o1 The first object to compare
 	 * @param o2 The second object to compare
-	 * @return true if <code>o1</code> and <code>o2</code> are arrays and their elements are
-	 *         equivalent or if either <code>o1==null && o2==null</code> or
-	 *         <code>o1.equals(o2)</code>, false otherwise
+	 * @return true if <code>o1</code> and <code>o2</code> are arrays and their elements are equivalent or if either
+	 *         <code>o1==null && o2==null</code> or <code>o1.equals(o2)</code>, false otherwise
 	 */
 	public static boolean equals(Object o1, Object o2)
 	{
@@ -898,9 +871,8 @@ public final class ArrayUtils
 	 * 
 	 * @param o1 The first object to compare
 	 * @param o2 The second object to compare
-	 * @return true if <code>o1</code> and <code>o2</code> are arrays and their elements are
-	 *         equivalent or if either <code>o1==null && o2==null</code> or
-	 *         <code>o1.equals(o2)</code>, false otherwise
+	 * @return true if <code>o1</code> and <code>o2</code> are arrays and their elements are equivalent or if either
+	 *         <code>o1==null && o2==null</code> or <code>o1.equals(o2)</code>, false otherwise
 	 */
 	public static boolean equalsUnordered(Object o1, Object o2)
 	{
@@ -942,15 +914,14 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Like {@link #equals(Object, Object)}, but compares arrays without regard to order and uses an
-	 * independent checker to check for equality of elements
+	 * Like {@link #equals(Object, Object)}, but compares arrays without regard to order and uses an independent checker
+	 * to check for equality of elements
 	 * 
 	 * @param o1 The first object to compare
 	 * @param o2 The second object to compare
 	 * @param checker The checker to check elements for equality
-	 * @return true if <code>o1</code> and <code>o2</code> are arrays and their elements are
-	 *         equivalent or if either <code>o1==null && o2==null</code> or
-	 *         <code>o1.equals(o2)</code>, false otherwise
+	 * @return true if <code>o1</code> and <code>o2</code> are arrays and their elements are equivalent or if either
+	 *         <code>o1==null && o2==null</code> or <code>o1.equals(o2)</code>, false otherwise
 	 */
 	public static boolean equalsUnordered(Object o1, Object o2, EqualsChecker checker)
 	{
@@ -980,8 +951,7 @@ public final class ArrayUtils
 					bsIdx = j / 64;
 					if(mask == 0)
 						mask = 0x8000000000000000L;
-					if((bs[bsIdx] & mask) == 0
-						&& checker.equals(Array.get(o1, i), Array.get(o2, j)))
+					if((bs[bsIdx] & mask) == 0 && checker.equals(Array.get(o1, i), Array.get(o2, j)))
 					{
 						bs[bsIdx] |= mask;
 						continue o1Loop;
@@ -1029,10 +999,9 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * A compliment to the {@link #equals(Object, Object)} method, this method returns a hashcode
-	 * for <code>array</code> such that it is consistent with the equals contract for the
-	 * {@link Object#equals(Object)} method, represented by the {@link #equals(Object, Object)}
-	 * method or the {@link #equalsUnordered(Object, Object)} methods.
+	 * A compliment to the {@link #equals(Object, Object)} method, this method returns a hashcode for <code>array</code>
+	 * such that it is consistent with the equals contract for the {@link Object#equals(Object)} method, represented by
+	 * the {@link #equals(Object, Object)} method or the {@link #equalsUnordered(Object, Object)} methods.
 	 * 
 	 * @param array The array to get a hashcode for
 	 * @return A hashcode based on <code>array</code> and its contents, if any
@@ -1091,15 +1060,13 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Replaces <code>toReplace</code> with <code>replacement</code> in <code>array</code> one time
-	 * at the most
+	 * Replaces <code>toReplace</code> with <code>replacement</code> in <code>array</code> one time at the most
 	 * 
 	 * @param array The array to search and replace in
 	 * @param toReplace The object to replace
-	 * @param replacement The object to replace <code>toReplace</code> with the first time it is
-	 *        found
-	 * @return The index where <code>toReplace</code> was found and replaced, or -1 if it was not
-	 *         found in <code>array</code>
+	 * @param replacement The object to replace <code>toReplace</code> with the first time it is found
+	 * @return The index where <code>toReplace</code> was found and replaced, or -1 if it was not found in
+	 *         <code>array</code>
 	 */
 	public static int replaceOnce(Object array, Object toReplace, Object replacement)
 	{
@@ -1135,8 +1102,7 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Replaces <code>toReplace</code> with <code>replacement</code> in <code>array</code> as many
-	 * times as it occurs
+	 * Replaces <code>toReplace</code> with <code>replacement</code> in <code>array</code> as many times as it occurs
 	 * 
 	 * @param array The array to search and replace in
 	 * @param toReplace The object to replace
@@ -1177,8 +1143,7 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Gets the elements that the two arrays have in common. Elements are retrieved from the first
-	 * array.
+	 * Gets the elements that the two arrays have in common. Elements are retrieved from the first array.
 	 * 
 	 * @param <T> The type of the first array and the return array
 	 * @param <T2> The type of the second array
@@ -1217,8 +1182,7 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Gets the elements that the two arrays have in common. Elements are retrieved from the first
-	 * array.
+	 * Gets the elements that the two arrays have in common. Elements are retrieved from the first array.
 	 * 
 	 * @param array1 The first array
 	 * @param array2 The second array
@@ -1417,8 +1381,7 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Reverses the order of an array. Similar to {@link #reverse(Object[])} but works for primitive
-	 * arrays as well.
+	 * Reverses the order of an array. Similar to {@link #reverse(Object[])} but works for primitive arrays as well.
 	 * 
 	 * @param array The array to reverse
 	 * @return The reversed array, same as the original reference
@@ -1439,40 +1402,54 @@ public final class ArrayUtils
 		}
 		return array;
 	}
-	
+
 	/**
 	 * @param array The array to iterate over
+	 * @param forward Whether to iterate forward through the array or backward
 	 * @return An iterable that returns an iterator to iterate over each element in the array
 	 */
-	public static <T> Iterable<T> iterable(final T [] array)
+	public static <T> Iterable<T> iterable(final T [] array, final boolean forward)
 	{
-		return new Iterable<T>(){
+		return new Iterable<T>()
+		{
 			@Override
-			public java.util.Iterator<T> iterator(){
-				return ArrayUtils.iterator(array);
+			public java.util.Iterator<T> iterator()
+			{
+				return ArrayUtils.iterator(array, forward);
 			}
 		};
 	}
-	
+
 	/**
 	 * @param array The array to iterate over
+	 * @param forward Whether to iterate forward through the array or backward
 	 * @return An iterator to iterate over each element in the array
 	 */
-	public static <T> java.util.Iterator<T> iterator(final T [] array)
+	public static <T> java.util.Iterator<T> iterator(final T [] array, final boolean forward)
 	{
-		return new java.util.Iterator<T>(){
+		return new java.util.Iterator<T>()
+		{
 			private int theIndex;
+
+			{
+				theIndex = forward ? 0 : array.length - 1;
+			}
 
 			@Override
 			public boolean hasNext()
 			{
-				return theIndex<array.length;
+				return forward ? theIndex < array.length : theIndex >= 0;
 			}
 
 			@Override
 			public T next()
 			{
-				return array[theIndex++];
+				T ret = array[theIndex];
+				if(forward)
+					theIndex++;
+				else
+					theIndex--;
+				return ret;
 			}
 
 			@Override
@@ -1489,12 +1466,10 @@ public final class ArrayUtils
 	 * @param <T1> The type of the original array
 	 * @param <T2> The type of the modifying array
 	 */
-	public static interface DifferenceListener<T1, T2> extends
-		DifferenceListenerE<T1, T2, RuntimeException>
+	public static interface DifferenceListener<T1, T2> extends DifferenceListenerE<T1, T2, RuntimeException>
 	{
 		/**
-		 * @see prisms.util.ArrayUtils.DifferenceListenerE#identity(java.lang.Object,
-		 *      java.lang.Object)
+		 * @see prisms.util.ArrayUtils.DifferenceListenerE#identity(java.lang.Object, java.lang.Object)
 		 */
 		@Override
 		boolean identity(T1 o1, T2 o2);
@@ -1512,8 +1487,7 @@ public final class ArrayUtils
 		T1 removed(T1 o, int oIdx, int incMod, int retIdx);
 
 		/**
-		 * @see prisms.util.ArrayUtils.DifferenceListenerE#set(java.lang.Object, int, int,
-		 *      java.lang.Object, int, int)
+		 * @see prisms.util.ArrayUtils.DifferenceListenerE#set(java.lang.Object, int, int, java.lang.Object, int, int)
 		 */
 		@Override
 		T1 set(T1 o1, int idx1, int incMod, T2 o2, int idx2, int retIdx);
@@ -1522,74 +1496,64 @@ public final class ArrayUtils
 	/**
 	 * <p>
 	 * This listener contains all information needed to reconcile two arrays using the
-	 * {@link ArrayUtils#adjust(Object[], Object[], prisms.util.ArrayUtils.DifferenceListenerE)}
-	 * method.
+	 * {@link ArrayUtils#adjust(Object[], Object[], prisms.util.ArrayUtils.DifferenceListenerE)} method.
 	 * </p>
 	 * 
 	 * <p>
 	 * There are many different indices that may or may not be relevant to a particular listener:
 	 * <ul>
 	 * <li><b>oIdx:</b> The index of the element in the original array</li>
-	 * <li><b>incMod:</b> The index of the element in a copy of the original array that has been
-	 * modified incrementally for each add, remove, and reorder operation</li>
+	 * <li><b>incMod:</b> The index of the element in a copy of the original array that has been modified incrementally
+	 * for each add, remove, and reorder operation</li>
 	 * <li><b>mIdx:</b> The index of the element in the modifier array</li>
-	 * <li><b>retIdx:</b> The index that the returned element (if not null) will be at in the result
-	 * array</li>
+	 * <li><b>retIdx:</b> The index that the returned element (if not null) will be at in the result array</li>
 	 * </ul>
-	 * oIdx and mIdx are self-explanatory. incMod and retIdx are useful for listeners that modify an
-	 * external ordered set incrementally with each listener method invocation.
+	 * oIdx and mIdx are self-explanatory. incMod and retIdx are useful for listeners that modify an external ordered
+	 * set incrementally with each listener method invocation.
 	 * </p>
 	 * 
 	 * <p>
 	 * <b>An Example</b><br />
-	 * Suppose there is a list, <b>L</b>, whose data can only be modified incrementally by the
-	 * methods add(value, index), remove(index), and move(fromIndex, toIndex), but can be accessed
-	 * in batch by the getData method, which returns an array of all data in the list. Suppose the
-	 * list needs to be modified to represent a new arbitrary set of data, <b>d</b>. <b>d</b> may or
-	 * may not contain elements represented in <b>L</b>. These elements, if present, may be in
-	 * different order and new items not present in <b>L</b> may be present in <b>d</b>. To modify
-	 * <b>L</b> to represent the data in <b>d</b> in the correct order, the
-	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)} method should be called
-	 * with <b>L</b>.getData(), <b>d</b>, and a listener whose methods perform the following
-	 * operations:
+	 * Suppose there is a list, <b>L</b>, whose data can only be modified incrementally by the methods add(value,
+	 * index), remove(index), and move(fromIndex, toIndex), but can be accessed in batch by the getData method, which
+	 * returns an array of all data in the list. Suppose the list needs to be modified to represent a new arbitrary set
+	 * of data, <b>d</b>. <b>d</b> may or may not contain elements represented in <b>L</b>. These elements, if present,
+	 * may be in different order and new items not present in <b>L</b> may be present in <b>d</b>. To modify <b>L</b> to
+	 * represent the data in <b>d</b> in the correct order, the
+	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)} method should be called with
+	 * <b>L</b>.getData(), <b>d</b>, and a listener whose methods perform the following operations:
 	 * <ul>
-	 * <li>{@link #identity(Object, Object)}: Tests the two elements to see if the item from
-	 * <b>L</b> represents the item in <b>d</b>, possibly by simply calling
-	 * {@link Object#equals(Object)}</li>
+	 * <li>{@link #identity(Object, Object)}: Tests the two elements to see if the item from <b>L</b> represents the
+	 * item in <b>d</b>, possibly by simply calling {@link Object#equals(Object)}</li>
 	 * <li>{@link #added(Object, int, int)}: Invokes <b>L</b>.add(o2, retIdx).</li>
-	 * <li>{@link #removed(Object, int, int, int)}: Invokes <b>L</b>.remove(incMod). Using incMod
-	 * accounts for any previous modifications that may have been performed on the list from the
-	 * listener.</li>
-	 * <li>{@link #set(Object, int, int, Object, int, int)}: Invokes <b>L</b>.move(incMod, retIdx).
-	 * This again accounts for all previous changes to the list and moves the element to the index
-	 * intended by the adjust method.</li>
+	 * <li>{@link #removed(Object, int, int, int)}: Invokes <b>L</b>.remove(incMod). Using incMod accounts for any
+	 * previous modifications that may have been performed on the list from the listener.</li>
+	 * <li>{@link #set(Object, int, int, Object, int, int)}: Invokes <b>L</b>.move(incMod, retIdx). This again accounts
+	 * for all previous changes to the list and moves the element to the index intended by the adjust method.</li>
 	 * </ul>
-	 * The end result of this invocation will be that <b>L</b> contains all the data in <b>d</b>,
-	 * only the data in <b>d</b>, and is ordered identically to <b>d</b>. The returned array may be
-	 * ignored.
+	 * The end result of this invocation will be that <b>L</b> contains all the data in <b>d</b>, only the data in
+	 * <b>d</b>, and is ordered identically to <b>d</b>. The returned array may be ignored.
 	 * </p>
 	 * 
 	 * <p>
 	 * <b>Alternate Operation:</b><br />
 	 * <ul>
-	 * <li>If it is intended that the modification operation should only add data to <b>L</b>, the
-	 * remove method may do nothing and return o. The return value will cause the adjust method to
-	 * update future indexes, assuming that the value is kept and not removed.</li>
-	 * <li>If order is not important or no move(fromIndex, toIndex) method exists, the set method
-	 * may do nothing and return o1. This will have no effect on the result of the operation other
-	 * than leaving the items originally in <b>L</b> (those that were also present in <b>d</b>) in
-	 * their original order.</li>
+	 * <li>If it is intended that the modification operation should only add data to <b>L</b>, the remove method may do
+	 * nothing and return o. The return value will cause the adjust method to update future indexes, assuming that the
+	 * value is kept and not removed.</li>
+	 * <li>If order is not important or no move(fromIndex, toIndex) method exists, the set method may do nothing and
+	 * return o1. This will have no effect on the result of the operation other than leaving the items originally in
+	 * <b>L</b> (those that were also present in <b>d</b>) in their original order.</li>
 	 * <li>Other permutations may exist depending on the business logic used by the listener.</li>
 	 * </ul>
 	 * </p>
 	 * 
 	 * <p>
-	 * The listener is entirely free to choose whether items are added or removed from the original
-	 * array and its representations by modifying whether the return value from those methods is
-	 * null. The adjust method does not care what is returned from the add/remove/set methods except
-	 * whether the value is null. The listener is free to perform index moving operations or not.
-	 * This method will never cause an index out of bounds error assuming the related data sets are
-	 * not modified by anything other than the listener and the data in the arrays passed into the
+	 * The listener is entirely free to choose whether items are added or removed from the original array and its
+	 * representations by modifying whether the return value from those methods is null. The adjust method does not care
+	 * what is returned from the add/remove/set methods except whether the value is null. The listener is free to
+	 * perform index moving operations or not. This method will never cause an index out of bounds error assuming the
+	 * related data sets are not modified by anything other than the listener and the data in the arrays passed into the
 	 * adjust method do not change.
 	 * </p>
 	 * 
@@ -1600,9 +1564,8 @@ public final class ArrayUtils
 	public static interface DifferenceListenerE<T1, T2, E extends Throwable>
 	{
 		/**
-		 * Tests the identity of an item from each of the two sets. This method should return true
-		 * if one item is a representation of the other or both are a representation of the same
-		 * piece of data.
+		 * Tests the identity of an item from each of the two sets. This method should return true if one item is a
+		 * representation of the other or both are a representation of the same piece of data.
 		 * 
 		 * @param o1 The object from the first set
 		 * @param o2 The object from the second set
@@ -1617,8 +1580,8 @@ public final class ArrayUtils
 		 * @param o The unmatched object
 		 * @param mIdx The index in the second array where the unmatched object was found
 		 * @param retIdx The index that the new element will be inserted into the final array
-		 * @return The new T1-type element to insert into the return array, or null if the new
-		 *         element is not to be inserted
+		 * @return The new T1-type element to insert into the return array, or null if the new element is not to be
+		 *         inserted
 		 * @throws E If an error occurs in this method
 		 */
 		T1 added(T2 o, int mIdx, int retIdx) throws E;
@@ -1628,10 +1591,9 @@ public final class ArrayUtils
 		 * 
 		 * @param o The unmatched object
 		 * @param oIdx The index in the first array where the unmatched object was found
-		 * @param incMod The index where the unmatched element would occur the incrementally
-		 *        modified original array
-		 * @param retIdx The index in the final array where the replacement will be located if a
-		 *        non-null value is returned
+		 * @param incMod The index where the unmatched element would occur the incrementally modified original array
+		 * @param retIdx The index in the final array where the replacement will be located if a non-null value is
+		 *        returned
 		 * @return null if the original object is to be removed, otherwise its replacement
 		 * @throws E If an error occurs in this method
 		 */
@@ -1642,13 +1604,12 @@ public final class ArrayUtils
 		 * 
 		 * @param o1 The element in the first array
 		 * @param idx1 The index of the element in the first array
-		 * @param incMod The index where the element in the original array would occur the
-		 *        incrementally modified original array
+		 * @param incMod The index where the element in the original array would occur the incrementally modified
+		 *        original array
 		 * @param o2 The element in the second array
 		 * @param idx2 The index of the element in the second array
 		 * @param retIdx The index of the returned element in the final array
-		 * @return The element to be inserted in the final array, or null if the element is to be
-		 *         removed
+		 * @return The element to be inserted in the final array, or null if the element is to be removed
 		 * @throws E If an error occurs in this method
 		 */
 		T1 set(T1 o1, int idx1, int incMod, T2 o2, int idx2, int retIdx) throws E;
@@ -1656,11 +1617,10 @@ public final class ArrayUtils
 
 	/**
 	 * <p>
-	 * Reconciles differences between two ordered sets of objects. Allows a programmer highly
-	 * customized control between two different representations of a data set. The arrays are
-	 * compared and the listener is notified when any differences are encountered, allowing it to
-	 * determine the composition of the returned array and/or perform well-defined operations
-	 * represented by the differences or similarities.
+	 * Reconciles differences between two ordered sets of objects. Allows a programmer highly customized control between
+	 * two different representations of a data set. The arrays are compared and the listener is notified when any
+	 * differences are encountered, allowing it to determine the composition of the returned array and/or perform
+	 * well-defined operations represented by the differences or similarities.
 	 * </p>
 	 * 
 	 * @param <T1> The type of the original array
@@ -1669,8 +1629,7 @@ public final class ArrayUtils
 	 * @param original The original array
 	 * @param modifier The modifying array
 	 * @param dl The listener to determine how to deal with differences between the two arrays
-	 * @return A final array that is the result of applying select changes between the original and
-	 *         the modifying arrays
+	 * @return A final array that is the result of applying select changes between the original and the modifying arrays
 	 * @throws E If the {@link DifferenceListenerE} throws an exception
 	 */
 	public static <T1, T2, E extends Throwable> T1 [] adjust(T1 [] original, T2 [] modifier,
@@ -1715,8 +1674,7 @@ public final class ArrayUtils
 		 * 
 		 * @param o The original array
 		 * @param m The modified array
-		 * @param listener The listener to determine how to deal with differences between the two
-		 *        arrays
+		 * @param listener The listener to determine how to deal with differences between the two arrays
 		 * @see ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)
 		 */
 		public ArrayAdjuster(T1 [] o, T2 [] m, DifferenceListenerE<T1, T2, E> listener)
@@ -1821,11 +1779,10 @@ public final class ArrayUtils
 		}
 
 		/**
-		 * Marks the current value as a null value. If an actual null were returned, adjust would
-		 * interpret this as meaning the element should be removed from the array, with subsequent
-		 * indices being affected. If this method is called from {@link DifferenceListenerE}.add,
-		 * remove, or set, the element's place will be saved and that element in the returned array
-		 * will be null.
+		 * Marks the current value as a null value. If an actual null were returned, adjust would interpret this as
+		 * meaning the element should be removed from the array, with subsequent indices being affected. If this method
+		 * is called from {@link DifferenceListenerE}.add, remove, or set, the element's place will be saved and that
+		 * element in the returned array will be null.
 		 */
 		public void nullElement()
 		{
@@ -1974,14 +1931,12 @@ public final class ArrayUtils
 	}
 
 	/**
-	 * Sorts an array, allowing for complex operations during the sort, such as sorting arrays in
-	 * parallel.
+	 * Sorts an array, allowing for complex operations during the sort, such as sorting arrays in parallel.
 	 * 
-	 * This is an implementation of selection sort. Selection sort is used because although it may
-	 * perform many more comparison operations than other methods, there is no other method that
-	 * performs fewer swaps. It is anticipated that this algorithm will be used most often in the
-	 * case that multiple operations must take place during a swap, while comparison should be
-	 * fairly quick.
+	 * This is an implementation of selection sort. Selection sort is used because although it may perform many more
+	 * comparison operations than other methods, there is no other method that performs fewer swaps. It is anticipated
+	 * that this algorithm will be used most often in the case that multiple operations must take place during a swap,
+	 * while comparison should be fairly quick.
 	 * 
 	 * @param <T> The type of the array to sort
 	 * @param array The array to sort
@@ -2051,8 +2006,8 @@ public final class ArrayUtils
 		public float mean;
 
 		/**
-		 * A running data measure that allows the standard deviation of all non-NaN, non-infinite
-		 * data encountered by this statistics set
+		 * A running data measure that allows the standard deviation of all non-NaN, non-infinite data encountered by
+		 * this statistics set
 		 */
 		private float q;
 
@@ -2106,8 +2061,7 @@ public final class ArrayUtils
 		}
 
 		/**
-		 * @return The standard deviation of all non-NaN, non-infinite data encountered by this
-		 *         statistics set
+		 * @return The standard deviation of all non-NaN, non-infinite data encountered by this statistics set
 		 */
 		public float getSigma()
 		{
@@ -2166,8 +2120,8 @@ public final class ArrayUtils
 			return stats;
 		}
 		if(!(array instanceof float []))
-			throw new IllegalArgumentException("Cannot statistically analyze a "
-				+ array.getClass().getName() + " array");
+			throw new IllegalArgumentException("Cannot statistically analyze a " + array.getClass().getName()
+				+ " array");
 		for(float f : (float []) array)
 			stats.inputValue(f);
 		return stats;
@@ -2176,8 +2130,7 @@ public final class ArrayUtils
 	/**
 	 * A testing method
 	 * 
-	 * @param args The command-line arguments. The first argument is used to determine what test to
-	 *        run.
+	 * @param args The command-line arguments. The first argument is used to determine what test to run.
 	 */
 	public static void main(String [] args)
 	{
@@ -2236,8 +2189,7 @@ public final class ArrayUtils
 				}
 
 				@Override
-				public Integer set(Integer o1, int idx1, int oIdxAdj, Integer o2, int idx2,
-					int retIdx)
+				public Integer set(Integer o1, int idx1, int oIdxAdj, Integer o2, int idx2, int retIdx)
 				{
 					if(o1.intValue() % 5 == 2)
 						return null;
