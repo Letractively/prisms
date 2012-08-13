@@ -4,6 +4,7 @@
 package prisms.util;
 
 import java.lang.reflect.Array;
+import java.util.Iterator;
 
 /**
  * ArrayUtils provides some static methods for manipulating arrays easily when using a tool such as
@@ -1413,7 +1414,7 @@ public final class ArrayUtils
 		return new Iterable<T>()
 		{
 			@Override
-			public java.util.Iterator<T> iterator()
+			public Iterator<T> iterator()
 			{
 				return ArrayUtils.iterator(array, forward);
 			}
@@ -1425,9 +1426,9 @@ public final class ArrayUtils
 	 * @param forward Whether to iterate forward through the array or backward
 	 * @return An iterator to iterate over each element in the array
 	 */
-	public static <T> java.util.Iterator<T> iterator(final T [] array, final boolean forward)
+	public static <T> Iterator<T> iterator(final T [] array, final boolean forward)
 	{
-		return new java.util.Iterator<T>()
+		return new Iterator<T>()
 		{
 			private int theIndex;
 
@@ -1456,6 +1457,143 @@ public final class ArrayUtils
 			public void remove()
 			{
 				throw new UnsupportedOperationException();
+			}
+		};
+	}
+
+	/**
+	 * @param compound The iterables to compound in a single iterable
+	 * @return An Iterable that iterates through all elements in the given iterables
+	 */
+	public static <T> Iterable<T> iterable(final Iterable<? extends T>... compound)
+	{
+		return new Iterable<T>()
+		{
+			@Override
+			public Iterator<T> iterator()
+			{
+				return new Iterator<T>()
+				{
+					private Iterator<? extends T> theLastValueIter;
+
+					private Iterator<? extends T> theCurrentIter;
+
+					private int theCurrentIndex;
+
+					private boolean calledHasNext;
+
+					private boolean currentIterHasValue;
+
+					@Override
+					public boolean hasNext()
+					{
+						calledHasNext = true;
+						while(theCurrentIndex < compound.length)
+						{
+							if(theCurrentIter == null)
+							{
+								if(currentIterHasValue)
+									theLastValueIter = theCurrentIter;
+								currentIterHasValue = false;
+								theCurrentIter = compound[theCurrentIndex].iterator();
+							}
+							if(theCurrentIter.hasNext())
+							{
+								currentIterHasValue = true;
+								return true;
+							}
+							else
+								theCurrentIndex++;
+						}
+						theCurrentIter = null;
+						return false;
+					}
+
+					@Override
+					public T next()
+					{
+						if(!calledHasNext)
+							if(!hasNext())
+								throw new java.util.NoSuchElementException();
+						return theCurrentIter.next();
+					}
+
+					@Override
+					public void remove()
+					{
+						if(!currentIterHasValue && theLastValueIter == null)
+							throw new IllegalStateException("remove() must be called after next()");
+						if(currentIterHasValue)
+							theCurrentIter.remove();
+						else
+							theLastValueIter.remove();
+					}
+				};
+			}
+		};
+	}
+
+	/**
+	 * @param compound The iterators to compound in a single iterator
+	 * @return An iterator that iterates through all elements in the given iterators
+	 */
+	public static <T> Iterator<T> iterator(final Iterator<? extends T>... compound)
+	{
+		return new Iterator<T>()
+		{
+			private Iterator<? extends T> theLastValueIter;
+
+			private Iterator<? extends T> theCurrentIter;
+
+			private int theCurrentIndex;
+
+			private boolean calledHasNext;
+
+			private boolean currentIterHasValue;
+
+			@Override
+			public boolean hasNext()
+			{
+				calledHasNext = true;
+				while(theCurrentIndex < compound.length)
+				{
+					if(theCurrentIter == null)
+					{
+						if(currentIterHasValue)
+							theLastValueIter = theCurrentIter;
+						currentIterHasValue = false;
+						theCurrentIter = compound[theCurrentIndex];
+					}
+					if(theCurrentIter.hasNext())
+					{
+						currentIterHasValue = true;
+						return true;
+					}
+					else
+						theCurrentIndex++;
+				}
+				theCurrentIter = null;
+				return false;
+			}
+
+			@Override
+			public T next()
+			{
+				if(!calledHasNext)
+					if(!hasNext())
+						throw new java.util.NoSuchElementException();
+				return theCurrentIter.next();
+			}
+
+			@Override
+			public void remove()
+			{
+				if(!currentIterHasValue && theLastValueIter == null)
+					throw new IllegalStateException("remove() must be called after next()");
+				if(currentIterHasValue)
+					theCurrentIter.remove();
+				else
+					theLastValueIter.remove();
 			}
 		};
 	}
