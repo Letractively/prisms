@@ -1599,6 +1599,54 @@ public final class ArrayUtils
 	}
 
 	/**
+	 * @param <T> The type of the values to iterate over
+	 * @param iterable The iterable to wrap
+	 * @return An immutable iterable that returns the same information as <code>iterable</code> but disallows
+	 *         modification
+	 */
+	public static <T> Iterable<T> immutableIterable(final Iterable<T> iterable)
+	{
+		return new Iterable<T>()
+		{
+			@Override
+			public Iterator<T> iterator()
+			{
+				return immutableIterator(iterable.iterator());
+			}
+		};
+	}
+
+	/**
+	 * @param <T> The type of the values to iterate over
+	 * @param iterator The iterator to wrap
+	 * @return An immutable iterator that returns the same information as <code>iterator</code> but disallows
+	 *         modification
+	 */
+	public static <T> Iterator<T> immutableIterator(final Iterator<T> iterator)
+	{
+		return new Iterator<T>()
+		{
+			@Override
+			public boolean hasNext()
+			{
+				return iterator.hasNext();
+			}
+
+			@Override
+			public T next()
+			{
+				return iterator.next();
+			}
+
+			@Override
+			public void remove()
+			{
+				throw new UnsupportedOperationException();
+			}
+		};
+	}
+
+	/**
 	 * @see DifferenceListenerE
 	 * 
 	 * @param <T1> The type of the original array
