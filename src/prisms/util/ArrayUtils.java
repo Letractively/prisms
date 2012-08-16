@@ -1478,7 +1478,7 @@ public final class ArrayUtils
 
 					private Iterator<? extends T> theCurrentIter;
 
-					private int theCurrentIndex;
+					private int theNextIndex;
 
 					private boolean calledHasNext;
 
@@ -1488,33 +1488,27 @@ public final class ArrayUtils
 					public boolean hasNext()
 					{
 						calledHasNext = true;
-						while(theCurrentIndex < compound.length)
+						if(theCurrentIter != null && !theCurrentIter.hasNext())
 						{
-							if(theCurrentIter == null)
-							{
-								if(currentIterHasValue)
-									theLastValueIter = theCurrentIter;
-								currentIterHasValue = false;
-								theCurrentIter = compound[theCurrentIndex].iterator();
-							}
-							if(theCurrentIter.hasNext())
-							{
-								currentIterHasValue = true;
-								return true;
-							}
-							else
-								theCurrentIndex++;
+							if(currentIterHasValue)
+								theLastValueIter = theCurrentIter;
+							theCurrentIter = null;
 						}
-						theCurrentIter = null;
-						return false;
+						while(theCurrentIter == null && theNextIndex < compound.length)
+						{
+							currentIterHasValue = false;
+							theCurrentIter = compound[theNextIndex++].iterator();
+							if(!theCurrentIter.hasNext())
+								theCurrentIter = null;
+						}
+						return theCurrentIter != null;
 					}
 
 					@Override
 					public T next()
 					{
-						if(!calledHasNext)
-							if(!hasNext())
-								throw new java.util.NoSuchElementException();
+						if(!calledHasNext && !hasNext())
+							throw new java.util.NoSuchElementException();
 						return theCurrentIter.next();
 					}
 
@@ -1545,7 +1539,7 @@ public final class ArrayUtils
 
 			private Iterator<? extends T> theCurrentIter;
 
-			private int theCurrentIndex;
+			private int theNextIndex;
 
 			private boolean calledHasNext;
 
@@ -1555,33 +1549,27 @@ public final class ArrayUtils
 			public boolean hasNext()
 			{
 				calledHasNext = true;
-				while(theCurrentIndex < compound.length)
+				if(theCurrentIter != null && !theCurrentIter.hasNext())
 				{
-					if(theCurrentIter == null)
-					{
-						if(currentIterHasValue)
-							theLastValueIter = theCurrentIter;
-						currentIterHasValue = false;
-						theCurrentIter = compound[theCurrentIndex];
-					}
-					if(theCurrentIter.hasNext())
-					{
-						currentIterHasValue = true;
-						return true;
-					}
-					else
-						theCurrentIndex++;
+					if(currentIterHasValue)
+						theLastValueIter = theCurrentIter;
+					theCurrentIter = null;
 				}
-				theCurrentIter = null;
-				return false;
+				while(theCurrentIter == null && theNextIndex < compound.length)
+				{
+					currentIterHasValue = false;
+					theCurrentIter = compound[theNextIndex++];
+					if(!theCurrentIter.hasNext())
+						theCurrentIter = null;
+				}
+				return theCurrentIter != null;
 			}
 
 			@Override
 			public T next()
 			{
-				if(!calledHasNext)
-					if(!hasNext())
-						throw new java.util.NoSuchElementException();
+				if(!calledHasNext && !hasNext())
+					throw new java.util.NoSuchElementException();
 				return theCurrentIter.next();
 			}
 
@@ -1642,6 +1630,70 @@ public final class ArrayUtils
 			public void remove()
 			{
 				throw new UnsupportedOperationException();
+			}
+		};
+	}
+
+	/**
+	 * Allows {@link ArrayUtils#conditionalIterator(Iterator, Accepter, boolean)} to discriminately return iterated
+	 * values
+	 * 
+	 * @param <T> The type returned from the wrapped iterator
+	 * @param <V> The type returned from the returned iterator
+	 */
+	public static interface Accepter<T, V>
+	{
+		/**
+		 * @param value The value from the wrapped iterator to check for acceptance
+		 * @return The value to return from the returned iterator, or null to not accept the value
+		 */
+		V accept(T value);
+	}
+
+	/**
+	 * @param wrap The iterator to wrap
+	 * @param accepter The accepter to discriminate which values to return
+	 * @param removable Whether the returned iterator's {@link Iterator#remove()} method should be active
+	 * @return The iterators
+	 */
+	public static <T, V> Iterator<V> conditionalIterator(final Iterator<T> wrap, final Accepter<T, V> accepter,
+		final boolean removable)
+	{
+		return new Iterator<V>()
+		{
+			private V theNextReturn;
+
+			private boolean calledHasNext;
+
+			@Override
+			public boolean hasNext()
+			{
+				calledHasNext = true;
+				while(theNextReturn == null && wrap.hasNext())
+					theNextReturn = accepter.accept(wrap.next());
+				return theNextReturn != null;
+			}
+
+			@Override
+			public V next()
+			{
+				if(!calledHasNext && !hasNext())
+				{
+					wrap.next(); // Let the wrapped iterator throw the exception
+					throw new java.util.NoSuchElementException();
+				}
+				V ret = theNextReturn;
+				theNextReturn = null;
+				return ret;
+			}
+
+			@Override
+			public void remove()
+			{
+				if(removable)
+					wrap.remove();
+				else
+					throw new UnsupportedOperationException();
 			}
 		};
 	}
