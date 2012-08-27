@@ -29,16 +29,19 @@ public class EvaluationException extends Exception
 		super(message);
 		theStruct = struct;
 		theIndex = index;
-		String command = struct.getRoot().getFullCommand();
-		for(int c = 0; c < index; c++)
+		if(struct != null)
 		{
-			if(command.charAt(c) == '\n')
+			String command = struct.getRoot().getFullCommand();
+			for(int c = 0; c < index; c++)
 			{
-				theLine++;
-				theChar = 0;
+				if(command.charAt(c) == '\n')
+				{
+					theLine++;
+					theChar = 0;
+				}
+				else if(command.charAt(c) >= ' ')
+					theChar++;
 			}
-			else if(command.charAt(c) >= ' ')
-				theChar++;
 		}
 	}
 
@@ -55,16 +58,19 @@ public class EvaluationException extends Exception
 		super(message, cause);
 		theStruct = struct;
 		theIndex = index;
-		String command = struct.getRoot().getFullCommand();
-		for(int c = 0; c < index; c++)
+		if(struct != null)
 		{
-			if(command.charAt(c) == '\n')
+			String command = struct.getRoot().getFullCommand();
+			for(int c = 0; c < index; c++)
 			{
-				theLine++;
-				theChar = 0;
+				if(command.charAt(c) == '\n')
+				{
+					theLine++;
+					theChar = 0;
+				}
+				else if(command.charAt(c) >= ' ')
+					theChar++;
 			}
-			else if(command.charAt(c) >= ' ')
-				theChar++;
 		}
 	}
 
