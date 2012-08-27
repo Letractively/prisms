@@ -250,7 +250,11 @@ public class ParsedMethod extends Assignable
 			if(ctxType.getPackageName() != null || ctxType.isType())
 			{
 				// Could be a class name or a more specific package name
-				String name = ctxType.getPackageName() + "." + theName;
+				String name;
+				if(ctxType.getPackageName() != null)
+					name = ctxType.getPackageName() + "." + theName;
+				else
+					name = ctxType.getType().toString() + "$" + theName;
 				java.lang.Class<?> clazz;
 				try
 				{
