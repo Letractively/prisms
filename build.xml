@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project name="PRISMS" default="jar" basedir=".">
-	<property name="project_name"				value="IWEDA" />
+	<property name="project_name"				value="prisms" />
 	<property name="src"						value="./src" />
 	<property name="classes.dir"				value="./classes" />
 	<property name="war.dir"					value="./war" />
@@ -11,7 +11,7 @@
 	<property name="web.classes.dir"			value="${web.dir}/WEB-INF/classes" />
 	<property name="web.lib.dir"				value="${web.dir}/WEB-INF/lib" />
 
-	<property name="exploded.war.name"			value="prisms" />
+	<property name="exploded.war.name"			value="${project_name}" />
 	<property name="war.name"					value="${war.dir}/${exploded.war.name}.war" />
 
 	<!-- If the developer sets environment variable  TOMCAT_HOME, use that for deployment. -->
