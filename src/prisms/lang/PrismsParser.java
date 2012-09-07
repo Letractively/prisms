@@ -1001,21 +1001,23 @@ public class PrismsParser
 			log.error("Could not load/parse grammar config", e);
 			return;
 		}
-		java.util.Scanner scanner = new java.util.Scanner(System.in);
-		String line = scanner.nextLine();
-		while(!"exit".equals(line))
+		try (java.util.Scanner scanner = new java.util.Scanner(System.in))
 		{
-			try
+			String line = scanner.nextLine();
+			while(!"exit".equals(line))
 			{
-				ParseMatch [] matches = parser.parseMatches(line);
-				ParseStructRoot root = new ParseStructRoot(line);
-				ParsedItem [] structs = parser.parseStructures(root, matches);
-				System.out.println(ArrayUtils.toString(structs));
-			} catch(ParseException e)
-			{
-				log.error("Could not parse line", e);
+				try
+				{
+					ParseMatch [] matches = parser.parseMatches(line);
+					ParseStructRoot root = new ParseStructRoot(line);
+					ParsedItem [] structs = parser.parseStructures(root, matches);
+					System.out.println(ArrayUtils.toString(structs));
+				} catch(ParseException e)
+				{
+					log.error("Could not parse line", e);
+				}
+				line = scanner.nextLine();
 			}
-			line = scanner.nextLine();
 		}
 	}
 }

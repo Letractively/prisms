@@ -4,7 +4,7 @@
 package prisms.lang;
 
 /** Allows dynamic testing of the prisms.lang functionality */
-public class Test
+public class PrismsCommandLine
 {
 	private PrismsParser theParser;
 
@@ -13,7 +13,7 @@ public class Test
 	private String theIncomplete;
 
 	/** Creates a tester for the prisms lang functionality */
-	public Test()
+	public PrismsCommandLine()
 	{
 		theParser = new PrismsParser();
 		try
@@ -29,6 +29,61 @@ public class Test
 		}
 		theEnv = new DefaultEvaluationEnvironment();
 		theIncomplete = "";
+	}
+
+	/**
+	 * Sets the value of a variable in this environment
+	 * 
+	 * @param name The name of the variable to set
+	 * @param type The type of the variable to set
+	 * @param isFinal Whether the variable is to be declared as final
+	 * @param value The value for the variable
+	 */
+	public <T> void setVariable(String name, Class<T> type, boolean isFinal, T value)
+	{
+		EvaluationEnvironment.Variable var = theEnv.getDeclaredVariable(name);
+		try
+		{
+			if(var == null)
+				theEnv.declareVariable(name, new Type(type), isFinal, null, 0);
+			else if(var.isFinal())
+				throw new IllegalArgumentException("Variable " + name + " already exists and is declared final");
+			else
+			{
+				if(type != null && !var.getType().canAssignTo(type))
+					throw new IllegalArgumentException("Variable " + name + " already exists and is typed "
+						+ var.getType() + "--incompatible with " + type.getName());
+				if(type == null && value != null && !var.getType().isAssignableFrom(value.getClass()))
+					throw new IllegalArgumentException("Variable " + name + " already exists and is typed "
+						+ var.getType() + "--incompatible with " + value.getClass().getName());
+			}
+			theEnv.setVariable(name, value, null, 0);
+		} catch(EvaluationException e)
+		{
+			throw new IllegalStateException("Could not set variable " + name, e);
+		}
+	}
+
+	/** @param name The name of the variable to remove from this environment */
+	public void dropVariable(String name)
+	{
+		try
+		{
+			if(theEnv.getDeclaredVariable(name) != null)
+				theEnv.dropVariable(name, null, 0);
+		} catch(EvaluationException e)
+		{
+			throw new IllegalStateException("Could not drop variable " + name, e);
+		}
+	}
+
+	/**
+	 * Alters this environment so that methods which throw checked exceptions may be called without requiring a
+	 * try/catch block
+	 */
+	public void setHandleAllExceptions()
+	{
+		theEnv.setHandledExceptionTypes(new Type [] {new Type(Throwable.class)});
 	}
 
 	/** @return The EvaluationEnvironment used by this tester */
@@ -96,19 +151,17 @@ public class Test
 	}
 
 	/**
-	 * The test method
+	 * Runs the PrismsCommandLine test, reading from the given stream
 	 * 
-	 * @param args Command-line arguments, ignored
+	 * @param stream The stream to read input from
 	 */
-	public static void main(String [] args)
+	public void start(java.io.Reader stream)
 	{
-		Test test = new Test();
-
-		try (java.util.Scanner scanner = new java.util.Scanner(System.in))
+		try (java.util.Scanner scanner = new java.util.Scanner(stream))
 		{
 			do
 			{
-				if(test.isComplete())
+				if(isComplete())
 					System.out.print(">   ");
 				else
 					System.out.print("... ");
@@ -118,7 +171,7 @@ public class Test
 				Object [] results;
 				try
 				{
-					results = test.readLine(newLine);
+					results = readLine(newLine);
 				} catch(ParseException e)
 				{
 					e.printStackTrace(System.out);
@@ -127,9 +180,7 @@ public class Test
 				for(Object res : results)
 				{
 					if(res instanceof EvaluationException)
-					{
 						((EvaluationException) res).printStackTrace(System.out);
-					}
 					else
 					{
 						EvaluationResult evRes = (EvaluationResult) res;
@@ -139,5 +190,26 @@ public class Test
 				}
 			} while(true);
 		}
+	}
+
+	/**
+	 * A shorthand method that wraps the given input stream in a reader and calls {@link #start(java.io.Reader)}
+	 * 
+	 * @param input The stream to read input from
+	 */
+	public void start(java.io.InputStream input)
+	{
+		start(new java.io.InputStreamReader(input));
+	}
+
+	/**
+	 * The test method
+	 * 
+	 * @param args Command-line arguments, ignored
+	 */
+	public static void main(String [] args)
+	{
+		PrismsCommandLine test = new PrismsCommandLine();
+		test.start(System.in);
 	}
 }

@@ -79,11 +79,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public boolean usePublicOnly()
 	{
 		return isPublic;
 	}
 
+	@Override
 	public ClassGetter getClassGetter()
 	{
 		if(theParent != null)
@@ -92,6 +94,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			return theClassGetter;
 	}
 
+	@Override
 	public Type getVariableType(String name)
 	{
 		Variable vbl = getVariable(name, true);
@@ -122,6 +125,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return vbl;
 	}
 
+	@Override
 	public Object getVariable(String name, ParsedItem struct, int index) throws EvaluationException
 	{
 		Variable vbl;
@@ -141,6 +145,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return vbl.theValue;
 	}
 
+	@Override
 	public void declareVariable(String name, Type type, boolean isFinal, ParsedItem struct, int index)
 		throws EvaluationException
 	{
@@ -159,6 +164,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public void setVariable(String name, Object value, ParsedItem struct, int index) throws EvaluationException
 	{
 		Variable vbl;
@@ -196,6 +202,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		vbl.theValue = value;
 	}
 
+	@Override
 	public void dropVariable(String name, ParsedItem struct, int index) throws EvaluationException
 	{
 		Variable vbl;
@@ -227,6 +234,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public Variable [] getDeclaredVariables()
 	{
 		java.util.ArrayList<Variable> ret = new java.util.ArrayList<Variable>();
@@ -246,6 +254,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return ret.toArray(new Variable [ret.size()]);
 	}
 
+	@Override
+	public Variable getDeclaredVariable(String name)
+	{
+		return getVariable(name, true);
+	}
+
+	@Override
 	public void declareFunction(ParsedFunctionDeclaration function)
 	{
 		synchronized(theFunctions)
@@ -254,6 +269,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public ParsedFunctionDeclaration [] getDeclaredFunctions()
 	{
 		ParsedFunctionDeclaration [] ret;
@@ -266,6 +282,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return ret;
 	}
 
+	@Override
 	public void dropFunction(ParsedFunctionDeclaration function, ParsedItem struct, int index)
 		throws EvaluationException
 	{
@@ -290,11 +307,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public void setReturnType(Type type)
 	{
 		theReturnType = type;
 	}
 
+	@Override
 	public Type getReturnType()
 	{
 		if(theReturnType != null)
@@ -305,11 +324,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			return null;
 	}
 
+	@Override
 	public void setHandledExceptionTypes(Type [] types)
 	{
 		theHandledExceptionTypes = types;
 	}
 
+	@Override
 	public boolean canHandle(Type exType)
 	{
 		if(exType.canAssignTo(Error.class))
@@ -329,6 +350,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 			return false;
 	}
 
+	@Override
 	public int getHistoryCount()
 	{
 		if(theParent != null)
@@ -339,6 +361,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public Type getHistoryType(int index)
 	{
 		if(theParent != null)
@@ -351,6 +374,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return vbl.theType;
 	}
 
+	@Override
 	public Object getHistory(int index)
 	{
 		if(theParent != null)
@@ -363,6 +387,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return vbl.theValue;
 	}
 
+	@Override
 	public void addHistory(Type type, Object result)
 	{
 		if(theParent != null)
@@ -380,11 +405,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public void clearHistory()
 	{
 		theHistory.clear();
 	}
 
+	@Override
 	public void addImportPackage(String packageName)
 	{
 		if(theParent != null && !isTransaction)
@@ -395,6 +422,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public String [] getImportPackages()
 	{
 		synchronized(theImportPackages)
@@ -403,11 +431,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public void clearImportPackages()
 	{
 		theImportPackages.clear();
 	}
 
+	@Override
 	public void addImportType(Class<?> type)
 	{
 		if(theParent != null && !isTransaction)
@@ -422,6 +452,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public Class<?> getImportType(String name)
 	{
 		if(theParent != null)
@@ -446,6 +477,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return null;
 	}
 
+	@Override
 	public Class<?> [] getImportTypes()
 	{
 		synchronized(theImportTypes)
@@ -454,11 +486,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public void clearImportTypes()
 	{
 		theImportTypes.clear();
 	}
 
+	@Override
 	public void addImportMethod(Class<?> type, String method)
 	{
 		if(theParent != null && !isTransaction)
@@ -469,6 +503,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public Class<?> getImportMethodType(String methodName)
 	{
 		if(theParent != null)
@@ -479,6 +514,7 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public ImportMethod [] getImportMethods()
 	{
 		synchronized(theImportMethods)
@@ -491,11 +527,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	@Override
 	public void clearImportMethods()
 	{
 		theImportMethods.clear();
 	}
 
+	@Override
 	public EvaluationEnvironment scope(boolean dependent)
 	{
 		if(dependent)
@@ -525,26 +563,31 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		return ret;
 	}
 
+	@Override
 	public EvaluationEnvironment transact()
 	{
 		return new DefaultEvaluationEnvironment(this, null, false, true);
 	}
 
+	@Override
 	public void cancel()
 	{
 		isCanceled = true;
 	}
 
+	@Override
 	public boolean isCanceled()
 	{
 		return isCanceled || (theParent != null && theParent.isCanceled());
 	}
 
+	@Override
 	public void uncancel()
 	{
 		isCanceled = false;
 	}
 
+	@Override
 	public Variable [] save(OutputStream out) throws IOException
 	{
 		java.io.OutputStreamWriter charWriter = new java.io.OutputStreamWriter(out);
@@ -652,13 +695,13 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		jsonWriter.endObject();
 	}
 
+	@Override
 	public void load(InputStream in, PrismsParser parser) throws IOException
 	{
 		java.io.InputStreamReader charReader = new java.io.InputStreamReader(in);
 		prisms.util.json.JsonSerialReader jsonReader = new prisms.util.json.JsonSerialReader(charReader);
-		prisms.util.HexStreamReader hexReader = new prisms.util.HexStreamReader();
 
-		try
+		try (prisms.util.HexStreamReader hexReader = new prisms.util.HexStreamReader())
 		{
 			StructState rootState = jsonReader.startObject();
 			if(!"variables".equals(jsonReader.getNextProperty()))

@@ -328,11 +328,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 				ArrayUtils.adjust(theEnv.getDeclaredVariables(), env.getDeclaredVariables(),
 					new ArrayUtils.DifferenceListenerE<Variable, Variable, EvaluationException>()
 					{
+						@Override
 						public boolean identity(Variable o1, Variable o2)
 						{
 							return o1.getName().equals(o2.getName());
 						}
 
+						@Override
 						public Variable added(Variable o, int mIdx, int retIdx) throws EvaluationException
 						{
 							theEnv.declareVariable(o.getName(), o.getType(), o.isFinal(), null, -1);
@@ -340,6 +342,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 							return o;
 						}
 
+						@Override
 						public Variable removed(Variable o, int oIdx, int incMod, int retIdx)
 							throws EvaluationException
 						{
@@ -349,6 +352,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 							return null;
 						}
 
+						@Override
 						public Variable set(Variable o1, int idx1, int incMod, Variable o2, int idx2, int retIdx)
 							throws EvaluationException
 						{
@@ -367,12 +371,14 @@ public class InterpreterPanel extends javax.swing.JPanel
 						new ArrayUtils.DifferenceListenerE<ParsedFunctionDeclaration, ParsedFunctionDeclaration, EvaluationException>()
 						{
 
+							@Override
 							public boolean identity(ParsedFunctionDeclaration o1, ParsedFunctionDeclaration o2)
 								throws EvaluationException
 							{
 								return o1.equalsCallSig(o2);
 							}
 
+							@Override
 							public ParsedFunctionDeclaration added(ParsedFunctionDeclaration o, int mIdx, int retIdx)
 								throws EvaluationException
 							{
@@ -380,6 +386,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 								return o;
 							}
 
+							@Override
 							public ParsedFunctionDeclaration removed(ParsedFunctionDeclaration o, int oIdx, int incMod,
 								int retIdx) throws EvaluationException
 							{
@@ -389,6 +396,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 								return null;
 							}
 
+							@Override
 							public ParsedFunctionDeclaration set(ParsedFunctionDeclaration o1, int idx1, int incMod,
 								ParsedFunctionDeclaration o2, int idx2, int retIdx) throws EvaluationException
 							{
@@ -469,6 +477,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 			item = anItem;
 		}
 
+		@Override
 		public int compareTo(NamedItem o)
 		{
 			return name.compareToIgnoreCase(o.name);
@@ -541,11 +550,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 						setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.WAIT_CURSOR));
 						theWorker.run(new Runnable()
 						{
+							@Override
 							public void run()
 							{
 								checkInput();
 								java.awt.EventQueue.invokeLater(new Runnable()
 								{
+									@Override
 									public void run()
 									{
 										setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.DEFAULT_CURSOR));
@@ -554,11 +565,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 							}
 						}, new prisms.arch.Worker.ErrorListener()
 						{
+							@Override
 							public void error(Error error)
 							{
 								error.printStackTrace();
 							}
 
+							@Override
 							public void runtime(RuntimeException ex)
 							{
 								ex.printStackTrace();
@@ -606,6 +619,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 					else
 						java.awt.EventQueue.invokeLater(new Runnable()
 						{
+							@Override
 							public void run()
 							{
 								intellisenseTriggered();
@@ -653,6 +667,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theIntellisenseMenu = new IntellisenseMenu();
 		theIntellisenseMenu.addListener(new IntellisenseMenu.IntellisenseListener()
 		{
+			@Override
 			public void itemSelected(Object item, String text)
 			{
 				String curText = theInput.getText();
@@ -1106,11 +1121,13 @@ public class InterpreterPanel extends javax.swing.JPanel
 			strengths[i] = Integer.valueOf(getMatchStrength(items.get(i).name, toMatch));
 		prisms.util.ArrayUtils.sort(strengths, new prisms.util.ArrayUtils.SortListener<Integer>()
 		{
+			@Override
 			public int compare(Integer o1, Integer o2)
 			{
 				return o1.compareTo(o2);
 			}
 
+			@Override
 			public void swapped(Integer o1, int idx1, Integer o2, int idx2)
 			{
 				NamedItem temp = items.get(idx1);
@@ -1278,6 +1295,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		else
 			java.awt.EventQueue.invokeLater(new Runnable()
 			{
+				@Override
 				public void run()
 				{
 					replaceInput();
@@ -1311,6 +1329,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 			}
 			java.awt.EventQueue.invokeLater(new Runnable()
 			{
+				@Override
 				public void run()
 				{
 					theInput.setText("");
@@ -1320,6 +1339,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		else
 			java.awt.EventQueue.invokeLater(new Runnable()
 			{
+				@Override
 				public void run()
 				{
 					newLine();
@@ -1346,6 +1366,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 		else
 			java.awt.EventQueue.invokeLater(new Runnable()
 			{
+				@Override
 				public void run()
 				{
 					answer(text, error);

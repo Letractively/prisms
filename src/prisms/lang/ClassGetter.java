@@ -162,7 +162,8 @@ public class ClassGetter
 			{
 				String className = fileName.substring(0, fileName.lastIndexOf('.'));
 				className = prisms.util.PrismsUtils.replaceAll(className, "$", ".");
-				className = prisms.util.PrismsUtils.replaceAll(name.substring(0, idx), "/", ".") + "." + className;
+				if(idx >= 0)
+					className = prisms.util.PrismsUtils.replaceAll(name.substring(0, idx), "/", ".") + "." + className;
 				addClassName(className);
 			}
 		}
