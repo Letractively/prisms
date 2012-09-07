@@ -56,7 +56,7 @@ public class HexStreamReader extends InputStream
 	public void close() throws IOException
 	{
 		super.close();
-		if(closeWrapped)
+		if(closeWrapped && theInput != null)
 			theInput.close();
 	}
 }
