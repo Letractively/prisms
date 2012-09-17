@@ -34,8 +34,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 	private static final int FONT_SIZE = 12;
 
 	/**
-	 * A class exposed to the interpreter as the "pane" variable that allows the interpreter to interact with the GUI in
-	 * certain ways
+	 * A class exposed to the interpreter as the "pane" variable that allows the interpreter to interact with the GUI in certain ways
 	 */
 	public class EnvPane
 	{
@@ -138,8 +137,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 	}
 
 	/**
-	 * A class exposed to the interpreter as the "env" variable that allows the interpreter to interact with its
-	 * evaluation environment in advanced ways
+	 * A class exposed to the interpreter as the "env" variable that allows the interpreter to interact with its evaluation environment in
+	 * advanced ways
 	 */
 	public class JitrEnv
 	{
@@ -258,8 +257,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 						msg.append("However, some variables could not be serialized:\n");
 						for(int i = 0; i < fails.length; i++)
 							if(!fails[i].getName().equals("%"))
-								msg.append('\t').append(fails[i].getName()).append(": ").append(fails[i].getType())
-									.append('\n');
+								msg.append('\t').append(fails[i].getName()).append(": ").append(fails[i].getType()).append('\n');
 					}
 					if(hist > 0)
 						msg.append(hist).append(" history items were unserializable");
@@ -284,8 +282,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 		}
 
 		/**
-		 * Loads the environment saved in a file in this store, with the option to do a soft merge of the target
-		 * environment's data into the current environment instead of discarding the current environment
+		 * Loads the environment saved in a file in this store, with the option to do a soft merge of the target environment's data into the
+		 * current environment instead of discarding the current environment
 		 * 
 		 * @param name The name of the file to load the environment from
 		 * @param soft Whether to do a soft merge of the environments
@@ -343,8 +341,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 						}
 
 						@Override
-						public Variable removed(Variable o, int oIdx, int incMod, int retIdx)
-							throws EvaluationException
+						public Variable removed(Variable o, int oIdx, int incMod, int retIdx) throws EvaluationException
 						{
 							if(soft || theEnvVarNames.contains(o.getName()))
 								return o;
@@ -364,49 +361,45 @@ public class InterpreterPanel extends javax.swing.JPanel
 							return o2;
 						}
 					});
-				ArrayUtils
-					.adjust(
-						theEnv.getDeclaredFunctions(),
-						env.getDeclaredFunctions(),
-						new ArrayUtils.DifferenceListenerE<ParsedFunctionDeclaration, ParsedFunctionDeclaration, EvaluationException>()
+				ArrayUtils.adjust(theEnv.getDeclaredFunctions(), env.getDeclaredFunctions(),
+					new ArrayUtils.DifferenceListenerE<ParsedFunctionDeclaration, ParsedFunctionDeclaration, EvaluationException>()
+					{
+
+						@Override
+						public boolean identity(ParsedFunctionDeclaration o1, ParsedFunctionDeclaration o2) throws EvaluationException
 						{
+							return o1.equalsCallSig(o2);
+						}
 
-							@Override
-							public boolean identity(ParsedFunctionDeclaration o1, ParsedFunctionDeclaration o2)
-								throws EvaluationException
-							{
-								return o1.equalsCallSig(o2);
-							}
+						@Override
+						public ParsedFunctionDeclaration added(ParsedFunctionDeclaration o, int mIdx, int retIdx)
+							throws EvaluationException
+						{
+							theEnv.declareFunction(o);
+							return o;
+						}
 
-							@Override
-							public ParsedFunctionDeclaration added(ParsedFunctionDeclaration o, int mIdx, int retIdx)
-								throws EvaluationException
-							{
-								theEnv.declareFunction(o);
+						@Override
+						public ParsedFunctionDeclaration removed(ParsedFunctionDeclaration o, int oIdx, int incMod, int retIdx)
+							throws EvaluationException
+						{
+							if(soft)
 								return o;
-							}
+							theEnv.dropFunction(o, null, -1);
+							return null;
+						}
 
-							@Override
-							public ParsedFunctionDeclaration removed(ParsedFunctionDeclaration o, int oIdx, int incMod,
-								int retIdx) throws EvaluationException
-							{
-								if(soft)
-									return o;
-								theEnv.dropFunction(o, null, -1);
-								return null;
-							}
-
-							@Override
-							public ParsedFunctionDeclaration set(ParsedFunctionDeclaration o1, int idx1, int incMod,
-								ParsedFunctionDeclaration o2, int idx2, int retIdx) throws EvaluationException
-							{
-								if(soft)
-									return o1;
-								theEnv.dropFunction(o1, null, -1);
-								theEnv.declareFunction(o2);
-								return o2;
-							}
-						});
+						@Override
+						public ParsedFunctionDeclaration set(ParsedFunctionDeclaration o1, int idx1, int incMod,
+							ParsedFunctionDeclaration o2, int idx2, int retIdx) throws EvaluationException
+						{
+							if(soft)
+								return o1;
+							theEnv.dropFunction(o1, null, -1);
+							theEnv.declareFunction(o2);
+							return o2;
+						}
+					});
 				if(!soft)
 					theEnv.clearImportPackages();
 				String [] oldImportPackages = theEnv.getImportPackages();
@@ -448,9 +441,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 			File file = new File(theStoreDir + name + ".jitr");
 			if(file.exists())
 			{
-				if(JOptionPane.showConfirmDialog(InterpreterPanel.this, "Are you sure you want to delete the"
-					+ " environment stored as " + name + "?", "Delete Stored Environment?",
-					JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
+				if(JOptionPane.showConfirmDialog(InterpreterPanel.this, "Are you sure you want to delete the" + " environment stored as "
+					+ name + "?", "Delete Stored Environment?", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION)
 					return;
 			}
 			else
@@ -460,8 +452,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 				return;
 			}
 			if(!file.delete())
-				JOptionPane.showMessageDialog(InterpreterPanel.this, "The environment stored as " + name + " could not"
-					+ " be deleted.", "Deletion Failed", JOptionPane.ERROR_MESSAGE);
+				JOptionPane.showMessageDialog(InterpreterPanel.this, "The environment stored as " + name + " could not" + " be deleted.",
+					"Deletion Failed", JOptionPane.ERROR_MESSAGE);
 		}
 	}
 
@@ -646,9 +638,9 @@ public class InterpreterPanel extends javax.swing.JPanel
 		theParser = new prisms.lang.PrismsParser();
 		theParser.configure(prisms.arch.PrismsConfig.fromXml(null, getGrammar()));
 		theEnv = new DefaultEvaluationEnvironment();
-		addVariable("pane", EnvPane.class, new EnvPane());
+		setVariable("pane", EnvPane.class, true, new EnvPane());
 		JitrEnv env = new JitrEnv();
-		addVariable("env", JitrEnv.class, new JitrEnv());
+		setVariable("env", JitrEnv.class, true, new JitrEnv());
 		try
 		{
 			env.load("default", true);
@@ -673,8 +665,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 				String curText = theInput.getText();
 				curText = curText.replaceAll("\r\n", "\n");
 				int caret = theInput.getCaretPosition();
-				theInput.setText(curText.substring(0, caret - toChop) + text
-					+ curText.substring(theInput.getCaretPosition()));
+				theInput.setText(curText.substring(0, caret - toChop) + text + curText.substring(theInput.getCaretPosition()));
 			}
 		});
 	}
@@ -686,23 +677,64 @@ public class InterpreterPanel extends javax.swing.JPanel
 	}
 
 	/**
-	 * Adds a final variable to this interpreter's environment
+	 * Sets the value of a variable in this environment
 	 * 
-	 * @param name The name of the variable to add
-	 * @param type The type of the variable to add
-	 * @param value The value of the variable to add
+	 * @param name The name of the variable to set
+	 * @param type The type of the variable to set
+	 * @param isFinal Whether the variable is to be declared as final
+	 * @param value The value for the variable
 	 */
-	public <T> void addVariable(String name, Class<? super T> type, T value)
+	public <T> void setVariable(String name, Class<T> type, boolean isFinal, T value)
+	{
+		EvaluationEnvironment.Variable var = theEnv.getDeclaredVariable(name);
+		try
+		{
+			if(var == null)
+				theEnv.declareVariable(name, new Type(type), isFinal, null, 0);
+			else if(var.isFinal())
+				throw new IllegalArgumentException("Variable " + name + " already exists and is declared final");
+			else
+			{
+				if(type != null && !var.getType().canAssignTo(type))
+					throw new IllegalArgumentException("Variable " + name + " already exists and is typed " + var.getType()
+						+ "--incompatible with " + type.getName());
+				if(type == null && value != null && !var.getType().isAssignableFrom(value.getClass()))
+					throw new IllegalArgumentException("Variable " + name + " already exists and is typed " + var.getType()
+						+ "--incompatible with " + value.getClass().getName());
+			}
+			theEnv.setVariable(name, value, null, 0);
+			theEnvVarNames.add(name);
+		} catch(EvaluationException e)
+		{
+			throw new IllegalStateException("Could not set variable " + name, e);
+		}
+	}
+
+	/** @param name The name of the variable to remove from this environment */
+	public void dropVariable(String name)
 	{
 		try
 		{
-			theEnv.declareVariable(name, new Type(type), true, null, 0);
-			theEnv.setVariable(name, value, null, 0);
-			theEnvVarNames.add(name);
-		} catch(EvaluationException e1)
+			if(theEnv.getDeclaredVariable(name) != null)
+				theEnv.dropVariable(name, null, 0);
+		} catch(EvaluationException e)
 		{
-			e1.printStackTrace();
+			throw new IllegalStateException("Could not drop variable " + name, e);
 		}
+	}
+
+	/**
+	 * Alters this environment so that methods which throw checked exceptions may be called without requiring a try/catch block
+	 */
+	public void setHandleAllExceptions()
+	{
+		theEnv.setHandledExceptionTypes(new Type [] {new Type(Throwable.class)});
+	}
+
+	/** @return The EvaluationEnvironment used by this tester */
+	public EvaluationEnvironment getEnv()
+	{
+		return theEnv;
 	}
 
 	@Override
@@ -723,8 +755,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 	{
 		try
 		{
-			return new org.dom4j.io.SAXReader().read(PrismsParser.class.getResourceAsStream("Grammar.xml"))
-				.getRootElement();
+			return new org.dom4j.io.SAXReader().read(PrismsParser.class.getResourceAsStream("Grammar.xml")).getRootElement();
 		} catch(org.dom4j.DocumentException e)
 		{
 			throw new IllegalStateException("Could not get grammar for interpretation", e);
@@ -765,8 +796,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 				else
 					toMatch = target.toString();
 			}
-			else if(target instanceof ParsedChar || target instanceof ParsedNumber
-				|| target instanceof ParsedPreviousAnswer || target instanceof ParsedString)
+			else if(target instanceof ParsedChar || target instanceof ParsedNumber || target instanceof ParsedPreviousAnswer
+				|| target instanceof ParsedString)
 				return;
 			else if(target instanceof ParsedMethod)
 			{
@@ -840,9 +871,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 					theIntellisenseMenu.addMenuItem("class", item.name, item.name, className(item.name));
 			theIntellisenseMenu.show(theInput);
 		}
-		else if(target instanceof ParsedConstructor || parent instanceof ParsedConstructor
-			|| target instanceof ParsedArrayInitializer || parent instanceof ParsedArrayInitializer
-			|| target instanceof ParsedImport || parent instanceof ParsedImport)
+		else if(target instanceof ParsedConstructor || parent instanceof ParsedConstructor || target instanceof ParsedArrayInitializer
+			|| parent instanceof ParsedArrayInitializer || target instanceof ParsedImport || parent instanceof ParsedImport)
 		{
 			// Type only
 			System.out.println("Type intellisense for \"" + toMatch + "\"");
@@ -901,11 +931,10 @@ public class InterpreterPanel extends javax.swing.JPanel
 			for(NamedItem item : items)
 			{
 				if(item.item instanceof Variable)
-					theIntellisenseMenu.addMenuItem("variable", item.name + ": " + ((Variable) item.item).getType(),
-						item.item, item.name);
+					theIntellisenseMenu.addMenuItem("variable", item.name + ": " + ((Variable) item.item).getType(), item.item, item.name);
 				else
-					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig()
-						+ ": " + ((ParsedFunctionDeclaration) item.item).getReturnType(), item.item,
+					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig() + ": "
+						+ ((ParsedFunctionDeclaration) item.item).getReturnType(), item.item,
 						((ParsedFunctionDeclaration) item.item).getShortSig());
 			}
 			theIntellisenseMenu.show(theInput);
@@ -1007,11 +1036,11 @@ public class InterpreterPanel extends javax.swing.JPanel
 			for(NamedItem item : items)
 			{
 				if(item.item instanceof Field)
-					theIntellisenseMenu.addMenuItem("field",
-						item.name + ": " + new Type(((Field) item.item).getGenericType()), item.item, item.name);
+					theIntellisenseMenu.addMenuItem("field", item.name + ": " + new Type(((Field) item.item).getGenericType()), item.item,
+						item.name);
 				else if(item.item instanceof Method) // Better method string
-					theIntellisenseMenu.addMenuItem("method", "" + name((Method) item.item), item.item, item.name
-						+ (((Method) item.item).getParameterTypes().length > 0 ? "(" : "()"));
+					theIntellisenseMenu.addMenuItem("method", "" + name((Method) item.item), item.item,
+						item.name + (((Method) item.item).getParameterTypes().length > 0 ? "(" : "()"));
 				else if(item.item instanceof String)
 					theIntellisenseMenu.addMenuItem("class", item.name, item.item, className(item.name));
 			}
@@ -1038,11 +1067,10 @@ public class InterpreterPanel extends javax.swing.JPanel
 			for(NamedItem item : items)
 			{
 				if(item.item instanceof Variable)
-					theIntellisenseMenu.addMenuItem("variable", item.name + ": " + ((Variable) item.item).getType(),
-						item.item, item.name);
+					theIntellisenseMenu.addMenuItem("variable", item.name + ": " + ((Variable) item.item).getType(), item.item, item.name);
 				else
-					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig()
-						+ ": " + ((ParsedFunctionDeclaration) item.item).getReturnType(), item.item, item.name
+					theIntellisenseMenu.addMenuItem("function", ((ParsedFunctionDeclaration) item.item).getShortSig() + ": "
+						+ ((ParsedFunctionDeclaration) item.item).getReturnType(), item.item, item.name
 						+ (((ParsedFunctionDeclaration) item.item).getParameters().length > 0 ? "(" : "()"));
 			}
 			theIntellisenseMenu.show(theInput);
@@ -1071,8 +1099,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 	}
 
 	/**
-	 * Causes declarations to be evaluated so that all variables available to the scope at the point of incompleteness
-	 * are known
+	 * Causes declarations to be evaluated so that all variables available to the scope at the point of incompleteness are known
 	 */
 	private static void evalDeclares(ParsedItem item, EvaluationEnvironment env)
 	{
@@ -1385,9 +1412,8 @@ public class InterpreterPanel extends javax.swing.JPanel
 	}
 
 	/**
-	 * Creates a new JFrame wrapping an InterpreterPanel. The actual InterpreterPanel can be retrieved from this frame
-	 * using {@link #getPanelFromFrame(javax.swing.JFrame)}. The frame is named "JITR" and sized 480x640 to the middle
-	 * of the window
+	 * Creates a new JFrame wrapping an InterpreterPanel. The actual InterpreterPanel can be retrieved from this frame using
+	 * {@link #getPanelFromFrame(javax.swing.JFrame)}. The frame is named "JITR" and sized 480x640 to the middle of the window
 	 * 
 	 * @return The frame created
 	 */
@@ -1400,11 +1426,9 @@ public class InterpreterPanel extends javax.swing.JPanel
 		javax.swing.JScrollPane contentPane = new javax.swing.JScrollPane(interp);
 		contentPane.getVerticalScrollBar().setUnitIncrement(10);
 		frame.setContentPane(contentPane);
-		((javax.swing.JScrollPane) frame.getContentPane())
-			.setHorizontalScrollBarPolicy(javax.swing.JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		((javax.swing.JScrollPane) frame.getContentPane()).setHorizontalScrollBarPolicy(javax.swing.JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		java.awt.Dimension dim = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
-		frame.setLocation((int) (dim.getWidth() - frame.getWidth()) / 2,
-			(int) (dim.getHeight() - frame.getHeight()) / 2);
+		frame.setLocation((int) (dim.getWidth() - frame.getWidth()) / 2, (int) (dim.getHeight() - frame.getHeight()) / 2);
 		frame.setVisible(true);
 		return frame;
 	}

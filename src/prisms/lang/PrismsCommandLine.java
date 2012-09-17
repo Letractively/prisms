@@ -18,10 +18,8 @@ public class PrismsCommandLine
 		theParser = new PrismsParser();
 		try
 		{
-			theParser.configure(prisms.arch.PrismsConfig.fromXml(
-				null,
-				prisms.arch.PrismsConfig.getRootElement("Grammar.xml",
-					prisms.arch.PrismsConfig.getLocation(PrismsParser.class))));
+			theParser.configure(prisms.arch.PrismsConfig.fromXml(null,
+				prisms.arch.PrismsConfig.getRootElement("Grammar.xml", prisms.arch.PrismsConfig.getLocation(PrismsParser.class))));
 		} catch(java.io.IOException e)
 		{
 			e.printStackTrace();
@@ -51,11 +49,11 @@ public class PrismsCommandLine
 			else
 			{
 				if(type != null && !var.getType().canAssignTo(type))
-					throw new IllegalArgumentException("Variable " + name + " already exists and is typed "
-						+ var.getType() + "--incompatible with " + type.getName());
+					throw new IllegalArgumentException("Variable " + name + " already exists and is typed " + var.getType()
+						+ "--incompatible with " + type.getName());
 				if(type == null && value != null && !var.getType().isAssignableFrom(value.getClass()))
-					throw new IllegalArgumentException("Variable " + name + " already exists and is typed "
-						+ var.getType() + "--incompatible with " + value.getClass().getName());
+					throw new IllegalArgumentException("Variable " + name + " already exists and is typed " + var.getType()
+						+ "--incompatible with " + value.getClass().getName());
 			}
 			theEnv.setVariable(name, value, null, 0);
 		} catch(EvaluationException e)
@@ -78,8 +76,7 @@ public class PrismsCommandLine
 	}
 
 	/**
-	 * Alters this environment so that methods which throw checked exceptions may be called without requiring a
-	 * try/catch block
+	 * Alters this environment so that methods which throw checked exceptions may be called without requiring a try/catch block
 	 */
 	public void setHandleAllExceptions()
 	{
@@ -93,12 +90,11 @@ public class PrismsCommandLine
 	}
 
 	/**
-	 * Parses and evaluates a line of text. If the line ends with an incomplete entity, the line will be stored, a
-	 * 0-length array will be returned, and the line prepended to the next line for parsing.
+	 * Parses and evaluates a line of text. If the line ends with an incomplete entity, the line will be stored, a 0-length array will be
+	 * returned, and the line prepended to the next line for parsing.
 	 * 
 	 * @param line The line to parse and evaluate
-	 * @return An array consisting of either {@link EvaluationResult}s or {@link EvaluationException}, one for each
-	 *         entity parse in the line
+	 * @return An array consisting of either {@link EvaluationResult}s or {@link EvaluationException}, one for each entity parse in the line
 	 * @throws ParseException If the line fails to parse
 	 */
 	public Object [] readLine(String line) throws ParseException
@@ -130,8 +126,7 @@ public class PrismsCommandLine
 				structs[i].evaluate(theEnv.transact(), false, false);
 				EvaluationResult type = structs[i].evaluate(theEnv, false, true);
 				ret[i] = type;
-				if(type != null && !Void.TYPE.equals(type.getType())
-					&& !(structs[i] instanceof prisms.lang.types.ParsedPreviousAnswer))
+				if(type != null && !Void.TYPE.equals(type.getType()) && !(structs[i] instanceof prisms.lang.types.ParsedPreviousAnswer))
 					theEnv.addHistory(type.getType(), type.getValue());
 			} catch(EvaluationException e)
 			{
@@ -142,8 +137,8 @@ public class PrismsCommandLine
 	}
 
 	/**
-	 * @return Whether this test has not parsed anything or the last call to {@link #readLine(String)} parsed a complete
-	 *         item or failed to parse
+	 * @return Whether this test has not parsed anything or the last call to {@link #readLine(String)} parsed a complete item or failed to
+	 *         parse
 	 */
 	public boolean isComplete()
 	{
@@ -184,7 +179,7 @@ public class PrismsCommandLine
 					else
 					{
 						EvaluationResult evRes = (EvaluationResult) res;
-						if(evRes != null && !Void.TYPE.equals(evRes.getType()))
+						if(evRes != null && !evRes.getType().canAssignTo(Void.TYPE))
 							System.out.println("\t" + prisms.util.ArrayUtils.toString(evRes.getValue()));
 					}
 				}
