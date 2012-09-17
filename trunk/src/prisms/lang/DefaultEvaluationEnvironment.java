@@ -79,6 +79,12 @@ public class DefaultEvaluationEnvironment implements EvaluationEnvironment
 		}
 	}
 
+	/** @param publicOnly Whether evaluations in this environment should see only public methods */
+	public void setPublicOnly(boolean publicOnly)
+	{
+		isPublic = publicOnly;
+	}
+
 	@Override
 	public boolean usePublicOnly()
 	{
