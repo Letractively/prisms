@@ -39,6 +39,17 @@ public class ParsedArrayIndex extends Assignable
 	}
 
 	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(dependent == theArray) {
+			theArray = toReplace;
+		}
+		else if(dependent == theIndex)
+			theIndex = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
+	@Override
 	public EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws EvaluationException
 	{

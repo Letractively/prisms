@@ -108,6 +108,15 @@ public abstract class ParsedItem
 	public abstract ParsedItem [] getDependents();
 
 	/**
+	 * Replaces one dependent with a different value
+	 * 
+	 * @param dependent The dependent to replace
+	 * @param toReplace The value to replace the given dependent with
+	 * @throws IllegalArgumentException If the given dependent cannot be replaced or the given replacement cannot replace the dependent
+	 */
+	public abstract void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException;
+
+	/**
 	 * Validates or evaluates this expression. This method should never be called if this item's match is incomplete.
 	 * 
 	 * @param env The evaluation environment to execute in

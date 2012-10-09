@@ -128,6 +128,47 @@ public class ParsedConstructor extends ParsedItem
 	}
 
 	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theType == dependent) {
+			if(toReplace instanceof ParsedType)
+				theType = (ParsedType) toReplace;
+			else
+				throw new IllegalArgumentException("Cannot replace the type of a constructor with " + toReplace.getClass().getSimpleName());
+		}
+		else {
+			for(int i = 0; i < theArguments.length; i++)
+				if(theArguments[i] == dependent) {
+					theArguments[i] = toReplace;
+					return;
+				}
+			if(theInstanceInitializer != null && theInstanceInitializer == dependent) {
+				if(toReplace instanceof ParsedStatementBlock)
+					theInstanceInitializer = (ParsedStatementBlock) toReplace;
+				else
+					throw new IllegalArgumentException("Cannot replace the initializer block of a constructor with "
+						+ toReplace.getClass().getSimpleName());
+			}
+			if(theFields != null)
+				for(int i = 0; i < theFields.getContents().length; i++)
+					if(theFields.getContents()[i] == dependent) {
+						theFields.replace(dependent, toReplace);
+						return;
+					}
+			if(theMethods != null)
+				for(int i = 0; i < theMethods.length; i++)
+					if(theMethods[i] == dependent) {
+						if(toReplace instanceof ParsedFunctionDeclaration)
+							theMethods[i] = (ParsedFunctionDeclaration) toReplace;
+						else
+							throw new IllegalArgumentException("Cannot replace a method of a constructor (anonymous inner class) with "
+								+ toReplace.getClass().getSimpleName());
+						return;
+					}
+			throw new IllegalArgumentException("No such dependent " + dependent);
+		}
+	}
+
+	@Override
 	public String toString()
 	{
 		StringBuilder ret = new StringBuilder();
@@ -479,6 +520,7 @@ public class ParsedConstructor extends ParsedItem
 			return theEnv;
 		}
 
+		@Override
 		public Object invoke(Object proxy, Method method, Object [] args) throws Throwable
 		{
 			for(ParsedFunctionDeclaration m : getMethods())

@@ -5,6 +5,7 @@ package prisms.lang.types;
 
 import prisms.lang.EvaluationException;
 import prisms.lang.EvaluationResult;
+import prisms.lang.ParsedItem;
 
 /** Represents an assignment, either a straight assignment or an assignment operator, like += */
 public class ParsedAssignmentOperator extends prisms.lang.ParsedItem
@@ -68,6 +69,16 @@ public class ParsedAssignmentOperator extends prisms.lang.ParsedItem
 			return new prisms.lang.ParsedItem [] {theVariable};
 		else
 			return new prisms.lang.ParsedItem [] {theVariable, theOperand};
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theVariable == dependent)
+			theVariable = toReplace;
+		else if(theOperand != null && theOperand == dependent)
+			theOperand = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

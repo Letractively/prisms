@@ -116,8 +116,10 @@ public class PrismsParser
 			nextIndex = passWhiteSpace(str, nextIndex);
 			if(nextIndex < str.length())
 			{
-				if(str.charAt(nextIndex) == ';' || isLastSemi(parseMatch))
+				if(str.charAt(nextIndex) == ';')
 					nextIndex++;
+				else if(isLastSemi(parseMatch)) {
+				}
 				else
 				{
 					parseItem(str, index, -1, cmd, COMPLETE_ERROR);
@@ -146,6 +148,8 @@ public class PrismsParser
 	 */
 	public synchronized ParsedItem [] parseStructures(ParsedItem parent, ParseMatch... matches) throws ParseException
 	{
+		if(parent == null)
+			throw new IllegalArgumentException("Parent required for parsed structures.  Use " + ParseStructRoot.class.getSimpleName() + ".");
 		ParsedItem [] ret = new ParsedItem [matches.length];
 		for(int i = 0; i < ret.length; i++)
 		{
@@ -803,6 +807,8 @@ public class PrismsParser
 							found = true;
 						if(found)
 							break;
+						if(m.getValue() == null)
+							throw new IllegalStateException("Match must have content: " + item);
 						for(int i = 0; i < text.length() && i < m.getValue().length(); i++)
 						{
 							if(text.charAt(i) != m.getValue().length())

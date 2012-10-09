@@ -1,5 +1,6 @@
 package prisms.lang.types;
 
+import prisms.lang.ParsedItem;
 import prisms.lang.Type;
 
 /** Represents a type name */
@@ -212,6 +213,18 @@ public class ParsedType extends prisms.lang.ParsedItem
 			return new prisms.lang.ParsedItem [] {theBound};
 		else
 			return theParamTypes;
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(dependent == theBound) {
+			if(toReplace instanceof ParsedType || toReplace == null)
+				theBound = (ParsedType) toReplace;
+			else
+				throw new IllegalArgumentException("Cannot replace the type bound with " + toReplace.getClass().getSimpleName());
+		}
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	/**

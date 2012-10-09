@@ -70,6 +70,14 @@ public class ParsedUnaryOp extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theOperand == dependent)
+			theOperand = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
+	@Override
 	public String toString()
 	{
 		if(isPrefix)

@@ -27,6 +27,11 @@ public class ParseStructRoot extends ParsedItem
 	}
 
 	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
+	@Override
 	public EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws EvaluationException
 	{

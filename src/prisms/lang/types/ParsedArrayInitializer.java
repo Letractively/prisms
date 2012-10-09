@@ -6,6 +6,7 @@ package prisms.lang.types;
 import java.lang.reflect.Array;
 
 import prisms.lang.EvaluationException;
+import prisms.lang.ParsedItem;
 
 /** Represents the creation of an array instance */
 public class ParsedArrayInitializer extends prisms.lang.ParsedItem
@@ -96,6 +97,21 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 			System.arraycopy(theElements, 0, ret, 1, theElements.length);
 		}
 		return ret;
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		for(int i = 0; i < theSizes.length; i++)
+			if(theSizes[i] == dependent) {
+				theSizes[i] = toReplace;
+				return;
+			}
+		for(int i = 0; i < theElements.length; i++)
+			if(theElements[i] == dependent) {
+				theElements[i] = toReplace;
+				return;
+			}
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override
