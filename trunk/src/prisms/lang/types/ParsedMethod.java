@@ -5,15 +5,7 @@ package prisms.lang.types;
 
 import java.lang.reflect.Modifier;
 
-import prisms.lang.EvaluationEnvironment;
-import prisms.lang.EvaluationException;
-import prisms.lang.EvaluationResult;
-import prisms.lang.ExecutionException;
-import prisms.lang.ParseException;
-import prisms.lang.ParseMatch;
-import prisms.lang.ParsedItem;
-import prisms.lang.PrismsParser;
-import prisms.lang.Type;
+import prisms.lang.*;
 
 /**
  * Represents one of:
@@ -92,6 +84,16 @@ public class ParsedMethod extends Assignable
 		if(theContext != null)
 			ret = prisms.util.ArrayUtils.add(theArguments, theContext, 0);
 		return ret;
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		for(int i = 0; i < theArguments.length; i++)
+			if(theArguments[i] == dependent) {
+				theArguments[i] = toReplace;
+				return;
+			}
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

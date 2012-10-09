@@ -51,6 +51,18 @@ public class ParsedConditional extends ParsedItem
 	}
 
 	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theCondition == dependent)
+			theCondition = toReplace;
+		else if(theAffirmative == dependent)
+			theAffirmative = toReplace;
+		else if(theNegative == dependent)
+			theNegative = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
+	@Override
 	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws prisms.lang.EvaluationException
 	{

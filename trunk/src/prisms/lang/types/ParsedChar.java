@@ -3,6 +3,8 @@
  */
 package prisms.lang.types;
 
+import prisms.lang.ParsedItem;
+
 /** Represents a character literal */
 public class ParsedChar extends prisms.lang.ParsedItem
 {
@@ -31,6 +33,11 @@ public class ParsedChar extends prisms.lang.ParsedItem
 	public prisms.lang.ParsedItem[] getDependents()
 	{
 		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

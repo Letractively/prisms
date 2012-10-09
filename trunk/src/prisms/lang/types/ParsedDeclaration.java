@@ -96,6 +96,25 @@ public class ParsedDeclaration extends Assignable
 		return ret;
 	}
 
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(dependent == theType) {
+			theType = toReplace;
+		}
+		else {
+			for(int i = 0; i < theParamTypes.length; i++)
+				if(theParamTypes[i] == dependent) {
+					if(toReplace instanceof ParsedType) {
+						theParamTypes[i] = (ParsedType) toReplace;
+						return;
+					}
+					else
+						throw new IllegalArgumentException("Cannot replace a type parameter with " + toReplace.getClass().getName());
+				}
+			throw new IllegalArgumentException("No such dependent " + dependent);
+		}
+	}
+
 	/**
 	 * @param env The evaluation environment to use to evaluate this declaration's type
 	 * @return The type of this declaration

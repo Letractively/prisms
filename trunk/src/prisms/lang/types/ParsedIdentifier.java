@@ -3,9 +3,7 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.EvaluationEnvironment;
-import prisms.lang.EvaluationException;
-import prisms.lang.EvaluationResult;
+import prisms.lang.*;
 
 /** A simple identifier */
 public class ParsedIdentifier extends Assignable
@@ -30,6 +28,11 @@ public class ParsedIdentifier extends Assignable
 	public prisms.lang.ParsedItem[] getDependents()
 	{
 		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

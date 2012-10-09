@@ -3,6 +3,8 @@
  */
 package prisms.lang.types;
 
+import prisms.lang.ParsedItem;
+
 /** Represents a cast from one type to another */
 public class ParsedCast extends prisms.lang.ParsedItem
 {
@@ -35,6 +37,16 @@ public class ParsedCast extends prisms.lang.ParsedItem
 	public prisms.lang.ParsedItem[] getDependents()
 	{
 		return new prisms.lang.ParsedItem [] {theType, theValue};
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theType == dependent)
+			theType = toReplace;
+		else if(theValue == dependent)
+			theValue = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

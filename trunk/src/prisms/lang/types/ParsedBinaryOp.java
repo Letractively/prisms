@@ -70,6 +70,16 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 	}
 
 	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theOp1 == dependent)
+			theOp1 = toReplace;
+		else if(theOp2 == dependent)
+			theOp2 = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
+	@Override
 	public String toString()
 	{
 		return theOp1.toString() + theName + theOp2.toString();

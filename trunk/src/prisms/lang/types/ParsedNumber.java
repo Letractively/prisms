@@ -3,9 +3,7 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.EvaluationResult;
-import prisms.lang.ParseException;
-import prisms.lang.ParseMatch;
+import prisms.lang.*;
 
 /** Represents a number literal */
 public class ParsedNumber extends prisms.lang.ParsedItem
@@ -218,6 +216,11 @@ public class ParsedNumber extends prisms.lang.ParsedItem
 	public prisms.lang.ParsedItem[] getDependents()
 	{
 		return new prisms.lang.ParsedItem [0];
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	/** @return Whether this value was reported in scientific notation */

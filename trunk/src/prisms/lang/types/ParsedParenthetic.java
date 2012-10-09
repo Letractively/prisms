@@ -3,9 +3,7 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.EvaluationEnvironment;
-import prisms.lang.EvaluationException;
-import prisms.lang.EvaluationResult;
+import prisms.lang.*;
 
 /** Represents a parenthetic expression */
 public class ParsedParenthetic extends Assignable
@@ -30,6 +28,14 @@ public class ParsedParenthetic extends Assignable
 	public prisms.lang.ParsedItem[] getDependents()
 	{
 		return new prisms.lang.ParsedItem [] {theContent};
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theContent == dependent)
+			theContent = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override
