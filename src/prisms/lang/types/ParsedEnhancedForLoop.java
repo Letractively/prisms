@@ -1,28 +1,28 @@
 package prisms.lang.types;
 
+import prisms.lang.ParsedItem;
 import prisms.lang.Type;
 
 /** Represents an enhanced for loop */
-public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
+public class ParsedEnhancedForLoop extends ParsedItem
 {
 	private ParsedDeclaration theVariable;
 
-	private prisms.lang.ParsedItem theIterable;
+	private ParsedItem theIterable;
 
 	private ParsedStatementBlock theContents;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
-		prisms.lang.ParsedItem variable = parser.parseStructures(this, getStored("variable"))[0];
+		ParsedItem variable = parser.parseStructures(this, getStored("variable"))[0];
 		if(!(variable instanceof ParsedDeclaration))
-			throw new prisms.lang.ParseException("Enhanced for loop must begin with a declaration", getRoot()
-				.getFullCommand(), variable.getMatch().index);
+			throw new prisms.lang.ParseException("Enhanced for loop must begin with a declaration", getRoot().getFullCommand(),
+				variable.getMatch().index);
 		theVariable = (ParsedDeclaration) variable;
 		theIterable = parser.parseStructures(this, getStored("iterable"))[0];
-		prisms.lang.ParsedItem content = parser.parseStructures(this, getStored("content"))[0];
+		ParsedItem content = parser.parseStructures(this, getStored("content"))[0];
 		if(content instanceof ParsedStatementBlock)
 			theContents = (ParsedStatementBlock) content;
 		else
@@ -30,8 +30,8 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		theVariable.evaluate(scoped, false, withValues);
@@ -39,8 +39,8 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 		if(withValues)
 		{
 			if(!iterRes.isValue())
-				throw new prisms.lang.EvaluationException(iterRes.typeString() + " cannot be resolved to a variable",
-					this, theIterable.getMatch().index);
+				throw new prisms.lang.EvaluationException(iterRes.typeString() + " cannot be resolved to a variable", this,
+					theIterable.getMatch().index);
 			Type instanceType;
 			if(Iterable.class.isAssignableFrom(iterRes.getType().getBaseType()))
 				instanceType = iterRes.getType().resolve(Iterable.class.getTypeParameters()[0], Iterable.class, null,
@@ -48,14 +48,13 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 			else if(iterRes.getType().isArray())
 				instanceType = iterRes.getType().getComponentType();
 			else
-				throw new prisms.lang.EvaluationException(
-					"Can only iterate over an array or an instanceof java.lang.Iterable", this,
+				throw new prisms.lang.EvaluationException("Can only iterate over an array or an instanceof java.lang.Iterable", this,
 					theIterable.getMatch().index);
 
 			Type type = theVariable.evaluateType(env);
 			if(!type.isAssignable(instanceType))
-				throw new prisms.lang.EvaluationException("Type mismatch: cannot convert from " + instanceType + " to "
-					+ type, theIterable, theIterable.getMatch().index);
+				throw new prisms.lang.EvaluationException("Type mismatch: cannot convert from " + instanceType + " to " + type,
+					theIterable, theIterable.getMatch().index);
 
 			java.util.Iterator<?> iterator;
 			if(iterRes.getValue() instanceof Iterable)
@@ -68,16 +67,19 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 
 					private int theLength = java.lang.reflect.Array.getLength(iterRes.getValue());
 
+					@Override
 					public boolean hasNext()
 					{
 						return theIndex < theLength;
 					}
 
+					@Override
 					public Object next()
 					{
 						return java.lang.reflect.Array.get(iterRes.getValue(), theIndex++);
 					}
 
+					@Override
 					public void remove()
 					{
 						throw new UnsupportedOperationException();
@@ -118,7 +120,7 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 	}
 
 	/** @return The iterator to iterate over in the loop */
-	public prisms.lang.ParsedItem getIterable()
+	public ParsedItem getIterable()
 	{
 		return theIterable;
 	}
@@ -130,15 +132,38 @@ public class ParsedEnhancedForLoop extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.ParsedItem[] getDependents()
+	public ParsedItem [] getDependents()
 	{
-		return new prisms.lang.ParsedItem [] {theVariable, theIterable, theContents};
+		return new ParsedItem [] {theVariable, theIterable, theContents};
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		if(theVariable == dependent)
+		{
+			if(toReplace instanceof ParsedDeclaration)
+				theVariable = (ParsedDeclaration) toReplace;
+			else
+				throw new IllegalArgumentException("Cannot replace the variable declaration of an enhanced for loop with "
+					+ toReplace.getClass().getSimpleName());
+		}
+		else if(theIterable == dependent)
+			theIterable = toReplace;
+		else if(theContents == dependent)
+		{
+			if(toReplace instanceof ParsedStatementBlock)
+				theContents = (ParsedStatementBlock) toReplace;
+			else
+				throw new IllegalArgumentException("Cannot replace the contents of a for loop with " + toReplace.getClass().getSimpleName());
+		}
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override
 	public String toString()
 	{
-		return new StringBuilder("for(").append(theVariable).append(" : ").append(theIterable).append('\n')
-			.append(theContents).toString();
+		return new StringBuilder("for(").append(theVariable).append(" : ").append(theIterable).append('\n').append(theContents).toString();
 	}
 }

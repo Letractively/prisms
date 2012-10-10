@@ -6,21 +6,21 @@ package prisms.lang.types;
 import java.lang.reflect.Modifier;
 
 import prisms.lang.EvaluationException;
+import prisms.lang.ParsedItem;
 
 /** Represents an import command */
-public class ParsedImport extends prisms.lang.ParsedItem
+public class ParsedImport extends ParsedItem
 {
 	private boolean isStatic;
 
 	private boolean isWildcard;
 
-	private prisms.lang.ParsedItem theType;
+	private ParsedItem theType;
 
 	private String theMethodName;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		isStatic = getStored("static") != null;
@@ -34,16 +34,16 @@ public class ParsedImport extends prisms.lang.ParsedItem
 				{
 					ParsedMethod method = (ParsedMethod) theType;
 					if(method.isMethod())
-						throw new prisms.lang.ParseException("The import " + theType.getMatch().text
-							+ " cannot be resolved", getRoot().getFullCommand(), theType.getMatch().index);
+						throw new prisms.lang.ParseException("The import " + theType.getMatch().text + " cannot be resolved", getRoot()
+							.getFullCommand(), theType.getMatch().index);
 					theType = method.getContext();
 					theMethodName = method.getName();
 				}
 				else if(!getMatch().isComplete())
 				{}
 				else if(theType instanceof ParsedIdentifier)
-					throw new prisms.lang.ParseException("The import " + theType.getMatch().text
-						+ " cannot be resolved", getRoot().getFullCommand(), theType.getMatch().index);
+					throw new prisms.lang.ParseException("The import " + theType.getMatch().text + " cannot be resolved", getRoot()
+						.getFullCommand(), theType.getMatch().index);
 				else
 					throw new prisms.lang.ParseException("Syntax error: name expected", getRoot().getFullCommand(),
 						theType.getMatch().index);
@@ -52,11 +52,10 @@ public class ParsedImport extends prisms.lang.ParsedItem
 	}
 
 	/**
-	 * @return Either the type that was imported (for a non-static, non-wildcard import), the type to which belong the
-	 *         method or methods that were imported with a static import, or the package to import for a non-static
-	 *         wildcard import.
+	 * @return Either the type that was imported (for a non-static, non-wildcard import), the type to which belong the method or methods
+	 *         that were imported with a static import, or the package to import for a non-static wildcard import.
 	 */
-	public prisms.lang.ParsedItem getType()
+	public ParsedItem getType()
 	{
 		return theType;
 	}
@@ -80,26 +79,35 @@ public class ParsedImport extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.ParsedItem[] getDependents()
+	public ParsedItem [] getDependents()
 	{
-		return new prisms.lang.ParsedItem [] {theType};
+		return new ParsedItem [] {theType};
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws EvaluationException
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		if(theType == dependent)
+			theType = toReplace;
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
+	@Override
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
 		prisms.lang.EvaluationResult typeEval = theType.evaluate(env, true, false);
 		if(isStatic)
 		{
 			if(!typeEval.isType())
-				throw new EvaluationException("The static import " + theType.getMatch().text + "." + theMethodName
-					+ " cannot be resolved", this, theType.getMatch().index);
+				throw new EvaluationException("The static import " + theType.getMatch().text + "." + theMethodName + " cannot be resolved",
+					this, theType.getMatch().index);
 			if(isWildcard)
 			{
 				if(!typeEval.isType())
-					throw new EvaluationException("The static import " + theType.getMatch().text
-						+ ".* cannot be resolved", this, theType.getMatch().index);
+					throw new EvaluationException("The static import " + theType.getMatch().text + ".* cannot be resolved", this,
+						theType.getMatch().index);
 				for(java.lang.reflect.Method m : typeEval.getType().getBaseType().getDeclaredMethods())
 				{
 					if((m.getModifiers() & Modifier.STATIC) == 0)
@@ -151,16 +159,16 @@ public class ParsedImport extends prisms.lang.ParsedItem
 		else if(isWildcard)
 		{
 			if(typeEval.getPackageName() == null)
-				throw new EvaluationException("The type import " + theType.getMatch().text + ".* cannot be resolved",
-					this, theType.getMatch().index);
+				throw new EvaluationException("The type import " + theType.getMatch().text + ".* cannot be resolved", this,
+					theType.getMatch().index);
 			env.addImportPackage(typeEval.getPackageName());
 			return null;
 		}
 		else
 		{
 			if(!typeEval.isType())
-				throw new EvaluationException("The type import " + theType.getMatch().text + " cannot be resolved",
-					this, theType.getMatch().index);
+				throw new EvaluationException("The type import " + theType.getMatch().text + " cannot be resolved", this,
+					theType.getMatch().index);
 			env.addImportType(typeEval.getType().getBaseType());
 			return null;
 		}

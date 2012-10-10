@@ -25,14 +25,12 @@ public class ParsedConstructor extends ParsedItem
 	private ParsedFunctionDeclaration [] theMethods;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		theType = (ParsedType) parser.parseStructures(this, getStored("type"))[0];
 		if(theType.isBounded())
-			throw new prisms.lang.ParseException("Cannot instantiate a generic type", getRoot().getFullCommand(),
-				theType.getMatch().index);
+			throw new prisms.lang.ParseException("Cannot instantiate a generic type", getRoot().getFullCommand(), theType.getMatch().index);
 		isAnonymous = getStored("anonymous") != null;
 		theInstanceInitializer = (ParsedStatementBlock) parser.parseStructures(this, getStored("instanceInitializer"))[0];
 		java.util.ArrayList<ParsedItem> args = new java.util.ArrayList<ParsedItem>();
@@ -50,8 +48,7 @@ public class ParsedConstructor extends ParsedItem
 		}
 		if(isAnonymous)
 		{
-			theFields = new ParsedStatementBlock(parser, this, getMatch(),
-				fields.toArray(new ParsedItem [fields.size()]));
+			theFields = new ParsedStatementBlock(parser, this, getMatch(), fields.toArray(new ParsedItem [fields.size()]));
 			for(ParsedItem field : theFields.getContents())
 			{
 				if(field instanceof ParsedDeclaration)
@@ -61,12 +58,11 @@ public class ParsedConstructor extends ParsedItem
 					ParsedAssignmentOperator assign = (ParsedAssignmentOperator) field;
 					if(!assign.getName().equals("=") || !(assign.getVariable() instanceof ParsedDeclaration))
 						throw new prisms.lang.ParseException(
-							"Fields in an anonymous class must be declarations or assignments of declarations",
-							getRoot().getFullCommand(), field.getMatch().index);
+							"Fields in an anonymous class must be declarations or assignments of declarations", getRoot().getFullCommand(),
+							field.getMatch().index);
 				}
 				else
-					throw new prisms.lang.ParseException("Unrecognized field statement", getRoot().getFullCommand(),
-						field.getMatch().index);
+					throw new prisms.lang.ParseException("Unrecognized field statement", getRoot().getFullCommand(), field.getMatch().index);
 			}
 			theMethods = methods.toArray(new ParsedFunctionDeclaration [methods.size()]);
 		}
@@ -128,41 +124,53 @@ public class ParsedConstructor extends ParsedItem
 	}
 
 	@Override
-	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
-		if(theType == dependent) {
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		if(theType == dependent)
+		{
 			if(toReplace instanceof ParsedType)
 				theType = (ParsedType) toReplace;
 			else
 				throw new IllegalArgumentException("Cannot replace the type of a constructor with " + toReplace.getClass().getSimpleName());
 		}
-		else {
+		else
+		{
 			for(int i = 0; i < theArguments.length; i++)
-				if(theArguments[i] == dependent) {
+				if(theArguments[i] == dependent)
+				{
 					theArguments[i] = toReplace;
 					return;
 				}
-			if(theInstanceInitializer != null && theInstanceInitializer == dependent) {
+			if(theInstanceInitializer != null && theInstanceInitializer == dependent)
+			{
 				if(toReplace instanceof ParsedStatementBlock)
+				{
 					theInstanceInitializer = (ParsedStatementBlock) toReplace;
+					return;
+				}
 				else
 					throw new IllegalArgumentException("Cannot replace the initializer block of a constructor with "
 						+ toReplace.getClass().getSimpleName());
 			}
 			if(theFields != null)
 				for(int i = 0; i < theFields.getContents().length; i++)
-					if(theFields.getContents()[i] == dependent) {
+					if(theFields.getContents()[i] == dependent)
+					{
 						theFields.replace(dependent, toReplace);
 						return;
 					}
 			if(theMethods != null)
 				for(int i = 0; i < theMethods.length; i++)
-					if(theMethods[i] == dependent) {
+					if(theMethods[i] == dependent)
+					{
 						if(toReplace instanceof ParsedFunctionDeclaration)
+						{
 							theMethods[i] = (ParsedFunctionDeclaration) toReplace;
+							return;
+						}
 						else
 							throw new IllegalArgumentException("Cannot replace a method of a constructor (anonymous inner class) with "
 								+ toReplace.getClass().getSimpleName());
-						return;
 					}
 			throw new IllegalArgumentException("No such dependent " + dependent);
 		}
@@ -187,13 +195,12 @@ public class ParsedConstructor extends ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
 		prisms.lang.EvaluationResult type = theType.evaluate(env, true, false);
 		if(!type.isType())
-			throw new EvaluationException(type.typeString() + " cannot be resolved to a type", this,
-				theType.getMatch().index);
+			throw new EvaluationException(type.typeString() + " cannot be resolved to a type", this, theType.getMatch().index);
 		if(!isAnonymous)
 			return evaluateConstructor(env, type.getType(), withValues);
 		else
@@ -201,8 +208,8 @@ public class ParsedConstructor extends ParsedItem
 	}
 
 	@SuppressWarnings("rawtypes")
-	prisms.lang.EvaluationResult evaluateConstructor(prisms.lang.EvaluationEnvironment env, Type type,
-		boolean withValues) throws EvaluationException
+	prisms.lang.EvaluationResult evaluateConstructor(prisms.lang.EvaluationEnvironment env, Type type, boolean withValues)
+		throws EvaluationException
 	{
 		java.lang.reflect.Constructor[] constructors;
 		if(env.usePublicOnly())
@@ -224,8 +231,7 @@ public class ParsedConstructor extends ParsedItem
 			java.lang.reflect.Type[] _paramTypes = c.getGenericParameterTypes();
 			Type [] paramTypes = new Type [_paramTypes.length];
 			for(int p = 0; p < paramTypes.length; p++)
-				paramTypes[p] = type.resolve(_paramTypes[p], c.getDeclaringClass(), null, c.getGenericParameterTypes(),
-					argTypes);
+				paramTypes[p] = type.resolve(_paramTypes[p], c.getDeclaringClass(), null, c.getGenericParameterTypes(), argTypes);
 			if(paramTypes.length > argRes.length + 1)
 				continue;
 			boolean bad = false;
@@ -242,8 +248,7 @@ public class ParsedConstructor extends ParsedItem
 				continue;
 			}
 			java.lang.reflect.Constructor target = null;
-			if(paramTypes.length == argRes.length
-				&& (paramTypes.length == 0 || paramTypes[p].isAssignable(argRes[p].getType())))
+			if(paramTypes.length == argRes.length && (paramTypes.length == 0 || paramTypes[p].isAssignable(argRes[p].getType())))
 				target = c;
 			else if(c.isVarArgs())
 			{
@@ -287,8 +292,8 @@ public class ParsedConstructor extends ParsedItem
 			}
 			else
 			{
-				Object varArgs = java.lang.reflect.Array.newInstance(paramTypes[args.length - 1].getComponentType(),
-					theArguments.length - paramTypes.length + 1);
+				Object varArgs = java.lang.reflect.Array.newInstance(paramTypes[args.length - 1].getComponentType(), theArguments.length
+					- paramTypes.length + 1);
 				args[args.length - 1] = varArgs;
 				for(int i = paramTypes.length - 1; i < theArguments.length; i++)
 					java.lang.reflect.Array.set(varArgs, i - paramTypes.length + 1, argRes[i].getValue());
@@ -298,12 +303,11 @@ public class ParsedConstructor extends ParsedItem
 				return new prisms.lang.EvaluationResult(type, withValues ? goodTarget.newInstance(args) : null);
 			} catch(java.lang.reflect.InvocationTargetException e)
 			{
-				throw new prisms.lang.ExecutionException(new Type(e.getCause().getClass()), e.getCause(), this,
-					getStored("type").index);
+				throw new prisms.lang.ExecutionException(new Type(e.getCause().getClass()), e.getCause(), this, getStored("type").index);
 			} catch(Exception e)
 			{
-				throw new EvaluationException("Could not invoke constructor of class " + type.getBaseType().getName(),
-					e, this, getStored("type").index);
+				throw new EvaluationException("Could not invoke constructor of class " + type.getBaseType().getName(), e, this,
+					getStored("type").index);
 			}
 		}
 		else if(badTarget != null)
@@ -323,8 +327,7 @@ public class ParsedConstructor extends ParsedItem
 				msg.append(prisms.lang.Type.typeString(paramTypes[p]));
 			msg.append(')');
 			if(env.usePublicOnly() && (badTarget.getModifiers() & java.lang.reflect.Modifier.PUBLIC) == 0)
-				throw new EvaluationException("The constructor " + msg + " is not visible", this,
-					getStored("type").index);
+				throw new EvaluationException("The constructor " + msg + " is not visible", this, getStored("type").index);
 			StringBuilder types = new StringBuilder();
 			for(p = 0; p < argRes.length; p++)
 			{
@@ -332,8 +335,8 @@ public class ParsedConstructor extends ParsedItem
 					types.append(", ");
 				types.append(argRes[p].getType());
 			}
-			throw new EvaluationException("The constructor " + msg + " is undefined for parameter types " + types,
-				this, getStored("type").index);
+			throw new EvaluationException("The constructor " + msg + " is undefined for parameter types " + types, this,
+				getStored("type").index);
 		}
 		else
 		{
@@ -355,11 +358,11 @@ public class ParsedConstructor extends ParsedItem
 		throws EvaluationException
 	{
 		if(java.lang.reflect.Modifier.isFinal(type.getBaseType().getModifiers()))
-			throw new EvaluationException("An anonymous class cannot subclass the final class "
-				+ type.getBaseType().getName(), this, theType.getMatch().index);
+			throw new EvaluationException("An anonymous class cannot subclass the final class " + type.getBaseType().getName(), this,
+				theType.getMatch().index);
 		if(!type.getBaseType().isInterface())
-			throw new EvaluationException("Only interfaces can be implemented by anonymous"
-				+ " classes in this interpreter", this, theType.getMatch().index);
+			throw new EvaluationException("Only interfaces can be implemented by anonymous" + " classes in this interpreter", this,
+				theType.getMatch().index);
 		prisms.lang.EvaluationEnvironment instanceScope = env.scope(false);
 		for(ParsedItem field : theFields.getContents())
 		{
@@ -367,8 +370,8 @@ public class ParsedConstructor extends ParsedItem
 			if(field instanceof ParsedDeclaration)
 			{
 				String name = ((ParsedDeclaration) field).getName();
-				instanceScope.setVariable(name, getDefaultValue(instanceScope.getVariableType(name).getBaseType()),
-					this, field.getMatch().index);
+				instanceScope.setVariable(name, getDefaultValue(instanceScope.getVariableType(name).getBaseType()), this,
+					field.getMatch().index);
 			}
 		}
 		for(java.lang.reflect.Method m : type.getBaseType().getMethods())
@@ -385,20 +388,19 @@ public class ParsedConstructor extends ParsedItem
 						.evaluate(env, true, false)
 						.getType()
 						.isAssignable(
-							type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null,
-								new java.lang.reflect.Type [0], new Type [0])))
+							type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null, new java.lang.reflect.Type [0],
+								new Type [0])))
 						break;
 				if(p == f.getParameters().length)
 					found = true;
 				else
 					continue;
-				Type rt = type.resolve(m.getReturnType(), m.getDeclaringClass(), null, new java.lang.reflect.Type [0],
-					new Type [0]);
+				Type rt = type.resolve(m.getReturnType(), m.getDeclaringClass(), null, new java.lang.reflect.Type [0], new Type [0]);
 				if(!rt.isAssignable(f.getReturnType().evaluate(env, true, false).getType()))
 				{
 					StringBuilder msg = new StringBuilder();
-					msg.append("Return type").append(f.getReturnType()).append(" not compatible with return type ")
-						.append(rt).append(" of method ");
+					msg.append("Return type").append(f.getReturnType()).append(" not compatible with return type ").append(rt)
+						.append(" of method ");
 					msg.append(m.getDeclaringClass().getName()).append(m.getName()).append('(');
 					for(int p2 = 0; p2 < m.getParameterTypes().length; p2++)
 					{
@@ -417,8 +419,7 @@ public class ParsedConstructor extends ParsedItem
 						continue;
 					boolean exOk = false;
 					for(java.lang.reflect.Type met : m.getGenericExceptionTypes())
-						if(type.resolve(met, m.getDeclaringClass(), null, new java.lang.reflect.Type [0], new Type [0])
-							.isAssignable(t))
+						if(type.resolve(met, m.getDeclaringClass(), null, new java.lang.reflect.Type [0], new Type [0]).isAssignable(t))
 						{
 							exOk = true;
 							break;
@@ -426,8 +427,7 @@ public class ParsedConstructor extends ParsedItem
 					if(!exOk)
 					{
 						StringBuilder msg = new StringBuilder();
-						msg.append("Declared throwable type ").append(t)
-							.append(" not declared to be thrown by method ");
+						msg.append("Declared throwable type ").append(t).append(" not declared to be thrown by method ");
 						msg.append(m.getDeclaringClass().getName()).append(m.getName()).append('(');
 						for(int p2 = 0; p2 < m.getParameterTypes().length; p2++)
 						{
@@ -444,15 +444,14 @@ public class ParsedConstructor extends ParsedItem
 			if(!found)
 			{
 				StringBuilder msg = new StringBuilder();
-				msg.append("Anonymous class implementing ").append(theType)
-					.append(" must implement the abstract method ");
+				msg.append("Anonymous class implementing ").append(theType).append(" must implement the abstract method ");
 				msg.append(m.getName()).append('(');
 				for(int p = 0; p < m.getParameterTypes().length; p++)
 				{
 					if(p > 0)
 						msg.append(", ");
-					msg.append(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null,
-						new java.lang.reflect.Type [0], new Type [0]));
+					msg.append(type.resolve(m.getGenericParameterTypes()[p], m.getDeclaringClass(), null, new java.lang.reflect.Type [0],
+						new Type [0]));
 				}
 				msg.append(')');
 				throw new EvaluationException(msg.toString(), this, theType.getMatch().index);
@@ -466,8 +465,8 @@ public class ParsedConstructor extends ParsedItem
 
 		Object proxy = null;
 		if(withValues)
-			proxy = java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
-				new Class [] {type.getBaseType()}, new AnonymousClassHandler(type, instanceScope));
+			proxy = java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(), new Class [] {type.getBaseType()},
+				new AnonymousClassHandler(type, instanceScope));
 		return new prisms.lang.EvaluationResult(type, proxy);
 	}
 
@@ -525,15 +524,14 @@ public class ParsedConstructor extends ParsedItem
 		{
 			for(ParsedFunctionDeclaration m : getMethods())
 			{
-				if(!m.getName().equals(method.getName())
-					|| m.getParameters().length != method.getParameterTypes().length)
+				if(!m.getName().equals(method.getName()) || m.getParameters().length != method.getParameterTypes().length)
 					continue;
 				prisms.lang.EvaluationResult[] argRes = new prisms.lang.EvaluationResult [m.getParameters().length];
 				int p;
 				for(p = 0; p < m.getParameters().length; p++)
 				{
-					Type argType = theImplType.resolve(method.getGenericParameterTypes()[p],
-						method.getDeclaringClass(), null, new java.lang.reflect.Type [0], new Type [0]);
+					Type argType = theImplType.resolve(method.getGenericParameterTypes()[p], method.getDeclaringClass(), null,
+						new java.lang.reflect.Type [0], new Type [0]);
 					if(!m.getParameters()[p].evaluateType(theEnv).isAssignable(argType))
 						break;
 					argRes[p] = new prisms.lang.EvaluationResult(argType, args[p]);
