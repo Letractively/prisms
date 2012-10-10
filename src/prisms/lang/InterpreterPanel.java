@@ -1378,7 +1378,7 @@ public class InterpreterPanel extends javax.swing.JPanel
 	{
 		if(java.awt.EventQueue.isDispatchThread())
 		{
-			String textTrim = text.trim();
+			String textTrim = text == null ? "null" : text.trim();
 			if(textTrim.length() == 0)
 				return;
 			javax.swing.JEditorPane answer = new javax.swing.JEditorPane();
