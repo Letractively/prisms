@@ -9,16 +9,15 @@ public class ParsedStatementBlock extends ParsedItem
 	private ParsedItem [] theContents;
 
 	/**
-	 * Default constructor. Used when {@link #setup(prisms.lang.PrismsParser, ParsedItem, prisms.lang.ParseMatch)} will
-	 * be called later
+	 * Default constructor. Used when {@link #setup(prisms.lang.PrismsParser, ParsedItem, prisms.lang.ParseMatch)} will be called later
 	 */
 	public ParsedStatementBlock()
 	{
 	}
 
 	/**
-	 * Pre-setup constructor. Used so that {@link #setup(prisms.lang.PrismsParser, ParsedItem, prisms.lang.ParseMatch)}
-	 * does not need to be called subsequently.
+	 * Pre-setup constructor. Used so that {@link #setup(prisms.lang.PrismsParser, ParsedItem, prisms.lang.ParseMatch)} does not need to be
+	 * called subsequently.
 	 * 
 	 * @param parser The parser that parsed this structure's contents
 	 * @param parent The parent structure
@@ -26,8 +25,7 @@ public class ParsedStatementBlock extends ParsedItem
 	 * @param contents The content statements of the block
 	 * @see ParsedItem#setup(prisms.lang.PrismsParser, ParsedItem, prisms.lang.ParseMatch)
 	 */
-	public ParsedStatementBlock(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match,
-		ParsedItem... contents)
+	public ParsedStatementBlock(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match, ParsedItem... contents)
 	{
 		try
 		{
@@ -40,8 +38,7 @@ public class ParsedStatementBlock extends ParsedItem
 	}
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		java.util.ArrayList<ParsedItem> contents = new java.util.ArrayList<ParsedItem>();
@@ -52,8 +49,8 @@ public class ParsedStatementBlock extends ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		for(ParsedItem content : theContents)
@@ -66,18 +63,17 @@ public class ParsedStatementBlock extends ParsedItem
 	}
 
 	/**
-	 * Executes a statement in a java context. Only statements that would be permitted as java statements are accepted.
-	 * Others will throw an exception
+	 * Executes a statement in a java context. Only statements that would be permitted as java statements are accepted. Others will throw an
+	 * exception
 	 * 
 	 * @param content The statement to execute
 	 * @param env The environment to execute the statement in
 	 * @param withValues Whether to evaluate values or just validate the statement
 	 * @return A result if the statement was a control statement, null otherwise
-	 * @throws EvaluationException If the statement is not a valid java statement, or if the execution of the statement
-	 *         throws an exception
+	 * @throws EvaluationException If the statement is not a valid java statement, or if the execution of the statement throws an exception
 	 */
-	public static prisms.lang.EvaluationResult executeJavaStatement(ParsedItem content,
-		prisms.lang.EvaluationEnvironment env, boolean withValues) throws EvaluationException
+	public static prisms.lang.EvaluationResult executeJavaStatement(ParsedItem content, prisms.lang.EvaluationEnvironment env,
+		boolean withValues) throws EvaluationException
 	{
 		if(content instanceof ParsedAssignmentOperator)
 		{}
@@ -87,8 +83,8 @@ public class ParsedStatementBlock extends ParsedItem
 		{
 			ParsedMethod method = (ParsedMethod) content;
 			if(!method.isMethod())
-				throw new EvaluationException("Content expressions must be declarations, assignments or method calls",
-					content.getParent(), content.getMatch().index);
+				throw new EvaluationException("Content expressions must be declarations, assignments or method calls", content.getParent(),
+					content.getMatch().index);
 		}
 		else if(content instanceof ParsedConstructor)
 		{}
@@ -102,8 +98,7 @@ public class ParsedStatementBlock extends ParsedItem
 		{
 			String word = ((ParsedKeyword) content).getName();
 			if(word.equals("continue"))
-				return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.CONTINUE, null,
-					content);
+				return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.CONTINUE, null, content);
 			if(word.equals("break"))
 				return new prisms.lang.EvaluationResult(prisms.lang.EvaluationResult.ControlType.BREAK, null, content);
 		}
@@ -115,8 +110,8 @@ public class ParsedStatementBlock extends ParsedItem
 		else if(content instanceof ParsedThrow)
 		{}
 		else
-			throw new EvaluationException("Content expressions must be declarations, assignments or method calls",
-				content.getParent(), content.getMatch().index);
+			throw new EvaluationException("Content expressions must be declarations, assignments or method calls", content.getParent(),
+				content.getMatch().index);
 		content.evaluate(env, false, withValues);
 		return null;
 	}
@@ -131,6 +126,20 @@ public class ParsedStatementBlock extends ParsedItem
 	public ParsedItem [] getDependents()
 	{
 		return theContents;
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		for(int i = 0; i < theContents.length; i++)
+		{
+			if(theContents[i] == dependent)
+			{
+				theContents[i] = toReplace;
+				return;
+			}
+		}
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

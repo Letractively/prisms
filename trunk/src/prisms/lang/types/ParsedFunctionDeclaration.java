@@ -1,21 +1,22 @@
 package prisms.lang.types;
 
+import prisms.lang.ParsedItem;
+
 /** Represents a user-created function */
-public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
+public class ParsedFunctionDeclaration extends ParsedItem
 {
 	private String theName;
 
 	private ParsedDeclaration [] theParameters;
 
-	private prisms.lang.ParsedItem theReturnType;
+	private ParsedItem theReturnType;
 
 	private ParsedType [] theExceptionTypes;
 
 	private ParsedStatementBlock theBody;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		theName = getStored("name").text;
@@ -26,11 +27,9 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 		for(prisms.lang.ParseMatch m : match.getParsed())
 		{
 			if("parameter".equals(m.config.get("storeAs")))
-				theParameters = prisms.util.ArrayUtils.add(theParameters,
-					(ParsedDeclaration) parser.parseStructures(this, m)[0]);
+				theParameters = prisms.util.ArrayUtils.add(theParameters, (ParsedDeclaration) parser.parseStructures(this, m)[0]);
 			else if("exception".equals(m.config.get("storeAs")))
-				theExceptionTypes = prisms.util.ArrayUtils.add(theExceptionTypes,
-					(ParsedType) parser.parseStructures(this, m)[0]);
+				theExceptionTypes = prisms.util.ArrayUtils.add(theExceptionTypes, (ParsedType) parser.parseStructures(this, m)[0]);
 		}
 		for(int i = 0; i < theParameters.length - 1; i++)
 			if(theParameters[i].isVarArg())
@@ -40,14 +39,13 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
 		prisms.lang.EvaluationResult ret = theReturnType.evaluate(scoped, true, withValues);
 		if(!ret.isType())
-			throw new prisms.lang.EvaluationException(ret + " cannot be resolved to a type", theReturnType,
-				theReturnType.getMatch().index);
+			throw new prisms.lang.EvaluationException(ret + " cannot be resolved to a type", theReturnType, theReturnType.getMatch().index);
 		scoped.setReturnType(ret.getType());
 		for(ParsedDeclaration dec : theParameters)
 			dec.evaluate(scoped, false, false);
@@ -67,11 +65,10 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	 * @param args The arguments to evaluate the function against
 	 * @param withValues Whether to validate or evaluate this function
 	 * @return The return value of the function
-	 * @throws prisms.lang.EvaluationException If an error occurs evaluating the function or if the evaluation throws an
-	 *         exception
+	 * @throws prisms.lang.EvaluationException If an error occurs evaluating the function or if the evaluation throws an exception
 	 */
-	public prisms.lang.EvaluationResult execute(prisms.lang.EvaluationEnvironment env,
-		prisms.lang.EvaluationResult[] args, boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult execute(prisms.lang.EvaluationEnvironment env, prisms.lang.EvaluationResult[] args,
+		boolean withValues) throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
 		if(theParameters.length != args.length)
@@ -82,8 +79,7 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 				throw new IllegalStateException("Illegal parameters");
 			theParameters[i].evaluate(scoped, false, withValues);
 			if(withValues)
-				scoped.setVariable(theParameters[i].getName(), args[i].getValue(), theParameters[i],
-					theParameters[i].getMatch().index);
+				scoped.setVariable(theParameters[i].getName(), args[i].getValue(), theParameters[i], theParameters[i].getMatch().index);
 		}
 		for(ParsedType et : theExceptionTypes)
 			if(!env.canHandle(et.evaluate(scoped, true, withValues).getType()))
@@ -104,8 +100,8 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 				throw new prisms.lang.EvaluationException("No value returned", theBody, theBody.getMatch().index
 					+ theBody.getMatch().text.length());
 			if(withValues && res != null && !isAssignable(retRes.getType(), res.getValue()))
-				throw new prisms.lang.EvaluationException("Type mismatch: cannot convert from " + res.getType()
-					+ " to " + retRes.getType(), theBody, theBody.getMatch().index);
+				throw new prisms.lang.EvaluationException(
+					"Type mismatch: cannot convert from " + res.getType() + " to " + retRes.getType(), theBody, theBody.getMatch().index);
 			return new prisms.lang.EvaluationResult(retRes.getType(), res == null ? null : res.getValue());
 		} catch(prisms.lang.ExecutionException e)
 		{
@@ -157,7 +153,7 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	}
 
 	/** @return The type of this function's return value */
-	public prisms.lang.ParsedItem getReturnType()
+	public ParsedItem getReturnType()
 	{
 		return theReturnType;
 	}
@@ -175,16 +171,62 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.ParsedItem[] getDependents()
+	public ParsedItem [] getDependents()
 	{
-		java.util.ArrayList<prisms.lang.ParsedItem> ret = new java.util.ArrayList<prisms.lang.ParsedItem>();
+		java.util.ArrayList<ParsedItem> ret = new java.util.ArrayList<>();
 		ret.add(theReturnType);
 		for(int p = 0; p < theParameters.length; p++)
 			ret.add(theParameters[p]);
 		for(int e = 0; e < theExceptionTypes.length; e++)
 			ret.add(theExceptionTypes[e]);
 		ret.add(theBody);
-		return ret.toArray(new prisms.lang.ParsedItem [ret.size()]);
+		return ret.toArray(new ParsedItem [ret.size()]);
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		if(theReturnType == dependent)
+		{
+			theReturnType = toReplace;
+			return;
+		}
+		for(int i = 0; i < theParameters.length; i++)
+			if(theParameters[i] == dependent)
+			{
+				if(toReplace instanceof ParsedDeclaration)
+				{
+					theParameters[i] = (ParsedDeclaration) toReplace;
+					return;
+				}
+				else
+					throw new IllegalArgumentException("Cannot replace a declared parameter of a function declaration with "
+						+ toReplace.getClass().getSimpleName());
+			}
+		for(int i = 0; i < theExceptionTypes.length; i++)
+			if(theExceptionTypes[i] == dependent)
+			{
+				if(toReplace instanceof ParsedType)
+				{
+					theExceptionTypes[i] = (ParsedType) toReplace;
+					return;
+				}
+				else
+					throw new IllegalArgumentException("Cannot replace a declared exception type of a function declaration with "
+						+ toReplace.getClass().getSimpleName());
+			}
+		if(theBody == dependent)
+		{
+			if(toReplace instanceof ParsedStatementBlock)
+			{
+				theBody = (ParsedStatementBlock) toReplace;
+				return;
+			}
+			else
+				throw new IllegalArgumentException("Cannot replace the body of a function declaration with "
+					+ toReplace.getClass().getSimpleName());
+		}
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	/** @return A short representation of this function's signature */
@@ -223,8 +265,8 @@ public class ParsedFunctionDeclaration extends prisms.lang.ParsedItem
 	}
 
 	/**
-	 * Checks to see if this function's call signature is identical to another function's. This method checks name and
-	 * parameters, but not parameter names, declared throwable types or functionality.
+	 * Checks to see if this function's call signature is identical to another function's. This method checks name and parameters, but not
+	 * parameter names, declared throwable types or functionality.
 	 * 
 	 * @param pfd The function to compare to
 	 * @return Whether this function's call signature is identical to <code>pfd</code>'s

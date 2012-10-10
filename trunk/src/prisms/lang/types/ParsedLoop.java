@@ -23,8 +23,7 @@ public class ParsedLoop extends ParsedItem
 	private boolean isPreCondition;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		prisms.lang.ParseMatch conditionMatch = getStored("condition");
@@ -106,8 +105,40 @@ public class ParsedLoop extends ParsedItem
 	}
 
 	@Override
-	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
-		throws EvaluationException
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		if(theCondition == dependent)
+		{
+			theCondition = toReplace;
+			return;
+		}
+		if(theContents == dependent)
+		{
+			if(toReplace instanceof ParsedStatementBlock)
+			{
+				theContents = (ParsedStatementBlock) toReplace;
+				return;
+			}
+			else
+				throw new IllegalArgumentException("Cannot replace content block of loop with " + toReplace.getClass().getSimpleName());
+		}
+		for(int i = 0; i < theInits.length; i++)
+			if(theInits[i] == dependent)
+			{
+				theInits[i] = toReplace;
+				return;
+			}
+		for(int i = 0; i < theIncrements.length; i++)
+			if(theIncrements[i] == dependent)
+			{
+				theIncrements[i] = toReplace;
+				return;
+			}
+		throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
+	@Override
+	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues) throws EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		for(ParsedItem init : theInits)
@@ -120,24 +151,23 @@ public class ParsedLoop extends ParsedItem
 			{
 				ParsedMethod method = (ParsedMethod) init;
 				if(!method.isMethod())
-					throw new EvaluationException("Initial expressions in a loop must be"
-						+ " declarations, assignments or method calls", this, init.getMatch().index);
+					throw new EvaluationException("Initial expressions in a loop must be" + " declarations, assignments or method calls",
+						this, init.getMatch().index);
 			}
 			else if(init instanceof ParsedConstructor)
 			{}
 			else
-				throw new EvaluationException("Initial expressions in a loop must be"
-					+ " declarations, assignments or method calls", this, init.getMatch().index);
+				throw new EvaluationException("Initial expressions in a loop must be" + " declarations, assignments or method calls", this,
+					init.getMatch().index);
 			init.evaluate(scoped, false, withValues);
 		}
 		ParsedItem condition = theCondition;
 		EvaluationResult condRes = condition.evaluate(scoped, false, withValues && isPreCondition);
 		if(condRes.isType() || condRes.getPackageName() != null)
-			throw new EvaluationException(condRes.typeString() + " cannot be resolved to a variable", this,
-				condition.getMatch().index);
+			throw new EvaluationException(condRes.typeString() + " cannot be resolved to a variable", this, condition.getMatch().index);
 		if(!Boolean.TYPE.equals(condRes.getType().getBaseType()))
-			throw new EvaluationException("Type mismatch: cannot convert from " + condRes.typeString() + " to boolean",
-				this, condition.getMatch().index);
+			throw new EvaluationException("Type mismatch: cannot convert from " + condRes.typeString() + " to boolean", this,
+				condition.getMatch().index);
 		if(withValues && isPreCondition && !((Boolean) condRes.getValue()).booleanValue())
 			return null;
 
@@ -156,14 +186,14 @@ public class ParsedLoop extends ParsedItem
 				{
 					ParsedMethod method = (ParsedMethod) inc;
 					if(!method.isMethod())
-						throw new EvaluationException("Increment expressions in a loop must be"
-							+ " assignments or method calls", this, inc.getMatch().index);
+						throw new EvaluationException("Increment expressions in a loop must be" + " assignments or method calls", this,
+							inc.getMatch().index);
 				}
 				else if(inc instanceof ParsedConstructor)
 				{}
 				else
-					throw new EvaluationException("Increment expressions in a loop must be"
-						+ " assignments or method calls", this, inc.getMatch().index);
+					throw new EvaluationException("Increment expressions in a loop must be" + " assignments or method calls", this,
+						inc.getMatch().index);
 				inc.evaluate(scoped, false, withValues);
 			}
 			if(res != null && withValues && res.getControl() != null)

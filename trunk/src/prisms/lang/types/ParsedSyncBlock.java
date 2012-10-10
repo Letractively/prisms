@@ -1,15 +1,16 @@
 package prisms.lang.types;
 
+import prisms.lang.ParsedItem;
+
 /** Represents a synchronized block */
-public class ParsedSyncBlock extends prisms.lang.ParsedItem
+public class ParsedSyncBlock extends ParsedItem
 {
-	private prisms.lang.ParsedItem theSyncItem;
+	private ParsedItem theSyncItem;
 
 	private ParsedStatementBlock theContents;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		theSyncItem = parser.parseStructures(this, getStored("syncItem"))[0];
@@ -17,13 +18,13 @@ public class ParsedSyncBlock extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationResult syncItemRes = theSyncItem.evaluate(env, false, withValues);
 		if(!syncItemRes.isValue())
-			throw new prisms.lang.EvaluationException(syncItemRes.typeString() + " cannot be resolved to a variable",
-				this, theSyncItem.getMatch().index);
+			throw new prisms.lang.EvaluationException(syncItemRes.typeString() + " cannot be resolved to a variable", this,
+				theSyncItem.getMatch().index);
 		prisms.lang.EvaluationResult res;
 		if(withValues)
 			synchronized(syncItemRes.getValue())
@@ -36,7 +37,7 @@ public class ParsedSyncBlock extends prisms.lang.ParsedItem
 	}
 
 	/** @return The expression to get the item that will be synchronized on while the contents execute */
-	public prisms.lang.ParsedItem getSyncItem()
+	public ParsedItem getSyncItem()
 	{
 		return theSyncItem;
 	}
@@ -48,9 +49,26 @@ public class ParsedSyncBlock extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.ParsedItem[] getDependents()
+	public ParsedItem [] getDependents()
 	{
-		return new prisms.lang.ParsedItem [] {theSyncItem, theContents};
+		return new ParsedItem [] {theSyncItem, theContents};
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		if(theSyncItem == dependent)
+			theSyncItem = toReplace;
+		else if(theContents == dependent)
+		{
+			if(toReplace instanceof ParsedStatementBlock)
+				theContents = (ParsedStatementBlock) toReplace;
+			else
+				throw new IllegalArgumentException("Cannot replace the block of a synchronized statement with "
+					+ toReplace.getClass().getSimpleName());
+		}
+		else
+			throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

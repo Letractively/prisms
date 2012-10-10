@@ -1,7 +1,9 @@
 package prisms.lang.types;
 
+import prisms.lang.ParsedItem;
+
 /** Represents a try{}[catch(? extends Throwable){}]*[finally{}]? statement */
-public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
+public class ParsedTryCatchFinally extends ParsedItem
 {
 	private ParsedStatementBlock theTryBlock;
 
@@ -12,8 +14,7 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 	private ParsedStatementBlock theFinallyBlock;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		theTryBlock = (ParsedStatementBlock) parser.parseStructures(this, getStored("try"))[0];
@@ -25,20 +26,19 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 				theCatchDeclarations = prisms.util.ArrayUtils.add(theCatchDeclarations,
 					(ParsedDeclaration) parser.parseStructures(this, m)[0]);
 			else if("catch".equals(m.config.get("storeAs")))
-				theCatchBlocks = prisms.util.ArrayUtils.add(theCatchBlocks,
-					(ParsedStatementBlock) parser.parseStructures(this, m)[0]);
+				theCatchBlocks = prisms.util.ArrayUtils.add(theCatchBlocks, (ParsedStatementBlock) parser.parseStructures(this, m)[0]);
 		}
 		prisms.lang.ParseMatch finallyMatch = getStored("finally");
 		if(finallyMatch != null)
 			theFinallyBlock = (ParsedStatementBlock) parser.parseStructures(this, finallyMatch)[0];
 		if(getMatch().isComplete() && theFinallyBlock == null && theCatchDeclarations.length == 0)
-			throw new prisms.lang.ParseException("try statements must use catch or finally",
-				getRoot().getFullCommand(), theTryBlock.getMatch().index + theTryBlock.getMatch().text.length());
+			throw new prisms.lang.ParseException("try statements must use catch or finally", getRoot().getFullCommand(),
+				theTryBlock.getMatch().index + theTryBlock.getMatch().text.length());
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationEnvironment scoped;
 		prisms.lang.Type[] exTypes = new prisms.lang.Type [theCatchDeclarations.length];
@@ -74,8 +74,7 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 				for(int i = 0; i < theCatchDeclarations.length; i++)
 				{
 					scoped = env.scope(true);
-					prisms.lang.EvaluationResult catchType = theCatchDeclarations[i].getType()
-						.evaluate(env, true, true);
+					prisms.lang.EvaluationResult catchType = theCatchDeclarations[i].getType().evaluate(env, true, true);
 					if(catchType.getType().isAssignableFrom(e.getCause().getClass()))
 					{
 						theCatchDeclarations[i].evaluate(scoped, true, withValues);
@@ -123,9 +122,9 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.ParsedItem[] getDependents()
+	public ParsedItem [] getDependents()
 	{
-		java.util.ArrayList<prisms.lang.ParsedItem> ret = new java.util.ArrayList<prisms.lang.ParsedItem>();
+		java.util.ArrayList<ParsedItem> ret = new java.util.ArrayList<>();
 		ret.add(theTryBlock);
 		for(int i = 0; i < theCatchDeclarations.length; i++)
 		{
@@ -134,7 +133,56 @@ public class ParsedTryCatchFinally extends prisms.lang.ParsedItem
 		}
 		if(theFinallyBlock != null)
 			ret.add(theFinallyBlock);
-		return ret.toArray(new prisms.lang.ParsedItem [ret.size()]);
+		return ret.toArray(new ParsedItem [ret.size()]);
+	}
+
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		if(theTryBlock == dependent)
+		{
+			if(toReplace instanceof ParsedStatementBlock)
+			{
+				theTryBlock = (ParsedStatementBlock) toReplace;
+				return;
+			}
+			else
+				throw new IllegalArgumentException("Cannot replace try block with " + toReplace.getClass().getSimpleName());
+		}
+		for(int i = 0; i < theCatchDeclarations.length; i++)
+		{
+			if(theCatchDeclarations[i] == dependent)
+			{
+				if(toReplace instanceof ParsedDeclaration)
+				{
+					theCatchDeclarations[i] = (ParsedDeclaration) toReplace;
+					return;
+				}
+				else
+					throw new IllegalArgumentException("Cannot replace catch declaration with " + toReplace.getClass().getSimpleName());
+			}
+			if(theCatchBlocks[i] == dependent)
+			{
+				if(toReplace instanceof ParsedStatementBlock)
+				{
+					theCatchBlocks[i] = (ParsedStatementBlock) toReplace;
+					return;
+				}
+				else
+					throw new IllegalArgumentException("Cannot replace catch block with " + toReplace.getClass().getSimpleName());
+			}
+		}
+		if(theFinallyBlock != null && theFinallyBlock == dependent)
+		{
+			if(toReplace instanceof ParsedStatementBlock)
+			{
+				theFinallyBlock = (ParsedStatementBlock) toReplace;
+				return;
+			}
+			else
+				throw new IllegalArgumentException("Cannot replace finally block with " + toReplace.getClass().getSimpleName());
+		}
+		throw new IllegalArgumentException("No such dependent " + dependent);
 	}
 
 	@Override

@@ -14,8 +14,7 @@ public class ParsedIfStatement extends ParsedItem
 	private ParsedStatementBlock [] theContents;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
 		theContents = new ParsedStatementBlock [0];
@@ -28,8 +27,7 @@ public class ParsedIfStatement extends ParsedItem
 				if(!conditions.isEmpty())
 				{
 					if(content == null)
-						theContents = prisms.util.ArrayUtils
-							.add(theContents, new ParsedStatementBlock(parser, this, m));
+						theContents = prisms.util.ArrayUtils.add(theContents, new ParsedStatementBlock(parser, this, m));
 					content = null;
 				}
 				conditions.add(parser.parseStructures(this, m)[0]);
@@ -77,9 +75,34 @@ public class ParsedIfStatement extends ParsedItem
 		return ret;
 	}
 
+	@Override
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
+		for(int i = 0; i < theContents.length; i++)
+		{
+			if(i < theConditions.length && theConditions[i] == dependent)
+			{
+				theConditions[i] = toReplace;
+				return;
+			}
+			if(theContents[i] == dependent)
+			{
+				if(toReplace instanceof ParsedStatementBlock)
+				{
+					theContents[i] = (ParsedStatementBlock) toReplace;
+					return;
+				}
+				else
+					throw new IllegalArgumentException("Cannot replace block of if/else statement with "
+						+ toReplace.getClass().getSimpleName());
+			}
+		}
+		throw new IllegalArgumentException("No such dependent " + dependent);
+	}
+
 	/**
-	 * @param condition The index of the condition to get the contents for, or the length of the conditions array to get
-	 *        the contents of the terminal block
+	 * @param condition The index of the condition to get the contents for, or the length of the conditions array to get the contents of the
+	 *        terminal block
 	 * @return The contents of the condition or terminal block specified
 	 */
 	public ParsedStatementBlock getContents(int condition)
@@ -88,8 +111,8 @@ public class ParsedIfStatement extends ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws EvaluationException
 	{
 		boolean hit = false;
 		for(int i = 0; i < theConditions.length && (!hit || !withValues); i++)
@@ -98,11 +121,10 @@ public class ParsedIfStatement extends ParsedItem
 			ParsedItem condition = theConditions[i];
 			prisms.lang.EvaluationResult condRes = condition.evaluate(scoped, false, withValues);
 			if(condRes.isType() || condRes.getPackageName() != null)
-				throw new EvaluationException(condRes.typeString() + " cannot be resolved to a variable", this,
-					condition.getMatch().index);
+				throw new EvaluationException(condRes.typeString() + " cannot be resolved to a variable", this, condition.getMatch().index);
 			if(!condRes.getType().canAssignTo(Boolean.TYPE))
-				throw new EvaluationException("Type mismatch: cannot convert from " + condRes.typeString()
-					+ " to boolean", this, condition.getMatch().index);
+				throw new EvaluationException("Type mismatch: cannot convert from " + condRes.typeString() + " to boolean", this,
+					condition.getMatch().index);
 			hit = !withValues || ((Boolean) condRes.getValue()).booleanValue();
 			if(hit)
 			{
@@ -116,13 +138,11 @@ public class ParsedIfStatement extends ParsedItem
 							return res;
 						break;
 					case CONTINUE:
-						throw new EvaluationException(res.getControlItem().getMatch().text
-							+ " cannot be used outside of a loop", res.getControlItem(), res.getControlItem()
-							.getMatch().index);
+						throw new EvaluationException(res.getControlItem().getMatch().text + " cannot be used outside of a loop",
+							res.getControlItem(), res.getControlItem().getMatch().index);
 					case BREAK:
 						throw new EvaluationException(res.getControlItem().getMatch().text
-							+ " cannot be used outside of a loop or a switch", res.getControlItem(), res
-							.getControlItem().getMatch().index);
+							+ " cannot be used outside of a loop or a switch", res.getControlItem(), res.getControlItem().getMatch().index);
 					}
 				}
 			}
@@ -139,13 +159,11 @@ public class ParsedIfStatement extends ParsedItem
 						return res;
 					break;
 				case CONTINUE:
-					throw new EvaluationException(res.getControlItem().getMatch().text
-						+ " cannot be used outside of a loop", res.getControlItem(),
-						res.getControlItem().getMatch().index);
+					throw new EvaluationException(res.getControlItem().getMatch().text + " cannot be used outside of a loop",
+						res.getControlItem(), res.getControlItem().getMatch().index);
 				case BREAK:
-					throw new EvaluationException(res.getControlItem().getMatch().text
-						+ " cannot be used outside of a loop or a switch", res.getControlItem(), res.getControlItem()
-						.getMatch().index);
+					throw new EvaluationException(res.getControlItem().getMatch().text + " cannot be used outside of a loop or a switch",
+						res.getControlItem(), res.getControlItem().getMatch().index);
 				}
 			}
 		}
