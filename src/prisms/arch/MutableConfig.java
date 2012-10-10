@@ -5,11 +5,33 @@ import org.dom4j.Element;
 /** A modifiable version of PrismsConfig */
 public class MutableConfig extends PrismsConfig
 {
+	/** Listens to changes in a configuration */
+	public static interface ConfigListener
+	{
+		/** @param config The configuration that was added */
+		void configAdded(MutableConfig config);
+
+		/** @param config The configuration that was removed */
+		void configRemoved(MutableConfig config);
+
+		/**
+		 * @param config The configuration whose value was modified
+		 * @param previousValue The previous value of the configuration
+		 */
+		void configChanged(MutableConfig config, String previousValue);
+	}
+
+	private MutableConfig theParent;
+
 	private String theName;
 
 	private String theValue;
 
 	private MutableConfig [] theSubConfigs;
+
+	private ConfigListener [] theListeners;
+
+	private ConfigListener theSubConfigListener;
 
 	/**
 	 * Creates a blank config with just a name
@@ -20,21 +42,84 @@ public class MutableConfig extends PrismsConfig
 	{
 		theName = name;
 		theSubConfigs = new MutableConfig [0];
+		theListeners = new ConfigListener [0];
+		theSubConfigListener = new ConfigListener()
+		{
+			@Override
+			public void configAdded(MutableConfig config)
+			{
+				MutableConfig.this.configAdded(config);
+			}
+
+			@Override
+			public void configRemoved(MutableConfig config)
+			{
+				MutableConfig.this.configRemoved(config);
+			}
+
+			@Override
+			public void configChanged(MutableConfig config, String previousValue)
+			{
+				MutableConfig.this.configChanged(config, previousValue);
+			}
+		};
 	}
 
 	/**
 	 * Creates a modifiable version of an existing PrismsConfig
 	 * 
+	 * @param parent The configuration that this config is a sub-config for. Null for a top-level configuration.
 	 * @param config The configuration to duplicate as modifiable
 	 */
-	public MutableConfig(PrismsConfig config)
+	public MutableConfig(MutableConfig parent, PrismsConfig config)
 	{
+		theParent = parent;
 		theName = config.getName();
 		theValue = config.getValue();
+		theListeners = new ConfigListener [0];
 		PrismsConfig [] subs = config.subConfigs();
 		theSubConfigs = new MutableConfig [subs.length];
 		for(int i = 0; i < subs.length; i++)
-			theSubConfigs[i] = new MutableConfig(subs[i]);
+		{
+			theSubConfigs[i] = new MutableConfig(this, subs[i]);
+			theSubConfigs[i].addListener(theSubConfigListener);
+		}
+	}
+
+	/** @return The configuration that this config is a sub-config for. Null if this is a top-level configuration. */
+	public MutableConfig getParent()
+	{
+		return theParent;
+	}
+
+	void setParent(MutableConfig config)
+	{
+		theParent = config;
+	}
+
+	ConfigListener getSubConfigListener()
+	{
+		return theSubConfigListener;
+	}
+
+	/** @return The path to this configuration from the top-level config, including the top-level config. '/'-separated. */
+	public String getPath()
+	{
+		java.util.ArrayList<MutableConfig> configPath = new java.util.ArrayList<>();
+		MutableConfig config = this;
+		while(config != null)
+		{
+			configPath.add(config);
+			config = config.getParent();
+		}
+		StringBuilder ret = new StringBuilder();
+		for(int i = configPath.size() - 1; i >= 0; i--)
+		{
+			ret.append(configPath.get(i).getName());
+			if(i > 0)
+				ret.append('/');
+		}
+		return ret.toString();
 	}
 
 	@Override
@@ -67,7 +152,9 @@ public class MutableConfig extends PrismsConfig
 	/** @param value The value for this configuration */
 	public void setValue(String value)
 	{
+		String preValue = theValue;
 		theValue = value;
+		configChanged(this, preValue);
 	}
 
 	@Override
@@ -89,8 +176,8 @@ public class MutableConfig extends PrismsConfig
 	}
 
 	/**
-	 * Retrieves the first sub configuration with the given name, or creates a new sub configuration with the given name
-	 * if none exists already
+	 * Retrieves the first sub configuration with the given name, or creates a new sub configuration with the given name if none exists
+	 * already
 	 * 
 	 * @param type The name of the configuration to get or create
 	 * @return The retrieved or created configuration
@@ -115,6 +202,37 @@ public class MutableConfig extends PrismsConfig
 	/** @param subs The sub configurations for this configuration */
 	public void setSubConfigs(MutableConfig [] subs)
 	{
+		prisms.util.ArrayUtils.adjust(theSubConfigs, subs, new prisms.util.ArrayUtils.DifferenceListener<MutableConfig, MutableConfig>()
+		{
+			@Override
+			public boolean identity(MutableConfig o1, MutableConfig o2)
+			{
+				return o1 == o2;
+			}
+
+			@Override
+			public MutableConfig added(MutableConfig o, int mIdx, int retIdx)
+			{
+				o.setParent(MutableConfig.this);
+				o.addListener(getSubConfigListener());
+				return null;
+			}
+
+			@Override
+			public MutableConfig removed(MutableConfig o, int oIdx, int incMod, int retIdx)
+			{
+				if(o.getParent() == MutableConfig.this)
+					o.setParent(null);
+				o.removeListener(getSubConfigListener());
+				return null;
+			}
+
+			@Override
+			public MutableConfig set(MutableConfig o1, int idx1, int incMod, MutableConfig o2, int idx2, int retIdx)
+			{
+				return null;
+			}
+		});
 		theSubConfigs = subs;
 	}
 
@@ -125,6 +243,8 @@ public class MutableConfig extends PrismsConfig
 	public MutableConfig addSubConfig(MutableConfig sub)
 	{
 		theSubConfigs = prisms.util.ArrayUtils.add(theSubConfigs, sub);
+		sub.theParent = this;
+		sub.addListener(theSubConfigListener);
 		return sub;
 	}
 
@@ -132,15 +252,73 @@ public class MutableConfig extends PrismsConfig
 	public void removeSubConfig(MutableConfig sub)
 	{
 		theSubConfigs = prisms.util.ArrayUtils.remove(theSubConfigs, sub);
+		if(sub.theParent == this)
+			sub.theParent = null;
+		sub.removeListener(theSubConfigListener);
+	}
+
+	/** @param listener The listener to be notified when this configuration or any of its children change */
+	public void addListener(ConfigListener listener)
+	{
+		if(listener != null)
+			theListeners = prisms.util.ArrayUtils.add(theListeners, listener);
+	}
+
+	/** @param listener The listener to stop notification for */
+	public void removeListener(ConfigListener listener)
+	{
+		theListeners = prisms.util.ArrayUtils.remove(theListeners, listener);
+	}
+
+	void configAdded(MutableConfig config)
+	{
+		for(ConfigListener listener : theListeners)
+			listener.configAdded(config);
+	}
+
+	void configRemoved(MutableConfig config)
+	{
+		for(ConfigListener listener : theListeners)
+			listener.configRemoved(config);
+	}
+
+	void configChanged(MutableConfig config, String previousValue)
+	{
+		for(ConfigListener listener : theListeners)
+			listener.configChanged(config, previousValue);
 	}
 
 	@Override
 	public MutableConfig clone()
 	{
-		MutableConfig ret = (MutableConfig) super.clone();
+		final MutableConfig ret = (MutableConfig) super.clone();
 		ret.theSubConfigs = new MutableConfig [theSubConfigs.length];
+		ret.theListeners = new ConfigListener [0];
+		ret.theSubConfigListener = new ConfigListener()
+		{
+			@Override
+			public void configAdded(MutableConfig config)
+			{
+				ret.configAdded(config);
+			}
+
+			@Override
+			public void configRemoved(MutableConfig config)
+			{
+				ret.configRemoved(config);
+			}
+
+			@Override
+			public void configChanged(MutableConfig config, String previousValue)
+			{
+				ret.configChanged(config, previousValue);
+			}
+		};
 		for(int i = 0; i < theSubConfigs.length; i++)
+		{
 			ret.theSubConfigs[i] = theSubConfigs[i].clone();
+			ret.theSubConfigs[i].addListener(ret.theSubConfigListener);
+		}
 		return ret;
 	}
 
@@ -168,8 +346,7 @@ public class MutableConfig extends PrismsConfig
 		}
 		for(MutableConfig sub : theSubConfigs)
 		{
-			if(attrs.get(sub.theName)[0] == 1 && sub.theSubConfigs.length == 0 && sub.theValue != null
-				&& sub.theValue.length() < 16)
+			if(attrs.get(sub.theName)[0] == 1 && sub.theSubConfigs.length == 0 && sub.theValue != null && sub.theValue.length() < 16)
 				ret.addAttribute(sub.theName, sub.theValue);
 			else
 				ret.add(sub.toXML(df));
