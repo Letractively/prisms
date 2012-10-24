@@ -5,7 +5,15 @@ package prisms.lang.types;
 
 import java.lang.reflect.Modifier;
 
-import prisms.lang.*;
+import prisms.lang.EvaluationEnvironment;
+import prisms.lang.EvaluationException;
+import prisms.lang.EvaluationResult;
+import prisms.lang.ExecutionException;
+import prisms.lang.ParseException;
+import prisms.lang.ParseMatch;
+import prisms.lang.ParsedItem;
+import prisms.lang.PrismsParser;
+import prisms.lang.Type;
 
 /**
  * Represents one of:
@@ -31,24 +39,12 @@ public class ParsedMethod extends Assignable
 		super.setup(parser, parent, match);
 		theName = getStored("name").text;
 		isMethod = getStored("method") != null;
-		ParseMatch miMatch = null;
-		if(!getStored("name").config.getName().equals("pre-op"))
-		{
-			for(ParseMatch m : match.getParsed())
-			{
-				if(m.config.getName().equals("pre-op"))
-					miMatch = m;
-				else if(m.config.getName().equals("op"))
-					break;
-			}
-		}
+		ParseMatch miMatch = getStored("context");
 		if(miMatch != null)
 			theContext = parser.parseStructures(this, miMatch)[0];
-		else
-			isMethod = true;
 		java.util.ArrayList<ParseMatch> opMatches = new java.util.ArrayList<ParseMatch>();
 		for(ParseMatch m : match.getParsed())
-			if(m.config.getName().equals("op") && !"name".equals(m.config.get("storeAs")))
+			if(m.config.getName().equals("op") && !"name".equals(m.config.get("storeAs")) && !"context".equals(m.config.get("storeAs")))
 				opMatches.add(m);
 		theArguments = parser.parseStructures(this, opMatches.toArray(new ParseMatch [opMatches.size()]));
 	}
@@ -87,9 +83,11 @@ public class ParsedMethod extends Assignable
 	}
 
 	@Override
-	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
 		for(int i = 0; i < theArguments.length; i++)
-			if(theArguments[i] == dependent) {
+			if(theArguments[i] == dependent)
+			{
 				theArguments[i] = toReplace;
 				return;
 			}

@@ -13,10 +13,9 @@ public abstract class ParsedItem
 	private ParseMatch theMatch;
 
 	/**
-	 * Parses this structure type's data, including operands. Extensions must be aware that this method may be called
-	 * with an incomplete match structure. Exceptions should NOT be thrown from this method for incomplete data.
-	 * Instead, as much of the structure of this item should be parsed and stored as is present in the match and the
-	 * rests should be left null.
+	 * Parses this structure type's data, including operands. Extensions must be aware that this method may be called with an incomplete
+	 * match structure. Exceptions should NOT be thrown from this method for incomplete data. Instead, as much of the structure of this item
+	 * should be parsed and stored as is present in the match and the rests should be left null.
 	 * 
 	 * @param parser The parser that is parsing this structure
 	 * @param parent The parent structure
@@ -101,9 +100,68 @@ public abstract class ParsedItem
 	}
 
 	/**
-	 * @return All parsed items that this item is dependent on, in order of their appearance in the text. If this item's
-	 *         match is incomplete, the returned array may end with one or more nulls in place of dependents that this
-	 *         item requires to evaluate properly, but were not present in the text.
+	 * @param name The name of the stored matches to get
+	 * @return An iterable to iterate through all matches in this item stored under the given name
+	 */
+	public Iterable<ParseMatch> getAllStored(final String name)
+	{
+		return new Iterable<ParseMatch>()
+		{
+			@Override
+			public java.util.Iterator<ParseMatch> iterator()
+			{
+				return prisms.util.ArrayUtils.conditionalIterator(getMatch().iterator(),
+					new prisms.util.ArrayUtils.Accepter<ParseMatch, ParseMatch>()
+					{
+						@Override
+						public ParseMatch accept(ParseMatch value)
+						{
+							return name.equals(value.config.get("storeAs")) ? value : null;
+						}
+					}, false);
+			}
+		};
+	}
+
+	/**
+	 * @param name The name of the stored match to get the index of
+	 * @return The number of matches that have to be recursively traversed before arriving at the given stored match
+	 */
+	public int getDeepStoreIndex(String name)
+	{
+		return getDeepStoreIndex(theMatch, name);
+	}
+
+	private int getDeepStoreIndex(ParseMatch match, String name)
+	{
+		if(name.equals(match.config.get("storeAs")))
+			return 0;
+		if(match.getParsed() == null)
+			return -1;
+		int ret = 1;
+		for(ParseMatch sub : match.getParsed())
+		{
+			int dsi = getDeepStoreIndex(sub, name);
+			if(dsi > 0)
+				return ret + dsi;
+			ret += getDeepCount(sub);
+		}
+		return -1;
+	}
+
+	private int getDeepCount(ParseMatch match)
+	{
+		int ret = 1;
+		if(match.getParsed() != null)
+			for(ParseMatch sub : match.getParsed())
+				ret += getDeepCount(sub);
+		return ret;
+	}
+
+	/**
+	 * @return All parsed items that this item is dependent on, in order of their appearance in the text. If this item's match is
+	 *         incomplete, the returned array may end with one or more nulls in place of dependents that this item requires to evaluate
+	 *         properly, but were not present in the text.
 	 */
 	public abstract ParsedItem [] getDependents();
 
@@ -125,6 +183,5 @@ public abstract class ParsedItem
 	 * @return The result of the expression
 	 * @throws EvaluationException If an error occurs evaluating the expression
 	 */
-	public abstract EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues)
-		throws EvaluationException;
+	public abstract EvaluationResult evaluate(EvaluationEnvironment env, boolean asType, boolean withValues) throws EvaluationException;
 }

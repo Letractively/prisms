@@ -1,0 +1,28 @@
+
+0;
+
+15;
+
+0xffde5a;
+
+int j=0
+
+for(int i=0;i<5;i++){
+	System.out.println("i="+i+", j="+j);
+}
+
+int minus(int a, int b){
+	return a-b;
+}
+
+minus(4, 5);
+
+int plus(int... nums){
+	int ret=0;
+	for(int n : nums){
+		ret+=n;
+	}
+	return ret;
+}
+
+plus(1, 2, 3, 4, 5)

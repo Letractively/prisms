@@ -3,7 +3,10 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.*;
+import prisms.lang.EvaluationException;
+import prisms.lang.EvaluationResult;
+import prisms.lang.ParseException;
+import prisms.lang.ParsedItem;
 
 /** Represents an operation on two operands */
 public class ParsedBinaryOp extends prisms.lang.ParsedItem
@@ -15,8 +18,7 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 	private prisms.lang.ParsedItem theOp2;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match) throws ParseException
 	{
 		super.setup(parser, parent, match);
 		try
@@ -24,25 +26,28 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 			theName = getStored("name").text;
 		} catch(NullPointerException e)
 		{
-			throw new ParseException("No name for configured binary operation: " + getMatch().config, getRoot()
-				.getFullCommand(), getMatch().index);
+			throw new ParseException("No name for configured binary operation: " + getMatch().config, getRoot().getFullCommand(),
+				getMatch().index);
 		}
 		for(prisms.lang.ParseMatch m : match.getParsed())
 		{
-			if(m.config.getName().equals("pre-op"))
-				theOp1 = parser.parseStructures(this, m)[0];
-			else if(m.config.getName().equals("op"))
+			if(m.config.getName().equals("op"))
 			{
-				theOp2 = parser.parseStructures(this, m)[0];
-				break;
+				if(theOp1 == null)
+					theOp1 = parser.parseStructures(this, m)[0];
+				else
+				{
+					theOp2 = parser.parseStructures(this, m)[0];
+					break;
+				}
 			}
 		}
 		if(theOp1 == null)
-			throw new ParseException("No pre-op for configured binary operation: " + getMatch().config, getRoot()
-				.getFullCommand(), getMatch().index);
+			throw new ParseException("No op for configured binary operation: " + getMatch().config, getRoot().getFullCommand(),
+				getMatch().index);
 		if(getMatch().isComplete() && theOp2 == null)
-			throw new ParseException("No op for configured binary operation: " + getMatch().config, getRoot()
-				.getFullCommand(), getMatch().index);
+			throw new ParseException("Only one op for configured binary operation: " + getMatch().config, getRoot().getFullCommand(),
+				getMatch().index);
 	}
 
 	/** @return The name of the operation */
@@ -70,7 +75,8 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
 		if(theOp1 == dependent)
 			theOp1 = toReplace;
 		else if(theOp2 == dependent)
@@ -86,38 +92,33 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
-		throws EvaluationException
+	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues) throws EvaluationException
 	{
 		EvaluationResult res1 = theOp1.evaluate(env, false, withValues);
 		EvaluationResult res2 = theOp2.evaluate(env, false, withValues);
 		if(res1.isType() || res1.getPackageName() != null)
-			throw new EvaluationException(res1.getFirstVar() + " cannot be resolved to a variable", this, getOp1()
-				.getMatch().index);
+			throw new EvaluationException(res1.getFirstVar() + " cannot be resolved to a variable", this, getOp1().getMatch().index);
 		if(res1.getControl() != null)
 			throw new EvaluationException("Syntax error: misplaced construct", this, getStored("name").index);
 		if(res2.isType() || res2.getPackageName() != null)
-			throw new EvaluationException(res2.getFirstVar() + " cannot be resolved to a variable", this, getOp2()
-				.getMatch().index);
+			throw new EvaluationException(res2.getFirstVar() + " cannot be resolved to a variable", this, getOp2().getMatch().index);
 		if(res2.getControl() != null)
 			throw new EvaluationException("Syntax error: misplaced construct", this, getStored("name").index);
 
-		if("+".equals(theName) || "-".equals(theName) || "*".equals(theName) || "/".equals(theName)
-			|| "%".equals(theName))
+		if("+".equals(theName) || "-".equals(theName) || "*".equals(theName) || "/".equals(theName) || "%".equals(theName))
 		{
 			if("+".equals(theName)
-				&& (String.class.equals(res1.getType().getBaseType()) || String.class.equals(res2.getType()
-					.getBaseType())))
+				&& (String.class.equals(res1.getType().getBaseType()) || String.class.equals(res2.getType().getBaseType())))
 			{
 				StringBuilder value = null;
 				if(withValues)
 					value = new StringBuilder().append(res1.getValue()).append(res2.getValue());
 				return new EvaluationResult(new prisms.lang.Type(String.class), withValues ? value.toString() : null);
 			}
-			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType().getBaseType())
-				|| !res2.getType().isPrimitive() || Boolean.TYPE.equals(res2.getType().getBaseType()))
-				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
-					+ res2, this, getStored("name").index);
+			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType().getBaseType()) || !res2.getType().isPrimitive()
+				|| Boolean.TYPE.equals(res2.getType().getBaseType()))
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
+					getStored("name").index);
 			prisms.lang.Type max = res1.getType().getCommonType(res2.getType());
 			Number op1, op2;
 			if(res1.getValue() instanceof Character)
@@ -155,10 +156,10 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 		}
 		else if("<".equals(theName) || "<=".equals(theName) || ">".equals(theName) || ">=".equals(theName))
 		{
-			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType().getBaseType())
-				|| !res2.getType().isPrimitive() || Boolean.TYPE.equals(res2.getType().getBaseType()))
-				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
-					+ res2, this, getStored("name").index);
+			if(!res1.getType().isPrimitive() || Boolean.TYPE.equals(res1.getType().getBaseType()) || !res2.getType().isPrimitive()
+				|| Boolean.TYPE.equals(res2.getType().getBaseType()))
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
+					getStored("name").index);
 			prisms.lang.Type max = res1.getType().getCommonType(res2.getType());
 			Number op1, op2;
 			if(res1.getValue() instanceof Character)
@@ -172,38 +173,29 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 			if(!withValues)
 				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), (Boolean) null);
 			else if(max.equals(Double.TYPE) || max.equals(Float.TYPE))
-				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), Boolean.valueOf(compareF(theName, op1,
-					op2)));
+				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), Boolean.valueOf(compareF(theName, op1, op2)));
 			else
-				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), Boolean.valueOf(compareI(theName, op1,
-					op2)));
+				return new EvaluationResult(new prisms.lang.Type(Boolean.TYPE), Boolean.valueOf(compareI(theName, op1, op2)));
 		}
 		else if("==".equals(theName) || "!=".equals(theName))
 		{
 			boolean ret;
 			if(Boolean.TYPE.equals(res1.getType().getBaseType()) && Boolean.TYPE.equals(res2.getType().getBaseType()))
-				ret = withValues ? ((Boolean) res1.getValue()).booleanValue() == ((Boolean) res2.getValue())
-					.booleanValue() : false;
-			else if(Boolean.TYPE.equals(res1.getType().getBaseType())
-				|| Boolean.TYPE.equals(res2.getType().getBaseType()))
-				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
-					+ res2, this, getStored("name").index);
-			else if(Character.TYPE.equals(res1.getType().getBaseType())
-				&& Character.TYPE.equals(res2.getType().getBaseType()))
-				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Character) res2.getValue())
-					.charValue() : false;
+				ret = withValues ? ((Boolean) res1.getValue()).booleanValue() == ((Boolean) res2.getValue()).booleanValue() : false;
+			else if(Boolean.TYPE.equals(res1.getType().getBaseType()) || Boolean.TYPE.equals(res2.getType().getBaseType()))
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
+					getStored("name").index);
+			else if(Character.TYPE.equals(res1.getType().getBaseType()) && Character.TYPE.equals(res2.getType().getBaseType()))
+				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Character) res2.getValue()).charValue() : false;
 			else if(Character.TYPE.equals(res1.getType().getBaseType()) && res2.getType().isPrimitive())
-				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Number) res2.getValue())
-					.doubleValue() : false;
+				ret = withValues ? ((Character) res1.getValue()).charValue() == ((Number) res2.getValue()).doubleValue() : false;
 			else if(Character.TYPE.equals(res2.getType().getBaseType()) && res1.getType().isPrimitive())
-				ret = withValues ? ((Character) res2.getValue()).charValue() == ((Number) res1.getValue())
-					.doubleValue() : false;
+				ret = withValues ? ((Character) res2.getValue()).charValue() == ((Number) res1.getValue()).doubleValue() : false;
 			else if(res1.getType().isPrimitive() && res2.getType().isPrimitive())
-				ret = withValues ? ((Number) res1.getValue()).doubleValue() == ((Number) res2.getValue()).doubleValue()
-					: false;
+				ret = withValues ? ((Number) res1.getValue()).doubleValue() == ((Number) res2.getValue()).doubleValue() : false;
 			else if(res1.getType().isPrimitive() || res2.getType().isPrimitive())
-				throw new EvaluationException("The operator " + theName + " is not defined for types "
-					+ res1.typeString() + ", " + res2.typeString(), this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1.typeString() + ", "
+					+ res2.typeString(), this, getStored("name").index);
 			else
 				ret = withValues ? res1.getValue() == res2.getValue() : false;
 			if("!=".equals(theName))
@@ -213,18 +205,17 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 		else if("||".equals(theName))
 		{
 			if(Boolean.TYPE.equals(res1.getType().getBaseType()) && Boolean.TYPE.equals(res2.getType().getBaseType()))
-				return new EvaluationResult(res1.getType(), withValues ? Boolean.valueOf(((Boolean) res1.getValue())
-					.booleanValue() || ((Boolean) res2.getValue()).booleanValue()) : null);
-			throw new EvaluationException("The operator " + theName + " is not defined for types " + res1.typeString()
-				+ ", " + res2.typeString(), this, getStored("name").index);
+				return new EvaluationResult(res1.getType(), withValues ? Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
+					|| ((Boolean) res2.getValue()).booleanValue()) : null);
+			throw new EvaluationException("The operator " + theName + " is not defined for types " + res1.typeString() + ", "
+				+ res2.typeString(), this, getStored("name").index);
 		}
 		else if("&&".equals(theName))
 		{
 			if(Boolean.TYPE.equals(res1.getType().getBaseType()) && Boolean.TYPE.equals(res2.getType().getBaseType()))
-				return new EvaluationResult(res1.getType(), withValues ? Boolean.valueOf(((Boolean) res1.getValue())
-					.booleanValue() && ((Boolean) res2.getValue()).booleanValue()) : null);
-			throw new EvaluationException(
-				"The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
+				return new EvaluationResult(res1.getType(), withValues ? Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
+					&& ((Boolean) res2.getValue()).booleanValue()) : null);
+			throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
 				getStored("name").index);
 		}
 		else if("|".equals(theName) || "&".equals(theName) || "^".equals(theName))
@@ -234,14 +225,14 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 				if(!withValues)
 					return new EvaluationResult(res1.getType(), (Boolean) null);
 				else if("|".equals(theName))
-					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue())
-						.booleanValue() | ((Boolean) res2.getValue()).booleanValue()));
+					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
+						| ((Boolean) res2.getValue()).booleanValue()));
 				else if("&".equals(theName))
-					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue())
-						.booleanValue() & ((Boolean) res2.getValue()).booleanValue()));
+					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
+						& ((Boolean) res2.getValue()).booleanValue()));
 				else
-					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue())
-						.booleanValue() ^ ((Boolean) res2.getValue()).booleanValue()));
+					return new EvaluationResult(res1.getType(), Boolean.valueOf(((Boolean) res1.getValue()).booleanValue()
+						^ ((Boolean) res2.getValue()).booleanValue()));
 			}
 			else if(res1.isIntType() && res2.isIntType())
 			{
@@ -266,12 +257,12 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 				else if(Byte.TYPE.equals(max.getBaseType()))
 					return new EvaluationResult(max, Byte.valueOf((byte) val));
 				else
-					throw new EvaluationException("The operator " + theName + " is not defined for types " + res1
-						+ ", " + res2, this, getStored("name").index);
+					throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
+						getStored("name").index);
 			}
 			else
-				throw new EvaluationException("The operator " + theName + " is not defined for types "
-					+ res1.typeString() + ", " + res2.typeString(), this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1.typeString() + ", "
+					+ res2.typeString(), this, getStored("name").index);
 		}
 		else if("<<".equals(theName) || ">>".equals(theName) || ">>>".equals(theName))
 		{
@@ -296,12 +287,11 @@ public class ParsedBinaryOp extends prisms.lang.ParsedItem
 			else if(Byte.TYPE.equals(max.getBaseType()))
 				return new EvaluationResult(max, Byte.valueOf((byte) val));
 			else
-				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", "
-					+ res2, this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for types " + res1 + ", " + res2, this,
+					getStored("name").index);
 		}
 		else
-			throw new EvaluationException("Binary operator " + theName + " not recognized", this,
-				getStored("name").index);
+			throw new EvaluationException("Binary operator " + theName + " not recognized", this, getStored("name").index);
 	}
 
 	static double mathF(String op, Number op1, Number op2)

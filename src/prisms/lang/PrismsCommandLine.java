@@ -25,6 +25,7 @@ public class PrismsCommandLine
 			e.printStackTrace();
 			return;
 		}
+		theParser.validateConfig();
 		theEnv = new DefaultEvaluationEnvironment();
 		theIncomplete = "";
 	}
