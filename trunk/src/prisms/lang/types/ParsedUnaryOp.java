@@ -3,7 +3,11 @@
  */
 package prisms.lang.types;
 
-import prisms.lang.*;
+import prisms.lang.EvaluationException;
+import prisms.lang.EvaluationResult;
+import prisms.lang.ParseException;
+import prisms.lang.ParsedItem;
+import prisms.lang.Type;
 
 /** An operation on a single operand */
 public class ParsedUnaryOp extends prisms.lang.ParsedItem
@@ -15,8 +19,7 @@ public class ParsedUnaryOp extends prisms.lang.ParsedItem
 	private prisms.lang.ParsedItem theOperand;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws ParseException
+	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match) throws ParseException
 	{
 		super.setup(parser, parent, match);
 		try
@@ -24,25 +27,16 @@ public class ParsedUnaryOp extends prisms.lang.ParsedItem
 			theName = getStored("name").text;
 		} catch(NullPointerException e)
 		{
-			throw new ParseException("No name for configured binary operation: " + getMatch().config, getRoot()
-				.getFullCommand(), getMatch().index);
+			throw new ParseException("No name for configured binary operation: " + getMatch().config, getRoot().getFullCommand(),
+				getMatch().index);
 		}
+		isPrefix = getDeepStoreIndex("op") < getDeepStoreIndex("name");
 		for(prisms.lang.ParseMatch m : match.getParsed())
-		{
-			if(m.config.getName().equals("pre-op"))
-			{
-				isPrefix = false;
+			if(m.config.getName().equals("op"))
 				theOperand = parser.parseStructures(this, m)[0];
-			}
-			else if(m.config.getName().equals("op"))
-			{
-				isPrefix = true;
-				theOperand = parser.parseStructures(this, m)[0];
-			}
-		}
 		if(getMatch().isComplete() && theOperand == null)
-			throw new ParseException("No operand for configured unary operation: " + getMatch().config, getRoot()
-				.getFullCommand(), getMatch().index);
+			throw new ParseException("No operand for configured unary operation: " + getMatch().config, getRoot().getFullCommand(),
+				getMatch().index);
 	}
 
 	/** @return The name of the operation */
@@ -70,7 +64,8 @@ public class ParsedUnaryOp extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
 		if(theOperand == dependent)
 			theOperand = toReplace;
 		else
@@ -87,79 +82,74 @@ public class ParsedUnaryOp extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
-		throws EvaluationException
+	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues) throws EvaluationException
 	{
 		EvaluationResult res = theOperand.evaluate(env, false, withValues);
 		if(res.isType())
 			throw new EvaluationException("The operator " + theName + " is not defined for type java.lang.Class", this,
 				getStored("name").index);
 		if(res.getType() == null)
-			throw new EvaluationException(res.getFirstVar() + " cannot be resolved to a variable", this,
-				theOperand.getMatch().index);
+			throw new EvaluationException(res.getFirstVar() + " cannot be resolved to a variable", this, theOperand.getMatch().index);
 		if("+".equals(theName))
 		{
 			if(!res.getType().isPrimitive() || Boolean.TYPE.equals(res.getType().getBaseType()))
-				throw new EvaluationException("The operator " + theName + " is not defined for type "
-					+ res.typeString(), this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for type " + res.typeString(), this,
+					getStored("name").index);
 			return res;
 		}
 		else if("-".equals(theName))
 		{
 			if(Double.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Double.TYPE), withValues ? Double.valueOf(-((Number) res
-					.getValue()).doubleValue()) : null);
+				return new EvaluationResult(new Type(Double.TYPE), withValues ? Double.valueOf(-((Number) res.getValue()).doubleValue())
+					: null);
 			else if(Float.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Float.TYPE), withValues ? Float.valueOf(-((Number) res.getValue())
-					.floatValue()) : null);
+				return new EvaluationResult(new Type(Float.TYPE), withValues ? Float.valueOf(-((Number) res.getValue()).floatValue())
+					: null);
 			else if(Long.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Long.TYPE), withValues ? Long.valueOf(-((Number) res.getValue())
-					.longValue()) : null);
+				return new EvaluationResult(new Type(Long.TYPE), withValues ? Long.valueOf(-((Number) res.getValue()).longValue()) : null);
 			else if(Integer.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Number) res
-					.getValue()).intValue()) : null);
+				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Number) res.getValue()).intValue())
+					: null);
 			else if(Character.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Character) res
-					.getValue()).charValue()) : null);
+				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Character) res.getValue()).charValue())
+					: null);
 			else if(Short.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Number) res
-					.getValue()).shortValue()) : null);
+				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Number) res.getValue()).shortValue())
+					: null);
 			else if(Byte.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Number) res
-					.getValue()).byteValue()) : null);
+				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(-((Number) res.getValue()).byteValue())
+					: null);
 			else
-				throw new EvaluationException("The operator " + theName + " is not defined for type "
-					+ res.typeString(), this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for type " + res.typeString(), this,
+					getStored("name").index);
 		}
 		else if("!".equals(theName))
 		{
 			if(Boolean.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Boolean.TYPE), withValues ? Boolean.valueOf(!((Boolean) res
-					.getValue()).booleanValue()) : null);
+				return new EvaluationResult(new Type(Boolean.TYPE), withValues
+					? Boolean.valueOf(!((Boolean) res.getValue()).booleanValue()) : null);
 			else
-				throw new EvaluationException("The operator " + theName + " is not defined for type "
-					+ res.typeString(), this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for type " + res.typeString(), this,
+					getStored("name").index);
 		}
 		else if("~".equals(theName))
 		{
 			if(Long.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Long.TYPE), withValues ? Long.valueOf(~((Long) res.getValue())
-					.longValue()) : null);
+				return new EvaluationResult(new Type(Long.TYPE), withValues ? Long.valueOf(~((Long) res.getValue()).longValue()) : null);
 			else if(Integer.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(~((Integer) res
-					.getValue()).intValue()) : null);
+				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(~((Integer) res.getValue()).intValue())
+					: null);
 			else if(Short.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(~((Short) res
-					.getValue()).shortValue()) : null);
+				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(~((Short) res.getValue()).shortValue())
+					: null);
 			else if(Byte.TYPE.equals(res.getType().getBaseType()))
-				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(~((Byte) res
-					.getValue()).byteValue()) : null);
+				return new EvaluationResult(new Type(Integer.TYPE), withValues ? Integer.valueOf(~((Byte) res.getValue()).byteValue())
+					: null);
 			else
-				throw new EvaluationException("The operator " + theName + " is not defined for type "
-					+ res.typeString(), this, getStored("name").index);
+				throw new EvaluationException("The operator " + theName + " is not defined for type " + res.typeString(), this,
+					getStored("name").index);
 		}
 		else
-			throw new EvaluationException("Unary operator " + theName + " not recognized", this,
-				getStored("name").index);
+			throw new EvaluationException("Unary operator " + theName + " not recognized", this, getStored("name").index);
 	}
 }

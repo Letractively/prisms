@@ -4,8 +4,8 @@
 package prisms.util;
 
 /**
- * Implements a map key with two hashable components. Hashing is done using the {@link ArrayUtils}
- * class, so arrays of hashable objects may be used for the component keys.
+ * Implements a map key with two hashable components. Hashing is done using the {@link ArrayUtils} class, so arrays of hashable objects may
+ * be used for the component keys.
  * 
  * @param <K1> The type of the first key
  * @param <K2> The type of the second key
@@ -45,13 +45,18 @@ public class DualKey<K1, K2>
 	{
 		if(!(o instanceof DualKey<?, ?>))
 			return false;
-		return ArrayUtils.equals(((DualKey<?, ?>) o).theKey1, theKey1)
-			&& ArrayUtils.equals(((DualKey<?, ?>) o).theKey2, theKey2);
+		return ArrayUtils.equals(((DualKey<?, ?>) o).theKey1, theKey1) && ArrayUtils.equals(((DualKey<?, ?>) o).theKey2, theKey2);
 	}
 
 	@Override
 	public int hashCode()
 	{
 		return ArrayUtils.hashCode(theKey1) * 31 + ArrayUtils.hashCode(theKey2);
+	}
+
+	@Override
+	public String toString()
+	{
+		return "{" + theKey1 + " & " + theKey2 + "}";
 	}
 }
