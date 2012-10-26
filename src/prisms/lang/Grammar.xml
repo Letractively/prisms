@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 
 <grammar>
 	<!-- Self-contained types -->
@@ -137,8 +138,17 @@
 		</entity> -->
 
 	<!-- Literal initialized, bounded operators -->
-	<operator name="block" order="1"
-		impl="prisms.lang.types.ParsedStatementBlock">
+	<op name="line comment" ignorable="true" order="0" impl="prisms.lang.types.ParsedComment">
+		<literal>//</literal>
+		<charset ignorews="true" pattern=".*" exclude="\u000a" storeAs="content" />
+		<literal ignorews="true">\u000a</literal>
+	</op>
+	<op name="block comment" ignorable="true" order="0" impl="prisms.lang.types.ParsedComment">
+		<literal>/*</literal>
+		<charset pattern=".*" exclude="*/" storeAs="content" />
+		<literal>*/</literal>
+	</op>
+	<operator name="block" order="1" impl="prisms.lang.types.ParsedStatementBlock">
 		<literal>{</literal>
 		<option min="0">
 			<op storeAs="content" />
@@ -148,16 +158,14 @@
 		</option>
 		<literal>}</literal>
 	</operator>
-	<operator name="synchronized block" order="1"
-		impl="prisms.lang.types.ParsedSyncBlock">
+	<operator name="synchronized block" order="1" impl="prisms.lang.types.ParsedSyncBlock">
 		<literal>synchronized</literal>
 		<literal>(</literal>
 		<op storeAs="syncItem" />
 		<literal>)</literal>
 		<op type="block" storeAs="content" />
 	</operator>
-	<operator name="try/catch/finally" order="1"
-		impl="prisms.lang.types.ParsedTryCatchFinally">
+	<operator name="try/catch/finally" order="1" impl="prisms.lang.types.ParsedTryCatchFinally">
 		<literal>try</literal>
 		<op type="block" storeAs="try" />
 		<option min="0">
@@ -172,8 +180,7 @@
 			<op type="block" storeAs="finally" />
 		</option>
 	</operator>
-	<operator name="constructor" order="1"
-		impl="prisms.lang.types.ParsedConstructor">
+	<operator name="constructor" order="1" impl="prisms.lang.types.ParsedConstructor">
 		<literal>new</literal>
 		<whitespace />
 		<op storeAs="type" type="type" />
@@ -220,8 +227,7 @@
 			<literal>}</literal>
 		</option>
 	</operator>
-	<operator name="array initializer" order="1"
-		impl="prisms.lang.types.ParsedArrayInitializer">
+	<operator name="array initializer" order="1" impl="prisms.lang.types.ParsedArrayInitializer">
 		<literal>new</literal>
 		<whitespace />
 		<op storeAs="type" type="type" />
@@ -248,8 +254,7 @@
 			</option>
 		</select>
 	</operator>
-	<operator name="do while loop" order="1"
-		impl="prisms.lang.types.ParsedLoop">
+	<operator name="do while loop" order="1" impl="prisms.lang.types.ParsedLoop">
 		<literal storeAs="name">do</literal>
 		<op storeAs="content" type="block" />
 		<literal>while</literal>
@@ -259,8 +264,7 @@
 	</operator>
 
 	<!-- Literal initialized, unbounded operators -->
-	<operator name="previous answer" order="100"
-		impl="prisms.lang.types.ParsedPreviousAnswer">
+	<operator name="previous answer" order="100" impl="prisms.lang.types.ParsedPreviousAnswer">
 		<literal>%</literal>
 		<option>
 			<whitespace type="forbid" />
@@ -344,8 +348,7 @@
 			</option>
 		</select>
 	</operator>
-	<operator name="while loop" order="1"
-		impl="prisms.lang.types.ParsedLoop">
+	<operator name="while loop" order="1" impl="prisms.lang.types.ParsedLoop">
 		<literal storeAs="name">while</literal>
 		<literal>(</literal>
 		<op storeAs="condition" />
@@ -359,8 +362,7 @@
 			</option>
 		</select>
 	</operator>
-	<operator name="enhanced for loop" order="1"
-		impl="prisms.lang.types.ParsedEnhancedForLoop">
+	<operator name="enhanced for loop" order="1" impl="prisms.lang.types.ParsedEnhancedForLoop">
 		<literal>for</literal>
 		<literal>(</literal>
 		<!--<op type="declaration|final declaration" storeAs="variable" />-->
@@ -377,8 +379,7 @@
 			</option>
 		</select>
 	</operator>
-	<operator name="if" order="1"
-		impl="prisms.lang.types.ParsedIfStatement">
+	<operator name="if" order="1" impl="prisms.lang.types.ParsedIfStatement">
 		<literal>if</literal>
 		<literal>(</literal>
 		<op storeAs="condition" />
@@ -411,16 +412,14 @@
 			<op storeAs="content" />
 		</option>
 	</operator>
-	<operator name="final declaration" order="1"
-		impl="prisms.lang.types.ParsedDeclaration">
+	<operator name="final declaration" order="1" impl="prisms.lang.types.ParsedDeclaration">
 		<literal storeAs="final">final</literal>
 		<whitespace />
 		<op type="declaration" storeAs="decl" />
 	</operator>
 
 	<!-- Specifically initialized types -->
-	<operator name="function" order="1000"
-		impl="prisms.lang.types.ParsedMethod">
+	<operator name="function" order="1000" impl="prisms.lang.types.ParsedMethod">
 		<op type="identifier" storeAs="name" />
 		<literal storeAs="method">(</literal>
 		<option>
@@ -432,8 +431,7 @@
 		</option>
 		<literal>)</literal>
 	</operator>
-	<operator name="declaration" priority="0" order="6"
-		impl="prisms.lang.types.ParsedDeclaration">
+	<operator name="declaration" priority="0" order="6" impl="prisms.lang.types.ParsedDeclaration">
 		<op type="identifier|primitive|member" storeAs="type" />
 		<option>
 			<literal>&lt;</literal>
@@ -453,8 +451,7 @@
 		</option>
 		<op type="identifier" storeAs="name" />
 	</operator>
-	<operator name="function declaration" priority="0" order="5"
-		impl="prisms.lang.types.ParsedFunctionDeclaration">
+	<operator name="function declaration" priority="0" order="5" impl="prisms.lang.types.ParsedFunctionDeclaration">
 		<op type="identifier|primitive|member" storeAs="returnType" />
 		<option>
 			<literal>&lt;</literal>
@@ -601,12 +598,10 @@
 			<match>drop</match>
 		</charset>
 	</entity>
-	<entity name="identifier" order="1000"
-		impl="prisms.lang.types.ParsedIdentifier">
+	<entity name="identifier" order="1000" impl="prisms.lang.types.ParsedIdentifier">
 		<charset pattern="[_a-zA-Z][_a-zA-Z0-9]*" storeAs="name" />
 	</entity>
-	<entity name="basic type" priority="-1"
-		impl="prisms.lang.types.ParsedType">
+	<entity name="basic type" priority="-1" impl="prisms.lang.types.ParsedType">
 		<op type="identifier|primitive" storeAs="name" />
 		<option min="0">
 			<literal>.</literal>
@@ -629,8 +624,7 @@
 			<literal>]</literal>
 		</option>
 	</entity>
-	<entity name="wildcard type" priority="-1"
-		impl="prisms.lang.types.ParsedType">
+	<entity name="wildcard type" priority="-1" impl="prisms.lang.types.ParsedType">
 		<select>
 			<option>
 				<literal>?</literal>
@@ -655,82 +649,69 @@
 
 	<!-- Operators with defined priorities -->
 	<!-- Assignments -->
-	<operator name="assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="add assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="add assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">+=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="subtract assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="subtract assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">-=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="multiply assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="multiply assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">*=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="divide assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="divide assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">/=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="modulo assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="modulo assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">%=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="binary or assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="binary or assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">|=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="binary xor assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="binary xor assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">^=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="binary and assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="binary and assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">&amp;=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="left shift assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="left shift assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">&lt;&lt;=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="right shift assign" order="50" priority="100"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="right shift assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">&gt;&gt;=</literal>
 		<op storeAs="operand" />
 	</operator>
-	<operator name="unsigned right shift assign" order="50"
-		priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="unsigned right shift assign" order="50" priority="100" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">&gt;&gt;&gt;=</literal>
 		<op storeAs="operand" />
 	</operator>
 
 	<!-- Ternary conditional -->
-	<operator name="conditional" order="50" priority="110"
-		impl="prisms.lang.types.ParsedConditional">
+	<operator name="conditional" order="50" priority="110" impl="prisms.lang.types.ParsedConditional">
 		<op storeAs="condition" />
 		<literal>?</literal>
 		<op storeAs="affirmative" />
@@ -739,172 +720,145 @@
 	</operator>
 
 	<!-- Logical -->
-	<operator name="or" order="50" priority="120"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="or" order="50" priority="120" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">||</literal>
 		<op />
 	</operator>
-	<operator name="and" order="50" priority="130"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="and" order="50" priority="130" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&amp;&amp;</literal>
 		<op />
 	</operator>
 
 	<!-- Bitwise -->
-	<operator name="binary or" order="50" priority="140"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="binary or" order="50" priority="140" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">|</literal>
 		<op />
 	</operator>
-	<operator name="binary xor" order="50" priority="150"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="binary xor" order="50" priority="150" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">^</literal>
 		<op />
 	</operator>
-	<operator name="binary and" order="50" priority="160"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="binary and" order="50" priority="160" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&amp;</literal>
 		<op />
 	</operator>
 
 	<!-- Equality -->
-	<operator name="equal" order="50" priority="170"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="equal" order="50" priority="170" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">==</literal>
 		<op />
 	</operator>
-	<operator name="not equal" order="50" priority="170"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="not equal" order="50" priority="170" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">!=</literal>
 		<op />
 	</operator>
 
 	<!-- Comparison -->
-	<operator name="instanceof" order="50" priority="180"
-		impl="prisms.lang.types.ParsedInstanceofOp">
+	<operator name="instanceof" order="50" priority="180" impl="prisms.lang.types.ParsedInstanceofOp">
 		<op storeAs="variable" />
 		<literal>instanceof</literal>
 		<op type="type" storeAs="type" />
 	</operator>
-	<operator name="less than" order="50" priority="180"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="less than" order="50" priority="180" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&lt;</literal>
 		<op />
 	</operator>
-	<operator name="less than equal" order="50" priority="180"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="less than equal" order="50" priority="180" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&lt;=</literal>
 		<op />
 	</operator>
-	<operator name="greater than" order="50" priority="180"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="greater than" order="50" priority="180" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&gt;</literal>
 		<op />
 	</operator>
-	<operator name="greater than equal" order="50" priority="180"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="greater than equal" order="50" priority="180" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&gt;=</literal>
 		<op />
 	</operator>
 
 	<!-- Shift -->
-	<operator name="left shift" order="50" priority="190"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="left shift" order="50" priority="190" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&lt;&lt;</literal>
 		<op />
 	</operator>
-	<operator name="right shift" order="50" priority="190"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="right shift" order="50" priority="190" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&gt;&gt;</literal>
 		<op />
 	</operator>
-	<operator name="unsigned right shift" order="50" priority="190"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="unsigned right shift" order="50" priority="190" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">&gt;&gt;&gt;</literal>
 		<op />
 	</operator>
 
 	<!-- Additive -->
-	<operator name="add" order="50" priority="200"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="add" order="50" priority="200" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">+</literal>
 		<op />
 	</operator>
-	<operator name="subtract" order="50" priority="200"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="subtract" order="50" priority="200" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">-</literal>
 		<op />
 	</operator>
 
 	<!-- Multiplicative -->
-	<operator name="multiply" order="50" priority="210"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="multiply" order="50" priority="210" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">*</literal>
 		<op />
 	</operator>
-	<operator name="divide" order="50" priority="210"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="divide" order="50" priority="210" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">/</literal>
 		<op />
 	</operator>
-	<operator name="modulo" order="50" priority="210"
-		impl="prisms.lang.types.ParsedBinaryOp">
+	<operator name="modulo" order="50" priority="210" impl="prisms.lang.types.ParsedBinaryOp">
 		<op />
 		<literal storeAs="name">%</literal>
 		<op />
 	</operator>
 
 	<!-- Unary pre -->
-	<operator name="posit" order="50" priority="220"
-		impl="prisms.lang.types.ParsedUnaryOp">
+	<operator name="posit" order="50" priority="220" impl="prisms.lang.types.ParsedUnaryOp">
 		<literal storeAs="name">+</literal>
 		<op />
 	</operator>
-	<operator name="negate" order="50" priority="220"
-		impl="prisms.lang.types.ParsedUnaryOp">
+	<operator name="negate" order="50" priority="220" impl="prisms.lang.types.ParsedUnaryOp">
 		<literal storeAs="name">-</literal>
 		<op />
 	</operator>
-	<operator name="pre increment" order="50" priority="220"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="pre increment" order="50" priority="220" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<literal storeAs="name">++</literal>
 		<op storeAs="variable" />
 	</operator>
-	<operator name="pre decrement" order="50" priority="220"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="pre decrement" order="50" priority="220" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<literal storeAs="name">--</literal>
 		<op storeAs="variable" />
 	</operator>
-	<operator name="not" order="50" priority="220"
-		impl="prisms.lang.types.ParsedUnaryOp">
+	<operator name="not" order="50" priority="220" impl="prisms.lang.types.ParsedUnaryOp">
 		<literal storeAs="name">!</literal>
 		<op />
 	</operator>
-	<operator name="binary not" order="50" priority="220"
-		impl="prisms.lang.types.ParsedUnaryOp">
+	<operator name="binary not" order="50" priority="220" impl="prisms.lang.types.ParsedUnaryOp">
 		<literal storeAs="name">~</literal>
 		<op />
 	</operator>
-	<operator name="cast" order="50" priority="220"
-		impl="prisms.lang.types.ParsedCast">
+	<operator name="cast" order="50" priority="220" impl="prisms.lang.types.ParsedCast">
 		<literal>(</literal>
 		<op storeAs="type" type="type" />
 		<option min="0">
@@ -916,33 +870,28 @@
 	</operator>
 
 	<!-- Unary post -->
-	<operator name="post increment" order="50" priority="230"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="post increment" order="50" priority="230" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">++</literal>
 	</operator>
-	<operator name="post decrement" order="50" priority="230"
-		impl="prisms.lang.types.ParsedAssignmentOperator">
+	<operator name="post decrement" order="50" priority="230" impl="prisms.lang.types.ParsedAssignmentOperator">
 		<op storeAs="variable" />
 		<literal storeAs="name">--</literal>
 	</operator>
 
 	<!-- Others -->
-	<operator name="parenthetic" order="50" priority="250"
-		impl="prisms.lang.types.ParsedParenthetic">
+	<operator name="parenthetic" order="50" priority="250" impl="prisms.lang.types.ParsedParenthetic">
 		<literal>(</literal>
 		<op storeAs="content" />
 		<literal>)</literal>
 	</operator>
-	<operator name="array index" order="50" priority="250"
-		impl="prisms.lang.types.ParsedArrayIndex">
+	<operator name="array index" order="50" priority="250" impl="prisms.lang.types.ParsedArrayIndex">
 		<op storeAs="array" />
 		<literal storeAs="open bracket">[</literal>
 		<op storeAs="index" />
 		<literal>]</literal>
 	</operator>
-	<operator name="member" order="50" priority="250"
-		impl="prisms.lang.types.ParsedMethod">
+	<operator name="member" order="50" priority="250" impl="prisms.lang.types.ParsedMethod">
 		<op storeAs="context" />
 		<literal storeAs="dot">.</literal>
 		<select>
@@ -957,8 +906,7 @@
 			</option>
 		</select>
 	</operator>
-	<operator name="member method" order="50" priority="250"
-		impl="prisms.lang.types.ParsedMethod">
+	<operator name="member method" order="50" priority="250" impl="prisms.lang.types.ParsedMethod">
 		<op storeAs="context" />
 		<literal storeAs="dot">.</literal>
 		<op type="identifier|keyword" storeAs="name" />

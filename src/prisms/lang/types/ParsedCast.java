@@ -40,7 +40,8 @@ public class ParsedCast extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
+	{
 		if(theType == dependent)
 			theType = toReplace;
 		else if(theValue == dependent)
@@ -56,27 +57,30 @@ public class ParsedCast extends prisms.lang.ParsedItem
 	}
 
 	@Override
-	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
-		boolean withValues) throws prisms.lang.EvaluationException
+	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
+		throws prisms.lang.EvaluationException
 	{
 		prisms.lang.EvaluationResult typeEval = theType.evaluate(env, true, false);
 		if(!typeEval.isType())
-			throw new prisms.lang.EvaluationException("Unrecognized type " + theType.getMatch().text, this,
-				theType.getMatch().index);
+			throw new prisms.lang.EvaluationException("Unrecognized type " + theType.getMatch().text, this, theType.getMatch().index);
 		prisms.lang.EvaluationResult toCast = theValue.evaluate(env, false, withValues);
 		if(toCast.getPackageName() != null || toCast.isType())
-			throw new prisms.lang.EvaluationException(toCast.getFirstVar() + " cannot be resolved to a variable",
-				theValue, theValue.getMatch().index);
+			throw new prisms.lang.EvaluationException(toCast.getFirstVar() + " cannot be resolved to a variable", theValue,
+				theValue.getMatch().index);
 		if(typeEval.getType().getCommonType(toCast.getType()) == null)
-			throw new prisms.lang.EvaluationException("Cannot cast from " + toCast.getType() + " to "
-				+ typeEval.getType(), this, theType.getMatch().index);
-		if(withValues && toCast.getValue() != null)
-		{
-			if(!typeEval.getType().isAssignableFrom(toCast.getValue().getClass()))
-				throw new prisms.lang.ExecutionException(new prisms.lang.Type(ClassCastException.class),
-					new ClassCastException(prisms.lang.Type.typeString(toCast.getValue().getClass())
+			throw new prisms.lang.EvaluationException("Cannot cast from " + toCast.getType() + " to " + typeEval.getType(), this,
+				theType.getMatch().index);
+		if(withValues)
+			try
+			{
+				return new prisms.lang.EvaluationResult(typeEval.getType(), typeEval.getType().cast(toCast.getValue()));
+			} catch(IllegalArgumentException e)
+			{
+				throw new prisms.lang.ExecutionException(new prisms.lang.Type(ClassCastException.class), new ClassCastException(
+					(toCast.getValue() == null ? "null" : prisms.lang.Type.typeString(toCast.getValue().getClass()))
 						+ " cannot be cast to " + typeEval.getType()), this, getStored("type").index);
-		}
-		return new prisms.lang.EvaluationResult(typeEval.getType(), toCast.getValue());
+			}
+		else
+			return new prisms.lang.EvaluationResult(typeEval.getType(), null);
 	}
 }

@@ -210,6 +210,78 @@ public class Type
 		}
 	}
 
+	/**
+	 * @param o The object to cast
+	 * @return The cast object--this has no effect unless this type is primitive
+	 * @throws IllegalArgumentException If this type is primitive and the given instance cannot be converted to a wrapper of this type
+	 */
+	public Object cast(Object o) throws IllegalArgumentException
+	{
+		if(isPrimitive())
+		{
+			if(o == null)
+				throw new IllegalArgumentException("Cannot cast a null instance to a primitive type: " + this);
+			if(theBaseType == Boolean.TYPE)
+			{
+				if(o instanceof Boolean)
+					return o;
+			}
+			else if(theBaseType == Character.TYPE)
+			{
+				if(o instanceof Character)
+					return o;
+			}
+			else if(theBaseType == Double.TYPE)
+			{
+				if(o instanceof Double)
+					return o;
+				else if(o instanceof Number)
+					return Double.valueOf(((Number) o).doubleValue());
+			}
+			else if(theBaseType == Float.TYPE)
+			{
+				if(o instanceof Float)
+					return o;
+				else if(o instanceof Number)
+					return Float.valueOf(((Number) o).floatValue());
+			}
+			else if(theBaseType == Long.TYPE)
+			{
+				if(o instanceof Long)
+					return o;
+				else if(o instanceof Number)
+					return Long.valueOf(((Number) o).longValue());
+			}
+			else if(theBaseType == Integer.TYPE)
+			{
+				if(o instanceof Integer)
+					return o;
+				else if(o instanceof Number)
+					return Integer.valueOf(((Number) o).intValue());
+			}
+			else if(theBaseType == Short.TYPE)
+			{
+				if(o instanceof Short)
+					return o;
+				else if(o instanceof Number)
+					return Short.valueOf(((Number) o).shortValue());
+			}
+			else if(theBaseType == Byte.TYPE)
+			{
+				if(o instanceof Byte)
+					return o;
+				else if(o instanceof Number)
+					return Byte.valueOf(((Number) o).byteValue());
+			}
+			throw new IllegalArgumentException("Cannot cast " + (o == null ? "null" : "an instance of " + o.getClass().getName()) + " to "
+				+ this);
+		}
+		if(o == null || isAssignableFrom(o.getClass()))
+			return o;
+		throw new IllegalArgumentException("Cannot cast " + (o == null ? "null" : "an instance of " + o.getClass().getName()) + " to "
+			+ this);
+	}
+
 	private static boolean isAssignable(Class<?> to, Class<?> from)
 	{
 		if(to == from)
@@ -249,8 +321,8 @@ public class Type
 	 * 
 	 * @param type The type to resolve
 	 * @param declaringClass The class that declared the given type
-	 * @param methodTypes A map of type variable name/type of the inferred types of an invocation for a method's
-	 *        declared type variables. May be null if this resolution is not for a type-parameter-declaring method.
+	 * @param methodTypes A map of type variable name/type of the inferred types of an invocation for a method's declared type variables.
+	 *        May be null if this resolution is not for a type-parameter-declaring method.
 	 * @param paramTypes The types of the method parameters
 	 * @param argTypes The types of the arguments to the method
 	 * @return The resolved type
@@ -279,8 +351,8 @@ public class Type
 		return ret;
 	}
 
-	private Type _resolve(java.lang.reflect.Type type, Class<?> declaringClass,
-		java.util.Map<String, Type> methodTypes, java.util.Set<java.lang.reflect.Type> tried)
+	private Type _resolve(java.lang.reflect.Type type, Class<?> declaringClass, java.util.Map<String, Type> methodTypes,
+		java.util.Set<java.lang.reflect.Type> tried)
 	{
 		if(type == null)
 			return new Type(type);
@@ -421,8 +493,7 @@ public class Type
 	}
 
 	/**
-	 * @return This type's parameters. Zero-length if this type's base type is not generic. Null if this is a wildcard
-	 *         type.
+	 * @return This type's parameters. Zero-length if this type's base type is not generic. Null if this is a wildcard type.
 	 */
 	public Type [] getParamTypes()
 	{
@@ -496,8 +567,8 @@ public class Type
 
 	/**
 	 * @param t The type to get the common type of
-	 * @return The most specific type that is assignable from both this and <code>t</code>. May be null if one or both
-	 *         types are primitive and incompatible
+	 * @return The most specific type that is assignable from both this and <code>t</code>. May be null if one or both types are primitive
+	 *         and incompatible
 	 */
 	public Type getCommonType(Type t)
 	{
@@ -520,8 +591,7 @@ public class Type
 					{
 						Type [] paramTypes = new Type [intf.getTypeParameters().length];
 						for(int p = 0; p < paramTypes.length; p++)
-							paramTypes[p] = resolve(intf.getTypeParameters()[p], intf, null,
-								new java.lang.reflect.Type [0], new Type [0]);
+							paramTypes[p] = resolve(intf.getTypeParameters()[p], intf, null, new java.lang.reflect.Type [0], new Type [0]);
 						return new Type(intf, paramTypes);
 					}
 				return new Type(Object.class);
@@ -564,8 +634,8 @@ public class Type
 	}
 
 	/**
-	 * Like {@link #toString()}, but shortens this type's string representation wherever possible by cutting off package
-	 * names where they can be made implicit.
+	 * Like {@link #toString()}, but shortens this type's string representation wherever possible by cutting off package names where they
+	 * can be made implicit.
 	 * 
 	 * @param env The evaluation environment to check type imports of. May be null.
 	 * @return A string representing this type
@@ -623,8 +693,8 @@ public class Type
 	 * 
 	 * @param t The class to check
 	 * @param env The evaluation environment to check the class in. May be null.
-	 * @return True if the class belongs to the default package or java.lang, or if the class's name or its package have
-	 *         been imported into <code>env</code>
+	 * @return True if the class belongs to the default package or java.lang, or if the class's name or its package have been imported into
+	 *         <code>env</code>
 	 */
 	public static String isImported(Class<?> t, EvaluationEnvironment env)
 	{

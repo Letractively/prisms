@@ -1,4 +1,11 @@
 
+// This is a line comment
+
+/* This is a block-style comment */
+
+/* This is **another** block-style
+ comment */
+
 0;
 
 15;
@@ -7,12 +14,12 @@
 
 int j=0
 
-for(int i=0;i<5;i++){
+for(int i=0;i<5;i++){ //This is an inline line-style comment
 	System.out.println("i="+i+", j="+j);
 }
 
 int minus(int a, int b){
-	return a-b;
+	return a-b; /* This is an inline block-style comment */
 }
 
 minus(4, 5);
@@ -26,3 +33,9 @@ int plus(int... nums){
 }
 
 plus(1, 2, 3, 4, 5)
+
+java.awt.Color rgb(float r, float g, float b){
+	return new java.awt.Color(r, g, b);
+}
+
+rgb(1, .5f, 0);
