@@ -5,12 +5,14 @@ package prisms.lang;
 
 import java.io.Reader;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 
 import prisms.arch.PrismsConfig;
 import prisms.util.ArrayUtils;
 import prisms.util.DualKey;
+import prisms.util.PrismsUtils;
 
 /** Parses syntactical structures from text without regard to semantics using an XML-encoded grammar file */
 public class PrismsParser
@@ -85,6 +87,8 @@ public class PrismsParser
 
 	private Map<String, PrismsConfig> theOpsByName;
 
+	private String [] theIgnorables;
+
 	private java.util.List<String> theTerminators;
 
 	private boolean isValidated;
@@ -94,6 +98,7 @@ public class PrismsParser
 	{
 		theOperators = new java.util.ArrayList<>();
 		theOpsByName = new java.util.HashMap<>();
+		theIgnorables = new String [0];
 		theTerminators = new java.util.ArrayList<>();
 		addTerminator("\n");
 		addTerminator(";");
@@ -155,6 +160,8 @@ public class PrismsParser
 		}
 		theOperators.add(min, op);
 		theOpsByName.put(op.get("name"), op);
+		if(op.is("ignorable", false))
+			theIgnorables = ArrayUtils.add(theIgnorables, op.get("name"));
 	}
 
 	void validateOperator(PrismsConfig op) throws IllegalArgumentException
@@ -171,6 +178,8 @@ public class PrismsParser
 				break;
 			case "order":
 			case "priority":
+			case "ignorews":
+			case "ignorable":
 				break;
 			case "impl":
 				try
@@ -216,7 +225,7 @@ public class PrismsParser
 			{
 				try
 				{
-					java.util.regex.Pattern.compile(config.get("pattern"));
+					Pattern.compile(config.get("pattern"));
 				} catch(Exception e)
 				{
 					throw new IllegalArgumentException("Could not compile charset pattern \"" + config.get("pattern") + "\"", e);
@@ -332,7 +341,17 @@ public class PrismsParser
 			if(parseMatch.getError() != null)
 			{
 				if(parseMatch.isComplete() || index < str.length())
-					throw new ParseException(parseMatch.getError(), cmd, parseMatch.getErrorMatch().index);
+				{
+					ParseMatch op = parseMatch;
+					String name = null;
+					while(op.getParsed() != null && op.getParsed().length > 0)
+					{
+						if(op.config.get("name") != null)
+							name = op.config.get("name");
+						op = op.getParsed()[op.getParsed().length - 1];
+					}
+					throw new ParseException(name + ": " + parseMatch.getError(), cmd, parseMatch.getErrorMatch().index);
+				}
 				parseMatches = ArrayUtils.add(parseMatches, parseMatch);
 				break;
 			}
@@ -344,18 +363,20 @@ public class PrismsParser
 				if(terminator == null)
 					throw new ParseException("Terminator expected", cmd, index);
 				index += terminator.text.length();
-				ParseMatch ws = null;
+				ParseMatch [] ignores = null;
 				if(index < str.length())
-					ws = parseWhiteSpace(str, index);
+					ignores = parseIgnorables(str, index, new ParseSessionCache(), true);
 				ParseMatch [] subs = parseMatch.getParsed();
 				String text = parseMatch.text + terminator.text;
-				if(ws == null)
-					subs = ArrayUtils.add(subs, terminator);
-				else
+				subs = ArrayUtils.add(subs, terminator);
+				if(ignores != null)
 				{
-					subs = ArrayUtils.addAll(subs, terminator, ws);
-					text += ws.text;
-					index += ws.text.length();
+					subs = ArrayUtils.addAll(subs, ignores);
+					for(ParseMatch ignore : ignores)
+					{
+						text += ignore.text;
+						index += ignore.text.length();
+					}
 				}
 				parseMatch = new ParseMatch(parseMatch.config, text, parseMatch.index, subs, true, null);
 			}
@@ -566,12 +587,12 @@ public class PrismsParser
 		ParseMatch badOption = null;
 		boolean badOptionOld = true;
 
-		ParseMatch ws = null;
+		ParseMatch [] ignores = null;
 		for(PrismsConfig sub : op.subConfigs())
 		{
 			if(badOption != null && badOptionOld)
 				badOption = null;
-			ws = null;
+			ignores = null;
 			ParseMatch match;
 			switch(sub.getName())
 			{
@@ -581,19 +602,23 @@ public class PrismsParser
 			case "impl":
 			case "min":
 			case "max":
+			case "ignorews":
+			case "ignorable":
 				continue;
 			case "literal":
 				badOptionOld = true;
-				ws = parseWhiteSpace(sb, index);
-				if(ws != null)
-					index += ws.text.length();
+				ignores = parseIgnorables(sb, index, cache, !sub.is("ignorews", false));
+				if(ignores != null)
+					for(ParseMatch ig : ignores)
+						index += ig.text.length();
 				match = parseLiteral(sb, index, sub);
 				break;
 			case "charset":
 				badOptionOld = true;
-				ws = parseWhiteSpace(sb, index);
-				if(ws != null)
-					index += ws.text.length();
+				ignores = parseIgnorables(sb, index, cache, !sub.is("ignorews", false));
+				if(ignores != null)
+					for(ParseMatch ig : ignores)
+						index += ig.text.length();
 				match = parseCharset(sb, index, sub);
 				break;
 			case "whitespace":
@@ -649,8 +674,9 @@ public class PrismsParser
 				{
 					if(!badOptionOld)
 					{
-						for(ParseMatch optMatch : optionMatches)
-							subMatches = ArrayUtils.addAll(optMatch.getParsed());
+						if(optionMatches != null)
+							for(ParseMatch optMatch : optionMatches)
+								subMatches = ArrayUtils.addAll(optMatch.getParsed());
 						match = badOption;
 					}
 					else
@@ -690,12 +716,27 @@ public class PrismsParser
 					else if(match == null || optionMatch.text.length() > match.text.length())
 						match = optionMatch;
 				}
+				if(match != null)
+				{
+					subMatches = ArrayUtils.addAll(subMatches, match.getParsed());
+					for(ParseMatch optMatch : match.getParsed())
+						index += optMatch.text.length();
+					if(!match.isComplete())
+					{
+						match = subMatches[subMatches.length - 1];
+						index -= match.text.length();
+						subMatches = ArrayUtils.remove(subMatches, subMatches.length - 1);
+					}
+					else
+						continue;
+				}
 				break;
 			case "op":
 				badOptionOld = true;
-				ws = parseWhiteSpace(sb, index);
-				if(ws != null)
-					index += ws.text.length();
+				ignores = parseIgnorables(sb, index, cache, !sub.is("ignorews", false));
+				if(ignores != null)
+					for(ParseMatch ig : ignores)
+						index += ig.text.length();
 				String [] types;
 				if(sub.get("type") != null)
 					types = sub.get("type").split("\\|");
@@ -716,8 +757,8 @@ public class PrismsParser
 			}
 			if(match == null || (!match.isComplete() && match.text.length() == 0 && subMatches.length == 0))
 				return null;
-			if(ws != null)
-				subMatches = ArrayUtils.add(subMatches, ws);
+			if(ignores != null)
+				subMatches = ArrayUtils.addAll(subMatches, ignores);
 			subMatches = ArrayUtils.add(subMatches, match);
 			index = match.index + match.text.length();
 			if(!match.isComplete())
@@ -739,6 +780,7 @@ public class PrismsParser
 		{
 			if(!firstRound)
 				index++; // Pass white space character and try again
+			firstRound = false;
 			for(String term : theTerminators)
 			{
 				if(index + term.length() > sb.length())
@@ -753,6 +795,25 @@ public class PrismsParser
 			}
 		} while(index < sb.length() && Character.isWhitespace(sb.charAt(index)));
 		return null;
+	}
+
+	private ParseMatch [] parseIgnorables(StringBuilder sb, int index, ParseSessionCache cache, boolean withWS)
+	{
+		ParseMatch [] ret = null;
+		ParseMatch match;
+		do
+		{
+			match = null;
+			match = getBestMatch(sb, index, cache, true, theIgnorables);
+			if(match == null && withWS)
+				match = parseWhiteSpace(sb, index);
+			if(match != null)
+			{
+				ret = ArrayUtils.add(ret, match);
+				index += match.text.length();
+			}
+		} while(match != null);
+		return ret;
 	}
 
 	private ParseMatch parseWhiteSpace(StringBuilder sb, int index)
@@ -770,12 +831,14 @@ public class PrismsParser
 	private ParseMatch parseLiteral(StringBuilder sb, int index, PrismsConfig item)
 	{
 		String value = item.getValue();
+		if(value != null)
+			value = prisms.util.PrismsUtils.decodeUnicode(value);
 		if(index == sb.length())
 		{
 			if(value != null && value.length() > 0)
 				return new ParseMatch(item, "", index, null, false, item.getValue() + " expected");
 			else
-				return new ParseMatch(item, "", index, null, false, "Pattern matching " + item.get("pattern") + " expected");
+				return new ParseMatch(item, "", index, null, false, "Sequence matching " + item.get("pattern") + " expected");
 		}
 		if(value != null && value.length() > 0)
 		{
@@ -786,10 +849,10 @@ public class PrismsParser
 		}
 		else
 		{
-			String pattern = item.get("pattern");
-			java.util.regex.Matcher match = java.util.regex.Pattern.compile(pattern).matcher(sb.substring(index));
+			String pattern = PrismsUtils.decodeUnicode(item.get("pattern"));
+			java.util.regex.Matcher match = Pattern.compile(pattern, Pattern.DOTALL).matcher(sb.substring(index));
 			if(!match.find() || match.start() > 0)
-				return new ParseMatch(item, "", index, null, false, "Pattern matching " + pattern + " expected");
+				return new ParseMatch(item, "", index, null, false, "Sequence matching " + item.get("pattern") + " expected");
 			return new ParseMatch(item, sb.substring(index, index + match.end()), index, null, true, null);
 		}
 	}
@@ -798,8 +861,8 @@ public class PrismsParser
 	{
 		if(index == sb.length())
 			return new ParseMatch(item, "", index, null, false, "Sequence matching " + item.get("pattern") + " expected");
-		String pattern = item.get("pattern");
-		java.util.regex.Pattern pat = java.util.regex.Pattern.compile(pattern);
+		String pattern = PrismsUtils.decodeUnicode(item.get("pattern"));
+		Pattern pat = Pattern.compile(pattern, Pattern.DOTALL);
 		java.util.regex.Matcher match = pat.matcher(sb.substring(index));
 		if(!match.find() || match.start() > 0)
 			return new ParseMatch(item, "", index, null, false, "Sequence matching " + pattern + " expected");
@@ -807,7 +870,7 @@ public class PrismsParser
 		for(PrismsConfig exclude : item.subConfigs("exclude"))
 		{
 			String escape = exclude.get("escape");
-			String value = exclude.getValue();
+			String value = PrismsUtils.decodeUnicode(exclude.getValue());
 			if(escape == null)
 			{
 				int idx = sb.indexOf(value, index);
@@ -816,6 +879,7 @@ public class PrismsParser
 			}
 			else
 			{
+				escape = PrismsUtils.decodeUnicode(escape);
 				for(int i = index; i < end; i++)
 				{
 					if(startsWith(sb, i, escape))
@@ -839,21 +903,22 @@ public class PrismsParser
 			boolean incomplete = false;
 			for(PrismsConfig m : item.subConfigs("match"))
 			{
-				if(text.equals(m.getValue()))
+				String mValue = PrismsUtils.decodeUnicode(m.getValue());
+				if(text.equals(mValue))
 					found = true;
 				if(found)
 					break;
-				if(m.getValue() == null)
+				if(mValue == null)
 					throw new IllegalStateException("Match must have content: " + item);
 				int i;
-				for(i = 0; i < text.length() && i < m.getValue().length(); i++)
+				for(i = 0; i < text.length() && i < mValue.length(); i++)
 				{
-					if(text.charAt(i) != m.getValue().length())
+					if(text.charAt(i) != mValue.length())
 					{
 						if(i > maxLen)
 						{
 							maxLen = i;
-							maxMatch = m.getValue();
+							maxMatch = mValue;
 						}
 						break;
 					}
@@ -885,7 +950,7 @@ public class PrismsParser
 		return new ParseMatch(item, sb.substring(index, end), index, null, true, null);
 	}
 
-	private boolean startsWith(StringBuilder sb, int index, String seq)
+	private static boolean startsWith(StringBuilder sb, int index, String seq)
 	{
 		for(int i = 0; index + i < sb.length() && i < seq.length(); i++)
 			if(sb.charAt(index + i) != seq.charAt(i))

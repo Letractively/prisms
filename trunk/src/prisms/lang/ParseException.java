@@ -4,8 +4,8 @@
 package prisms.lang;
 
 /**
- * Thrown by {@link PrismsParser} or implementations of {@link ParsedItem#setup(PrismsParser, ParsedItem, ParseMatch)
- * ParseStruct.setup()} in response to syntax errors in text to be parsed
+ * Thrown by {@link PrismsParser} or implementations of {@link ParsedItem#setup(PrismsParser, ParsedItem, ParseMatch) ParseStruct.setup()}
+ * in response to syntax errors in text to be parsed
  */
 public class ParseException extends Exception
 {
@@ -103,11 +103,17 @@ public class ParseException extends Exception
 			for(c = 0; line < theLine; c++)
 				if(theCommand.charAt(c) == '\n')
 					line++;
+			int lineBegin = c;
 			for(; c < theCommand.length() && theCommand.charAt(c) != '\n'; c++)
 				ret.append(theCommand.charAt(c));
 			ret.append("\n\t");
 			for(int i = 0; i < theChar; i++)
-				ret.append(' ');
+			{
+				if(theCommand.charAt(lineBegin + i) == '\t')
+					ret.append('\t');
+				else if(theCommand.charAt(lineBegin + i) >= ' ')
+					ret.append(' ');
+			}
 			ret.append('^');
 		}
 		return ret.toString();
