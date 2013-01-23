@@ -1877,7 +1877,8 @@ public final class ArrayUtils
 	 * similarities.
 	 * </p>
 	 * <p>
-	 * Additional information can be found at <a>http://code.google.com/p/prisms/wiki/ArrayUtils</a>
+	 * For more information, see <a
+	 * href="http://code.google.com/p/prisms/wiki/ArrayUtils">http://code.google.com/p/prisms/wiki/ArrayUtils</a>
 	 * </p>
 	 * 
 	 * @param <T1> The type of the original array
