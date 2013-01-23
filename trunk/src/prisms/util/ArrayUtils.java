@@ -1876,6 +1876,9 @@ public final class ArrayUtils
 	 * to determine the composition of the returned array and/or perform well-defined operations represented by the differences or
 	 * similarities.
 	 * </p>
+	 * <p>
+	 * Additional information can be found at <a>http://code.google.com/p/prisms/wiki/ArrayUtils</a>
+	 * </p>
 	 * 
 	 * @param <T1> The type of the original array
 	 * @param <T2> The type of the modifying array
@@ -1896,7 +1899,9 @@ public final class ArrayUtils
 
 	/**
 	 * Adjusts arrays. This is the more complicated and capable structure used by
-	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)}
+	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE)}. In addition to all the functionality available to
+	 * {@link ArrayUtils#adjust(Object[], Object[], DifferenceListenerE) adjust}, use of this class directly allows null elements to be
+	 * returned in the result array. See {@link #nullElement()} for more information.
 	 * 
 	 * @param <T1> The type of the original array
 	 * @param <T2> The type of the modifying array
