@@ -34,8 +34,8 @@ public class RunningStatistic implements Cloneable
 
 		static SampleSet fromJson(JSONObject json)
 		{
-			return new SampleSet(((Number) json.get("index")).intValue(),
-				((Number) json.get("mean")).floatValue(), ((Number) json.get("sigma")).floatValue());
+			return new SampleSet(((Number) json.get("index")).intValue(), ((Number) json.get("mean")).floatValue(),
+				((Number) json.get("sigma")).floatValue());
 		}
 	}
 
@@ -80,8 +80,7 @@ public class RunningStatistic implements Cloneable
 	/**
 	 * Creates a RunningStatistic
 	 * 
-	 * @param sampleRate The sampling rate to use to determine outliers and sample sets. Must be at
-	 *        least 4.
+	 * @param sampleRate The sampling rate to use to determine outliers and sample sets. Must be at least 4.
 	 */
 	public RunningStatistic(int sampleRate)
 	{
@@ -215,10 +214,7 @@ public class RunningStatistic implements Cloneable
 		}
 	}
 
-	/**
-	 * Finalizes this statistic so that no more data points can be added and the results can be
-	 * viewed
-	 */
+	/** Finalizes this statistic so that no more data points can be added and the results can be viewed */
 	public void finish()
 	{
 		if(isFinished)
@@ -310,10 +306,7 @@ public class RunningStatistic implements Cloneable
 		}
 	}
 
-	/**
-	 * @return A heuristic to determine whether this statistic represents anything other than a
-	 *         simple bell curve
-	 */
+	/** @return A heuristic to determine whether this statistic represents anything other than a simple bell curve */
 	public boolean isInteresting()
 	{
 		float sigma = getSigma();
@@ -332,10 +325,7 @@ public class RunningStatistic implements Cloneable
 		return theOverallMean;
 	}
 
-	/**
-	 * @return The standard deviation among the real, non-outlier values in this statistic's sample
-	 *         set
-	 */
+	/** @return The standard deviation among the real, non-outlier values in this statistic's sample set */
 	public float getSigma()
 	{
 		if(theStartCount >= 0)
@@ -375,10 +365,7 @@ public class RunningStatistic implements Cloneable
 		return theNegInfCount;
 	}
 
-	/**
-	 * @return All data given to this statistic set that were more than 3 sigma away from the mean
-	 *         value at the time the data was given
-	 */
+	/** @return All data given to this statistic set that were more than 3 sigma away from the mean value at the time the data was given */
 	public float [] getOutliers()
 	{
 		finish();
@@ -388,8 +375,8 @@ public class RunningStatistic implements Cloneable
 	}
 
 	/**
-	 * Returns a trend array, or a list of mean values that this statistic set observed over time.
-	 * The list is trimmed of uninteresting data to be more concise.
+	 * Returns a trend array, or a list of mean values that this statistic set observed over time. The list is trimmed of uninteresting data
+	 * to be more concise.
 	 * 
 	 * @return The trend of this statistic set
 	 */
@@ -427,10 +414,9 @@ public class RunningStatistic implements Cloneable
 	}
 
 	/**
-	 * Merges this statistics set with another. This method assumes that <code>stat</code> was
-	 * collected after this set. Otherwise the trending will be wrong. The result of this call will
-	 * be that this statistics set looks as it would if this set were the one collecting
-	 * <code>stat</code>'s data.
+	 * Merges this statistics set with another. This method assumes that <code>stat</code> was collected after this set. Otherwise the
+	 * trending will be wrong. The result of this call will be that this statistics set looks as it would if this set were the one
+	 * collecting <code>stat</code>'s data.
 	 * 
 	 * @param stat The statistics set to merge with this one
 	 */
@@ -446,11 +432,9 @@ public class RunningStatistic implements Cloneable
 		theNaNCount += stat.theNaNCount;
 		theNegInfCount += stat.theNegInfCount;
 		thePosInfCount += stat.thePosInfCount;
-		float newMean = (theOverallMean * theNormalCount + stat.theOverallMean
-			* stat.theNormalCount)
-			/ (theNormalCount + stat.theOverallMean);
-		float newVar = (theVariance * theNormalCount + stat.theVariance * stat.theNormalCount)
+		float newMean = (theOverallMean * theNormalCount + stat.theOverallMean * stat.theNormalCount)
 			/ (theNormalCount + stat.theNormalCount);
+		float newVar = (theVariance * theNormalCount + stat.theVariance * stat.theNormalCount) / (theNormalCount + stat.theNormalCount);
 		newVar += (theOverallMean * theOverallMean - stat.theOverallMean * stat.theOverallMean)
 			/ (Math.abs(theNormalCount - stat.theNormalCount) + 1);
 		theOverallMean = newMean;
@@ -564,8 +548,7 @@ public class RunningStatistic implements Cloneable
 	/**
 	 * Serializes this running statistic to JSON
 	 * 
-	 * @return A JSON representation of this statistic that may be deserialized with
-	 *         {@link #fromJson(JSONObject)}
+	 * @return A JSON representation of this statistic that may be deserialized with {@link #fromJson(JSONObject)}
 	 */
 	public JSONObject toJson()
 	{
@@ -615,8 +598,7 @@ public class RunningStatistic implements Cloneable
 		ret.theNegInfCount = ((Number) json.get("negInfCount")).intValue();
 		ret.thePosInfCount = ((Number) json.get("posInfCount")).intValue();
 		ret.theSampleSetCount = ((Number) json.get("sampleSetCount")).intValue();
-		for(org.json.simple.JSONObject sample : (java.util.List<org.json.simple.JSONObject>) json
-			.get("sampleSets"))
+		for(org.json.simple.JSONObject sample : (java.util.List<org.json.simple.JSONObject>) json.get("sampleSets"))
 			ret.theSampleSets.add(SampleSet.fromJson(sample));
 		for(Number outlier : (java.util.List<Number>) json.get("outliers"))
 			ret.theOutliers.add(outlier.floatValue());
