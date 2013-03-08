@@ -317,6 +317,12 @@ public class RunningStatistic implements Cloneable
 		return getTrend().length > 1;
 	}
 
+	/** @return The total number of data points sampled in this statistic */
+	public int getCount()
+	{
+		return theCount;
+	}
+
 	/** @return The mean of the real, non-outlier values in this statistic's sample set */
 	public float getMean()
 	{
