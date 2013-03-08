@@ -286,6 +286,8 @@ public class Type
 	{
 		if(to == from)
 			return true;
+		if(to.isAssignableFrom(from))
+			return true;
 		if(to == Void.TYPE)
 			return false;
 		if(to.isPrimitive())
@@ -310,10 +312,27 @@ public class Type
 				return from == Byte.TYPE;
 		}
 		if(from.isPrimitive())
-			return false;
+		{
+			if(to == Boolean.class)
+				return false;
+			if(to == Character.class)
+				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
+			if(to == Double.class)
+				return from != Boolean.TYPE;
+			if(to == Float.class)
+				return from != Boolean.TYPE && from != Double.TYPE;
+			if(to == Long.class)
+				return from != Boolean.TYPE && from != Double.TYPE && from != Float.TYPE;
+			if(to == Integer.class)
+				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
+			if(to == Short.class)
+				return from == Short.TYPE || from == Byte.TYPE;
+			if(to == Byte.class)
+				return from == Byte.TYPE;
+		}
 		if(from == NULL.getClass())
 			return true;
-		return to.isAssignableFrom(from);
+		return false;
 	}
 
 	/**
