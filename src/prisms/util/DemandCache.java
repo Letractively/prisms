@@ -3,11 +3,7 @@
  */
 package prisms.util;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A cache that purges values according to several factors:
@@ -145,7 +141,26 @@ public class DemandCache<K, V> implements Map<K, V>
 	public DemandCache(Qualitizer<K, V> qualitizer, float prefSize, long halfLife)
 	{
 		theQualitizer = qualitizer;
-		theCache = new java.util.concurrent.ConcurrentHashMap<K, CacheValue>();
+		theCache = new java.util.concurrent.ConcurrentHashMap<>();
+		thePreferredSize = prefSize;
+		theHalfLife = halfLife;
+		theReference = 1;
+		theCheckedTime = System.currentTimeMillis();
+		thePurgeTime = theCheckedTime;
+		thePurgeListeners = new PurgeListener[0];
+	}
+
+	/**
+	 * Creates a DemandCache
+	 * 
+	 * @param qualitizer The qualitizer to qualitize the values by
+	 * @param prefSize The preferred size of this cache, or <=0 if this cache should have no preferred size
+	 * @param halfLife The preferred entry age of this cache
+	 * @param cap The initial capacity for the cache
+	 */
+	public DemandCache(Qualitizer<K, V> qualitizer, float prefSize, long halfLife, int cap) {
+		theQualitizer = qualitizer;
+		theCache = new java.util.concurrent.ConcurrentHashMap<>(cap);
 		thePreferredSize = prefSize;
 		theHalfLife = halfLife;
 		theReference = 1;
@@ -346,12 +361,12 @@ public class DemandCache<K, V> implements Map<K, V>
 		purge(false);
 		keys = theCache.keySet().toArray();
 		return new java.util.AbstractSet<K>()
-		{
+			{
 			@Override
 			public java.util.Iterator<K> iterator()
 			{
 				return new java.util.Iterator<K>()
-				{
+					{
 					private int index = 0;
 
 					@Override
@@ -374,7 +389,7 @@ public class DemandCache<K, V> implements Map<K, V>
 					{
 						DemandCache.this.remove(keys[index - 1]);
 					}
-				};
+					};
 			}
 
 			@Override
@@ -382,7 +397,7 @@ public class DemandCache<K, V> implements Map<K, V>
 			{
 				return keys.length;
 			}
-		};
+			};
 	}
 
 	/**
@@ -399,12 +414,12 @@ public class DemandCache<K, V> implements Map<K, V>
 		purge(false);
 		entries = theCache.entrySet().toArray(new Map.Entry [0]);
 		return new java.util.AbstractSet<Map.Entry<K, V>>()
-		{
+			{
 			@Override
 			public java.util.Iterator<Map.Entry<K, V>> iterator()
 			{
 				return new java.util.Iterator<Map.Entry<K, V>>()
-				{
+					{
 					int index = 0;
 
 					@Override
@@ -417,7 +432,7 @@ public class DemandCache<K, V> implements Map<K, V>
 					public Map.Entry<K, V> next()
 					{
 						Map.Entry<K, V> ret = new Map.Entry<K, V>()
-						{
+							{
 							private final int entryIndex = index;
 
 							@Override
@@ -446,9 +461,9 @@ public class DemandCache<K, V> implements Map<K, V>
 								return entries[entryIndex].getKey().toString() + "="
 									+ entries[entryIndex].getValue().value;
 							}
-						};
-						index++;
-						return ret;
+							};
+							index++;
+							return ret;
 					}
 
 					@Override
@@ -456,7 +471,7 @@ public class DemandCache<K, V> implements Map<K, V>
 					{
 						DemandCache.this.remove(entries[index - 1].getKey());
 					}
-				};
+					};
 			}
 
 			@Override
@@ -464,7 +479,7 @@ public class DemandCache<K, V> implements Map<K, V>
 			{
 				return entries.length;
 			}
-		};
+			};
 	}
 
 	/**
@@ -479,14 +494,14 @@ public class DemandCache<K, V> implements Map<K, V>
 	{
 		final Set<Entry<K, V>> entrySet = entrySet();
 		return new java.util.AbstractSet<V>()
-		{
+			{
 			@Override
 			public Iterator<V> iterator()
 			{
 				final java.util.Iterator<Map.Entry<K, V>> entryIter;
 				entryIter = entrySet.iterator();
 				return new java.util.Iterator<V>()
-				{
+					{
 					@Override
 					public boolean hasNext()
 					{
@@ -504,7 +519,7 @@ public class DemandCache<K, V> implements Map<K, V>
 					{
 						entryIter.remove();
 					}
-				};
+					};
 			}
 
 			@Override
@@ -512,7 +527,7 @@ public class DemandCache<K, V> implements Map<K, V>
 			{
 				return entrySet.size();
 			}
-		};
+			};
 	}
 
 	/**
@@ -620,7 +635,7 @@ public class DemandCache<K, V> implements Map<K, V>
 				totalQuality += q(entry.getKey(), entry.getValue().value);
 			}
 
-		java.util.ArrayList<K> purgeKeys = new java.util.ArrayList<K>();
+		java.util.ArrayList<K> purgeKeys = new java.util.ArrayList<>();
 		java.util.Iterator<Entry<K, CacheValue>> iter = theCache.entrySet().iterator();
 		final PurgeListener<? super K, ? super V> [] pls = thePurgeListeners;
 		while(iter.hasNext())
@@ -652,7 +667,7 @@ public class DemandCache<K, V> implements Map<K, V>
 
 		if(purgeKeys.isEmpty())
 			return;
-		java.util.ArrayList<V> values = new java.util.ArrayList<V>();
+		java.util.ArrayList<V> values = new java.util.ArrayList<>();
 		for(int i = 0; i < purgeKeys.size(); i++)
 		{
 			CacheValue cv = theCache.remove(purgeKeys.get(i));
@@ -713,13 +728,13 @@ public class DemandCache<K, V> implements Map<K, V>
 		{
 			if(totalSize > thePreferredSize * 2)
 				return size >= avgSize * .99;
-			else if(totalSize > thePreferredSize)
-			{
-				float sizeToQual = (size / avgSize) / (quality / avgQuality);
-				valueQuality /= Math.pow(2, totalSize / thePreferredSize * 4 * sizeToQual * sizeToQual);
-			}
-			else
-				valueQuality /= totalSize / thePreferredSize;
+				else if(totalSize > thePreferredSize)
+				{
+					float sizeToQual = (size / avgSize) / (quality / avgQuality);
+					valueQuality /= Math.pow(2, totalSize / thePreferredSize * 4 * sizeToQual * sizeToQual);
+				}
+				else
+					valueQuality /= totalSize / thePreferredSize;
 		}
 		return valueQuality < 0.5f;
 	}
@@ -769,10 +784,10 @@ public class DemandCache<K, V> implements Map<K, V>
 		if(DO_HL_TEST)
 		{
 			System.out.println("Testing the half life functionality");
-			cache = new DemandCache<Integer, Long>();
+			cache = new DemandCache<>();
 			cache.setHalfLife(10000); // 10 seconds
 			cache.addPurgeListener(new PurgeListener<Integer, Long>()
-			{
+				{
 				@Override
 				public boolean prePurge(Integer key, Long value)
 				{
@@ -806,7 +821,7 @@ public class DemandCache<K, V> implements Map<K, V>
 						+ PrismsUtils.printTimeLength(max) + ", avg=" + PrismsUtils.printTimeLength(mean) + ", max="
 						+ PrismsUtils.printTimeLength(min));
 				}
-			});
+				});
 			final long begin = System.currentTimeMillis();
 			long now = begin;
 			try
@@ -846,8 +861,8 @@ public class DemandCache<K, V> implements Map<K, V>
 		if(DO_PS_TEST)
 		{
 			System.out.println("Testing the preferred size functionality");
-			cache = new DemandCache<Integer, Long>(new Qualitizer<Integer, Long>()
-			{
+			cache = new DemandCache<>(new Qualitizer<Integer, Long>()
+				{
 				@Override
 				public float quality(Integer key, Long value)
 				{
@@ -859,9 +874,9 @@ public class DemandCache<K, V> implements Map<K, V>
 				{
 					return value.floatValue() / 100;
 				}
-			}, 1000000, -1);
+				}, 1000000, -1);
 			cache.addPurgeListener(new PurgeListener<Integer, Long>()
-			{
+				{
 				@Override
 				public boolean prePurge(Integer key, Long value)
 				{
@@ -887,7 +902,7 @@ public class DemandCache<K, V> implements Map<K, V>
 					System.out.println("Purged " + values.size() + " values, size min=" + min + ", avg=" + mean
 						+ ", max=" + max);
 				}
-			});
+				});
 			final long begin = System.currentTimeMillis();
 			long now = begin;
 			try
@@ -896,8 +911,8 @@ public class DemandCache<K, V> implements Map<K, V>
 				{
 					now = System.currentTimeMillis();
 					int val = PrismsUtils.getRandomInt() >>> 1;
-					val %= 100000;
-					cache.put(Integer.valueOf(val), Long.valueOf(val));
+				val %= 100000;
+				cache.put(Integer.valueOf(val), Long.valueOf(val));
 				}
 			} catch(OutOfMemoryError e)
 			{
@@ -932,8 +947,8 @@ public class DemandCache<K, V> implements Map<K, V>
 			}
 			System.out.println("Testing the combined functionality");
 			DemandCache<TestItem, TestItem> cache2;
-			cache2 = new DemandCache<TestItem, TestItem>(new Qualitizer<TestItem, TestItem>()
-			{
+			cache2 = new DemandCache<>(new Qualitizer<TestItem, TestItem>()
+				{
 				@Override
 				public float quality(TestItem key, TestItem value)
 				{
@@ -945,7 +960,7 @@ public class DemandCache<K, V> implements Map<K, V>
 				{
 					return value.theSize;
 				}
-			}, 10000, 60000);
+				}, 10000, 60000);
 			Random rand = new Random();
 			long count = 0;
 			long time = System.currentTimeMillis();
