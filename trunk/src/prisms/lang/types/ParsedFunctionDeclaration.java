@@ -3,8 +3,7 @@ package prisms.lang.types;
 import prisms.lang.ParsedItem;
 
 /** Represents a user-created function */
-public class ParsedFunctionDeclaration extends ParsedItem
-{
+public class ParsedFunctionDeclaration extends ParsedItem {
 	private String theName;
 
 	private ParsedDeclaration [] theParameters;
@@ -16,16 +15,14 @@ public class ParsedFunctionDeclaration extends ParsedItem
 	private ParsedStatementBlock theBody;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
-	{
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException {
 		super.setup(parser, parent, match);
 		theName = getStored("name").text;
 		theReturnType = parser.parseStructures(this, getStored("returnType"))[0];
 		theBody = (ParsedStatementBlock) parser.parseStructures(this, getStored("body"))[0];
-		theParameters = new ParsedDeclaration [0];
-		theExceptionTypes = new ParsedType [0];
-		for(prisms.lang.ParseMatch m : match.getParsed())
-		{
+		theParameters = new ParsedDeclaration[0];
+		theExceptionTypes = new ParsedType[0];
+		for(prisms.lang.ParseMatch m : match.getParsed()) {
 			if("parameter".equals(m.config.get("storeAs")))
 				theParameters = prisms.util.ArrayUtils.add(theParameters, (ParsedDeclaration) parser.parseStructures(this, m)[0]);
 			else if("exception".equals(m.config.get("storeAs")))
@@ -40,8 +37,7 @@ public class ParsedFunctionDeclaration extends ParsedItem
 
 	@Override
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
-		throws prisms.lang.EvaluationException
-	{
+		throws prisms.lang.EvaluationException {
 		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
 		prisms.lang.EvaluationResult ret = theReturnType.evaluate(scoped, true, withValues);
 		if(!ret.isType())
@@ -49,7 +45,7 @@ public class ParsedFunctionDeclaration extends ParsedItem
 		scoped.setReturnType(ret.getType());
 		for(ParsedDeclaration dec : theParameters)
 			dec.evaluate(scoped, false, false);
-		prisms.lang.Type[] exTypes = new prisms.lang.Type [theExceptionTypes.length];
+		prisms.lang.Type[] exTypes = new prisms.lang.Type[theExceptionTypes.length];
 		for(int i = 0; i < exTypes.length; i++)
 			exTypes[i] = theExceptionTypes[i].evaluate(scoped, true, withValues).getType();
 		scoped.setHandledExceptionTypes(exTypes);
@@ -68,13 +64,11 @@ public class ParsedFunctionDeclaration extends ParsedItem
 	 * @throws prisms.lang.EvaluationException If an error occurs evaluating the function or if the evaluation throws an exception
 	 */
 	public prisms.lang.EvaluationResult execute(prisms.lang.EvaluationEnvironment env, prisms.lang.EvaluationResult[] args,
-		boolean withValues) throws prisms.lang.EvaluationException
-	{
+		boolean withValues) throws prisms.lang.EvaluationException {
 		prisms.lang.EvaluationEnvironment scoped = env.scope(false);
 		if(theParameters.length != args.length)
 			throw new IllegalStateException("Illegal parameters");
-		for(int i = 0; i < theParameters.length; i++)
-		{
+		for(int i = 0; i < theParameters.length; i++) {
 			if(!theParameters[i].evaluateType(scoped).isAssignable(args[i].getType()))
 				throw new IllegalStateException("Illegal parameters");
 			theParameters[i].evaluate(scoped, false, withValues);
@@ -84,17 +78,17 @@ public class ParsedFunctionDeclaration extends ParsedItem
 		for(ParsedType et : theExceptionTypes)
 			if(!env.canHandle(et.evaluate(scoped, true, withValues).getType()))
 				throw new prisms.lang.EvaluationException("Unhandled exception type " + et, et, et.getMatch().index);
-		prisms.lang.EvaluationResult retRes = theReturnType.evaluate(scoped, true, withValues);
+		prisms.lang.EvaluationResult retRes;
+		retRes = theReturnType.evaluate(scoped, true, withValues);
 		if(!retRes.isType())
 			throw new prisms.lang.EvaluationException(retRes + " cannot be resolved to a type", theReturnType,
 				theReturnType.getMatch().index);
 		scoped.setReturnType(retRes.getType());
-		prisms.lang.Type[] exTypes = new prisms.lang.Type [theExceptionTypes.length];
+		prisms.lang.Type[] exTypes = new prisms.lang.Type[theExceptionTypes.length];
 		for(int i = 0; i < exTypes.length; i++)
 			exTypes[i] = theExceptionTypes[i].evaluate(scoped, true, withValues).getType();
 		scoped.setHandledExceptionTypes(exTypes);
-		try
-		{
+		try {
 			prisms.lang.EvaluationResult res = theBody.evaluate(scoped, false, withValues);
 			if(withValues && res == null && !Void.TYPE.equals(retRes.getType().getBaseType()))
 				throw new prisms.lang.EvaluationException("No value returned", theBody, theBody.getMatch().index
@@ -103,8 +97,7 @@ public class ParsedFunctionDeclaration extends ParsedItem
 				throw new prisms.lang.EvaluationException(
 					"Type mismatch: cannot convert from " + res.getType() + " to " + retRes.getType(), theBody, theBody.getMatch().index);
 			return new prisms.lang.EvaluationResult(retRes.getType(), res == null ? null : res.getValue());
-		} catch(prisms.lang.ExecutionException e)
-		{
+		} catch(prisms.lang.ExecutionException e) {
 			if(e.getCause() instanceof Error)
 				throw e;
 			else if(e.getCause() instanceof RuntimeException)
@@ -117,28 +110,23 @@ public class ParsedFunctionDeclaration extends ParsedItem
 		}
 	}
 
-	private boolean isAssignable(prisms.lang.Type t, Object value)
-	{
+	private boolean isAssignable(prisms.lang.Type t, Object value) {
 		if(value == null)
 			return !t.isPrimitive();
-		if(t.isPrimitive())
-		{
+		if(t.isPrimitive()) {
 			Class<?> prim = prisms.lang.Type.getPrimitiveType(value.getClass());
 			return prim != null && t.isAssignableFrom(prim);
-		}
-		else
+		} else
 			return t.isAssignableFrom(value.getClass());
 	}
 
 	/** @return The name of the function */
-	public String getName()
-	{
+	public String getName() {
 		return theName;
 	}
 
 	/** @return The declarations of the function's parameter arguments */
-	public ParsedDeclaration [] getParameters()
-	{
+	public ParsedDeclaration [] getParameters() {
 		return theParameters;
 	}
 
@@ -147,32 +135,27 @@ public class ParsedFunctionDeclaration extends ParsedItem
 	 * 
 	 * @return Whether this function takes variable arguments
 	 */
-	public boolean isVarArgs()
-	{
+	public boolean isVarArgs() {
 		return theParameters.length > 0 && theParameters[theParameters.length - 1].isVarArg();
 	}
 
 	/** @return The type of this function's return value */
-	public ParsedItem getReturnType()
-	{
+	public ParsedItem getReturnType() {
 		return theReturnType;
 	}
 
 	/** @return The types of exceptions that this function may throw */
-	public ParsedType [] getExceptionTypes()
-	{
+	public ParsedType [] getExceptionTypes() {
 		return theExceptionTypes;
 	}
 
 	/** @return This function's body */
-	public ParsedStatementBlock getBody()
-	{
+	public ParsedStatementBlock getBody() {
 		return theBody;
 	}
 
 	@Override
-	public ParsedItem [] getDependents()
-	{
+	public ParsedItem [] getDependents() {
 		java.util.ArrayList<ParsedItem> ret = new java.util.ArrayList<>();
 		ret.add(theReturnType);
 		for(int p = 0; p < theParameters.length; p++)
@@ -180,49 +163,38 @@ public class ParsedFunctionDeclaration extends ParsedItem
 		for(int e = 0; e < theExceptionTypes.length; e++)
 			ret.add(theExceptionTypes[e]);
 		ret.add(theBody);
-		return ret.toArray(new ParsedItem [ret.size()]);
+		return ret.toArray(new ParsedItem[ret.size()]);
 	}
 
 	@Override
-	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
-	{
-		if(theReturnType == dependent)
-		{
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theReturnType == dependent) {
 			theReturnType = toReplace;
 			return;
 		}
 		for(int i = 0; i < theParameters.length; i++)
-			if(theParameters[i] == dependent)
-			{
-				if(toReplace instanceof ParsedDeclaration)
-				{
+			if(theParameters[i] == dependent) {
+				if(toReplace instanceof ParsedDeclaration) {
 					theParameters[i] = (ParsedDeclaration) toReplace;
 					return;
-				}
-				else
+				} else
 					throw new IllegalArgumentException("Cannot replace a declared parameter of a function declaration with "
 						+ toReplace.getClass().getSimpleName());
 			}
 		for(int i = 0; i < theExceptionTypes.length; i++)
-			if(theExceptionTypes[i] == dependent)
-			{
-				if(toReplace instanceof ParsedType)
-				{
+			if(theExceptionTypes[i] == dependent) {
+				if(toReplace instanceof ParsedType) {
 					theExceptionTypes[i] = (ParsedType) toReplace;
 					return;
-				}
-				else
+				} else
 					throw new IllegalArgumentException("Cannot replace a declared exception type of a function declaration with "
 						+ toReplace.getClass().getSimpleName());
 			}
-		if(theBody == dependent)
-		{
-			if(toReplace instanceof ParsedStatementBlock)
-			{
+		if(theBody == dependent) {
+			if(toReplace instanceof ParsedStatementBlock) {
 				theBody = (ParsedStatementBlock) toReplace;
 				return;
-			}
-			else
+			} else
 				throw new IllegalArgumentException("Cannot replace the body of a function declaration with "
 					+ toReplace.getClass().getSimpleName());
 		}
@@ -230,22 +202,18 @@ public class ParsedFunctionDeclaration extends ParsedItem
 	}
 
 	/** @return A short representation of this function's signature */
-	public String getShortSig()
-	{
+	public String getShortSig() {
 		StringBuilder ret = new StringBuilder();
 		ret.append(theName);
 		ret.append('(');
-		for(int p = 0; p < theParameters.length; p++)
-		{
+		for(int p = 0; p < theParameters.length; p++) {
 			if(p > 0)
 				ret.append(", ");
 			ret.append(theParameters[p].getType());
-			if(theParameters[p].getTypeParams().length > 0)
-			{
+			if(theParameters[p].getTypeParams().length > 0) {
 				ret.append('<');
 				boolean first = true;
-				for(ParsedType p2 : theParameters[p].getTypeParams())
-				{
+				for(ParsedType p2 : theParameters[p].getTypeParams()) {
 					if(!first)
 						ret.append(", ");
 					else
@@ -271,8 +239,7 @@ public class ParsedFunctionDeclaration extends ParsedItem
 	 * @param pfd The function to compare to
 	 * @return Whether this function's call signature is identical to <code>pfd</code>'s
 	 */
-	public boolean equalsCallSig(ParsedFunctionDeclaration pfd)
-	{
+	public boolean equalsCallSig(ParsedFunctionDeclaration pfd) {
 		if(!pfd.theName.equals(theName))
 			return false;
 		if(pfd.theParameters.length != theParameters.length)
@@ -286,14 +253,12 @@ public class ParsedFunctionDeclaration extends ParsedItem
 	}
 
 	@Override
-	public String toString()
-	{
+	public String toString() {
 		StringBuilder ret = new StringBuilder();
 		ret.append(theReturnType).append(' ');
 		ret.append(theName);
 		ret.append('(');
-		for(int p = 0; p < theParameters.length; p++)
-		{
+		for(int p = 0; p < theParameters.length; p++) {
 			if(p > 0)
 				ret.append(", ");
 			ret.append(theParameters[p]);

@@ -284,6 +284,9 @@ public interface EvaluationEnvironment
 	/** Called prior to evaluation so the environment is not marked to cancel execution */
 	void uncancel();
 
+	/** @return The program tracker being used to record performance information */
+	prisms.util.ProgramTracker getTracker();
+
 	/**
 	 * Saves this environment to a stream
 	 * 
