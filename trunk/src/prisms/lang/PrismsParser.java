@@ -397,8 +397,13 @@ public class PrismsParser {
 					if(cache.isFinding(index, type))
 						continue;
 					ParseMatch match;
-					if(useCache && firstRound && cache.isFound(index, type))
-						match = cache.getFound(index, type);
+					if(useCache && cache.isFound(index, type))
+					{
+						if(firstRound)
+							match = cache.getFound(index, type);
+						else
+							continue;
+					}
 					else {
 						cache.addFinding(index, type);
 						try {
