@@ -514,7 +514,7 @@ public class HttpConnector
 		throws IOException
 	{
 		String callURL = theURL;
-		if(getParams.size() > 0)
+		if(getParams!=null && getParams.size() > 0)
 		{
 			StringBuilder args = new StringBuilder();
 			boolean first = true;
