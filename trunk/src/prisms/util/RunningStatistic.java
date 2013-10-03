@@ -43,6 +43,8 @@ public class RunningStatistic implements Cloneable
 
 	private final int theSampleRate;
 
+	private boolean isOutlierEnabled;
+
 	private FloatList theOutliers;
 
 	private java.util.ArrayList<SampleSet> theSampleSets;
@@ -94,6 +96,12 @@ public class RunningStatistic implements Cloneable
 		theMax = Float.MIN_VALUE;
 	}
 
+	/** @param enabled Whether outliers are enabled (excluded from mean and standard dev calculations) in this statistic set */
+	public void setOutliersEnabled(boolean enabled)
+	{
+		isOutlierEnabled = enabled;
+	}
+
 	/**
 	 * Adds a datum to this statistic
 	 * 
@@ -122,7 +130,7 @@ public class RunningStatistic implements Cloneable
 				float diff = datum - theOverallMean;
 				if(diff < 0)
 					diff = -diff;
-				if(diff * diff > 9 * theVariance) // 3sigma
+				if(isOutlierEnabled && diff * diff > 9 * theVariance) // 3sigma
 					theOutliers.add(datum); // An outlier
 				else
 				{ // A normal value
@@ -197,7 +205,7 @@ public class RunningStatistic implements Cloneable
 	private void addSampleDatum(float datum)
 	{
 		SampleSet ss = theSampleSets.get(theSampleSets.size() - 1);
-		if(Math.abs(datum - ss.theMean) < 3 * ss.theSigma)
+		if(!isOutlierEnabled || Math.abs(datum - ss.theMean) < 3 * ss.theSigma)
 		{
 			theTempVariance = addToVariance(theTempVariance, theTempCount, theTempMean, datum);
 			theTempCount++;
@@ -231,7 +239,7 @@ public class RunningStatistic implements Cloneable
 			float diff = value - theOverallMean;
 			if(diff < 0)
 				diff = -diff;
-			if(diff * diff < 9 * theVariance) // 3 sigma
+			if(!isOutlierEnabled || diff * diff < 9 * theVariance) // 3 sigma
 			{
 				theVariance = addToVariance(theVariance, theNormalCount, theOverallMean, value);
 				theNormalCount++;
@@ -371,6 +379,12 @@ public class RunningStatistic implements Cloneable
 		return theNegInfCount;
 	}
 
+	/** @return Whether outliers are enabled (excluded from mean and standard dev calculations) in this statistic set */
+	public boolean isOutlierEnabled()
+	{
+		return isOutlierEnabled;
+	}
+
 	/** @return All data given to this statistic set that were more than 3 sigma away from the mean value at the time the data was given */
 	public float [] getOutliers()
 	{
@@ -441,7 +455,7 @@ public class RunningStatistic implements Cloneable
 		float newMean = (theOverallMean * theNormalCount + stat.theOverallMean * stat.theNormalCount)
 			/ (theNormalCount + stat.theNormalCount);
 		float newVar = (theVariance * theNormalCount + stat.theVariance * stat.theNormalCount) / (theNormalCount + stat.theNormalCount);
-		newVar += (theOverallMean * theOverallMean - stat.theOverallMean * stat.theOverallMean)
+		newVar += Math.abs(theOverallMean * theOverallMean - stat.theOverallMean * stat.theOverallMean)
 			/ (Math.abs(theNormalCount - stat.theNormalCount) + 1);
 		theOverallMean = newMean;
 		theVariance = newVar;
