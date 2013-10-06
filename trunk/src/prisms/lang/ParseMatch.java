@@ -49,6 +49,11 @@ public class ParseMatch implements Iterable<ParseMatch>
 		return parsed[parsed.length - 1].isComplete();
 	}
 
+	/** @return Whether this parse match (and not one of its children) is the source of an error */
+	public boolean isThisError() {
+		return theError != null;
+	}
+
 	/** @return The error message that prevented this match from being made, or null if the match was successful */
 	public String getError()
 	{
@@ -56,7 +61,12 @@ public class ParseMatch implements Iterable<ParseMatch>
 			return theError;
 		if(parsed == null || parsed.length == 0)
 			return null;
-		return parsed[parsed.length - 1].getError();
+		for(ParseMatch sub : parsed) {
+			String err = sub.getError();
+			if(err != null)
+				return err;
+		}
+		return null;
 	}
 
 	/** @return The match in this structure that contains this match's error */
@@ -66,7 +76,12 @@ public class ParseMatch implements Iterable<ParseMatch>
 			return this;
 		if(parsed == null || parsed.length == 0)
 			return null;
-		return parsed[parsed.length - 1].getErrorMatch();
+		for(ParseMatch sub : parsed) {
+			ParseMatch err = sub.getErrorMatch();
+			if(err != null)
+				return err;
+		}
+		return null;
 	}
 
 	/** Implements a depth-first iteration over this match's structure. The first match returned will be {@code this}. */
@@ -74,7 +89,7 @@ public class ParseMatch implements Iterable<ParseMatch>
 	public java.util.Iterator<ParseMatch> iterator()
 	{
 		return new java.util.Iterator<ParseMatch>()
-		{
+			{
 			private boolean hasReturnedSelf;
 
 			private int theIterIndex;
@@ -126,7 +141,7 @@ public class ParseMatch implements Iterable<ParseMatch>
 			{
 				throw new UnsupportedOperationException();
 			}
-		};
+			};
 	}
 
 	@Override

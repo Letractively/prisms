@@ -479,7 +479,7 @@ public class PrismsParser {
 	}
 
 	static int nonErrorLength(ParseMatch match) {
-		if(match.config.getName().equals("whitespace"))
+		if(match.config.getName().equals("whitespace") || match.isThisError())
 			return 0;
 		else if(match.getError() == null)
 			return match.text.length();
@@ -487,8 +487,11 @@ public class PrismsParser {
 			return 0;
 		else {
 			int ret = 0;
-			for(ParseMatch sub : match.getParsed())
+			for(ParseMatch sub : match.getParsed()) {
 				ret += nonErrorLength(sub);
+				if(sub.getError() != null)
+					break;
+			}
 			return ret;
 		}
 	}
@@ -565,7 +568,7 @@ public class PrismsParser {
 				ParseMatch [] optionMatches = null;
 				while(max < 0 || count < max) {
 					match = parseTypedMatch(sb, index, cache, sub);
-					if(match == null || !match.isComplete()) {
+					if(match == null || !match.isComplete() || match.getError() != null) {
 						if(match != null && badOptionOld) {
 							badOption = match;
 							badOptionOld = false;
