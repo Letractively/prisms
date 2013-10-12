@@ -1,0 +1,16 @@
+#summary The JITR Debugger
+#labels Phase-Implementation
+
+= The JITR Debugger =
+
+Right now this page is just ideas.  I've hated debugging the prisms.lang parser behind JITR from the beginning.  It's very recursive, so unconditional breakpoints are of limited use and conditional breakpoints typically involve string comparisons so they're very slow.  I've been thinking for a while about adding some code in there to catch user-defined conditions to make debugging easier, but the more I think about it, something more is warranted.
+
+I want to implement a full-scale debugger for the prisms.lang parser.  Initially, this will help me debug the parser's code; but it will also be useful for end users to debug their parser configurations.
+
+For now, just a list of features:
+
+ * An augmented text field showing the full text being parsed.  A cursor of sorts should be displayed at the current parsing position. Perhaps the string's text could be colored or maybe annotated below it to show how the previous parts of the string have been parsed (e.g. syntax coloring).
+ * A tree showing the current (or finished) parsing state.  Nodes should show what kind of operator they represent, the text they contain (local for sure, maybe have a way to access the total text rooted at that expression) and should have identifiers for whether the node itself has an error or is incomplete and whether its full tree structure has an error or is incomplete.
+ * The ability to specify breakpoints. The user should be able to set a point in the text to break on, and potentially an operator type (from a combo box populated dynamically from the parser's config).  The break point may be one of 2 kinds--graphical or code.
+   * A graphical breakpoint gives the user control through the debugger GUI to step through each functional element in the operator being parsed, complete with step over/in/out. The parse tree would function like the execution stack, allowing the user to navigate it.
+   * A code breakpoint would reach a certain point in the code and then enter an infinite (sleeped) loop while prompting the user to set a breakpoint for a certain line (displayed to the user, retrieved via java's stack trace) and giving them the option to cancel and resume execution.  This option would be disabled with a warning text if line numbers are not present in the class file or (if this is detectable) if debugging has not been enabled.  When the breakpoint is set, the prompt would disappear and allow the developer to step through the code using both the environment debugger and the JITR debugger.  The JITR debugger may also have its debug operators enabled so the dev could skip around the parser progress more easily than is possible with the environment debugger.
