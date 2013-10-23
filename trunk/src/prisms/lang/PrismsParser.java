@@ -28,7 +28,7 @@ public class PrismsParser {
 	/** Specifies that an error may the thrown from parsing code if the parsing state knows what is wrong with the parsed text */
 	static final int COMPLETE_ERROR = -1;
 
-	class ParseSessionCache {
+	static class ParseSessionCache {
 		private ParseMatch none = new ParseMatch(null, null, 0, null, false, "NO MATCH!");
 
 		Map<DualKey<Integer, String>, ParseMatch> theFound;
@@ -72,6 +72,32 @@ public class PrismsParser {
 		}
 	}
 
+	private static class NullDebugger implements PrismsParserDebugger {
+		@Override
+		public void init(PrismsParser aParser) {
+		}
+
+		@Override
+		public void start(CharSequence aText) {
+		}
+
+		@Override
+		public void end(CharSequence aText, ParseMatch [] aMatches) {
+		}
+
+		@Override
+		public void fail(CharSequence aText, ParseMatch [] aMatches, ParseException aE) {
+		}
+
+		@Override
+		public void preParse(CharSequence aText, int aIndex, PrismsConfig aOp) {
+		}
+
+		@Override
+		public void postParse(CharSequence aText, int aStartIndex, PrismsConfig aOp, ParseMatch aMatch) {
+		}
+	}
+
 	private java.util.List<PrismsConfig> theOperators;
 
 	private Map<String, PrismsConfig> theOpsByName;
@@ -82,6 +108,8 @@ public class PrismsParser {
 
 	private boolean isValidated;
 
+	private PrismsParserDebugger theDebugger;
+
 	/** Creates a parser */
 	public PrismsParser() {
 		theOperators = new java.util.ArrayList<>();
@@ -90,6 +118,17 @@ public class PrismsParser {
 		theTerminators = new java.util.ArrayList<>();
 		addTerminator("\n");
 		addTerminator(";");
+		theDebugger = new NullDebugger();
+	}
+
+	/** @param debugger The debugger to use in debugging parsing */
+	public void setDebugger(PrismsParserDebugger debugger) {
+		if(debugger != null)
+			theDebugger = debugger;
+		else
+			theDebugger = new NullDebugger();
+		if(isValidated)
+			theDebugger.init(this);
 	}
 
 	/** @param terminator The terminator string to accept as a boundary between successive matches */
@@ -117,9 +156,16 @@ public class PrismsParser {
 	 * 
 	 * @param config The configuration to configure the types of structures the parser can parse
 	 */
-	public void configure(prisms.arch.PrismsConfig config) {
+	public void configure(PrismsConfig config) {
+		if(isValidated)
+			throw new IllegalStateException("Additional configuration cannot be performed after validation, which occurs at first parsing");
 		for(PrismsConfig entity : config.subConfigs())
 			insertOperator(entity);
+	}
+
+	/** @return The list of operators this parser uses to match text against */
+	public java.util.List<PrismsConfig> getOperators() {
+		return java.util.Collections.unmodifiableList(theOperators);
 	}
 
 	void insertOperator(PrismsConfig op) {
@@ -256,6 +302,7 @@ public class PrismsParser {
 			}
 		});
 		isValidated = true;
+		theDebugger.init(this);
 	}
 
 	void checkReferences(PrismsConfig op) {
@@ -283,50 +330,57 @@ public class PrismsParser {
 			throw new ParseException("No input given", cmd, 0);
 		int index = 0;
 		StringBuilder str = new StringBuilder(cmd);
+		theDebugger.start(str);
 		ParseMatch [] parseMatches = new ParseMatch[0];
-		while(index < str.length()) {
-			ParseMatch parseMatch = parseMatch(str, index, new ParseSessionCache());
-			if(parseMatch == null)
-				throw new ParseException("Syntax error", cmd, index);
-			index += parseMatch.text.length();
-			if(parseMatch.getError() != null) {
-				if(parseMatch.isComplete() || index < str.length()) {
-					ParseMatch op = parseMatch;
-					String name = null;
-					while(op.getParsed() != null && op.getParsed().length > 0) {
-						if(op.config.get("name") != null)
-							name = op.config.get("name");
-						op = op.getParsed()[op.getParsed().length - 1];
+		try {
+			while(index < str.length()) {
+				ParseMatch parseMatch = parseMatch(str, index, new ParseSessionCache());
+				if(parseMatch == null)
+					throw new ParseException("Syntax error", cmd, index);
+				index += parseMatch.text.length();
+				if(parseMatch.getError() != null) {
+					if(parseMatch.isComplete() || index < str.length()) {
+						ParseMatch op = parseMatch;
+						String name = null;
+						while(op.getParsed() != null && op.getParsed().length > 0) {
+							if(op.config.get("name") != null)
+								name = op.config.get("name");
+							op = op.getParsed()[op.getParsed().length - 1];
+						}
+						throw new ParseException(name + ": " + parseMatch.getError(), cmd, parseMatch.getErrorMatch().index);
 					}
-					throw new ParseException(name + ": " + parseMatch.getError(), cmd, parseMatch.getErrorMatch().index);
+					parseMatches = ArrayUtils.add(parseMatches, parseMatch);
+					break;
+				}
+
+				ParseMatch terminator;
+				if(index < str.length()) {
+					terminator = parseTerminator(str, index);
+					if(terminator == null)
+						throw new ParseException("Terminator expected", cmd, index);
+					index += terminator.text.length();
+					ParseMatch [] ignores = null;
+					if(index < str.length())
+						ignores = parseIgnorables(str, index, new ParseSessionCache(), true);
+					ParseMatch [] subs = parseMatch.getParsed();
+					String text = parseMatch.text + terminator.text;
+					subs = ArrayUtils.add(subs, terminator);
+					if(ignores != null) {
+						subs = ArrayUtils.addAll(subs, ignores);
+						for(ParseMatch ignore : ignores) {
+							text += ignore.text;
+							index += ignore.text.length();
+						}
+					}
+					parseMatch = new ParseMatch(parseMatch.config, text, parseMatch.index, subs, true, null);
 				}
 				parseMatches = ArrayUtils.add(parseMatches, parseMatch);
-				break;
 			}
-
-			ParseMatch terminator;
-			if(index < str.length()) {
-				terminator = parseTerminator(str, index);
-				if(terminator == null)
-					throw new ParseException("Terminator expected", cmd, index);
-				index += terminator.text.length();
-				ParseMatch [] ignores = null;
-				if(index < str.length())
-					ignores = parseIgnorables(str, index, new ParseSessionCache(), true);
-				ParseMatch [] subs = parseMatch.getParsed();
-				String text = parseMatch.text + terminator.text;
-				subs = ArrayUtils.add(subs, terminator);
-				if(ignores != null) {
-					subs = ArrayUtils.addAll(subs, ignores);
-					for(ParseMatch ignore : ignores) {
-						text += ignore.text;
-						index += ignore.text.length();
-					}
-				}
-				parseMatch = new ParseMatch(parseMatch.config, text, parseMatch.index, subs, true, null);
-			}
-			parseMatches = ArrayUtils.add(parseMatches, parseMatch);
+		} catch(ParseException e) {
+			theDebugger.fail(str, parseMatches, e);
+			throw e;
 		}
+		theDebugger.end(str, parseMatches);
 		return parseMatches;
 	}
 
@@ -497,6 +551,7 @@ public class PrismsParser {
 	}
 
 	ParseMatch parseTypedMatch(StringBuilder sb, int index, ParseSessionCache cache, PrismsConfig op) {
+		theDebugger.preParse(sb, index, op);
 		final int startIndex = index;
 		ParseMatch [] subMatches = new ParseMatch[0];
 
@@ -527,7 +582,9 @@ public class PrismsParser {
 				if(ignores != null)
 					for(ParseMatch ig : ignores)
 						index += ig.text.length();
+				theDebugger.preParse(sb, index, sub);
 				match = parseLiteral(sb, index, sub);
+				theDebugger.postParse(sb, index, sub, match);
 				break;
 			case "charset":
 				badOptionOld = true;
@@ -535,11 +592,15 @@ public class PrismsParser {
 				if(ignores != null)
 					for(ParseMatch ig : ignores)
 						index += ig.text.length();
+				theDebugger.preParse(sb, index, sub);
 				match = parseCharset(sb, index, sub);
+				theDebugger.postParse(sb, index, sub, match);
 				break;
 			case "whitespace":
 				badOptionOld = true;
+				theDebugger.preParse(sb, index, sub);
 				match = parseWhiteSpace(sb, index);
+				theDebugger.postParse(sb, index, sub, match);
 				if(sub.get("type") != null) // forbid
 				{
 					if(match != null)
@@ -605,6 +666,7 @@ public class PrismsParser {
 						subMatches = ArrayUtils.addAll(subMatches, optMatch.getParsed());
 				continue;
 			case "select":
+				theDebugger.preParse(sb, index, sub);
 				badOptionOld = true;
 				match = null;
 				for(PrismsConfig option : sub.subConfigs()) {
@@ -628,6 +690,7 @@ public class PrismsParser {
 					} else
 						continue;
 				}
+				theDebugger.postParse(sb, index, sub, match);
 				break;
 			case "op":
 				badOptionOld = true;
@@ -640,7 +703,9 @@ public class PrismsParser {
 					types = sub.get("type").split("\\|");
 				else
 					types = new String[0];
+				theDebugger.preParse(sb, index, sub);
 				match = getBestMatch(sb, index, cache, true, types);
+				theDebugger.postParse(sb, index, sub, match);
 				if(match != null)
 					match = new ParseMatch(sub, match.text, index, new ParseMatch[] {match}, true, null);
 				break;
@@ -652,21 +717,28 @@ public class PrismsParser {
 				if(badOption != null)
 					match = badOption;
 			}
-			if(match == null || (!match.isComplete() && match.text.length() == 0 && subMatches.length == 0))
+			if(match == null || (!match.isComplete() && match.text.length() == 0 && subMatches.length == 0)) {
+				theDebugger.postParse(sb, startIndex, op, null);
 				return null;
+			}
 			if(ignores != null)
 				subMatches = ArrayUtils.addAll(subMatches, ignores);
 			subMatches = ArrayUtils.add(subMatches, match);
 			index = match.index + match.text.length();
-			if(!match.isComplete())
-				return new ParseMatch(op, sb.substring(startIndex, index), startIndex, subMatches, true, null);
+			if(!match.isComplete()) {
+				ParseMatch ret = new ParseMatch(op, sb.substring(startIndex, index), startIndex, subMatches, true, null);
+				theDebugger.postParse(sb, startIndex, op, ret);
+				return ret;
+			}
 		}
 		/*ParseMatch terminator=parseTerminator(sb, index);
 		if(terminator!=null){
 			subMatches=ArrayUtils.add(subMatches, terminator);
 			index+=terminator.text.length();
 		}*/
-		return new ParseMatch(op, sb.substring(startIndex, index), startIndex, subMatches, true, null);
+		ParseMatch ret = new ParseMatch(op, sb.substring(startIndex, index), startIndex, subMatches, true, null);
+		theDebugger.postParse(sb, startIndex, op, ret);
+		return ret;
 	}
 
 	private ParseMatch parseTerminator(StringBuilder sb, int index) {
