@@ -4,10 +4,15 @@ import java.util.regex.Pattern;
 
 public class PrismsParserBreakpoint {
 	private Pattern thePreCursorText;
+
 	private Pattern thePostCursorText;
+
 	private String theOpName;
 
+	private boolean isEnabled;
+
 	public PrismsParserBreakpoint() {
+		setEnabled(true);
 	}
 
 	public Pattern getPreCursorText() {
@@ -32,5 +37,13 @@ public class PrismsParserBreakpoint {
 
 	public void setOpName(String opName) {
 		theOpName = opName;
+	}
+
+	public boolean isEnabled() {
+		return isEnabled;
+	}
+
+	public void setEnabled(boolean enabled) {
+		isEnabled = enabled;
 	}
 }
