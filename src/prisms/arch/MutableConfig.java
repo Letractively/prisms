@@ -143,18 +143,32 @@ public class MutableConfig extends PrismsConfig
 	/**
 	 * @param key The name of the sub-configuration to store the value in
 	 * @param value The value to store for the given sub-configuration
+	 * @return This config, for chaining
 	 */
-	public void set(String key, String value)
-	{
-		getOrCreate(key).setValue(value);
+	public MutableConfig set(String key, String value) {
+		MutableConfig config = subConfig(key);
+		if(value == null) {
+			if(config != null)
+				removeSubConfig(config);
+		} else {
+			if(config == null) {
+				config = new MutableConfig(key);
+				addSubConfig(config);
+			}
+			config.setValue(value);
+		}
+		return this;
 	}
 
-	/** @param value The value for this configuration */
-	public void setValue(String value)
-	{
+	/**
+	 * @param value The value for this configuration
+	 * @return This config, for chaining
+	 */
+	public MutableConfig setValue(String value) {
 		String preValue = theValue;
 		theValue = value;
 		configChanged(this, preValue);
+		return this;
 	}
 
 	@Override
@@ -203,7 +217,7 @@ public class MutableConfig extends PrismsConfig
 	public void setSubConfigs(MutableConfig [] subs)
 	{
 		prisms.util.ArrayUtils.adjust(theSubConfigs, subs, new prisms.util.ArrayUtils.DifferenceListener<MutableConfig, MutableConfig>()
-		{
+			{
 			@Override
 			public boolean identity(MutableConfig o1, MutableConfig o2)
 			{
@@ -232,7 +246,7 @@ public class MutableConfig extends PrismsConfig
 			{
 				return null;
 			}
-		});
+			});
 		theSubConfigs = subs;
 	}
 
@@ -346,7 +360,7 @@ public class MutableConfig extends PrismsConfig
 		}
 		for(MutableConfig sub : theSubConfigs)
 		{
-			if(attrs.get(sub.theName)[0] == 1 && sub.theSubConfigs.length == 0 && sub.theValue != null && sub.theValue.length() < 16)
+			if(attrs.get(sub.theName)[0] == 1 && sub.theSubConfigs.length == 0 && sub.theValue != null && sub.theValue.indexOf('\n') < 0)
 				ret.addAttribute(sub.theName, sub.theValue);
 			else
 				ret.add(sub.toXML(df));

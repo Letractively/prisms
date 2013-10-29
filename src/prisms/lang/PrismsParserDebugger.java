@@ -14,4 +14,8 @@ public interface PrismsParserDebugger {
 	void preParse(CharSequence text, int index, PrismsConfig op);
 
 	void postParse(CharSequence text, int startIndex, PrismsConfig op, ParseMatch match);
+
+	void matchDiscarded(ParseMatch match);
+
+	void usedCache(ParseMatch match);
 }

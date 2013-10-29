@@ -96,6 +96,14 @@ public class PrismsParser {
 		@Override
 		public void postParse(CharSequence aText, int aStartIndex, PrismsConfig aOp, ParseMatch aMatch) {
 		}
+
+		@Override
+		public void matchDiscarded(ParseMatch match) {
+		}
+
+		@Override
+		public void usedCache(ParseMatch match) {
+		}
 	}
 
 	private java.util.List<PrismsConfig> theOperators;
@@ -453,8 +461,10 @@ public class PrismsParser {
 					ParseMatch match;
 					if(useCache && cache.isFound(index, type))
 					{
-						if(firstRound)
+						if(firstRound) {
 							match = cache.getFound(index, type);
+							theDebugger.usedCache(match);
+						}
 						else
 							continue;
 					}
@@ -472,18 +482,24 @@ public class PrismsParser {
 						}
 					}
 					if(match != null && (ret == null || !ret.isComplete() || match.isComplete()) && isBetter(ret, match)) {
+						if(ret != null)
+							theDebugger.matchDiscarded(ret);
 						betterMatch = true;
 						ret = match;
 					}
 				}
 			} else {
-				if(useCache && firstRound && cache.isFound(index, null))
-					return cache.getFound(index, null);
+				if(useCache && firstRound && cache.isFound(index, null)) {
+					ret = cache.getFound(index, null);
+					theDebugger.usedCache(ret);
+					return ret;
+				}
 				if(cache.isFinding(index, null))
 					return cache.getFound(index, null);
 				cache.addFinding(index, null);
 				try {
 					ParseMatch bestComplete = cache.getFound(index, null);
+					boolean usedCache = true;
 					for(PrismsConfig op : theOperators) {
 						if(op.getInt("priority", 0) < 0)
 							break;
@@ -506,10 +522,15 @@ public class PrismsParser {
 							cache.addFound(index, null, match);
 						}
 						if(match != null && isBetter(ret, match)) {
+							theDebugger.matchDiscarded(ret);
 							betterMatch = true;
 							ret = match;
-						}
+							usedCache = false;
+						} else if(match != null)
+							theDebugger.matchDiscarded(match);
 					}
+					if(usedCache)
+						theDebugger.usedCache(ret);
 				} finally {
 					cache.stopFinding(index, null);
 				}
@@ -676,8 +697,11 @@ public class PrismsParser {
 					if(optionMatch.isComplete()) {
 						match = optionMatch;
 						break;
-					} else if(match == null || optionMatch.text.length() > match.text.length())
+					} else if(match == null || optionMatch.text.length() > match.text.length()) {
+						if(match != null)
+							theDebugger.matchDiscarded(match);
 						match = optionMatch;
+					}
 				}
 				if(match != null) {
 					subMatches = ArrayUtils.addAll(subMatches, match.getParsed());
@@ -687,8 +711,10 @@ public class PrismsParser {
 						match = subMatches[subMatches.length - 1];
 						index -= match.text.length();
 						subMatches = ArrayUtils.remove(subMatches, subMatches.length - 1);
-					} else
+					} else {
+						theDebugger.postParse(sb, index, sub, match);
 						continue;
+					}
 				}
 				theDebugger.postParse(sb, index, sub, match);
 				break;
