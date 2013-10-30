@@ -16,17 +16,22 @@ import prisms.util.PrismsUtils;
 public class PrismsParser {
 	private static final Logger log = Logger.getLogger(PrismsParser.class);
 
-	/** Specifies that the parser is looking only for completely parsed statements */
-	static final int COMPLETE_ONLY = 2;
-
-	/** Specifies that incomplete statements may be returned unless the missing piece is optional */
-	static final int COMPLETE_OPTIONAL = 1;
-
-	/** Specifies that the parser will accept incomplete statements */
-	static final int COMPLETE_ANY = 0;
-
-	/** Specifies that an error may the thrown from parsing code if the parsing state knows what is wrong with the parsed text */
-	static final int COMPLETE_ERROR = -1;
+	/** Element and attribute names in Prisms Parser XML config files that do NOT represent parseable entities */
+	public static final java.util.Set<String> NON_OP_CONFIGS;
+	static {
+		java.util.LinkedHashSet<String> nonOpConfigs = new java.util.LinkedHashSet<>();
+		nonOpConfigs.add("name");
+		nonOpConfigs.add("type");
+		nonOpConfigs.add("order");
+		nonOpConfigs.add("priority");
+		nonOpConfigs.add("impl");
+		nonOpConfigs.add("min");
+		nonOpConfigs.add("max");
+		nonOpConfigs.add("ignorews");
+		nonOpConfigs.add("ignorable");
+		nonOpConfigs.add("storeAs");
+		NON_OP_CONFIGS = java.util.Collections.unmodifiableSet(nonOpConfigs);
+	}
 
 	static class ParseSessionCache {
 		private ParseMatch none = new ParseMatch(null, null, 0, null, false, "NO MATCH!");
@@ -585,18 +590,11 @@ public class PrismsParser {
 		for(PrismsConfig sub : op.subConfigs()) {
 			if(badOption != null && badOptionOld)
 				badOption = null;
+			if(NON_OP_CONFIGS.contains(sub.getName()))
+				continue;
 			ignores = null;
 			ParseMatch match;
 			switch (sub.getName()) {
-			case "name":
-			case "order":
-			case "priority":
-			case "impl":
-			case "min":
-			case "max":
-			case "ignorews":
-			case "ignorable":
-				continue;
 			case "literal":
 				badOptionOld = true;
 				ignores = parseIgnorables(sb, index, cache, !sub.is("ignorews", false));
