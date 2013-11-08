@@ -24,47 +24,37 @@ import prisms.lang.PrismsParser;
 import prisms.lang.PrismsParserDebugger;
 
 public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger {
+	enum StepTargetType {
+		EXIT, CHILD
+	}
+
+	private static Color SELECTED = new Color(100, 100, 255);
+
 	private JTextPane theMainText;
-
 	private ParsingExpressionTreeModel theTreeModel;
-
 	private JTree theParseTree;
-
 	private JButton theOverButton;
-
 	private JButton theIntoButton;
-
 	private JButton theOutButton;
-
 	private JButton theResumeButton;
-
 	private JTable theBreakpointList;
-
 	private JLabel theAddBreakpointLabel;
-
 	private JList<OpObject> theDebugPane;
-
 	private JSplitPane theMainSplit;
-
 	private JSplitPane theRightSplit;
-
 	private File theConfigFile;
-
 	private List<String> theOpNames;
-
 	private List<PrismsParserBreakpoint> theBreakpoints;
 
 	private boolean isPopupWhenHit = true;
-
 	private PrismsParser theParser;
-
-	private volatile PrismsConfig theStepTarget;
-
 	private volatile boolean isSuspended;
-
 	private CharSequence theText;
-
 	private int theIndex;
+
+	private ParseNode theStepTarget;
+
+	private StepTargetType theStepTargetType;
 
 	public PrismsParserDebugGUI() {
 		this(new File("PrismsParserDebug.config"));
@@ -81,7 +71,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		theTreeModel = new ParsingExpressionTreeModel();
 		theTreeModel.setDisplayed(false);
 		theParseTree = new JTree(theTreeModel);
-		theParseTree.getSelectionModel().setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+		theParseTree.getSelectionModel().setSelectionMode(javax.swing.tree.TreeSelectionModel.SINGLE_TREE_SELECTION);
 		theParseTree.getSelectionModel().addTreeSelectionListener(new javax.swing.event.TreeSelectionListener() {
 			@Override
 			public void valueChanged(TreeSelectionEvent e) {
@@ -89,6 +79,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 					setDebugOperator(null);
 				else
 					setDebugOperator((ParseNode) e.getPath().getLastPathComponent());
+				setGuiEnabled(isSuspended);
 			}
 		});
 		theOverButton = new JButton(getIcon("arrow180.png", 24, 16));
@@ -168,6 +159,12 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				stepOut();
+			}
+		});
+		theResumeButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				resume();
 			}
 		});
 
@@ -286,6 +283,14 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	@Override
 	public void preParse(CharSequence text, int index, final PrismsConfig op) {
+		boolean isOnStepTarget = false;
+		if(theStepTarget != null && theStepTargetType == StepTargetType.CHILD && theStepTarget == theTreeModel.getCursor()) {
+			for(PrismsConfig sub : theTreeModel.getCursor().theOp.subConfigs())
+				if(sub == op) {
+					isOnStepTarget = true;
+					break;
+				}
+		}
 		EventQueue.invokeLater(new Runnable() {
 			@Override
 			public void run() {
@@ -293,9 +298,10 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			}
 		});
 		update(text, index, op, null);
-		if(theStepTarget == op)
+
+		if(isOnStepTarget)
 			suspend(null);
-		else {
+		else if(theStepTarget == null) {
 			CharSequence pre = text.subSequence(0, index);
 			CharSequence post = text.subSequence(index, text.length());
 			for(PrismsParserBreakpoint breakpoint : theBreakpoints) {
@@ -317,6 +323,9 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	@Override
 	public void postParse(CharSequence text, int startIndex, PrismsConfig op, final ParseMatch match) {
+		boolean isOnStepTarget = false;
+		if(theStepTarget != null && theStepTarget == theTreeModel.getCursor())
+			isOnStepTarget = true;
 		EventQueue.invokeLater(new Runnable() {
 			@Override
 			public void run() {
@@ -324,6 +333,9 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			}
 		});
 		update(text, startIndex, op, match);
+
+		if(isOnStepTarget)
+			suspend(null);
 	}
 
 	@Override
@@ -428,12 +440,13 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 	}
 
 	private void suspend(PrismsParserBreakpoint breakpoint) {
+		theStepTarget = null;
 		isSuspended = true;
+		setGuiEnabled(true);
 		EventQueue.invokeLater(new Runnable() {
 			@Override
 			public void run() {
 				render();
-				// TODO Update GUI state to allow user to interact with debugger
 			}
 		});
 		while(isSuspended) {
@@ -445,20 +458,80 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 	}
 
 	private void stepOver() {
-
+		ParseNode target = theParseTree.getSelectionPath() == null ? theTreeModel.getCursor() : (ParseNode) theParseTree.getSelectionPath()
+			.getLastPathComponent();
+		if(target == null)
+			throw new IllegalStateException("No selection or cursor!");
+		theStepTarget = target.theParent;
+		theStepTargetType = StepTargetType.CHILD;
+		setGuiEnabled(false);
+		isSuspended = false;
 	}
 
 	private void stepInto() {
+		ParseNode target = theParseTree.getSelectionPath() == null ? theTreeModel.getCursor() : (ParseNode) theParseTree.getSelectionPath()
+			.getLastPathComponent();
+		if(target == null)
+			throw new IllegalStateException("No selection or cursor!");
+		theStepTarget = target;
+		theStepTargetType = StepTargetType.CHILD;
+		setGuiEnabled(false);
+		isSuspended = false;
 	}
 
 	private void stepOut() {
+		ParseNode target = theParseTree.getSelectionPath() == null ? theTreeModel.getCursor() : (ParseNode) theParseTree.getSelectionPath()
+			.getLastPathComponent();
+		if(target == null)
+			throw new IllegalStateException("No selection or cursor!");
+		theStepTarget = target;
+		theStepTargetType = StepTargetType.EXIT;
+		setGuiEnabled(false);
+		isSuspended = false;
 	}
 
-	public static JFrame getDebuggerFrame(PrismsParserDebugGUI debugger) {
+	private void resume() {
+		theStepTarget = null;
+		setGuiEnabled(false);
+		isSuspended = false;
+	}
+
+	private void setGuiEnabled(boolean enabled) {
+		if(enabled) {
+			ParseNode cursor = theTreeModel.getCursor();
+			theOverButton.setEnabled(cursor != null && cursor.theParent != null);
+			theIntoButton.setEnabled(cursor != null && theParseTree.getSelectionPath() != null
+				&& theParseTree.getSelectionPath().getLastPathComponent() == theTreeModel.getCursor() && isDescendable(cursor.theOp));
+			theOutButton.setEnabled(cursor != null && cursor.theParent != null);
+		} else {
+			theOverButton.setEnabled(false);
+			theIntoButton.setEnabled(false);
+			theOutButton.setEnabled(false);
+			theResumeButton.setEnabled(false);
+		}
+	}
+
+	private boolean isDescendable(PrismsConfig op) {
+		if(op.getName().equals("op"))
+			return true;
+		for(PrismsConfig child : op.subConfigs())
+			if(!PrismsParser.NON_OP_CONFIGS.contains(child.getName()))
+				return true;
+		return false;
+	}
+
+	public static JFrame getDebuggerFrame(final PrismsParserDebugGUI debugger) {
 		JFrame ret = new JFrame("Prisms Parser Debug");
 		ret.setContentPane(debugger);
 		ret.pack();
 		ret.setLocationRelativeTo(null);
+		ret.addWindowListener(new java.awt.event.WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent e) {
+				if(debugger.isSuspended)
+					debugger.resume();
+			}
+		});
 		return ret;
 	}
 
@@ -526,6 +599,8 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 						listener.treeNodesInserted(evt);
 				}
 				theParseTree.setSelectionPath(new TreePath(getPath(theCursor)));
+				if(theCursor.theParent != null)
+					theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
 			} else
 				isDirty = true;
 		}
@@ -553,7 +628,8 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 				}
 				if(theCursor != null) {
 					theParseTree.setSelectionPath(new TreePath(getPath(theCursor)));
-					theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
+					if(theCursor.theParent != null)
+						theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
 				}
 			} else
 				isDirty = true;
@@ -599,7 +675,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 					for(TreeModelListener listener : theListeners)
 						listener.treeNodesInserted(evt);
 				}
-				if(theCursor != null)
+				if(theCursor != null && theCursor.theParent != null)
 					theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
 			} else
 				isDirty = true;
@@ -613,34 +689,18 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			if(theCursor != null) {
 				theParseTree.setSelectionPath(new TreePath(getPath(theCursor)));
 				// TODO Trying to expand the tree to the cursor. Not working yet.
-				ParseNode node = theCursor.theParent;
-				ArrayList<ParseNode> path = new ArrayList<>();
-				while(node != null) {
-					path.add(0, node);
-					node = node.theParent;
-				}
-				for(ParseNode p : path)
-					theParseTree.expandPath(new TreePath(getPath(p)));
+				if(theCursor.theParent != null)
+					theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
 			}
 		}
 
 		Object [] getPath(ParseNode node) {
 			ArrayList<Object> ret = new ArrayList<>();
 			do {
-				ret.add(node);
+				ret.add(0, node);
 				node = node.theParent;
 			} while(node != null);
 			return ret.toArray();
-		}
-
-		boolean isInStack(ParseNode node) {
-			ParseNode cursor = theCursor;
-			while(cursor != null) {
-				if(cursor == node)
-					return true;
-				cursor = cursor.theParent;
-			}
-			return false;
 		}
 
 		@Override
@@ -1087,35 +1147,20 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			text.append("</html>");
 			theLabel.setText(text.toString());
 
-			ParseNode selected = theParseTree.getSelectionPath() == null ? null : (ParseNode) theParseTree.getSelectionPath()
-				.getLastPathComponent();
 			Color bg = Color.white;
-			if(theTreeModel.getCursor() != null && theTreeModel.getCursor().theOp == value.theOp) {
-				if(theTreeModel.getCursor().theMatch != null) {
-					if(needsEnding(value))
-						bg = Color.green;
-				} else {
-					if(!value.isTerminal)
-						bg = Color.green;
-				}
-			}
-			if(bg == Color.white && !value.isTerminal && selected != null && selected.theOp == value.theOp)
-				setBackground(Color.yellow);
+			boolean cursor = theTreeModel.getCursor() != null && theTreeModel.getCursor().theOp == value.theOp;
+			if(cursor)
+				cursor = (theTreeModel.getCursor().theMatch != null) == value.isTerminal;
+			boolean selected = !value.isTerminal && theParseTree.getSelectionPath() != null
+				&& ((ParseNode) theParseTree.getSelectionPath().getLastPathComponent()).theOp == value.theOp;
+			if(cursor && selected)
+				bg = new Color(0, 255, 255);
+			else if(cursor)
+				bg = Color.green;
+			else if(selected)
+				bg = SELECTED;
 			setBackground(bg);
 			return this;
-		}
-
-		private boolean needsEnding(OpObject op) {
-			if(op.isTerminal)
-				return true;
-			boolean needsEnding = true;
-			for(PrismsConfig sub : op.theOp.subConfigs()) {
-				if(!PrismsParser.NON_OP_CONFIGS.contains(sub.getName())) {
-					needsEnding = false;
-					continue;
-				}
-			}
-			return needsEnding;
 		}
 	}
 }
