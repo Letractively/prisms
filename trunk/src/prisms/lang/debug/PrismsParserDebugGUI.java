@@ -23,6 +23,7 @@ import prisms.lang.ParseMatch;
 import prisms.lang.PrismsParser;
 import prisms.lang.PrismsParserDebugger;
 
+/** A graphical debugger for the {@link PrismsParser} */
 public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger {
 	enum StepTargetType {
 		EXIT, CHILD
@@ -47,7 +48,6 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 	private List<PrismsParserBreakpoint> theBreakpoints;
 
 	private boolean isPopupWhenHit = true;
-	private PrismsParser theParser;
 	private volatile boolean isSuspended;
 	private CharSequence theText;
 	private int theIndex;
@@ -56,10 +56,16 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	private StepTargetType theStepTargetType;
 
+	/** Creates a debug GUI using the config file in the standard location */
 	public PrismsParserDebugGUI() {
 		this(new File("PrismsParserDebug.config"));
 	}
 
+	/**
+	 * Creates a debug GUI
+	 * 
+	 * @param configFile The config file to use
+	 */
 	public PrismsParserDebugGUI(File configFile) {
 		super(new BorderLayout());
 
@@ -69,7 +75,6 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		theMainText.setEditable(false);
 		theMainText.setBackground(java.awt.Color.white);
 		theTreeModel = new ParsingExpressionTreeModel();
-		theTreeModel.setDisplayed(false);
 		theParseTree = new JTree(theTreeModel);
 		theParseTree.getSelectionModel().setSelectionMode(javax.swing.tree.TreeSelectionModel.SINGLE_TREE_SELECTION);
 		theParseTree.getSelectionModel().addTreeSelectionListener(new javax.swing.event.TreeSelectionListener() {
@@ -94,15 +99,26 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		theBreakpointList.getColumnModel().getColumn(0).setHeaderValue("");
 		theBreakpointList.getColumnModel().getColumn(0).setCellRenderer(new BreakpointEnabledRenderer());
 		theBreakpointList.getColumnModel().getColumn(0).setCellEditor(new BreakpointEnabledEditor());
+		int w = new BreakpointEnabledRenderer().getPreferredSize().width;
+		theBreakpointList.getColumnModel().getColumn(0).setMinWidth(w);
+		theBreakpointList.getColumnModel().getColumn(0).setPreferredWidth(w);
+		theBreakpointList.getColumnModel().getColumn(0).setMaxWidth(w);
+		theBreakpointList.getColumnModel().getColumn(0).setResizable(false);
 		theBreakpointList.getColumnModel().getColumn(1).setHeaderValue("Text");
 		theBreakpointList.getColumnModel().getColumn(1).setCellRenderer(new BreakpointTextRenderer());
 		theBreakpointList.getColumnModel().getColumn(1).setCellEditor(new BreakpointTextEditor());
 		theBreakpointList.getColumnModel().getColumn(2).setHeaderValue("Operator");
 		theBreakpointList.getColumnModel().getColumn(2).setCellRenderer(new BreakpointOpRenderer());
 		theBreakpointList.getColumnModel().getColumn(2).setCellEditor(new BreakpointOpEditor());
+		theBreakpointList.getColumnModel().getColumn(2).setResizable(false);
 		theBreakpointList.getColumnModel().getColumn(3).setHeaderValue("");
 		theBreakpointList.getColumnModel().getColumn(3).setCellRenderer(new BreakpointDeleteRenderer());
 		theBreakpointList.getColumnModel().getColumn(3).setCellEditor(new BreakpointDeleteEditor());
+		w = BreakpointDeleteRenderer.ICON.getIconWidth() + 4;
+		theBreakpointList.getColumnModel().getColumn(3).setMinWidth(w);
+		theBreakpointList.getColumnModel().getColumn(3).setPreferredWidth(w);
+		theBreakpointList.getColumnModel().getColumn(3).setMaxWidth(w);
+		theBreakpointList.getColumnModel().getColumn(3).setResizable(false);
 		theMainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 		theRightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 
@@ -172,10 +188,12 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		readConfig();
 	}
 
+	/** @param popup Whether this debugger should become visible when a breakpoint is hit */
 	public void setPopupWhenHit(boolean popup) {
 		isPopupWhenHit = popup;
 	}
 
+	/** @return The parsed config file */
 	protected MutableConfig getConfig() {
 		try {
 			return new MutableConfig(null, PrismsConfig.fromXml(null, theConfigFile.toURI().toString()));
@@ -185,6 +203,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		}
 	}
 
+	/** @param config The config data to save to the config file */
 	protected void writeConfig(MutableConfig config) {
 		try (java.io.BufferedOutputStream os = new java.io.BufferedOutputStream(new java.io.FileOutputStream(theConfigFile))) {
 			MutableConfig.writeAsXml(config, os);
@@ -224,7 +243,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			breakpoints = new MutableConfig("breakpoints");
 			config.addSubConfig(breakpoints);
 		} else {
-			config.setSubConfigs(new MutableConfig[0]);
+			breakpoints.setSubConfigs(new MutableConfig[0]);
 		}
 		for(PrismsParserBreakpoint bp : theBreakpoints) {
 			breakpoints.addSubConfig(new MutableConfig("breakpoint")
@@ -262,7 +281,6 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	@Override
 	public void init(PrismsParser parser) {
-		theParser = parser;
 		theOpNames.clear();
 		for(PrismsConfig op : parser.getOperators())
 			theOpNames.add(op.get("name"));
@@ -384,7 +402,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 				((java.awt.Window) parent).setVisible(true);
 		}
 
-		theTreeModel.setDisplayed(true);
+		theTreeModel.display();
 		StringBuilder sb = new StringBuilder("<html>");
 		for(int c = 0; c < theIndex; c++) {
 			char ch = theText.charAt(c);
@@ -503,6 +521,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			theIntoButton.setEnabled(cursor != null && theParseTree.getSelectionPath() != null
 				&& theParseTree.getSelectionPath().getLastPathComponent() == theTreeModel.getCursor() && isDescendable(cursor.theOp));
 			theOutButton.setEnabled(cursor != null && cursor.theParent != null);
+			theResumeButton.setEnabled(true);
 		} else {
 			theOverButton.setEnabled(false);
 			theIntoButton.setEnabled(false);
@@ -520,6 +539,12 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		return false;
 	}
 
+	/**
+	 * Creates a frame containing the given debugger panel
+	 * 
+	 * @param debugger The debugger to frame
+	 * @return The frame containing the given debugger
+	 */
 	public static JFrame getDebuggerFrame(final PrismsParserDebugGUI debugger) {
 		JFrame ret = new JFrame("Prisms Parser Debug");
 		ret.setContentPane(debugger);
@@ -535,6 +560,12 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		return ret;
 	}
 
+	/**
+	 * Pops up the GUI, allowing the user to create breakpoints and configure settings outside of a parsing environment
+	 * 
+	 * @param args If none, the default config file is used. Otherwise, the first argument is used as the location of the config file to
+	 *            use.
+	 */
 	public static void main(String [] args) {
 		try {
 			javax.swing.UIManager.setLookAndFeel(javax.swing.UIManager.getSystemLookAndFeelClassName());
@@ -564,7 +595,6 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 		private List<TreeModelListener> theListeners = new ArrayList<>();
 
-		private boolean isDisplayed;
 
 		private boolean isDirty;
 
@@ -572,8 +602,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			return theCursor;
 		}
 
-		void setDisplayed(boolean displayed) {
-			isDisplayed = displayed;
+		void display() {
 			if(isDirty)
 				refresh();
 		}
@@ -587,22 +616,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 				theCursor.theChildren.add(newNode);
 			theCursor = newNode;
 
-			if(isDisplayed) {
-				if(newRoot) {
-					TreeModelEvent evt = new TreeModelEvent(this, new Object[] {theRoot});
-					for(TreeModelListener listener : theListeners)
-						listener.treeStructureChanged(evt);
-				} else {
-					TreeModelEvent evt = new TreeModelEvent(this, new Object[] {theCursor.theParent}, new int[] {getIndexOfChild(
-						theCursor.theParent, theCursor)}, new Object[] {theCursor});
-					for(TreeModelListener listener : theListeners)
-						listener.treeNodesInserted(evt);
-				}
-				theParseTree.setSelectionPath(new TreePath(getPath(theCursor)));
-				if(theCursor.theParent != null)
-					theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
-			} else
-				isDirty = true;
+			isDirty = true;
 		}
 
 		void finish(ParseMatch match) {
@@ -616,23 +630,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 				theCursor.theChildren.remove(childIdx);
 			}
 
-			if(isDisplayed && theCursor != null) {
-				if(match != null) {
-					TreeModelEvent evt = new TreeModelEvent(this, new Object[] {theCursor}, new int[] {childIdx}, new Object[] {changed});
-					for(TreeModelListener listener : theListeners)
-						listener.treeNodesChanged(evt);
-				} else {
-					TreeModelEvent evt = new TreeModelEvent(this, new Object[] {theCursor}, new int[] {childIdx}, new Object[] {changed});
-					for(TreeModelListener listener : theListeners)
-						listener.treeNodesRemoved(evt);
-				}
-				if(theCursor != null) {
-					theParseTree.setSelectionPath(new TreePath(getPath(theCursor)));
-					if(theCursor.theParent != null)
-						theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
-				}
-			} else
-				isDirty = true;
+			isDirty = true;
 		}
 
 		void matchDiscarded(ParseMatch match) {
@@ -648,12 +646,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 				return;
 			int childIdx = theCursor == null ? 0 : theCursor.theChildren.indexOf(removed);
 			theCursor.theChildren.remove(childIdx);
-			if(isDisplayed) {
-				TreeModelEvent evt = new TreeModelEvent(this, new Object[] {theCursor}, new int[] {childIdx}, new Object[] {removed});
-				for(TreeModelListener listener : theListeners)
-					listener.treeNodesRemoved(evt);
-			} else
-				isDirty = true;
+			isDirty = true;
 		}
 
 		void add(ParseMatch match) {
@@ -664,21 +657,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			else
 				theCursor.theChildren.add(newNode);
 
-			if(isDisplayed) {
-				if(newRoot) {
-					TreeModelEvent evt = new TreeModelEvent(this, new Object[] {theRoot});
-					for(TreeModelListener listener : theListeners)
-						listener.treeStructureChanged(evt);
-				} else {
-					TreeModelEvent evt = new TreeModelEvent(this, new Object[] {theCursor},
-						new int[] {getIndexOfChild(theCursor, newNode)}, new Object[] {newNode});
-					for(TreeModelListener listener : theListeners)
-						listener.treeNodesInserted(evt);
-				}
-				if(theCursor != null && theCursor.theParent != null)
-					theParseTree.expandPath(new TreePath(getPath(theCursor.theParent)));
-			} else
-				isDirty = true;
+			isDirty = true;
 		}
 
 		void refresh() {
@@ -824,7 +803,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		@Override
 		public boolean stopCellEditing() {
 			boolean ret = super.stopCellEditing();
-			theEditingBreakpoint.setEnabled(((JCheckBox) getComponent()).isEnabled());
+			theEditingBreakpoint.setEnabled(((JCheckBox) getComponent()).isSelected());
 			breakpointChanged(theEditingBreakpoint);
 			return ret;
 		}
@@ -989,14 +968,19 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 	}
 
 	private static class BreakpointOpRenderer extends javax.swing.table.DefaultTableCellRenderer {
+		private final String NONE = "(any)";
+
+		private Color theBG = getBackground();
+
 		@Override
 		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 			PrismsParserBreakpoint breakpoint = (PrismsParserBreakpoint) value;
 			super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 			if(breakpoint.getOpName() == null)
-				setText("");
+				setText(NONE);
 			else
 				setText("<" + breakpoint.getOpName() + ">");
+			setBackground(theBG);
 			return this;
 		}
 	}
@@ -1019,7 +1003,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			model.addElement(NONE);
 			for(String opName : theOpNames)
 				model.addElement("<" + opName + ">");
-			model.setSelectedItem(theEditingBreakpoint.getOpName() == null ? NONE : theEditingBreakpoint.getOpName());
+			model.setSelectedItem(theEditingBreakpoint.getOpName() == null ? NONE : "<" + theEditingBreakpoint.getOpName() + ">");
 			Component ret = super.getTableCellEditorComponent(table, value, isSelected, row, column);
 			return ret;
 		}
@@ -1027,23 +1011,37 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		@Override
 		public boolean stopCellEditing() {
 			String opName = (String) ((JComboBox<String>) getComponent()).getSelectedItem();
-			if(opName.equals(NONE))
+			if(opName == null || opName.equals(NONE))
 				theEditingBreakpoint.setOpName(null);
 			else
 				theEditingBreakpoint.setOpName(opName.substring(1, opName.length() - 1));
 			breakpointChanged(theEditingBreakpoint);
 			return super.stopCellEditing();
 		}
+
+		@Override
+		public Object getCellEditorValue() {
+			return theEditingBreakpoint;
+		}
 	}
 
 	private static class BreakpointDeleteRenderer extends javax.swing.table.DefaultTableCellRenderer {
-		private ImageIcon theIcon = PrismsParserDebugGUI.getIcon("delete.png", 16, 16);
+		static ImageIcon ICON = PrismsParserDebugGUI.getIcon("delete.png", 16, 16);
+
+		private Color theBG;
+
+		BreakpointDeleteRenderer() {
+			setText("");
+			setIcon(ICON);
+			theBG = getBackground();
+		}
 
 		@Override
 		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 			super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 			setText("");
-			setIcon(theIcon);
+			setIcon(ICON);
+			setBackground(theBG);
 			return this;
 		}
 	}
@@ -1058,12 +1056,12 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 		@Override
 		public boolean isCellEditable(EventObject anEvent) {
-			return false;
+			return true;
 		}
 
 		@Override
 		public boolean shouldSelectCell(EventObject anEvent) {
-			return false;
+			return true;
 		}
 
 		@Override
