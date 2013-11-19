@@ -22,28 +22,24 @@ public abstract class ParsedItem
 	 * @param match The parse match that this structure will represent
 	 * @throws ParseException If parsing or syntactical validation fails
 	 */
-	public void setup(PrismsParser parser, ParsedItem parent, ParseMatch match) throws ParseException
-	{
+	public void setup(PrismsParser parser, ParsedItem parent, ParseMatch match) throws ParseException {
 		theParser = parser;
 		theParent = parent;
 		theMatch = match;
 	}
 
 	/** @return The parser that parsed this structure */
-	public PrismsParser getParser()
-	{
+	public PrismsParser getParser() {
 		return theParser;
 	}
 
 	/** @return This structure's parent */
-	public ParsedItem getParent()
-	{
+	public ParsedItem getParent() {
 		return theParent;
 	}
 
 	/** @return The root of this structure */
-	public ParseStructRoot getRoot()
-	{
+	public ParseStructRoot getRoot() {
 		ParsedItem ret = this;
 		while(ret != null && !(ret instanceof ParseStructRoot))
 			ret = ret.theParent;
@@ -51,8 +47,7 @@ public abstract class ParsedItem
 	}
 
 	/** @return The parsed match that this structure was parsed from */
-	public ParseMatch getMatch()
-	{
+	public ParseMatch getMatch() {
 		return theMatch;
 	}
 
@@ -60,8 +55,7 @@ public abstract class ParsedItem
 	 * @param name The name of the stored match to get
 	 * @return The match within this structure stored as the given name
 	 */
-	public ParseMatch getStored(String name)
-	{
+	public ParseMatch getStored(String name) {
 		int depth = getMaxDepth(theMatch);
 		ParseMatch ret = null;
 		for(int i = 0; i < depth && ret == null; i++)
@@ -69,13 +63,23 @@ public abstract class ParsedItem
 		return ret;
 	}
 
-	private int getMaxDepth(ParseMatch match)
-	{
+	/**
+	 * @param names The "storeAs" attributes to match against
+	 * @return Parse match siblings under this item matching one of the given storeAs attributes
+	 */
+	public ParseMatch [] getAllStored(String... names) {
+		int depth = getMaxDepth(theMatch);
+		ParseMatch [] ret = null;
+		for(int i = 0; i < depth && ret == null; i++)
+			ret = getAllStored(theMatch, i, names);
+		return ret == null ? new ParseMatch[0] : ret;
+	}
+
+	private int getMaxDepth(ParseMatch match) {
 		if(match.getParsed() == null)
 			return 1;
 		int ret = 0;
-		for(ParseMatch ch : match.getParsed())
-		{
+		for(ParseMatch ch : match.getParsed()) {
 			int temp = getMaxDepth(ch);
 			if(temp > ret)
 				ret = temp;
@@ -83,15 +87,13 @@ public abstract class ParsedItem
 		return ret + 1;
 	}
 
-	private ParseMatch getStored(ParseMatch match, int depth, String name)
-	{
+	private ParseMatch getStored(ParseMatch match, int depth, String name) {
 		if(name.equals(match.config.get("storeAs")))
 			return match;
 		if(depth == 0 || match.getParsed() == null)
 			return null;
 		depth--;
-		for(ParseMatch ch : match.getParsed())
-		{
+		for(ParseMatch ch : match.getParsed()) {
 			ParseMatch ret = getStored(ch, depth, name);
 			if(ret != null)
 				return ret;
@@ -99,41 +101,37 @@ public abstract class ParsedItem
 		return null;
 	}
 
-	/**
-	 * @param name The name of the stored matches to get
-	 * @return An iterable to iterate through all matches in this item stored under the given name
-	 */
-	public Iterable<ParseMatch> getAllStored(final String name)
-	{
-		return new Iterable<ParseMatch>()
-		{
-			@Override
-			public java.util.Iterator<ParseMatch> iterator()
-			{
-				return prisms.util.ArrayUtils.conditionalIterator(getMatch().iterator(),
-					new prisms.util.ArrayUtils.Accepter<ParseMatch, ParseMatch>()
-					{
-						@Override
-						public ParseMatch accept(ParseMatch value)
-						{
-							return name.equals(value.config.get("storeAs")) ? value : null;
-						}
-					}, false);
+	private ParseMatch [] getAllStored(ParseMatch match, int depth, String... names) {
+		if(depth == 0 || match.getParsed() == null)
+			return null;
+		java.util.ArrayList<ParseMatch> retList = null;
+		for(ParseMatch ch : match.getParsed()) {
+			if(ch.config.get("storeAs") != null && prisms.util.ArrayUtils.contains(names, ch.config.get("storeAs"))) {
+				if(retList == null)
+					retList = new java.util.ArrayList<>();
+					retList.add(ch);
 			}
-		};
+		}
+		if(retList != null)
+			return retList.toArray(new ParseMatch[retList.size()]);
+		depth--;
+		for(ParseMatch ch : match.getParsed()) {
+			ParseMatch [] ret = getAllStored(ch, depth, names);
+			if(ret != null)
+				return ret;
+		}
+		return null;
 	}
 
 	/**
 	 * @param name The name of the stored match to get the index of
 	 * @return The number of matches that have to be recursively traversed before arriving at the given stored match
 	 */
-	public int getDeepStoreIndex(String name)
-	{
+	public int getDeepStoreIndex(String name) {
 		return getDeepStoreIndex(theMatch, name);
 	}
 
-	private int getDeepStoreIndex(ParseMatch match, String name)
-	{
+	private int getDeepStoreIndex(ParseMatch match, String name) {
 		if(name.equals(match.config.get("storeAs")))
 			return 0;
 		if(match.getParsed() == null)
@@ -149,8 +147,7 @@ public abstract class ParsedItem
 		return -1;
 	}
 
-	private int getDeepCount(ParseMatch match)
-	{
+	private int getDeepCount(ParseMatch match) {
 		int ret = 1;
 		if(match.getParsed() != null)
 			for(ParseMatch sub : match.getParsed())

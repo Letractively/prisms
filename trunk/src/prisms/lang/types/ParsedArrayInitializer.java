@@ -19,47 +19,14 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 
 	@Override
 	public void setup(prisms.lang.PrismsParser parser, prisms.lang.ParsedItem parent, prisms.lang.ParseMatch match)
-		throws prisms.lang.ParseException
-	{
+		throws prisms.lang.ParseException {
 		super.setup(parser, parent, match);
 		theType = (ParsedType) parser.parseStructures(this, getStored("type"))[0];
-		boolean hasEmptyDimension = false;
-		boolean hasSize = false;
-		boolean hasValues = getStored("valueSet") != null;
-		java.util.ArrayList<prisms.lang.ParsedItem> sizes = new java.util.ArrayList<prisms.lang.ParsedItem>();
-		java.util.ArrayList<prisms.lang.ParsedItem> elements = new java.util.ArrayList<prisms.lang.ParsedItem>();
-		for(prisms.lang.ParseMatch m : match.getParsed())
-		{
-			if("startDimension".equals(m.config.get("storeAs")))
-				theType.addArrayDimension();
-			else if("size".equals(m.config.get("storeAs")))
-			{
-				if(hasValues)
-					throw new prisms.lang.ParseException(
-						"Cannot define dimension expressions when an array initializer is provided", getRoot()
-							.getFullCommand(), m.index);
-				if(hasEmptyDimension)
-					throw new prisms.lang.ParseException("Cannot specify an array dimension after an empty dimension",
-						getRoot().getFullCommand(), m.index);
-				hasSize = true;
-				sizes.add(parser.parseStructures(this, m)[0]);
-			}
-			else if("endDimension".equals(m.config.get("storeAs")))
-			{
-				if(!hasSize)
-					hasEmptyDimension = true;
-			}
-			else if("element".equals(m.config.get("storeAs")))
-				elements.add(parser.parseStructures(this, m)[0]);
-		}
-		if(getMatch().isComplete() && !hasValues && sizes.size() == 0)
-			throw new prisms.lang.ParseException("Must provide either dimension expressions or an array initializer",
-				getRoot().getFullCommand(), match.index);
-		if(elements.size() > 0 && theType.getArrayDimension() == 0)
-			throw new prisms.lang.ParseException("Syntax error: array initializer or constructor expected", getRoot()
-				.getFullCommand(), getStored("valueSet").index);
-		theSizes = sizes.toArray(new prisms.lang.ParsedItem [sizes.size()]);
-		theElements = elements.toArray(new prisms.lang.ParsedItem [elements.size()]);
+		int dim = getAllStored("startDimension").length;
+		for(int i = 0; i < dim; i++)
+			theType.addArrayDimension();
+		theSizes = parser.parseStructures(this, getAllStored("size"));
+		theElements = parser.parseStructures(this, getAllStored("element"));
 	}
 
 	/** @return The base type of the array */
@@ -117,7 +84,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 	@Override
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws EvaluationException
-	{
+		{
 		prisms.lang.EvaluationResult typeEval = theType.evaluate(env, true, false);
 		if(!typeEval.isType())
 			throw new EvaluationException("Unrecognized type " + theType.getMatch().text, this,
@@ -183,7 +150,7 @@ public class ParsedArrayInitializer extends prisms.lang.ParsedItem
 		}
 
 		return new prisms.lang.EvaluationResult(retType, ret);
-	}
+		}
 
 	@Override
 	public String toString()

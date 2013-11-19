@@ -41,17 +41,13 @@ public class ParsedStatementBlock extends ParsedItem
 	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
 	{
 		super.setup(parser, parent, match);
-		java.util.ArrayList<ParsedItem> contents = new java.util.ArrayList<ParsedItem>();
-		for(prisms.lang.ParseMatch m : match.getParsed())
-			if("content".equals(m.config.get("storeAs")))
-				contents.add(parser.parseStructures(this, m)[0]);
-		theContents = contents.toArray(new ParsedItem [contents.size()]);
+		theContents = parser.parseStructures(this, getAllStored("content"));
 	}
 
 	@Override
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws EvaluationException
-	{
+		{
 		prisms.lang.EvaluationEnvironment scoped = env.scope(true);
 		for(ParsedItem content : theContents)
 		{
@@ -60,7 +56,7 @@ public class ParsedStatementBlock extends ParsedItem
 				return res;
 		}
 		return null;
-	}
+		}
 
 	/**
 	 * Executes a statement in a java context. Only statements that would be permitted as java statements are accepted. Others will throw an
@@ -74,7 +70,7 @@ public class ParsedStatementBlock extends ParsedItem
 	 */
 	public static prisms.lang.EvaluationResult executeJavaStatement(ParsedItem content, prisms.lang.EvaluationEnvironment env,
 		boolean withValues) throws EvaluationException
-	{
+		{
 		if(content instanceof ParsedAssignmentOperator)
 		{}
 		else if(content instanceof ParsedDeclaration)
@@ -114,7 +110,7 @@ public class ParsedStatementBlock extends ParsedItem
 				content.getMatch().index);
 		content.evaluate(env, false, withValues);
 		return null;
-	}
+		}
 
 	/** @return The contents of this statement block */
 	public ParsedItem [] getContents()
