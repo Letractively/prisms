@@ -476,7 +476,7 @@ public class PrismsParser {
 					else {
 						cache.addFinding(index, type);
 						try {
-							match = parseTypedMatch(sb, index, cache, theOpsByName.get(type));
+							match = parseTypedMatch(sb, index, cache, theOpsByName.get(type), true);
 						} finally {
 							cache.stopFinding(index, type);
 						}
@@ -517,7 +517,7 @@ public class PrismsParser {
 						else {
 							cache.addFinding(index, name);
 							try {
-								match = parseTypedMatch(sb, index, cache, op);
+								match = parseTypedMatch(sb, index, cache, op, true);
 							} finally {
 								cache.stopFinding(index, name);
 							}
@@ -576,8 +576,9 @@ public class PrismsParser {
 		}
 	}
 
-	ParseMatch parseTypedMatch(StringBuilder sb, int index, ParseSessionCache cache, PrismsConfig op) {
-		theDebugger.preParse(sb, index, op);
+	ParseMatch parseTypedMatch(StringBuilder sb, int index, ParseSessionCache cache, PrismsConfig op, boolean reportRoot) {
+		if (reportRoot)
+			theDebugger.preParse(sb, index, op);
 		final int startIndex = index;
 		ParseMatch [] subMatches = new ParseMatch[0];
 
@@ -646,8 +647,11 @@ public class PrismsParser {
 				match = null;
 				int preOptionIndex = index;
 				ParseMatch [] optionMatches = null;
+				int optStartIndex = index;
+				if (max != 1)
+					theDebugger.preParse(sb, index, sub);
 				while(max < 0 || count < max) {
-					match = parseTypedMatch(sb, index, cache, sub);
+					match = parseTypedMatch(sb, index, cache, sub, max == 1);
 					if(match == null || !match.isComplete() || match.getError() != null) {
 						if(match != null && badOptionOld) {
 							badOption = match;
@@ -680,19 +684,22 @@ public class PrismsParser {
 					break;
 				}
 				// For option, add the content and continue the loop
-				if(optionMatches != null)
-					for(ParseMatch optMatch : optionMatches)
-						subMatches = ArrayUtils.addAll(subMatches, optMatch.getParsed());
+				if (optionMatches != null) {
+					match = new ParseMatch(sub, sb.substring(optStartIndex, index), optStartIndex, optionMatches, true, null);
+					subMatches = ArrayUtils.add(subMatches, match);
+				}
+				if (max != 1)
+					theDebugger.postParse(sb, optStartIndex, sub, match);
 				continue;
 			case "select":
 				theDebugger.preParse(sb, index, sub);
 				badOptionOld = true;
 				match = null;
 				for(PrismsConfig option : sub.subConfigs()) {
-					ParseMatch optionMatch = parseTypedMatch(sb, index, cache, option);
+					ParseMatch optionMatch = parseTypedMatch(sb, index, cache, option, true);
 					if(optionMatch == null)
 						continue;
-					if(optionMatch.isComplete()) {
+					if(optionMatch.isComplete() && optionMatch.getError() == null) {
 						match = optionMatch;
 						break;
 					} else if(match == null || optionMatch.text.length() > match.text.length()) {
@@ -761,7 +768,8 @@ public class PrismsParser {
 			index+=terminator.text.length();
 		}*/
 		ParseMatch ret = new ParseMatch(op, sb.substring(startIndex, index), startIndex, subMatches, true, null);
-		theDebugger.postParse(sb, startIndex, op, ret);
+		if (reportRoot)
+			theDebugger.postParse(sb, startIndex, op, ret);
 		return ret;
 	}
 
