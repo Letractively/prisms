@@ -20,14 +20,12 @@ public class ParsedFunctionDeclaration extends ParsedItem {
 		theName = getStored("name").text;
 		theReturnType = parser.parseStructures(this, getStored("returnType"))[0];
 		theBody = (ParsedStatementBlock) parser.parseStructures(this, getStored("body"))[0];
-		theParameters = new ParsedDeclaration[0];
-		theExceptionTypes = new ParsedType[0];
-		for(prisms.lang.ParseMatch m : match.getParsed()) {
-			if("parameter".equals(m.config.get("storeAs")))
-				theParameters = prisms.util.ArrayUtils.add(theParameters, (ParsedDeclaration) parser.parseStructures(this, m)[0]);
-			else if("exception".equals(m.config.get("storeAs")))
-				theExceptionTypes = prisms.util.ArrayUtils.add(theExceptionTypes, (ParsedType) parser.parseStructures(this, m)[0]);
-		}
+		ParsedItem [] params = parser.parseStructures(this, getAllStored("parameter"));
+		theParameters = new ParsedDeclaration[params.length];
+		System.arraycopy(params, 0, theParameters, 0, params.length);
+		ParsedItem [] exs = parser.parseStructures(this, getAllStored("exception"));
+		theExceptionTypes = new ParsedType[exs.length];
+		System.arraycopy(exs, 0, theExceptionTypes, 0, exs.length);
 		for(int i = 0; i < theParameters.length - 1; i++)
 			if(theParameters[i].isVarArg())
 				throw new prisms.lang.ParseException(
