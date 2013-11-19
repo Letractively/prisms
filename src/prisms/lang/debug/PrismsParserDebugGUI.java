@@ -59,6 +59,8 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 	}
 
 	private static Color SELECTED = new Color(100, 100, 255);
+	private static ImageIcon RESUME_ICON = getIcon("play.png", 24, 24);
+	private static ImageIcon PAUSE_ICON = getIcon("pause.png", 24, 24);
 
 	private JTextPane theMainText;
 	private ParsingExpressionTreeModel theTreeModel;
@@ -78,6 +80,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	private boolean isPopupWhenHit = true;
 	private volatile boolean isSuspended;
+	private volatile boolean isHolding;
 	private CharSequence theText;
 	private int theIndex;
 
@@ -86,6 +89,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 	private StepTargetType theStepTargetType;
 	private int theLastBreakIndex;
 	private java.util.Set<PrismsParserBreakpoint> theIndexBreakpoints;
+	private boolean hasWarnedAwtEventThread;
 
 	/** Creates a debug GUI using the config file in the standard location */
 	public PrismsParserDebugGUI() {
@@ -121,7 +125,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		theOverButton = new JButton(getIcon("arrow180.png", 24, 16));
 		theIntoButton = new JButton(getIcon("arrow90down.png", 24, 24));
 		theOutButton = new JButton(getIcon("arrow90right.png", 24, 24));
-		theResumeButton = new JButton(getIcon("play.png", 24, 24));
+		theResumeButton = new JButton(RESUME_ICON);
 		theAddBreakpointLabel = new JLabel(getIcon("bluePlus.png", 16, 16));
 		theDebugPane = new JList<>(new DefaultListModel<OpObject>());
 		theDebugPane.setCellRenderer(new OpObjectRenderer());
@@ -339,6 +343,14 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	@Override
 	public void preParse(CharSequence text, int index, final PrismsConfig op) {
+		if(EventQueue.isDispatchThread()) {
+			if(!hasWarnedAwtEventThread) {
+				hasWarnedAwtEventThread = true;
+				System.err.println("Prisms parser debugging on the AWT event thread is not allowed");
+			}
+			return;
+		} else if(hasWarnedAwtEventThread)
+			hasWarnedAwtEventThread = false;
 		if(theLastBreakIndex != index) {
 			theLastBreakIndex = -1;
 			theIndexBreakpoints.clear();
@@ -355,7 +367,7 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		theTreeModel.startNew(op);
 		update(text, index, op, null);
 
-		if(isOnStepTarget)
+		if(isSuspended || isOnStepTarget)
 			suspend(null);
 		else if(theStepTarget == null) {
 			CharSequence pre = text.subSequence(0, index);
@@ -381,6 +393,8 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	@Override
 	public void postParse(CharSequence text, int startIndex, PrismsConfig op, final ParseMatch match) {
+		if(EventQueue.isDispatchThread())
+			return;
 		if(op.is("ignorable", false)) {
 			inIgnorable--;
 			return;
@@ -400,11 +414,15 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 
 	@Override
 	public void matchDiscarded(final ParseMatch match) {
+		if(EventQueue.isDispatchThread())
+			return;
 		theTreeModel.matchDiscarded(match);
 	}
 
 	@Override
 	public void usedCache(final ParseMatch match) {
+		if(EventQueue.isDispatchThread())
+			return;
 		theTreeModel.add(match);
 	}
 
@@ -493,17 +511,22 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 		theStepTarget = null;
 		isSuspended = true;
 		setGuiEnabled(true);
-		EventQueue.invokeLater(new Runnable() {
-			@Override
-			public void run() {
-				render();
+		isHolding = true;
+		try {
+			EventQueue.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					render();
+				}
+			});
+			while(isSuspended) {
+				try {
+					Thread.sleep(50); // Here is where to put a breakpoint in order to start java debugging from a suspended debug session
+				} catch(InterruptedException e) {
+				}
 			}
-		});
-		while(isSuspended) {
-			try {
-				Thread.sleep(50);
-			} catch(InterruptedException e) {
-			}
+		} finally {
+			isHolding = false;
 		}
 	}
 
@@ -541,9 +564,16 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 	}
 
 	private void resume() {
-		theStepTarget = null;
-		setGuiEnabled(false);
-		isSuspended = false;
+		if(isSuspended) {
+			theStepTarget = null;
+			setGuiEnabled(false);
+			isSuspended = false;
+		} else {
+			isSuspended = true;
+			theResumeButton.setIcon(RESUME_ICON);
+			if(isHolding)
+				setGuiEnabled(true);
+		}
 	}
 
 	private void setGuiEnabled(boolean enabled) {
@@ -553,12 +583,12 @@ public class PrismsParserDebugGUI extends JPanel implements PrismsParserDebugger
 			theIntoButton.setEnabled(cursor != null && theParseTree.getSelectionPath() != null
 				&& theParseTree.getSelectionPath().getLastPathComponent() == theTreeModel.getCursor() && isDescendable(cursor.theOp));
 			theOutButton.setEnabled(cursor != null && cursor.theParent != null);
-			theResumeButton.setEnabled(true);
+			theResumeButton.setIcon(RESUME_ICON);
 		} else {
 			theOverButton.setEnabled(false);
 			theIntoButton.setEnabled(false);
 			theOutButton.setEnabled(false);
-			theResumeButton.setEnabled(false);
+			theResumeButton.setIcon(PAUSE_ICON);
 		}
 	}
 
