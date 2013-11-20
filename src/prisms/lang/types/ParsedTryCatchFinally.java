@@ -18,16 +18,12 @@ public class ParsedTryCatchFinally extends ParsedItem
 	{
 		super.setup(parser, parent, match);
 		theTryBlock = (ParsedStatementBlock) parser.parseStructures(this, getStored("try"))[0];
-		theCatchDeclarations = new ParsedDeclaration [0];
-		theCatchBlocks = new ParsedStatementBlock [0];
-		for(prisms.lang.ParseMatch m : match.getParsed())
-		{
-			if("catchDeclaration".equals(m.config.get("storeAs")))
-				theCatchDeclarations = prisms.util.ArrayUtils.add(theCatchDeclarations,
-					(ParsedDeclaration) parser.parseStructures(this, m)[0]);
-			else if("catch".equals(m.config.get("storeAs")))
-				theCatchBlocks = prisms.util.ArrayUtils.add(theCatchBlocks, (ParsedStatementBlock) parser.parseStructures(this, m)[0]);
-		}
+		ParsedItem [] cds = parser.parseStructures(this, getAllStored("catchDeclaration"));
+		theCatchDeclarations = new ParsedDeclaration[cds.length];
+		System.arraycopy(cds, 0, theCatchDeclarations, 0, cds.length);
+		ParsedItem [] cbs = parser.parseStructures(this, getAllStored("catch"));
+		theCatchBlocks = new ParsedStatementBlock[cbs.length];
+		System.arraycopy(cbs, 0, theCatchBlocks, 0, cbs.length);
 		prisms.lang.ParseMatch finallyMatch = getStored("finally");
 		if(finallyMatch != null)
 			theFinallyBlock = (ParsedStatementBlock) parser.parseStructures(this, finallyMatch)[0];
@@ -39,7 +35,7 @@ public class ParsedTryCatchFinally extends ParsedItem
 	@Override
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws prisms.lang.EvaluationException
-	{
+		{
 		prisms.lang.EvaluationEnvironment scoped;
 		prisms.lang.Type[] exTypes = new prisms.lang.Type [theCatchDeclarations.length];
 		for(int i = 0; i < exTypes.length; i++)
@@ -95,7 +91,7 @@ public class ParsedTryCatchFinally extends ParsedItem
 				}
 			}
 		}
-	}
+		}
 
 	/** @return The statement block that always begins executing */
 	public ParsedStatementBlock getTryBlock()

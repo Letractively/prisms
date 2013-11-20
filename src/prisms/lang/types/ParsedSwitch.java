@@ -21,7 +21,7 @@ public class ParsedSwitch extends ParsedItem
 		boolean hasDefault = false;
 		theCases = new ParsedItem [0];
 		theCaseBlocks = new ParsedItem [0] [];
-		for(prisms.lang.ParseMatch m : match.getParsed())
+		for(prisms.lang.ParseMatch m : matches())
 		{
 			if("case".equals(m.config.get("storeAs")) || "default".equals(m.config.get("storeAs")))
 			{
@@ -91,7 +91,7 @@ public class ParsedSwitch extends ParsedItem
 	@Override
 	public EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws prisms.lang.EvaluationException
-	{
+		{
 		EvaluationResult var = theVariable.evaluate(env, false, withValues);
 		if(var.getPackageName() != null || var.isType())
 			throw new prisms.lang.EvaluationException(var.getFirstVar() + " cannot be resolved to a variable", this,
@@ -229,5 +229,5 @@ public class ParsedSwitch extends ParsedItem
 			}
 		}
 		return null;
-	}
+		}
 }

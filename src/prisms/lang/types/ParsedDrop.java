@@ -3,39 +3,30 @@ package prisms.lang.types;
 import prisms.lang.ParsedItem;
 
 /** Represents an operation by which a user may undo a variable declaration */
-public class ParsedDrop extends ParsedItem
-{
+public class ParsedDrop extends ParsedItem {
 	private String theName;
 
 	private ParsedType [] theParamTypes;
 
 	@Override
-	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException
-	{
+	public void setup(prisms.lang.PrismsParser parser, ParsedItem parent, prisms.lang.ParseMatch match) throws prisms.lang.ParseException {
 		super.setup(parser, parent, match);
 		theName = getStored("name").text;
-		if(getStored("function") != null)
-		{
-			theParamTypes = new ParsedType [0];
-			for(prisms.lang.ParseMatch m : match.getParsed())
-				if("parameter".equals(m.config.get("storeAs")))
-					theParamTypes = prisms.util.ArrayUtils.add(theParamTypes, (ParsedType) parser.parseStructures(this, m)[0]);
+		if(getStored("function") != null) {
+			ParsedItem [] params = parser.parseStructures(this, getAllStored("parameter"));
+			theParamTypes = new ParsedType[params.length];
+			System.arraycopy(params, 0, theParamTypes, 0, params.length);
 		}
 	}
 
 	@Override
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
-		throws prisms.lang.EvaluationException
-	{
-		if(theParamTypes == null)
-		{
+		throws prisms.lang.EvaluationException {
+		if(theParamTypes == null) {
 			env.dropVariable(theName, this, getStored("name").index);
 			return null;
-		}
-		else
-		{
-			for(ParsedFunctionDeclaration func : env.getDeclaredFunctions())
-			{
+		} else {
+			for(ParsedFunctionDeclaration func : env.getDeclaredFunctions()) {
 				if(!func.getName().equals(theName))
 					continue;
 				if(func.getParameters().length != theParamTypes.length)
@@ -51,39 +42,31 @@ public class ParsedDrop extends ParsedItem
 	}
 
 	/** @return The name of the variable or function to drop */
-	public String getName()
-	{
+	public String getName() {
 		return theName;
 	}
 
 	/** @return The parameter types of the function to drop, or null if this drop is for a variable */
-	public ParsedType [] getParameterTypes()
-	{
+	public ParsedType [] getParameterTypes() {
 		return theParamTypes;
 	}
 
 	@Override
-	public ParsedItem [] getDependents()
-	{
+	public ParsedItem [] getDependents() {
 		if(theParamTypes == null)
-			return new ParsedItem [0];
+			return new ParsedItem[0];
 		return theParamTypes;
 	}
 
 	@Override
-	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException
-	{
-		if(theParamTypes != null)
-		{
+	public void replace(ParsedItem dependent, ParsedItem toReplace) throws IllegalArgumentException {
+		if(theParamTypes != null) {
 			for(int i = 0; i < theParamTypes.length; i++)
-				if(theParamTypes[i] == dependent)
-				{
-					if(toReplace instanceof ParsedType)
-					{
+				if(theParamTypes[i] == dependent) {
+					if(toReplace instanceof ParsedType) {
 						theParamTypes[i] = (ParsedType) toReplace;
 						return;
-					}
-					else
+					} else
 						throw new IllegalArgumentException("Cannot replace a drop's parameter type with " + toReplace.getClass().getName());
 				}
 		}
@@ -91,15 +74,12 @@ public class ParsedDrop extends ParsedItem
 	}
 
 	@Override
-	public String toString()
-	{
+	public String toString() {
 		StringBuilder ret = new StringBuilder();
 		ret.append("drop ").append(theName);
-		if(theParamTypes != null)
-		{
+		if(theParamTypes != null) {
 			ret.append('(');
-			for(int i = 0; i < theParamTypes.length; i++)
-			{
+			for(int i = 0; i < theParamTypes.length; i++) {
 				if(i > 0)
 					ret.append(", ");
 				ret.append(theParamTypes[i]);
