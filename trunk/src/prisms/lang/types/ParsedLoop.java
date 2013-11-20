@@ -33,7 +33,7 @@ public class ParsedLoop extends ParsedItem
 		ArrayList<ParsedItem> incs = new ArrayList<ParsedItem>();
 
 		boolean hasContent = false;
-		for(prisms.lang.ParseMatch m : match.getParsed())
+		for(prisms.lang.ParseMatch m : getAllStored("condition", "init", "increment", "content"))
 		{
 			if("condition".equals(m.config.get("storeAs")))
 				isPreCondition = !hasContent;

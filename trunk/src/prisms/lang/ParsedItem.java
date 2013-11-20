@@ -3,6 +3,8 @@
  */
 package prisms.lang;
 
+import java.util.ArrayList;
+
 /** A basic syntax structure representing the final output of the {@link PrismsParser} */
 public abstract class ParsedItem
 {
@@ -56,71 +58,24 @@ public abstract class ParsedItem
 	 * @return The match within this structure stored as the given name
 	 */
 	public ParseMatch getStored(String name) {
-		int depth = getMaxDepth(theMatch);
-		ParseMatch ret = null;
-		for(int i = 0; i < depth && ret == null; i++)
-			ret = getStored(theMatch, i, name);
-		return ret;
+		for(ParseMatch match : matches())
+			if(name.equals(match.config.get("storeAs")))
+				return match;
+		return null;
 	}
 
 	/**
 	 * @param names The "storeAs" attributes to match against
 	 * @return Parse match siblings under this item matching one of the given storeAs attributes
 	 */
-	public ParseMatch [] getAllStored(String... names) {
-		int depth = getMaxDepth(theMatch);
-		ParseMatch [] ret = null;
-		for(int i = 0; i < depth && ret == null; i++)
-			ret = getAllStored(theMatch, i, names);
-		return ret == null ? new ParseMatch[0] : ret;
-	}
-
-	private int getMaxDepth(ParseMatch match) {
-		if(match.getParsed() == null)
-			return 1;
-		int ret = 0;
-		for(ParseMatch ch : match.getParsed()) {
-			int temp = getMaxDepth(ch);
-			if(temp > ret)
-				ret = temp;
+	public ParseMatch [] getAllStored(final String... names) {
+		ArrayList<ParseMatch> ret = new ArrayList<>();
+		for(ParseMatch match : matches()) {
+			String storeAs = match.config.get("storeAs");
+			if(storeAs != null && prisms.util.ArrayUtils.contains(names, storeAs))
+				ret.add(match);
 		}
-		return ret + 1;
-	}
-
-	private ParseMatch getStored(ParseMatch match, int depth, String name) {
-		if(name.equals(match.config.get("storeAs")))
-			return match;
-		if(depth == 0 || match.getParsed() == null)
-			return null;
-		depth--;
-		for(ParseMatch ch : match.getParsed()) {
-			ParseMatch ret = getStored(ch, depth, name);
-			if(ret != null)
-				return ret;
-		}
-		return null;
-	}
-
-	private ParseMatch [] getAllStored(ParseMatch match, int depth, String... names) {
-		if(depth == 0 || match.getParsed() == null)
-			return null;
-		java.util.ArrayList<ParseMatch> retList = null;
-		for(ParseMatch ch : match.getParsed()) {
-			if(ch.config.get("storeAs") != null && prisms.util.ArrayUtils.contains(names, ch.config.get("storeAs"))) {
-				if(retList == null)
-					retList = new java.util.ArrayList<>();
-					retList.add(ch);
-			}
-		}
-		if(retList != null)
-			return retList.toArray(new ParseMatch[retList.size()]);
-		depth--;
-		for(ParseMatch ch : match.getParsed()) {
-			ParseMatch [] ret = getAllStored(ch, depth, names);
-			if(ret != null)
-				return ret;
-		}
-		return null;
+		return ret.toArray(new ParseMatch[ret.size()]);
 	}
 
 	/**
@@ -153,6 +108,78 @@ public abstract class ParsedItem
 			for(ParseMatch sub : match.getParsed())
 				ret += getDeepCount(sub);
 		return ret;
+	}
+
+	/**
+	 * @return An iterable to iterate through all matches in this ParsedItem. Matches from contained items are not returned. E.g. for a
+	 *         method call, the content of the parameters to the call would not be included since they are not part of this item's
+	 *         configuration.
+	 */
+	public Iterable<ParseMatch> matches() {
+		return new Iterable<ParseMatch>() {
+			@Override
+			public java.util.Iterator<ParseMatch> iterator() {
+				return new java.util.Iterator<ParseMatch>() {
+					private ArrayList<ParseMatch> thePath;
+					private prisms.util.IntList thePathChildIndex;
+					private ParseMatch theReturn;
+
+					{
+						thePath = new ArrayList<>();
+						thePathChildIndex = new prisms.util.IntList();
+						theReturn = getMatch();
+						thePath.add(theReturn);
+						thePathChildIndex.add(0);
+					}
+
+					@Override
+					public boolean hasNext() {
+						if(theReturn != null)
+							return true;
+						theReturn = findNext();
+						return theReturn != null;
+					}
+
+					@Override
+					public ParseMatch next() {
+						if(theReturn == null && !hasNext())
+							throw new java.util.NoSuchElementException();
+						ParseMatch ret = theReturn;
+						theReturn = null;
+						return ret;
+					}
+
+					@Override
+					public void remove() {
+						throw new UnsupportedOperationException();
+					}
+
+					private ParseMatch findNext() {
+						while(!thePath.isEmpty()) {
+							int pathIdx = thePath.size() - 1;
+							ParseMatch terminal = thePath.get(pathIdx);
+							int childIndex = thePathChildIndex.get(pathIdx);
+							if(terminal.getParsed() != null && childIndex < terminal.getParsed().length) {
+								ParseMatch ret = terminal.getParsed()[childIndex];
+								thePathChildIndex.set(pathIdx, childIndex + 1);
+								// Return children only within the structure of this ParsedItem's configuration
+								// e.g. Return all matches within a for loop structure, but don't return any structure for the arguments,
+								// body, etc. TODO This doesn't work.
+								if(prisms.util.ArrayUtils.contains(terminal.config.subConfigs(), ret.config)) {
+									thePath.add(ret);
+									thePathChildIndex.add(0);
+									return ret;
+								}
+							} else {
+								thePath.remove(pathIdx);
+								thePathChildIndex.remove(pathIdx);
+							}
+						}
+						return null;
+					}
+				};
+			}
+		};
 	}
 
 	/**
