@@ -165,7 +165,9 @@ public abstract class ParsedItem
 								// Return children only within the structure of this ParsedItem's configuration
 								// e.g. Return all matches within a for loop structure, but don't return any structure for the arguments,
 								// body, etc. TODO This doesn't work.
-								if(prisms.util.ArrayUtils.contains(terminal.config.subConfigs(), ret.config)) {
+								// In certain cases, the config of the parent may be the same as that of the child (<op min="0">)
+								if(terminal.config == ret.config
+									|| prisms.util.ArrayUtils.contains(terminal.config.subConfigs(), ret.config)) {
 									thePath.add(ret);
 									thePathChildIndex.add(0);
 									return ret;

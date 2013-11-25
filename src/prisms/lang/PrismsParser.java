@@ -648,10 +648,9 @@ public class PrismsParser {
 				int preOptionIndex = index;
 				ParseMatch [] optionMatches = null;
 				int optStartIndex = index;
-				if (max != 1)
-					theDebugger.preParse(sb, index, sub);
+				theDebugger.preParse(sb, index, sub);
 				while(max < 0 || count < max) {
-					match = parseTypedMatch(sb, index, cache, sub, max == 1);
+					match = parseTypedMatch(sb, index, cache, sub, false);
 					if(match == null || !match.isComplete() || match.getError() != null) {
 						if(match != null && badOptionOld) {
 							badOption = match;
@@ -688,13 +687,13 @@ public class PrismsParser {
 					match = new ParseMatch(sub, sb.substring(optStartIndex, index), optStartIndex, optionMatches, true, null);
 					subMatches = ArrayUtils.add(subMatches, match);
 				}
-				if (max != 1)
-					theDebugger.postParse(sb, optStartIndex, sub, match);
+				theDebugger.postParse(sb, optStartIndex, sub, match);
 				continue;
 			case "select":
 				theDebugger.preParse(sb, index, sub);
 				badOptionOld = true;
 				match = null;
+				optStartIndex = index;
 				for(PrismsConfig option : sub.subConfigs()) {
 					ParseMatch optionMatch = parseTypedMatch(sb, index, cache, option, true);
 					if(optionMatch == null)
@@ -709,19 +708,15 @@ public class PrismsParser {
 					}
 				}
 				if(match != null) {
-					subMatches = ArrayUtils.addAll(subMatches, match.getParsed());
-					for(ParseMatch optMatch : match.getParsed())
-						index += optMatch.text.length();
-					if(!match.isComplete()) {
-						match = subMatches[subMatches.length - 1];
-						index -= match.text.length();
-						subMatches = ArrayUtils.remove(subMatches, subMatches.length - 1);
-					} else {
-						theDebugger.postParse(sb, index, sub, match);
-						continue;
-					}
+					match = new ParseMatch(sub, match.text, optStartIndex, new ParseMatch[] {match}, true, null);
+					// if(match.isComplete() && match.getError() == null) {
+					subMatches = ArrayUtils.add(subMatches, match);
+					index += match.text.length();
+					theDebugger.postParse(sb, optStartIndex, sub, match);
+					continue;
+					// }
 				}
-				theDebugger.postParse(sb, index, sub, match);
+				theDebugger.postParse(sb, optStartIndex, sub, match);
 				break;
 			case "op":
 				badOptionOld = true;
@@ -736,9 +731,9 @@ public class PrismsParser {
 					types = new String[0];
 				theDebugger.preParse(sb, index, sub);
 				match = getBestMatch(sb, index, cache, true, types);
-				theDebugger.postParse(sb, index, sub, match);
 				if(match != null)
 					match = new ParseMatch(sub, match.text, index, new ParseMatch[] {match}, true, null);
+				theDebugger.postParse(sb, index, sub, match);
 				break;
 			default:
 				throw new IllegalStateException("Unrecognized configuration: \"" + sub.getName() + "\" in " + op.getName()
