@@ -502,13 +502,13 @@ public final class ArrayUtils
 		while(min < max)
 		{
 			int mid = (min + max) >>> 1;
-			int comp = compare == null ? ((Comparable<T>) array[mid]).compareTo(anElement) : compare.compare(array[mid], anElement);
-			if(comp > 0)
-				max = mid - 1;
-			else if(comp < 0)
-				min = mid + 1;
-			else
-				return mid;
+		int comp = compare == null ? ((Comparable<T>) array[mid]).compareTo(anElement) : compare.compare(array[mid], anElement);
+		if(comp > 0)
+			max = mid - 1;
+		else if(comp < 0)
+			min = mid + 1;
+		else
+			return mid;
 		}
 		if(min != max)
 			return -1;
@@ -1438,13 +1438,13 @@ public final class ArrayUtils
 	public static <T> Iterable<T> iterable(final T [] array, final boolean forward)
 	{
 		return new Iterable<T>()
-		{
+			{
 			@Override
 			public Iterator<T> iterator()
 			{
 				return ArrayUtils.iterator(array, forward);
 			}
-		};
+			};
 	}
 
 	/**
@@ -1455,7 +1455,7 @@ public final class ArrayUtils
 	public static <T> Iterator<T> iterator(final T [] array, final boolean forward)
 	{
 		return new Iterator<T>()
-		{
+			{
 			private int theIndex;
 
 			{
@@ -1484,7 +1484,7 @@ public final class ArrayUtils
 			{
 				throw new UnsupportedOperationException();
 			}
-		};
+			};
 	}
 
 	/**
@@ -1494,12 +1494,12 @@ public final class ArrayUtils
 	public static <T> Iterable<T> iterable(final Iterable<? extends T>... compound)
 	{
 		return new Iterable<T>()
-		{
+			{
 			@Override
 			public Iterator<T> iterator()
 			{
 				return new Iterator<T>()
-				{
+					{
 					private Iterator<? extends T> theLastValueIter;
 
 					private Iterator<? extends T> theCurrentIter;
@@ -1548,9 +1548,9 @@ public final class ArrayUtils
 						else
 							theLastValueIter.remove();
 					}
-				};
+					};
 			}
-		};
+			};
 	}
 
 	/**
@@ -1560,7 +1560,7 @@ public final class ArrayUtils
 	public static <T> Iterator<T> iterator(final Iterator<? extends T>... compound)
 	{
 		return new Iterator<T>()
-		{
+			{
 			private Iterator<? extends T> theLastValueIter;
 
 			private Iterator<? extends T> theCurrentIter;
@@ -1609,7 +1609,7 @@ public final class ArrayUtils
 				else
 					theLastValueIter.remove();
 			}
-		};
+			};
 	}
 
 	/**
@@ -1620,13 +1620,13 @@ public final class ArrayUtils
 	public static <T> Iterable<T> immutableIterable(final Iterable<T> iterable)
 	{
 		return new Iterable<T>()
-		{
+			{
 			@Override
 			public Iterator<T> iterator()
 			{
 				return immutableIterator(iterable.iterator());
 			}
-		};
+			};
 	}
 
 	/**
@@ -1637,7 +1637,7 @@ public final class ArrayUtils
 	public static <T> Iterator<T> immutableIterator(final Iterator<T> iterator)
 	{
 		return new Iterator<T>()
-		{
+			{
 			@Override
 			public boolean hasNext()
 			{
@@ -1654,6 +1654,66 @@ public final class ArrayUtils
 			public void remove()
 			{
 				throw new UnsupportedOperationException();
+			}
+			};
+	}
+
+	/**
+	 * @param iterator An iterator to cache the values of
+	 * @return A iterable that returns a lazily-loaded cache so the iterables returne once from the given iterator may be reused any number
+	 *         of times
+	 */
+	public static <T> Iterable<T> cachingIterable(Iterator<T> iterator) {
+		final Iterator<T> [] backing = new Iterator[] {iterator};
+		return new Iterable<T>() {
+			private final java.util.ArrayList<T> theCache = new java.util.ArrayList<>();
+
+			private Object theLock = new Object();
+
+			@Override
+			public Iterator<T> iterator() {
+				return new Iterator<T>() {
+					private int theIndex;
+
+					@Override
+					public boolean hasNext() {
+						Object lock = theLock;
+						if(lock != null && theIndex == theCache.size()) {
+							synchronized(lock) {
+								if(theIndex == theCache.size()) {
+									if(backing[0].hasNext())
+										return true;
+									else {
+										theLock = null;
+										backing[0] = null;
+										return false;
+									}
+								}
+							}
+						}
+						return theIndex < theCache.size();
+					}
+
+					@Override
+					public T next() {
+						Object lock = theLock;
+						if(lock != null && theIndex == theCache.size()) {
+							synchronized(lock) {
+								if(theIndex == theCache.size()) {
+									T ret = backing[0].next();
+									theCache.add(ret);
+									return ret;
+								}
+							}
+						}
+						return theCache.get(theIndex++);
+					}
+
+					@Override
+					public void remove() {
+						throw new UnsupportedOperationException();
+					}
+				};
 			}
 		};
 	}
@@ -1682,7 +1742,7 @@ public final class ArrayUtils
 	public static <T, V> Iterator<V> conditionalIterator(final Iterator<T> wrap, final Accepter<T, V> accepter, final boolean removable)
 	{
 		return new Iterator<V>()
-		{
+			{
 			private V theNextReturn;
 
 			private boolean calledHasNext;
@@ -1717,7 +1777,7 @@ public final class ArrayUtils
 				else
 					throw new UnsupportedOperationException();
 			}
-		};
+			};
 	}
 
 	/**
@@ -2425,7 +2485,7 @@ public final class ArrayUtils
 					modifier[i] = Integer.valueOf(i / 5 * start.length);
 			}
 			Integer [] result = adjust(start, modifier, new DifferenceListener<Integer, Integer>()
-			{
+				{
 				@Override
 				public boolean identity(Integer o1, Integer o2)
 				{
@@ -2451,7 +2511,7 @@ public final class ArrayUtils
 						return null;
 					return o1;
 				}
-			});
+				});
 			System.out.println("Original array=" + toString(start));
 			System.out.println("Modifier array=" + toString(modifier));
 			System.out.println("Adjusted array=" + toString(result));
