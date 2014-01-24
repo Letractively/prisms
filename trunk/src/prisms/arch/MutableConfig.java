@@ -66,6 +66,17 @@ public class MutableConfig extends PrismsConfig
 	}
 
 	/**
+	 * Creates a blank config with just a name and a parent
+	 * 
+	 * @param parent The parent for this config
+	 * @param name The name for the configuration
+	 */
+	public MutableConfig(MutableConfig parent, String name) {
+		this(name);
+		theParent = parent;
+	}
+
+	/**
 	 * Creates a modifiable version of an existing PrismsConfig
 	 * 
 	 * @param parent The configuration that this config is a sub-config for. Null for a top-level configuration.
