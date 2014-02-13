@@ -21,55 +21,73 @@ public class SerialJsonCompiler implements JsonSerialWriter
 		thePath = new java.util.ArrayList<Object>();
 	}
 
-	public void startObject()
+	@Override
+	public JsonSerialWriter startObject()
 	{
 		push(new JSONObject());
+		return this;
 	}
 
-	public void startProperty(String name)
+	@Override
+	public JsonSerialWriter startProperty(String name)
 	{
 		if(thePropertyName != null)
 			throw new IllegalStateException("Property name already set--need value for property");
 		thePropertyName = name;
+		return this;
 	}
 
-	public void endObject()
+	@Override
+	public JsonSerialWriter endObject()
 	{
 		if(!(top() instanceof JSONObject))
 			throw new IllegalStateException("JSON object not started");
 		pop();
+		return this;
 	}
 
-	public void startArray()
+	@Override
+	public JsonSerialWriter startArray()
 	{
 		push(new JSONArray());
+		return this;
 	}
 
-	public void endArray()
+	@Override
+	public JsonSerialWriter endArray()
 	{
 		if(!(top() instanceof JSONArray))
 			throw new IllegalStateException("JSON array not started");
 		pop();
+		return this;
 	}
 
-	public void writeString(String value)
+	@Override
+	public JsonSerialWriter writeString(String value)
 	{
 		push(value);
+		return this;
 	}
 
-	public void writeNumber(Number value)
+	@Override
+	public JsonSerialWriter writeNumber(Number value)
 	{
 		push(value);
+		return this;
 	}
 
-	public void writeBoolean(boolean value)
+	@Override
+	public JsonSerialWriter writeBoolean(boolean value)
 	{
 		push(Boolean.valueOf(value));
+		return this;
 	}
 
-	public void writeNull()
+	@Override
+	public JsonSerialWriter writeNull()
 	{
 		push(null);
+		return this;
 	}
 
 	/** Closes content currently compiling with this compiler */
