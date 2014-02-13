@@ -104,11 +104,13 @@ public class JsonStreamWriter implements JsonSerialWriter
 		return theWriter;
 	}
 
-	public void startObject() throws IOException
+	@Override
+	public JsonSerialWriter startObject() throws IOException
 	{
 		content(ParseToken.OBJECT);
 		thePath.add(new ParseNode(ParseToken.OBJECT));
 		theWriter.write('{');
+		return this;
 	}
 
 	/**
@@ -140,7 +142,8 @@ public class JsonStreamWriter implements JsonSerialWriter
 		}
 	}
 
-	public void startProperty(String name) throws IOException
+	@Override
+	public JsonSerialWriter startProperty(String name) throws IOException
 	{
 		closeOpenString();
 		ParseNode top = top();
@@ -195,9 +198,11 @@ public class JsonStreamWriter implements JsonSerialWriter
 		theWriter.write(theSB.toString());
 		theSB.setLength(0);
 		thePath.add(new ParseNode(ParseToken.PROPERTY));
+		return this;
 	}
 
-	public void endObject() throws IOException
+	@Override
+	public JsonSerialWriter endObject() throws IOException
 	{
 		closeOpenString();
 		ParseNode top = top();
@@ -216,16 +221,20 @@ public class JsonStreamWriter implements JsonSerialWriter
 		pop();
 		writeLine();
 		theWriter.write('}');
+		return this;
 	}
 
-	public void startArray() throws IOException
+	@Override
+	public JsonSerialWriter startArray() throws IOException
 	{
 		content(ParseToken.ARRAY);
 		thePath.add(new ParseNode(ParseToken.ARRAY));
 		theWriter.write('[');
+		return this;
 	}
 
-	public void endArray() throws IOException
+	@Override
+	public JsonSerialWriter endArray() throws IOException
 	{
 		closeOpenString();
 		ParseNode top = top();
@@ -243,15 +252,17 @@ public class JsonStreamWriter implements JsonSerialWriter
 		pop();
 		writeLine();
 		theWriter.write(']');
+		return this;
 	}
 
-	public void writeString(String value) throws IOException
+	@Override
+	public JsonSerialWriter writeString(String value) throws IOException
 	{
 		closeOpenString();
 		if(value == null)
 		{
 			writeNull();
-			return;
+			return this;
 		}
 		theSB.append(value);
 		for(int c = 0; c < theSB.length(); c++)
@@ -272,6 +283,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 		content(null);
 		theWriter.write(theSB.toString());
 		theSB.setLength(0);
+		return this;
 	}
 
 	/**
@@ -335,12 +347,13 @@ public class JsonStreamWriter implements JsonSerialWriter
 		isStringOpen = false;
 	}
 
-	public void writeNumber(Number value) throws IOException
+	@Override
+	public JsonSerialWriter writeNumber(Number value) throws IOException
 	{
 		if(value == null)
 		{
 			writeNull();
-			return;
+			return this;
 		}
 		content(null);
 		boolean written = false;
@@ -367,18 +380,23 @@ public class JsonStreamWriter implements JsonSerialWriter
 			theWriter.write(theSB.toString());
 		}
 		theSB.setLength(0);
+		return this;
 	}
 
-	public void writeBoolean(boolean value) throws IOException
+	@Override
+	public JsonSerialWriter writeBoolean(boolean value) throws IOException
 	{
 		content(null);
 		theWriter.write(value ? "true" : "false");
+		return this;
 	}
 
-	public void writeNull() throws IOException
+	@Override
+	public JsonSerialWriter writeNull() throws IOException
 	{
 		content(null);
 		theWriter.write("null");
+		return this;
 	}
 
 	/**

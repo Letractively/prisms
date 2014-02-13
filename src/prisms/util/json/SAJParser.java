@@ -163,6 +163,7 @@ public class SAJParser
 			thePath.clear();
 		}
 
+		@Override
 		public void startObject(ParseState state)
 		{
 			theState = state;
@@ -174,27 +175,32 @@ public class SAJParser
 			thePath.add(value);
 		}
 
+		@Override
 		public void startProperty(ParseState state, String name)
 		{
 			theState = state;
 		}
 
+		@Override
 		public void separator(ParseState state)
 		{
 			theState = state;
 		}
 
+		@Override
 		public void endProperty(ParseState state, String propName)
 		{
 			theState = state;
 		}
 
+		@Override
 		public void endObject(ParseState state)
 		{
 			theState = state;
 			pop();
 		}
 
+		@Override
 		public void startArray(ParseState state)
 		{
 			theState = state;
@@ -206,12 +212,14 @@ public class SAJParser
 			thePath.add(value);
 		}
 
+		@Override
 		public void endArray(ParseState state)
 		{
 			theState = state;
 			pop();
 		}
 
+		@Override
 		public void valueString(ParseState state, Reader value) throws IOException
 		{
 			StringBuilder val = new StringBuilder();
@@ -242,6 +250,7 @@ public class SAJParser
 				theValue = value;
 		}
 
+		@Override
 		public void valueNumber(ParseState state, Number value)
 		{
 			theState = state;
@@ -253,6 +262,7 @@ public class SAJParser
 				theValue = value;
 		}
 
+		@Override
 		public void valueBoolean(ParseState state, boolean value)
 		{
 			Boolean bValue = value ? Boolean.TRUE : Boolean.FALSE;
@@ -265,6 +275,7 @@ public class SAJParser
 				theValue = Boolean.valueOf(value);
 		}
 
+		@Override
 		public void valueNull(ParseState state)
 		{
 			theState = state;
@@ -276,21 +287,25 @@ public class SAJParser
 				theValue = null;
 		}
 
+		@Override
 		public void whiteSpace(ParseState state, String ws)
 		{
 			theState = state;
 		}
 
+		@Override
 		public void comment(ParseState state, String fullComment, String content)
 		{
 			theState = state;
 		}
 
+		@Override
 		public Object finalValue()
 		{
 			return theValue;
 		}
 
+		@Override
 		public void error(ParseState state, String error)
 		{
 			theState = state;
