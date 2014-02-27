@@ -357,7 +357,7 @@ public class JsonStreamWriter implements JsonSerialWriter
 		}
 		content(null);
 		boolean written = false;
-		if(value instanceof Integer || value instanceof Long)
+		if(!useFormalJson && (value instanceof Integer || value instanceof Long))
 		{
 			long val = value.longValue();
 			if(val >= 1000 || val <= -1000)
