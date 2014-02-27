@@ -1702,6 +1702,7 @@ public final class ArrayUtils
 								if(theIndex == theCache.size()) {
 									T ret = backing[0].next();
 									theCache.add(ret);
+									theIndex++;
 									return ret;
 								}
 							}
