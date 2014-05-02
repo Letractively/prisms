@@ -1740,17 +1740,15 @@ public final class ArrayUtils
 	 * @param removable Whether the returned iterator's {@link Iterator#remove()} method should be active
 	 * @return The iterators
 	 */
-	public static <T, V> Iterator<V> conditionalIterator(final Iterator<T> wrap, final Accepter<T, V> accepter, final boolean removable)
-	{
-		return new Iterator<V>()
-			{
+	public static <T, V> Iterator<V> conditionalIterator(final Iterator<T> wrap, final Accepter<? super T, ? extends V> accepter,
+		final boolean removable) {
+		return new Iterator<V>() {
 			private V theNextReturn;
 
 			private boolean calledHasNext;
 
 			@Override
-			public boolean hasNext()
-			{
+			public boolean hasNext() {
 				calledHasNext = true;
 				while(theNextReturn == null && wrap.hasNext())
 					theNextReturn = accepter.accept(wrap.next());
@@ -1758,10 +1756,8 @@ public final class ArrayUtils
 			}
 
 			@Override
-			public V next()
-			{
-				if(!calledHasNext && !hasNext())
-				{
+			public V next() {
+				if(!calledHasNext && !hasNext()) {
 					wrap.next(); // Let the wrapped iterator throw the exception
 					throw new java.util.NoSuchElementException();
 				}
@@ -1771,14 +1767,13 @@ public final class ArrayUtils
 			}
 
 			@Override
-			public void remove()
-			{
+			public void remove() {
 				if(removable)
 					wrap.remove();
 				else
 					throw new UnsupportedOperationException();
 			}
-			};
+		};
 	}
 
 	/**
