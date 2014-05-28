@@ -30,7 +30,7 @@ public abstract class PrismsConfig implements Cloneable
 
 		/**
 		 * Creates a default PRISMS config
-		 * 
+		 *
 		 * @param name The name for the config
 		 * @param value The value for the config
 		 * @param els The child configs
@@ -80,7 +80,7 @@ public abstract class PrismsConfig implements Cloneable
 
 		/**
 		 * Creates a merged config
-		 * 
+		 *
 		 * @param configs The configurations to merge
 		 */
 		public MergedConfig(PrismsConfig... configs)
@@ -253,7 +253,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Gets a sub-configurations of a given type and potentially selected by a set of attributes
-	 * 
+	 *
 	 * @param type The type of the configs to get
 	 * @param props The properties (name, value, name, value...) that a config must match to be returned by this method
 	 * @return All configuration in this config's children (or descendants) that match the given type and properties
@@ -310,7 +310,7 @@ public abstract class PrismsConfig implements Cloneable
 	/**
 	 * Gets all attribute values from this configuration (may have been represented by an actual XML attribute or an
 	 * element in XML) that match a given name.
-	 * 
+	 *
 	 * @param key The name of the attribute to get the values of
 	 * @return The values of the given attribute in this config
 	 */
@@ -325,7 +325,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Gets a single attribute value from this config
-	 * 
+	 *
 	 * @param key The name of the attribute to get the value of
 	 * @return The first value that would be returned from {@link #getAll(String)}, or null if no values would be
 	 *         returned
@@ -338,7 +338,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Parses an int from an attribute of this config
-	 * 
+	 *
 	 * @param key The name of the attribute to get the value of
 	 * @param def The value to return if the attribute is missing from the config
 	 * @return The integer parsed from the given attribute of this config, or the given default value if the attribute
@@ -360,7 +360,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Parses a float from an attribute of this config
-	 * 
+	 *
 	 * @param key The name of the attribute to get the value of
 	 * @param def The value to return if the attribute is missing from the config
 	 * @return The float parsed from the given attribute of this config, or the given default value if the attribute is
@@ -382,7 +382,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Parses a boolean from an attribute of this config
-	 * 
+	 *
 	 * @param key The name of the attribute to get the value of
 	 * @param def The value to return if the given key is missing from this config
 	 * @return The boolean parsed from the given attribute of this config, or <code>def</code> if the attribute is
@@ -404,7 +404,7 @@ public abstract class PrismsConfig implements Cloneable
 	/**
 	 * Parses a time from an attribute of this config. This method uses
 	 * {@link prisms.util.PrismsUtils#parseEnglishTime(String)} to parse the time.
-	 * 
+	 *
 	 * @param key The name of the attribute to get the value of
 	 * @return The time parsed from the given attribute of this config, or -1 if the attribute is missing
 	 */
@@ -419,7 +419,7 @@ public abstract class PrismsConfig implements Cloneable
 	/**
 	 * Parses a time interval from an attribute of this config. This method uses
 	 * {@link prisms.util.PrismsUtils#parseEnglishTime(String)} to parse the time.
-	 * 
+	 *
 	 * @param key The name of the attribute to get the value of
 	 * @param def The default value to return if the given key does not exist in this config
 	 * @return The time interval parsed from the given attribute of this config, or <code>def</code> if the attribute is
@@ -435,7 +435,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Parses a class from an attribute of this config.
-	 * 
+	 *
 	 * @param <T> The type of the class to return
 	 * @param key The name of the attribute to get the value of
 	 * @param superClass The super-class to cast the value to
@@ -446,7 +446,7 @@ public abstract class PrismsConfig implements Cloneable
 	 *         <code>superClass</code>
 	 */
 	public <T> Class<? extends T> getClass(String key, Class<T> superClass) throws ClassNotFoundException,
-		ClassCastException
+	ClassCastException
 	{
 		String className = get(key);
 		if(className == null)
@@ -500,7 +500,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Prints this config to a string builder
-	 * 
+	 *
 	 * @param ret The string builder to write this config to
 	 * @param indent The amount to indent the text
 	 */
@@ -554,7 +554,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Parses a PrismsConfig from a pre-parsed or dynamically-generated XML element
-	 * 
+	 *
 	 * @param env The PRISMS environment to get environment variables from
 	 * @param xml The XML element to parse the PrismsConfig from
 	 * @return The parsed PrismsConfig
@@ -571,8 +571,20 @@ public abstract class PrismsConfig implements Cloneable
 	}
 
 	/**
+	 * Parses a PrismsConfig from an XML resource
+	 *
+	 * @param env The PRISMS environment to get environment variables from
+	 * @param url The XML resource to parse the PrismsConfig from
+	 * @return The parsed PrismsConfig
+	 * @throws java.io.IOException If the resource cannot be read or parsed
+	 */
+	public static PrismsConfig fromXml(PrismsEnv env, java.net.URL url) throws java.io.IOException {
+		return fromXml(env, getRootElement(url));
+	}
+
+	/**
 	 * Parses a PrismsConfig from XML found at a location
-	 * 
+	 *
 	 * @param env The PRISMS environment to get environment variables from
 	 * @param location The location of the XML file
 	 * @param relative The locations that the given location might be relative to (see
@@ -605,47 +617,64 @@ public abstract class PrismsConfig implements Cloneable
 	}
 
 	/**
-	 * Retrieves and parses XML for a given location
-	 * 
-	 * @param location The location of the XML file to parse
-	 * @param relative The locations to which the location may be relative
-	 * @return The root element of the given XMl file
-	 * @throws java.io.IOException If an error occurs finding, reading, or parsing the file
+	 * @param s The string to parse as a URL
+	 * @return The URL represented by the string
+	 * @throws java.io.IOException If the string does not represent a valid URL
 	 */
-	public static org.dom4j.Element getRootElement(String location, String... relative) throws java.io.IOException
-	{
-		String newLocation = resolve(location, relative);
-		if(newLocation == null)
-			return null;
+	public static java.net.URL toUrl(String s) throws java.io.IOException {
 		java.net.URL configURL;
-		if(newLocation.startsWith("classpath:/"))
+		if(s.startsWith("classpath:/"))
 		{ // Classpath resource
-			configURL = PrismsConfig.class.getResource(newLocation.substring("classpath:/".length()));
+			configURL = PrismsConfig.class.getResource(s.substring("classpath:/".length()));
 			if(configURL == null)
 			{
-				throw new java.io.FileNotFoundException("Classpath configuration URL " + newLocation
+				throw new java.io.FileNotFoundException("Classpath configuration URL " + s
 					+ " refers to a non-existent resource");
 			}
-		}
-		else if(newLocation.contains(":/"))
-			configURL = new java.net.URL(newLocation); // Absolute resource
+			return configURL;
+		} else if(s.contains(":/"))
+			return new java.net.URL(s); // Absolute resource
 		else
-			throw new java.io.IOException("Location " + newLocation + " is invalid");
+			throw new java.io.IOException("Location " + s + " is invalid");
+	}
 
+	/**
+	 * Parses the root element from an XML file
+	 *
+	 * @param url The URL of the XML resource to parse
+	 * @return The root element of the XML
+	 * @throws java.io.IOException If the XML could not be read or parsed
+	 */
+	public static org.dom4j.Element getRootElement(java.net.URL url) throws java.io.IOException {
 		org.dom4j.Element configEl;
 		try
 		{
-			configEl = new org.dom4j.io.SAXReader().read(configURL).getRootElement();
+			configEl = new org.dom4j.io.SAXReader().read(url).getRootElement();
 		} catch(org.dom4j.DocumentException e)
 		{
-			throw new javax.imageio.IIOException("Could not read XML file " + location, e);
+			throw new java.io.IOException("Could not read XML file " + url, e);
 		}
 		return configEl;
 	}
 
 	/**
+	 * Retrieves and parses XML for a given location
+	 *
+	 * @param location The location of the XML file to parse
+	 * @param relative The locations to which the location may be relative
+	 * @return The root element of the given XMl file
+	 * @throws java.io.IOException If an error occurs finding, reading, or parsing the file
+	 */
+	public static org.dom4j.Element getRootElement(String location, String... relative) throws java.io.IOException {
+		String newLocation = resolve(location, relative);
+		if(newLocation == null)
+			return null;
+		return getRootElement(toUrl(newLocation));
+	}
+
+	/**
 	 * Gets the location of a class to use in resolving relative paths with {@link #getRootElement(String, String...)}
-	 * 
+	 *
 	 * @param clazz The class to get the location of
 	 * @return The location of the class file
 	 */
@@ -873,7 +902,7 @@ public abstract class PrismsConfig implements Cloneable
 	/**
 	 * Replaces references to environment variables with their values as set in the given environment. A reference to an
 	 * environment variable has the form "${variable.name}".
-	 * 
+	 *
 	 * @param value The string to replace environment variables in
 	 * @param env The PRISMS environment containing the environment variables to replace
 	 * @return The replaced value
@@ -936,7 +965,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Evaluates a condition expression
-	 * 
+	 *
 	 * @param ifStr <p>
 	 *        The expression to evaluate. This may be a binary expression with comparison operator ("=" (or "=="), "!=",
 	 *        "&gt;", "&lt;", "&gt;=", "&lt;="), usually comparing an environment variable to a constant value. If an
@@ -1082,7 +1111,7 @@ public abstract class PrismsConfig implements Cloneable
 	 * not, the one without the tag will be deemed more recent. This is inspired by alpha, beta, and release-candidate
 	 * tags. E.g. 3.0.0 &gt; 3.0.0RC2 &gt; 3.0.0b &gt; 3.0.0a
 	 * </p>
-	 * 
+	 *
 	 * @param v1 The first version string to compare
 	 * @param v2 The second version string to compare
 	 * @return 1 if the first version is newer, -1 if the first version is older, 0 if the versions are the same
@@ -1250,7 +1279,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Creates a PrismsConfig
-	 * 
+	 *
 	 * @param env The PRISMS environment to use to replace referred environment variables with
 	 * @param name The name for the config
 	 * @param value The base value for the config
@@ -1264,7 +1293,7 @@ public abstract class PrismsConfig implements Cloneable
 
 	/**
 	 * Tests this class by allowing the user to type XML in the console and have it interpreted on-the-fly
-	 * 
+	 *
 	 * @param args Command-line arguments, ignored
 	 */
 	public static void main(String [] args)
