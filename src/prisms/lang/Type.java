@@ -48,7 +48,7 @@ public class Type
 
 	/**
 	 * Parses a type from a java.lang.reflect.Type
-	 * 
+	 *
 	 * @param type The reflected type to represent
 	 */
 	public Type(java.lang.reflect.Type type)
@@ -141,7 +141,7 @@ public class Type
 				return c == Object.class;
 		}
 		else
-			return c.isAssignableFrom(theBaseType);
+			return isAssignable(c, theBaseType);
 	}
 
 	/**
@@ -290,54 +290,41 @@ public class Type
 			return true;
 		if(to == Void.TYPE)
 			return false;
-		if(to.isPrimitive())
-		{
-			if(!from.isPrimitive())
-				return false;
-			if(to == Boolean.TYPE)
-				return false;
-			if(to == Character.TYPE)
-				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
-			if(to == Double.TYPE)
-				return from != Boolean.TYPE;
-			if(to == Float.TYPE)
-				return from != Boolean.TYPE && from != Double.TYPE;
-			if(to == Long.TYPE)
-				return from != Boolean.TYPE && from != Double.TYPE && from != Float.TYPE;
-			if(to == Integer.TYPE)
-				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
-			if(to == Short.TYPE)
-				return from == Short.TYPE || from == Byte.TYPE;
-			if(to == Byte.TYPE)
-				return from == Byte.TYPE;
-		}
-		if(from.isPrimitive())
-		{
-			if(to == Boolean.class)
-				return false;
-			if(to == Character.class)
-				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
-			if(to == Double.class)
-				return from != Boolean.TYPE;
-			if(to == Float.class)
-				return from != Boolean.TYPE && from != Double.TYPE;
-			if(to == Long.class)
-				return from != Boolean.TYPE && from != Double.TYPE && from != Float.TYPE;
-			if(to == Integer.class)
-				return from == Character.TYPE || from == Integer.TYPE || from == Short.TYPE || from == Byte.TYPE;
-			if(to == Short.class)
-				return from == Short.TYPE || from == Byte.TYPE;
-			if(to == Byte.class)
-				return from == Byte.TYPE;
-		}
 		if(from == NULL.getClass())
 			return true;
+
+		Class<?> primTo = getPrimitiveType(to);
+		if(primTo == null)
+			return false;
+		Class<?> primFrom = getPrimitiveType(from);
+		if(primFrom == null)
+			return false;
+		if(primTo == primFrom)
+			return true;
+
+		if(primTo == Boolean.TYPE)
+			return false;
+		if(primTo == Character.TYPE)
+			return primFrom == Character.TYPE || primFrom == Integer.TYPE || primFrom == Short.TYPE || primFrom == Byte.TYPE;
+		if(primTo == Double.TYPE)
+			return primFrom != Boolean.TYPE;
+		if(primTo == Float.TYPE)
+			return primFrom != Boolean.TYPE && primFrom != Double.TYPE;
+		if(primTo == Long.TYPE)
+			return primFrom != Boolean.TYPE && primFrom != Double.TYPE && primFrom != Float.TYPE;
+		if(primTo == Integer.TYPE)
+			return primFrom == Character.TYPE || primFrom == Integer.TYPE || primFrom == Short.TYPE || primFrom == Byte.TYPE;
+		if(primTo == Short.TYPE)
+			return primFrom == Short.TYPE || primFrom == Byte.TYPE;
+		if(primTo == Byte.TYPE)
+			return primFrom == Byte.TYPE;
+
 		return false;
 	}
 
 	/**
 	 * Resolves a type that may be dependent upon this type (generics)
-	 * 
+	 *
 	 * @param type The type to resolve
 	 * @param declaringClass The class that declared the given type
 	 * @param methodTypes A map of type variable name/type of the inferred types of an invocation for a method's declared type variables.
@@ -655,7 +642,7 @@ public class Type
 	/**
 	 * Like {@link #toString()}, but shortens this type's string representation wherever possible by cutting off package names where they
 	 * can be made implicit.
-	 * 
+	 *
 	 * @param env The evaluation environment to check type imports of. May be null.
 	 * @return A string representing this type
 	 */
@@ -709,7 +696,7 @@ public class Type
 
 	/**
 	 * Checks to see whether a class may be represented without its package name
-	 * 
+	 *
 	 * @param t The class to check
 	 * @param env The evaluation environment to check the class in. May be null.
 	 * @return True if the class belongs to the default package or java.lang, or if the class's name or its package have been imported into
