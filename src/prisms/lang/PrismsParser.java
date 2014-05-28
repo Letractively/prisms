@@ -166,7 +166,7 @@ public class PrismsParser {
 
 	/**
 	 * Configures the parser
-	 * 
+	 *
 	 * @param config The configuration to configure the types of structures the parser can parse
 	 */
 	public void configure(PrismsConfig config) {
@@ -174,6 +174,16 @@ public class PrismsParser {
 			throw new IllegalStateException("Additional configuration cannot be performed after validation, which occurs at first parsing");
 		for(PrismsConfig entity : config.subConfigs())
 			insertOperator(entity);
+	}
+
+	/**
+	 * Configures the parser
+	 *
+	 * @param configXml The configuration XML resource to configure the types of structures the parser can parse
+	 * @throws java.io.IOException If the XML cannot be read or parsed
+	 */
+	public void configure(java.net.URL configXml) throws java.io.IOException {
+		configure(PrismsConfig.fromXml(null, configXml));
 	}
 
 	/** @return The list of operators this parser uses to match text against */
@@ -295,7 +305,7 @@ public class PrismsParser {
 
 	/**
 	 * Checks this parser's configuration for errors
-	 * 
+	 *
 	 * @throws IllegalArgumentException If an error is found in the configuration
 	 */
 	public void validateConfig() throws IllegalArgumentException {
@@ -332,7 +342,7 @@ public class PrismsParser {
 
 	/**
 	 * Parses crude structure matches from text
-	 * 
+	 *
 	 * @param cmd The command to parse
 	 * @return The structure matches parsed
 	 * @throws ParseException If parsing fails
@@ -399,7 +409,7 @@ public class PrismsParser {
 
 	/**
 	 * Parses logical syntactic structures from crude matches
-	 * 
+	 *
 	 * @param parent The parent parse structure
 	 * @param matches The matches parsed from the command
 	 * @return The syntax structures parsed from the matches
@@ -928,7 +938,7 @@ public class PrismsParser {
 
 	/**
 	 * A unit test for the parser--attempts to parse and evaluate the content of UnitTest.txt
-	 * 
+	 *
 	 * @param args Command-line arguments, ignored
 	 */
 	public static void main(String [] args) {
