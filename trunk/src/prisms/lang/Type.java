@@ -15,15 +15,9 @@ public class Type
 
 	private Type theBoundType;
 
-	/** The object whose class is returned for the type of the "null" identifier */
-	public static final Object NULL = new Object()
-	{
-		@Override
-		public String toString()
-		{
-			return "null";
-		}
-	};
+	/** The type of the "null" identifier */
+	public static final Type NULL = new Type(new Object() {
+	}.getClass());
 
 	/**
 	 * @param base The base type
@@ -139,7 +133,8 @@ public class Type
 				return c.isAssignableFrom(c);
 			else
 				return c == Object.class;
-		}
+		} else if(this == NULL)
+			return true;
 		else
 			return isAssignable(c, theBaseType);
 	}
@@ -150,7 +145,7 @@ public class Type
 	 */
 	public boolean isAssignable(Type t)
 	{
-		if(t != null && t.theBaseType == NULL.getClass())
+		if(t != null && t == NULL)
 			return !isPrimitive();
 		if(isBounded)
 		{
@@ -290,8 +285,6 @@ public class Type
 			return true;
 		if(to == Void.TYPE)
 			return false;
-		if(from == NULL.getClass())
-			return true;
 
 		Class<?> primTo = getPrimitiveType(to);
 		if(primTo == null)
@@ -578,9 +571,9 @@ public class Type
 	 */
 	public Type getCommonType(Type t)
 	{
-		if(theBaseType == NULL.getClass())
+		if(this == NULL)
 			return t;
-		if(t.theBaseType == NULL.getClass())
+		if(t == NULL)
 			return this;
 		if(isAssignable(t))
 			return this;
@@ -657,7 +650,8 @@ public class Type
 				ret.append(isUpperBound ? "extends " : "super ");
 				ret.append(theBoundType.toString(env));
 			}
-		}
+		} else if(this == NULL)
+			ret.append("null");
 		else
 		{
 			int arrayDim = 0;
@@ -670,8 +664,6 @@ public class Type
 			String imp = isImported(base, env);
 			if(imp != null)
 				ret.append(imp);
-			else if(base == NULL.getClass())
-				ret.append("null");
 			else
 				ret.append(base.getName());
 			if(theParamTypes.length > 0)

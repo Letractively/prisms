@@ -210,8 +210,6 @@ public class ParsedType extends prisms.lang.ParsedItem {
 			return Short.TYPE;
 		else if("byte".equals(name))
 			return Byte.TYPE;
-		else if("null".equals(name))
-			return Type.NULL.getClass();
 		else if("void".equals(name))
 			return Void.TYPE;
 		Class<?> clazz;
