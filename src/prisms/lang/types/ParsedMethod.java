@@ -291,7 +291,7 @@ public class ParsedMethod extends Assignable {
 				}
 			}
 			java.lang.reflect.Method[] methods;
-			if(ctxType.getType().getBaseType() == Type.NULL.getClass())
+			if(ctxType.getType() == Type.NULL)
 				methods = Object.class.getMethods();
 			else
 				methods = ctxType.getType().getBaseType().getMethods();
@@ -455,7 +455,7 @@ public class ParsedMethod extends Assignable {
 
 	/**
 	 * Infers, where possible, the types used in an invocation for a method's type parameters
-	 * 
+	 *
 	 * @param inferred The map to fill in--entries are type variable name/type
 	 * @param method The method to infer the types for
 	 * @param argTypes The types of the arguments to the method for the invocation

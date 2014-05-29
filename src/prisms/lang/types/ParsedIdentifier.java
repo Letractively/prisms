@@ -41,7 +41,7 @@ public class ParsedIdentifier extends Assignable {
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType, boolean withValues)
 		throws prisms.lang.EvaluationException {
 		if("null".equals(theName))
-			return new EvaluationResult(new prisms.lang.Type(prisms.lang.Type.NULL.getClass()), null);
+			return new EvaluationResult(prisms.lang.Type.NULL, null);
 		if(!asType) {
 			prisms.lang.Type type = env.getVariableType(theName);
 			if(type != null)

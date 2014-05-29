@@ -16,7 +16,7 @@ public class ParsedNull extends prisms.lang.ParsedItem
 	public prisms.lang.EvaluationResult evaluate(prisms.lang.EvaluationEnvironment env, boolean asType,
 		boolean withValues) throws prisms.lang.EvaluationException
 	{
-		return new prisms.lang.EvaluationResult(new prisms.lang.Type(prisms.lang.Type.NULL.getClass()), null);
+		return new prisms.lang.EvaluationResult(prisms.lang.Type.NULL, null);
 	}
 
 	@Override
