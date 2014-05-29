@@ -485,6 +485,23 @@ public class Type
 			return false;
 	}
 
+	/** @return Whether instances of this type can be used in floating-point math operations */
+	public boolean isMathable() {
+		Class<?> prim = getPrimitiveType(theBaseType);
+		if(prim == null)
+			return false;
+		return prim == Double.TYPE || prim == Float.TYPE || prim == Long.TYPE || prim == Integer.TYPE || prim == Short.TYPE
+			|| prim == Byte.TYPE || prim == Character.TYPE;
+	}
+
+	/** @return Whether instances of this type can be used in integer-only math operations */
+	public boolean isIntMathable() {
+		Class<?> prim = getPrimitiveType(theBaseType);
+		if(prim == null)
+			return false;
+		return prim == Long.TYPE || prim == Integer.TYPE || prim == Short.TYPE || prim == Byte.TYPE || prim == Character.TYPE;
+	}
+
 	/** @return This type's base type. Will be null if this is a wildcard type. */
 	public Class<?> getBaseType()
 	{
