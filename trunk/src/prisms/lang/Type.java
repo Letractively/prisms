@@ -225,6 +225,8 @@ public class Type
 			{
 				if(o instanceof Character)
 					return o;
+				else if(o instanceof Integer)
+					return (char) ((Integer) o).intValue();
 			}
 			else if(theBaseType == Double.TYPE)
 			{
