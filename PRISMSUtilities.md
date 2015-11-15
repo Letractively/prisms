@@ -1,0 +1,69 @@
+## Although PRISMS is designed to be used as a framework that applications operate in, many different types of utilities have been developed for use within the framework, but are designed to be used independent of the framework as a whole. ##
+
+  * **HttpConnector:** Provides methods that make it easy to make various kinds of calls to HTTP servers, including HTTPS server- and client-certificate options, POST parameters and data upload.
+  * **Records & Synchronization:** This feature consists of a table that keeps track of changes to a set of data in memory (via code integrated into the API where changes are made to the data set in memory). This table keeps a complete history of the data set (auto-purge capabilities exist to keep the size small if desired). This complete history allows several features for the data set:
+    * Undo/redo capabilities
+    * Data accountability--complete records of who did what to which piece of data when
+    * Duplication of a dynamic data set using a common database
+    * Synchronization of data sets across network connections.
+> > See the [Synchronization](http://code.google.com/p/prisms/wiki/Synchronization) wiki page for more information.
+  * **Searchable APIs:** This feature consists of interfaces and helper mechanisms that allow the creation of custom data retrieval APIs that can be searched by field.  This allows APIs to be greatly simplified by having only a couple methods that accept search objects and return all data matching the search.  Searchable APIs never need to be extended to access data in a different way. In addition, Searchable APIs can create prepared searches that allow for improved performance for repeated searches.
+  * **Array Utilities:** PRISMS uses arrays instead of collections for most of its data sets. This is nice from a memory and code-simplicity standpoint, but causes problems in that arrays are constant-length and creating new arrays can cause performance problems if it is done too often. The ArrayUtils utility class was created to help make dealing with one-dimensional data sets easier. It provides several utilities:
+    * Add methods to create new arrays with the elements of an array and a new element or to merge several arrays.
+    * Remove methods to create a new array with some data removed
+    * Searching methods to locate the index of a particular element within an array
+    * Comparisons to determine equality of two arrays, potentially regardless of order
+    * An adjust method to intelligently control the content of a data set in response to changes to a related data set
+    * A sorter that allows for customized operation to data that needs to be reordered.
+> > See the [ArrayUtils](http://code.google.com/p/prisms/wiki/ArrayUtils) wiki page for more information and details
+  * **JSON Utilities:** While XML has an overwhelming variety of resources for parsing and manipulating the format, the JSON format has relatively sparse utilities.  JSON has some great advantages over XML in processing time, simplicity, and space. PRISMS provides several utilities for JSON-based parsing, manipulation, and printing.:
+    * A validation utility that validates org.json.simple JSON data against a schema which is itself specified in JSON format
+    * A serial parser. SAX-like capability for JSON allows extremely large JSON data streams to be parsed piece-wise, giving the application a more scalable memory model. This utility also allows slight but useful departures from the JSON data format standard, e.g. hexadecimal numbers and comments.
+    * A serial writer. The opposite of the serial parser, this allows JSON data to be written to a stream piece-wise, eliminating the necessity for large objects to be compiled into memory for the sole purpose of writing them to a stream.
+    * Formatting. A compact, no-white-space JSON stream can be formatted to be more easily read by a person.
+  * **JITR:** Java InTerpretation at Runtime. PRISMS features a runtime java parser and interpreter.  The prisms.lang.InterpreterPanel class allows the user to type java commands at runtime to be parsed and executed. See the [JITR Wiki](http://code.google.com/p/prisms/wiki/JITR).
+  * **Concurrency utilities:** Programming in a multi-threaded environment has many challenges.  Since PRISMS was designed for serving multiple users at once, it uses many customized utilities to help manage resources in a multi-threaded environment:
+    * ThreadPoolWorker: Allows an environment to execute tasks distributed over several processors
+    * ResourcePool: Maintains a set of objects that can be retrieved only once until they are released back into the pool. This can be used, for example, to pool a set of non-thread-safe objects for use in a multi-threaded environment.
+  * **Program inspection:** Although full integration into the PRISMS framework is necessary for many of the data inspection capabilities, a profiler utility, ProgramTracker is available for use outside the framework. For ProgramTracker to work, calls need to be made within the profiled code to alert the profiler when certain routines are started and finished. After the program is run, the tracker can print data detailing how long was spent in each routine, making it much easier to find performance bottlenecks. This capability is fully integrated into the PRISMS framework, so PRISMS-integrated applications will benefit even more fully from this feature.
+    * Used by the ProgramTracker is RunningStatistic, which keeps track of mean value, standard deviation, max, min, and other useful statistics on a set of float data that is fed float-by-float.
+  * **Maps and Collections:** The prisms.util package contains many customized implementations of java.util.Collection and java.util.Map. Some may not actually implement the interfaces due to the slightly different role they fill that departs from the contracts of the respective java.util interfaces.
+    * Demand Cache: This thread-safe map purges itself after a certain interval (but only when it is used) to remove data that is either old and unused or taking up too much space for its usefulness. A preferred size and an entry half-life can be set on the cache to determine how much data and which items are purged. A "qualitizer" can be set in the cache to allow custom logic as to how large each item is and how useful it is to the caller. This also will affect which items are purged. This type of cache is extremely useful and practical because it allows the developer to keep a reasonable cache among a potentially huge or infinite set of data with no customized cache management.
+    * Soft Reference Cache: Similar to a demand cache, but this map lets the Java VM do the cleanup. Each element is stored in a soft reference. Since the JVM contract states that the VM must garbage collect any items that are not strongly referenced before throwing an OutOfMemoryError, this type of cache guarantees that it will not be the cause of such a memory catastrophe. However, it is not as customizable as DemandCache for which entries are purged, and the soft-reference purging functionality of the JVM is unpredictable.
+    * Subclass Map: This type of map allows objects to be stored by class. Then, when the get(Class) method is called, an item will be returned if a value has been stored for either the given class or any of its super classes. If a value has been stored for Object.class, the map will never return null, but if a value has been stored for a more immediate super class of the given class, that value will be returned.
+    * boolean, int, long, and float lists: Provides all the functionality of java.util.List and more for primitive types. Except for boolean, each type has a unique option to eliminate duplicate values and a sorted option.
+    * ArrayMap: This is a map with a very special role. Its performance is terrible for large data sets, but its purpose is that it is able to keep a consistent mapping for data sets whose keys are not immutable. Most maps rely on the consistency of the equals, hashCode, and/or compareTo methods. If the behavior of these is different for a key between when the key/value pair is inserted and when the key is used in the get(Object) method, the original mapping cannot be found. ArrayMap sacrifices performance to keep this mapping consistent, as long as the methods behave the same for the object in the mapping and the one passed to get(Object).
+  * **Color Utilities:** The ColorUtils class provides several methods to manipulate colors:
+    * getDarkness: Returns a quantitative value describing how dark a color will appear to a user on the screen. This can be used to determine surrounding colors to make sure the colors are distinct.
+    * bleach: Returns a color that is lighter than the given color by a given amount
+    * stain: Returns a color that is darker than the given color by a given amount
+  * **Web Widgets:** PRISMS provides several types of widgets that may be used on a web front end.
+    * Some of these are hooked in to the framework:
+      * PrismsTree: A hierarchical display of data whose structure is present on the server. All user interaction is handled by hooks on the server, making display of such data sets exceptionally easy.
+      * SearchableList: Allows the user to search through very large lists of data to find what they are looking for very quickly. A scalable subclass is also available so that only a small piece of a large list is present at a time. The user can paginate through the full set or a subset matching the entered search. This can greatly increase performance associated with loading the application for large lists
+      * Preferences: PRISMS provides a preferences utility/widget that allows server-side code to specify variables of certain types that the user can modify to adjust the behavior of an application. This makes user interface development easier since the interface can be made more customizable without additional widgets to specify the parameters. Preferences can be of type:
+        * Boolean: Represented with a check box
+        * Integer (non-negative optional): Represented with a spinner
+        * Float (non-negative optional): Represented with a number box
+        * Proportion: Represented with a slider
+        * String: Represented with a text box. The input is not validated by the framework, but listeners can be created to ensure the value meets any criteria
+        * Enum: Represented with a select box. Each option represents an enumerated value of an enum class.
+        * Color: Represented with a color picker
+      * UI: Allows server-side code to display information to or request input from a user. Several UI operations are available:
+        * error: Displays an error message to the user
+        * warn: Displays a warning message to the user
+        * info: Displays an informational message to the user
+        * confirm: Displays a message to the user and asks them to choose between one of two options, typically "OK" or "Cancel".
+        * input: Asks the user to provide an arbitrary string via a text box
+        * select: Asks the user to select between one of any number of options via a select box
+        * progress: Informs the user that a task is taking place which may require them to wait. The progress bar can be quantitative or not and the task may be cancelable or not.
+    * But others are available for general use, though they are written using the Dojo javascript library:
+      * Color Picker: Displays a complete color hexagon along with RGB values. This visually-appealing editor allows the user to specify absolutely any 32-bit color (with alpha channel) in a very intuitive way.
+      * Certificate viewer: Allows the user to view an X509 certificate such as those provided by HTTPS servers. This viewer functions similarly to the viewers available in most browsers.
+      * Collapse Pane: Allows a great deal of information to be present on a single page without overwhelming the user. Multiple collapse panes can be stacked vertically and the user can expand those he wants to see by clicking on the header. Expand/collapse functionality is enabled programmatically as well.
+      * SortTable: Displays a table with customizable field types supporting icons, cell and text colors, and links with customizable functionality.
+      * Time Amount Editor: Allows the user to specify a time amount in units of years/months/days/hours/minutes/seconds. The years/months and seconds can be hidden.
+  * **Miscellaneous Utilities:** The PrismsUtils class has several utility methods that are very useful, but simple and unique enough to not belong in a separate class or package:
+    * Time Printing: Utilities for printing out representations of times with various precisions without creating new DateFormat objects everywhere.
+    * Stack trace patching: When a Runnable is given to a different thread to run and an error happens in the run() method, it can be difficult to determine what caused the problem if the real cause of the exception happened before the Runnable handoff since that information is not contained in the stack trace. PrismsUtils provides a method that takes one exception (created before the handoff and passed to the new thread along with the Runnable) and another (the one representing the error) and patches them to make it seem as if the handoff never occurred and the run() method was called from the original thread. This can be an invaluable tool in debugging multi-threaded code.
+    * Tree structure searching: this utility can search any type of tree structure for any node using caller-provided logic
